@@ -15,7 +15,7 @@ install:
   - sudo -H conda init
   #- sudo -H conda update conda --yes
   #- sudo -H conda update conda --yes
-  - deps='pip numpy pandas scikit-learn'
+  - deps='pip numpy pandas scikit-learn coverage nose'
   - conda create -p $HOME/py --yes $deps "python=$TRAVIS_PYTHON_VERSION"
   - export PATH=$HOME/py/bin:$PATH
   # install your own package into the environment
