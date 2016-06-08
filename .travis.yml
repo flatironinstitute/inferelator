@@ -7,10 +7,10 @@ install:
   #- pip install -r requirements.txt
   #- pip install 
   # Install conda
-  - sudo pip install conda
+  - sudo -H pip install conda
   # install deps
-  - sudo conda init
-  - sudo conda update conda --yes
+  - sudo -H conda init
+  - sudo -H conda update conda --yes
   - deps='pip numpy pandas sklearn'
   - conda create -p $HOME/py --yes $deps "python=$TRAVIS_PYTHON_VERSION"
   - export PATH=$HOME/py/bin:$PATH
