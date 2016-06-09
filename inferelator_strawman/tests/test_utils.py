@@ -38,7 +38,7 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(dicts, expect)
 
     def test_conditions_from_tsv(self):
-        text = unicode(
+        text = u"" + (
             "\tcond1\tcond2\n"
             "gene1\t1\t2\n"
             "gene2\t3\t4\n"
