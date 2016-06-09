@@ -12,7 +12,24 @@ FALSE\t"f"\tNA\tNA\t"c4"
 FALSE\t"e"\tNA\tNA\t"c5"
 """.strip()
 
+expression_data_1 = u"""
+\t"wt"\t"c1"\t"c2"\t"c3"\t"c4"\t"c5"
+gene1\t1\t1\t1\t1\t1\t1
+gene2\t0\t0\t0\t0\t0\t0
+""".strip()
+
 class TestUtils(unittest.TestCase):
+
+    def test_separate_time_series(self):
+        m_dicts = self.test_metadata_dicts()
+        f = StringIO(expression_data_1)
+        conditions = utils.conditions_from_tsv(f)
+        (ts_dict, c_dict) = utils.separate_time_series(m_dicts, conditions)
+        self.assertEqual({"wt", "c1", "c3", "c5"}, set(c_dict.keys()))
+        assert len(ts_dict) == 1
+        ts = ts_dict["c4"]
+        name_order = ts.get_condition_name_order()
+        self.assertEqual(["c4", "c2"], name_order)
 
     def test_metadata_df(self):
         f = StringIO(metadata_text_1)
@@ -36,6 +53,7 @@ class TestUtils(unittest.TestCase):
             e = expect[name]
             self.assertEqual(d, e)
         self.assertEqual(dicts, expect)
+        return dicts
 
     def test_conditions_from_tsv(self):
         text = u"" + (
