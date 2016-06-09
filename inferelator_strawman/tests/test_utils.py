@@ -46,7 +46,7 @@ class TestUtils(unittest.TestCase):
             )
         f = StringIO(text)
         conditions = utils.conditions_from_tsv(f)
-        self.assertEqual(["cond1", "cond2"], conditions.keys())
+        self.assertEqual(["cond1", "cond2"], list(conditions.keys()))
         cond1 = conditions["cond1"]
         cgm = cond1.gene_mapping
         self.assertEqual({"gene1": 1, "gene2": 3, "gene3":5}, cgm.to_dict())
