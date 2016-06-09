@@ -1,8 +1,8 @@
 import unittest
 from .. import utils
-import StringIO
+from io import StringIO
 
-metadata_text_1 = """
+metadata_text_1 = u"""
 "isTs"\t"is1stLast"\t"prevCol"\t"del.t"\t"condName"
 FALSE\t"e"\tNA\tNA\t"wt"
 FALSE\t"e"\tNA\tNA\t"c1"
@@ -15,7 +15,7 @@ FALSE\t"e"\tNA\tNA\t"c5"
 class TestUtils(unittest.TestCase):
 
     def test_metadata_df(self):
-        f = StringIO.StringIO(metadata_text_1)
+        f = StringIO(metadata_text_1)
         df = utils.metadata_df(f)
         self.assertEqual({'del.t', 'is1stLast', 'isTs', 'prevCol'}, set(df.keys()))
         return df
@@ -38,13 +38,13 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(dicts, expect)
 
     def test_conditions_from_tsv(self):
-        text = (
+        text = unicode(
             "\tcond1\tcond2\n"
             "gene1\t1\t2\n"
             "gene2\t3\t4\n"
             "gene3\t5\t4\n"
             )
-        f = StringIO.StringIO(text)
+        f = StringIO(text)
         conditions = utils.conditions_from_tsv(f)
         self.assertEqual(["cond1", "cond2"], conditions.keys())
         cond1 = conditions["cond1"]
