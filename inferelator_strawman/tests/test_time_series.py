@@ -37,3 +37,21 @@ class TestTimeSeries(unittest.TestCase):
         self.assertEqual(9, sg1r.gene_level_before)
         self.assertEqual(6, sg1r.gene_level)
         self.assertEqual(12, sg1r.time_interval)
+        return ts
+
+    def test_transition_response(self):
+        tr = time_series.TransitionResponse(tau_half_life=2.0)
+        first_params = time_series.ResponseParameters("x", None,
+            gene_level_before=None, gene_level=2, time_interval=0)
+        first_response = tr.gene_response(first_params)
+        # steady state response is just the gene level.
+        self.assertEqual(2, first_response)
+        next_params = time_series.ResponseParameters("x", None,
+            gene_level_before=2, gene_level=2, time_interval=8)
+        next_response = tr.gene_response(next_params)
+        self.assertEqual(1, next_response)
+        self.assertEqual(2, first_response)
+        other_params = time_series.ResponseParameters("x", None,
+            gene_level_before=4, gene_level=2, time_interval=2)
+        other_response = tr.gene_response(other_params)
+        self.assertEqual(0, other_response)

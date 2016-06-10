@@ -17,8 +17,41 @@ class ResponseParameters:
         self.gene_level = gene_level
         self.time_interval = time_interval
 
+class TransitionResponse:
+
+    """
+    The "y" response value for a gene in a condition in a time series.
+    """
+    # XXXX This is my reading of Greenfield et al. p1062.
+    # -- it doesn't seem to correspond exactly to calculations in
+    # https://github.com/ChristophH/Inferelator/blob/master/R_scripts/design_and_response.R
+    # Therefore the current code is probably wrong.
+
+    def __init__(self, tau_half_life):
+        assert tau_half_life > 0, 'half life must be positive'
+        # XXXX other restrictions on tau?
+        self.tau_half_life = tau_half_life
+
+    def gene_response(self, parameters):
+        gene_level = 1.0 * parameters.gene_level
+        gene_level_before = parameters.gene_level_before
+        if gene_level_before is None:
+            # first condition is assumed to be in a steady state.
+            return gene_level
+        # otherwise compute finite difference
+        tau = self.tau_half_life
+        interval = parameters.time_interval
+        assert interval > 0, "time interval must be positive."
+        level_change = 1.0 * (gene_level - gene_level_before)
+        # XXXX is this right?
+        result = (level_change/interval) + (gene_level / tau)
+        return result
 
 class TimeSeries:
+
+    """
+    A time series is a sequence of conditions separated by time intervals.
+    """
 
     def __init__(self, first_condition):
         first_condition_name = first_condition.name
@@ -62,10 +95,16 @@ class TimeSeries:
                 interval = interval_before[this_condition]   # raises KeyError if missing.
                 interval_order.append(interval)
         assert set(self._conditions_by_name) == conditions_seen, (
-            "not all conditions ordered:" + repr(set(self._conditions_by_name), conditions_seen))
+            "not all conditions ordered:" + 
+            repr((set(self._conditions_by_name), conditions_seen)))
         self._condition_name_order = name_order
         self._time_interval_order = interval_order
         return name_order
+
+    def get_condition_order(self):
+        cbn = self._conditions_by_name
+        name_order = self.get_condition_name_order()
+        return [cbn[name] for name in name_order]
         
     def get_interval_order(self):
         self.get_condition_name_order()
