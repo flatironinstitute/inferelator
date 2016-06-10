@@ -20,6 +20,12 @@ gene2\t0\t0\t0\t0\t0\t0
 
 class TestUtils(unittest.TestCase):
 
+    def test_read_tf_names(self):
+        text = u'"G1"\n"G2"\n"G3"\n'
+        f = StringIO(text)
+        tf_names = utils.read_tf_names(f)
+        self.assertEqual(["G1", "G2", "G3"], tf_names)
+
     def test_separate_time_series(self):
         m_dicts = self.test_metadata_dicts()
         f = StringIO(expression_data_1)

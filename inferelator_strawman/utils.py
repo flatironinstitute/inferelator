@@ -76,3 +76,9 @@ def separate_time_series(metadata_dicts, conditions_dict):
         metadata = metadata_dicts[name]
         assert metadata["is1stLast"] == "e", "time series entry not classified " + repr(name)
     return (time_series_dict, conditions_dict)
+
+def read_tf_names(file_like):
+    "Read transcription factor names from one-column tsv file.  Return list of names."
+    exp = pd.read_csv(file_like, sep="\t", header=None)
+    assert exp.shape[1] == 1, "transcription factor file should have one column "
+    return list(exp[0])
