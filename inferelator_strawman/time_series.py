@@ -1,5 +1,23 @@
 import pandas as pd
 
+class ResponseParameters:
+
+    """Container for time series data for a gene in a condition
+    Which may be used to determine the response value
+    for that gene in the condition.
+    """
+
+    def __init__(self, gene_name, condition,
+        gene_level_before, gene_level, time_interval):
+        self.gene_name = gene_name
+        self.condition = condition
+        # level for gene in previous condition (or None if first)
+        self.gene_level_before = gene_level_before
+        # level for gene in this condition
+        self.gene_level = gene_level
+        self.time_interval = time_interval
+
+
 class TimeSeries:
 
     def __init__(self, first_condition):
@@ -10,6 +28,20 @@ class TimeSeries:
         self._time_interval_before_condition = {}
         self._condition_name_order = None
         self._time_interval_order = None
+
+    def get_response_parameters(self, condition_name, gene_name):
+        names = self.get_condition_name_order()
+        intervals = self.get_interval_order()
+        condition = self._conditions_by_name[condition_name]
+        index = names.index(condition_name)
+        interval = intervals[index]
+        gene_level = condition.response_scalar(gene_name)
+        gene_level_before = None
+        if index > 0:
+            condition_before = self._conditions_by_name[names[index-1]]
+            gene_level_before = condition_before.response_scalar(gene_name)
+        return ResponseParameters(gene_name, condition_name,
+            gene_level_before, gene_level, interval)
         
     def get_condition_name_order(self, force=False):
         if not force and self._condition_name_order is not None:

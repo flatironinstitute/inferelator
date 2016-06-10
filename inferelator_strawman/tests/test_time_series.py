@@ -29,3 +29,11 @@ class TestTimeSeries(unittest.TestCase):
         self.assertEqual([0, 12], interval_order)
         name_order_again =  ts.get_condition_name_order()
         assert name_order_again is name_order
+        fg1r = ts.get_response_parameters("first", "gene1")
+        self.assertEqual(None, fg1r.gene_level_before)
+        self.assertEqual(9, fg1r.gene_level)
+        self.assertEqual(0, fg1r.time_interval)
+        sg1r = ts.get_response_parameters("second", "gene1")
+        self.assertEqual(9, sg1r.gene_level_before)
+        self.assertEqual(6, sg1r.gene_level)
+        self.assertEqual(12, sg1r.time_interval)
