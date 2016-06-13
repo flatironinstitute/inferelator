@@ -21,6 +21,10 @@ class Condition:
         self.name = condition_name
         self.gene_mapping = pd.Series(gene_mapping)
 
+    def __repr__(self):
+        "printable representation for diagnostics."
+        return "Condition" + repr((self.name, id(self)))
+
     def response_scalar(self, gene_name):
         "Return the gene 'response' for this conditon."
         return self.gene_mapping[gene_name]

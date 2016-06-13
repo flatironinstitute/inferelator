@@ -43,3 +43,24 @@ class TestGeneModel(unittest.TestCase):
         got_design = model.design_matrix_ts(ts).tolist()
         expect_design = [[1.0], [5.0]]
         self.assertEqual(got_design, expect_design)
+
+    def test_design_and_response(self):
+        c1 = condition.Condition("c1", {"tf": 11, "g1": 2, "g2": 3, "g3": 4})
+        c2 = condition.Condition("c2", {"tf": 55, "g1": 6, "g2": 7, "g3": 8})
+        first = condition.Condition("first", {"tf": 1, "g1": 2, "g2": 2, "g3": 2})
+        second = condition.Condition("second", {"tf": 5, "g1": 6, "g2": 7, "g3": 8})
+        genes = ["g1", "g2", "g3"]
+        tfs = ["tf"]
+        tr = time_series.TransitionResponse(tau_half_life=2.0)
+        ts = time_series.TimeSeries(first)
+        ts.add_condition("first", second, 2)
+        model = gene_model.GeneModel(genes, tfs, tr)
+        dr = model.design_and_response([c1, c2], [ts])
+        self.assertEqual([c1, c2, first, second], dr.all_conditions)
+        self.assertEqual([[11], [55], [1], [5]], dr.design.tolist())
+        expect_response = [
+            [ 2,  3,  4],
+            [ 6,  7,  8],
+            [ 2,  2,  2],
+            [ 5,  6,  7]]
+        self.assertEqual(expect_response, dr.response.tolist())

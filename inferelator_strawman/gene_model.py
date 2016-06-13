@@ -76,3 +76,65 @@ class GeneModel:
         conditions = ts.get_condition_order()
         # XXXX is this right?
         return self.design_matrix(conditions)
+
+    def design_and_response(self, steady_state_conditions, time_series=None):
+        """
+        Generate a design and response matrix information for conditions
+        and time series.
+        
+        Parameters:
+        -----------
+        gene_model: GeneModel
+            The gene model to derive the matrices.
+        steady_state_conditions: list of Condition
+            Conditions not in time series.
+        time_series: list of TimeSeries
+            Sequence of condition time series.
+
+        Returns
+        -------
+        DesignAndResponseMatrices
+        """
+        return DesignAndResponseMatrices(self, steady_state_conditions, time_series)
+
+class DesignAndResponseMatrices:
+
+    """
+    Container for design and response matrix and information used to
+    derive the design and response matrices,
+
+    - self.design gives the design matrix.
+    - self.response gives the response matrix
+    - self.all_conditions gives the condition order associated with the matrix rows,
+    - self.gene_model gives the gene model used to derive the matrices.
+    - self.steady_state_conditions gives the conditions not in timeseries.
+    - self.timeseries gives the timeseries.
+
+    Parameters:
+    -----------
+    gene_model: GeneModel
+        The gene model to derive the matrices.
+    steady_state_conditions: list of Conditions
+        Conditions not in time series.
+    time_series: list of TimeSeries
+        Sequence of condition time series.
+    """
+
+    def __init__(self, gene_model, steady_state_conditions, time_series=None):
+        if time_series is None:
+            time_series = []
+        self.gene_model = gene_model
+        self.steady_state_conditions = steady_state_conditions
+        self.time_series = time_series
+        all_conditions = steady_state_conditions[:]
+        design_stack = []
+        response_stack = []
+        design_stack.append(gene_model.design_matrix(steady_state_conditions))
+        response_stack.append(gene_model.response_matrix(steady_state_conditions))
+        for ts in time_series:
+            design_stack.append(gene_model.design_matrix_ts(ts))
+            response_stack.append(gene_model.response_matrix_ts(ts))
+            all_conditions.extend(ts.get_condition_order())
+        self.design = np.concatenate(design_stack)
+        self.response = np.concatenate(response_stack)
+        self.all_conditions = all_conditions
