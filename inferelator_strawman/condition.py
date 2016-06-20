@@ -21,7 +21,7 @@ class Condition:
     
     def __init__(self, condition_name, gene_mapping):
         self.name = condition_name
-        self.gene_mapping = pd.Series(gene_mapping)
+        self.gene_mapping = pd.Series(gene_mapping, name=condition_name)
 
     def __repr__(self):
         "printable representation for diagnostics."

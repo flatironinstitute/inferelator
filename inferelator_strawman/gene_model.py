@@ -1,5 +1,7 @@
 
 import numpy as np
+import pandas as pd
+from . import condition
 
 class GeneModel:
 
@@ -19,6 +21,34 @@ class GeneModel:
         self.gene_names = gene_names
         self.tf_names = tf_names
         self.transition_response = transition_response
+
+    def meta_data_tsv(self, conds, tss):
+        """
+        return string TSV representation for condition meta data for timeseries's and conditions'
+        """
+        L = [condition.Condition.META_DATA_HEADER]
+        for cond in conds:
+            L.append(cond.meta_data_tsv_line())
+        for ts in tss:
+            L.append(ts.meta_data_tsv_lines())
+        return "".join(L)
+
+    def expression_data_frame(self, conds, tss):
+        """
+        Return a pandas data frame for all conditions and conditions in timeseries.
+        """
+        # order tfs before non-tfs
+        tfs = self.tf_names
+        tfset = set(tfs)
+        non_tfs = [g for g in self.gene_names if g not in tfset]
+        new_index = list(tfs) + list(non_tfs)
+        # non-time-series before time-series conditions
+        all_conditions = list(conds)
+        for ts in tss:
+            all_conditions.extend(ts.get_condition_order())
+        gene_mappings = [c.gene_mapping for c in all_conditions]
+        result = pd.concat(gene_mappings, axis=1).reindex(new_index)
+        return result
 
     def response_matrix(self, conditions):
         """

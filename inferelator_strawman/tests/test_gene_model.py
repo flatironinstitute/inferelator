@@ -4,6 +4,7 @@ from .. import condition
 from .. import time_series
 from .. import gene_model
 import pandas as pd
+import numpy as np
 
 class TestGeneModel(unittest.TestCase):
 
@@ -64,3 +65,14 @@ class TestGeneModel(unittest.TestCase):
             [ 2,  2,  2],
             [ 5,  6,  7]]
         self.assertEqual(expect_response, dr.response.tolist())
+        tsv = model.meta_data_tsv([c1, c2], [ts])
+        expect = (
+            'isTs\tis1stLast\tprevCol\tdel.t\tcondName\n'
+            'False\t"e"\tNA\tNA\t"c1"\n'
+            'False\t"e"\tNA\tNA\t"c2"\n'
+            'True\t"f"\tNA\tNA\t"first"\n'
+            'True\t"l"\t"first"\t2\t"second"\n')
+        self.assertEqual(tsv, expect)
+        df = model.expression_data_frame([c1, c2], [ts])
+        self.assertEqual(['c1', 'c2', 'first', 'second'], list(df.columns))
+        self.assertEqual(['tf', 'g1', 'g2', 'g3'], list(df.index))
