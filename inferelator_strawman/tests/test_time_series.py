@@ -11,8 +11,6 @@ class TestTimeSeries(unittest.TestCase):
         name_order = ts.get_condition_name_order()
         self.assertEqual([first.name], name_order)
         tsv = ts.meta_data_tsv_lines()
-        print
-        print repr(tsv)
         self.assertEqual('True\t"f"\tNA\tNA\t"first"\n', tsv)
         return ts
 
@@ -44,7 +42,7 @@ class TestTimeSeries(unittest.TestCase):
         # XXXX
         return ts
 
-    def xtest_3_conditions(self):
+    def test_3_conditions(self):
         first = condition.Condition("first", {"gene1": 9, "gene2": 0.12})
         second = condition.Condition("second", {"gene1": 6, "gene2": 3})
         third = condition.Condition("third", {"gene1": 3, "gene2": 1})
