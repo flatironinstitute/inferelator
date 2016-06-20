@@ -98,7 +98,7 @@ class TimeSeries:
                 prevCol=prevCol,
                 delt=delt)
             L.append(tsvline)
-        return "\n".join(L)
+        return "".join(L)
 
     def get_response_parameters(self, condition_name, gene_name):
         # XXXX This needs fixing: time series can have branching!

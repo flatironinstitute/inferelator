@@ -48,9 +48,15 @@ class TestTimeSeries(unittest.TestCase):
         third = condition.Condition("third", {"gene1": 3, "gene2": 1})
         ts = time_series.TimeSeries(first)
         ts.add_condition("first", second, 12)
-        ts.add_condition("first", third, 12)
+        ts.add_condition("first", third, 11)
         name_order = ts.get_condition_name_order()
         self.assertEqual([first.name, second.name, third.name], name_order)
+        tsv = ts.meta_data_tsv_lines()
+        expect = (
+            'True\t"f"\tNA\tNA\t"first"\n'
+            'True\t"l"\t"first"\t12\t"second"\n'
+            'True\t"l"\t"first"\t11\t"third"\n')
+        self.assertEqual(expect, tsv)
         # XXXX
         return ts
 
