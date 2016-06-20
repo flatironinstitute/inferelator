@@ -10,6 +10,10 @@ class TestTimeSeries(unittest.TestCase):
         ts = time_series.TimeSeries(first)
         name_order = ts.get_condition_name_order()
         self.assertEqual([first.name], name_order)
+        tsv = ts.meta_data_tsv_lines()
+        print
+        print repr(tsv)
+        self.assertEqual('True\t"f"\tNA\tNA\t"first"\n', tsv)
         return ts
 
     def test_no_add_after_compile(self):
@@ -37,6 +41,19 @@ class TestTimeSeries(unittest.TestCase):
         self.assertEqual(9, sg1r.gene_level_before)
         self.assertEqual(6, sg1r.gene_level)
         self.assertEqual(12, sg1r.time_interval)
+        # XXXX
+        return ts
+
+    def xtest_3_conditions(self):
+        first = condition.Condition("first", {"gene1": 9, "gene2": 0.12})
+        second = condition.Condition("second", {"gene1": 6, "gene2": 3})
+        third = condition.Condition("third", {"gene1": 3, "gene2": 1})
+        ts = time_series.TimeSeries(first)
+        ts.add_condition("first", second, 12)
+        ts.add_condition("first", third, 12)
+        name_order = ts.get_condition_name_order()
+        self.assertEqual([first.name, second.name, third.name], name_order)
+        # XXXX
         return ts
 
     def test_transition_response(self):

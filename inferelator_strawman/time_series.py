@@ -56,13 +56,52 @@ class TimeSeries:
     def __init__(self, first_condition):
         first_condition_name = first_condition.name
         self.first_condition_name = first_condition_name
-        self._condition_name_to_next_condition_name = {}
+        self._condition_name_to_previous_condition_name = {}
         self._conditions_by_name = {first_condition_name: first_condition}
         self._time_interval_before_condition = {}
         self._condition_name_order = None
-        self._time_interval_order = None
+        self._following_conditions = None
+
+    def following_conditions(self):
+        """
+        Return a dictionary mapping condition name to the set of conditions that follow.
+        """
+        if self._following_conditions is not None:
+            return self._following_conditions
+        result = {}
+        for name in self._conditions_by_name:
+            result[name] = set()
+        for (next_cond, prev_cond) in self._condition_name_to_previous_condition_name.items():
+            result[prev_cond].add(next_cond)
+        self._following_conditions = result
+        return result
+
+    def meta_data_tsv_lines(self):
+        "Return text containing lines for self in tsv format terminated by newline"
+        # XXXX This needs fixing: time series can have branching!
+        L = []
+        intervals_before = self._time_interval_before_condition
+        follows = self.following_conditions()
+        for condition in self.get_condition_order():
+            conditionName = condition.name
+            delt = intervals_before.get(conditionName)
+            is1stLast = "f"
+            follow = follows[conditionName]
+            prevCol = self._condition_name_to_previous_condition_name.get(conditionName)
+            if prevCol:
+                is1stLast = "m"
+                if not follow:
+                    is1stLast = "l"
+            tsvline = condition.meta_data_tsv_line(
+                isTs=True,
+                is1stLast=is1stLast,
+                prevCol=prevCol,
+                delt=delt)
+            L.append(tsvline)
+        return "\n".join(L)
 
     def get_response_parameters(self, condition_name, gene_name):
+        # XXXX This needs fixing: time series can have branching!
         names = self.get_condition_name_order()
         intervals = self.get_interval_order()
         condition = self._conditions_by_name[condition_name]
@@ -77,28 +116,27 @@ class TimeSeries:
             gene_level_before, gene_level, interval)
         
     def get_condition_name_order(self, force=False):
+        # XXXX This needs fixing: time series can have branching!
         if not force and self._condition_name_order is not None:
             return self._condition_name_order
-        conditions_seen = set()
-        this_condition = self.first_condition_name
         name_order = []
-        next_condition = self._condition_name_to_next_condition_name
+        follows = self.following_conditions()
         interval_before = self._time_interval_before_condition
-        interval_order = [0]  # no time elapsed before first condition (?)
-        while this_condition is not None:
+        stack = [self.first_condition_name]
+        conditions_seen = set()
+        while stack:
+            this_condition = stack.pop()
             conditions_seen.add(this_condition)
             name_order.append(this_condition)
-            this_condition = next_condition.get(this_condition)
-            assert this_condition not in conditions_seen, (
-                "Cycle found in timeseries condition description. " + repr((name_order, this_condition)))
-            if this_condition is not None:
-                interval = interval_before[this_condition]   # raises KeyError if missing.
-                interval_order.append(interval)
+            next_conditions = follows[this_condition]
+            assert len(next_conditions & conditions_seen) == 0, (
+                "Cycle found in timeseries condition description. " + repr((
+                    name_order, this_condition, next_conditions)))
+            stack.extend(reversed(sorted(next_conditions)))
         assert set(self._conditions_by_name) == conditions_seen, (
             "not all conditions ordered:" + 
             repr((set(self._conditions_by_name), conditions_seen)))
         self._condition_name_order = name_order
-        self._time_interval_order = interval_order
         return name_order
 
     def get_condition_order(self):
@@ -107,10 +145,13 @@ class TimeSeries:
         return [cbn[name] for name in name_order]
         
     def get_interval_order(self):
-        self.get_condition_name_order()
-        return self._time_interval_order
+        name_order = self.get_condition_name_order()
+        before = self._time_interval_before_condition
+        # Assume "interval before first" is zero
+        return [before.get(name, 0) for name in name_order]
         
     def add_condition(self, prev_condition_name, condition, time_interval_before_condition):
+        # XXXX This needs fixing: time series can have branching!
         assert self._condition_name_order is None, (
             "Cannot modify time series after it has been compiled into an ordered sequence."
         )
@@ -120,8 +161,4 @@ class TimeSeries:
         )
         self._conditions_by_name[name] = condition
         self._time_interval_before_condition[name] = time_interval_before_condition
-        assert prev_condition_name not in self._condition_name_to_next_condition_name, (
-            "duplicate following condition " + repr(prev_condition_name, name)
-        )
-        self._condition_name_to_next_condition_name[prev_condition_name] = name
- 
+        self._condition_name_to_previous_condition_name[name] = prev_condition_name
