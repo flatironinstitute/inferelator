@@ -33,7 +33,7 @@ class TestDRR(unittest.TestCase):
         drd.delT_max = 4
         drd.tau = 2
         (design, response) = drd.run(exp, meta)
-        print "design"
-        print design
-        print "response"
-        print response
+        print ("design")
+        print (design)
+        print ("response")
+        print (response)
