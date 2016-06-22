@@ -49,6 +49,24 @@ class TestDRAboveDeltMax(unittest.TestCase):
         self.assertEqual(list(ds['ss']), list(resp['ss']), 
             msg = 'Steady State design and response should be equal')
 
+    def test_response_matrix_steady_state_above_delt_max(self):
+        ds, resp = (self.design, self.response)
+        self.assertEqual(list(resp.columns), ['ts4', 'ss', 'ts1', 'ts2'])
+        self.assertEqual(list(resp['ts4']), list(self.exp['ts4']))
+        self.assertEqual(list(resp['ss']), list(self.exp['ss']))
+
+    def test_response_matrix_time_series_above_delt_max(self):
+        ds, resp = (self.design, self.response)
+        expression_1 = np.array(list(self.exp['ts1']))
+        expression_2 = np.array(list(self.exp['ts2']))
+        expected_response_1 = (expression_1 + self.tau * (expression_2 - expression_1) / (
+            float(self.meta['del.t'][1])))
+        expression_3 = np.array(list(self.exp['ts3']))
+        expected_response_2 = expression_2 + self.tau * (expression_3 - expression_2) /  (
+            float(self.meta['del.t'][2]))
+        np.testing.assert_almost_equal(np.array(resp['ts1']), expected_response_1)
+        np.testing.assert_almost_equal(np.array(resp['ts2']), expected_response_2)
+
 class TestDRR(unittest.TestCase):
 
     def xtest_save_R_driver(self):
