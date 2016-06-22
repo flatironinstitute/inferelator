@@ -12,7 +12,7 @@ R_dir = os.path.join(my_dir, "R_code")
 
 DR_module = os.path.join(R_dir, "design_and_response.R")
 
-R_template = """
+R_template = r"""
 source('{module}')
 
 meta.data <- read.table('{meta_file}', sep = ',', header = 1, row.names = 1)
@@ -40,6 +40,17 @@ def save_R_driver(to_filename, delTmin=0, delTmax=110, tau=45,
         outfile.write(text)
     return (to_filename, design_file, response_file)
 
+def convert_to_R_df(df):
+    """
+    Convert booleans to "TRUE" and "FALSE" so they will be read correctly from CSV
+    format by R.
+    """
+    new_df = pd.DataFrame(df)
+    for col in new_df:
+        if new_df[col].dtype == 'bool':
+            new_df[col] = [str(x).upper() for x in new_df[col]]
+    return new_df
+
 class DR_driver:
 
     """
@@ -61,8 +72,10 @@ class DR_driver:
         return os.path.join(self.target_directory, filename)
 
     def run(self, expression_data_frame, metadata_dataframe):
-        expression_data_frame.to_csv(self.path(self.exp_file))
-        metadata_dataframe.to_csv(self.path(self.meta_file))
+        exp = convert_to_R_df(expression_data_frame)
+        md = convert_to_R_df(metadata_dataframe)
+        exp.to_csv(self.path(self.exp_file))
+        md.to_csv(self.path(self.meta_file))
         (driver_path, design_path, response_path) = save_R_driver(
             to_filename=self.path(self.script_file),
             delTmin=self.delTmin,
