@@ -5,8 +5,19 @@ from .. import design_response_R
 
 my_dir = os.path.dirname(__file__)
 
+class TestDR(unittest.TestCase):
+    """
+    Superclass for common methods
+    """
+    def calculate_design_and_response(self):
+        drd = design_response_R.DR_driver()
+        drd.target_directory = os.path.join(my_dir, "artifacts")
+        drd.delTmin = self.delT_min
+        drd.delTmax = self.delT_max
+        drd.tau = self.tau
+        (self.design, self.response) = drd.run(self.exp, self.meta)
 
-class TestDRAboveDeltMax(unittest.TestCase):
+class TestDRAboveDeltMax(TestDR):
 
     def setUp(self):
         self.meta = pd.DataFrame()
@@ -22,14 +33,6 @@ class TestDRAboveDeltMax(unittest.TestCase):
         self.delT_max = 4
         self.tau = 2
         self.calculate_design_and_response()
-
-    def calculate_design_and_response(self):
-        drd = design_response_R.DR_driver()
-        drd.target_directory = os.path.join(my_dir, "artifacts")
-        drd.delTmin = self.delT_min
-        drd.delTmax = self.delT_max
-        drd.tau = self.tau
-        (self.design, self.response) = drd.run(self.exp, self.meta)
 
     def test_design_matrix_above_delt_max(self):
         # Set up variables 
@@ -66,6 +69,38 @@ class TestDRAboveDeltMax(unittest.TestCase):
             float(self.meta['del.t'][2]))
         np.testing.assert_almost_equal(np.array(resp['ts1']), expected_response_1)
         np.testing.assert_almost_equal(np.array(resp['ts2']), expected_response_2)
+
+class TestDRBelowDeltMin(TestDR):
+
+    def setUp(self):
+        self.meta = pd.DataFrame()
+        self.meta['isTs']=[True, True, True, True, False]
+        self.meta['is1stLast'] = ['f','m','m','l','e']
+        self.meta['prevCol'] = ['NA','ts1','ts2','ts3', 'NA']
+        self.meta['del.t'] = ['NA', 1, 2, 3, 'NA']
+        self.meta['condName'] = ['ts1','ts2','ts3','ts4','ss']
+        self.exp = pd.DataFrame(np.reshape(range(10), (2,5)) + 1,
+         index = ['gene' + str(i + 1) for i in range(2)],
+         columns = ['ts' + str(i + 1) for i in range(4)] + ['ss'])
+        self.delT_min = 2
+        self.delT_max = 4
+        self.tau = 2
+        self.calculate_design_and_response()
+
+    def test_response_matrix_below_delt_min(self):
+        ds, resp = (self.design, self.response)
+        expression_1 = np.array(list(self.exp['ts1']))
+        expression_3 = np.array(list(self.exp['ts3']))
+        expected_response_1 = expression_1 + self.tau * (expression_3 - expression_1) /  (float(self.meta['del.t'][1]) + float(self.meta['del.t'][2]))
+        np.testing.assert_almost_equal(np.array(resp['ts1']), expected_response_1)
+
+    @unittest.skip("skipping until we've determined if we want to modify the legacy R code")
+    def test_design_matrix_headers_below_delt_min(self):
+        ds, resp = (self.design, self.response)
+        print(ds.columns)
+        self.assertEqual(list(ds.columns), ['ss', 'ts1', 'ts2', 'ts3'], 
+            msg = "Guarantee that the ts4 condition is dropped, since its the last in the time series")
+
 
 class TestDRR(unittest.TestCase):
 
