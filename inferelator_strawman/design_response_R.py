@@ -21,11 +21,12 @@ delT.min <- {delTmin}
 delT.max <- {delTmax}
 tau <- {tau}
 dr <- design.and.response(meta.data, exp.mat, delT.min, delT.max, tau)
-dr$final_response_matrix
-dr$final_design_matrix
+#dr$final_response_matrix
+#dr$final_design_matrix
 
 write.table(as.matrix(dr$final_response_matrix), '{response_file}', sep = '\t')
 write.table(as.matrix(dr$final_design_matrix), '{design_file}', sep = '\t')
+cat("done. \n")
 """
 
 def save_R_driver(to_filename, delTmin=0, delTmax=110, tau=45,
@@ -72,7 +73,12 @@ class DR_driver:
             response_file=self.path(self.response_file),
             design_file=self.path(self.design_file)
         )
-        subprocess.call(['R', '-f', driver_path])
+        #subprocess.call(['R', '-f', driver_path])
+        command = "R -f " + driver_path
+        stdout = subprocess.check_output(command, shell=True)
+        assert stdout.strip().split()[-2:] == ["done.", ">"], (
+            "bad stdout tail: " + repr(stdout.strip().split()[-2:])
+        )
         final_design = pd.read_csv(design_path, sep='\t')
         final_response = pd.read_csv(response_path, sep='\t')
         return (final_design, final_response)
