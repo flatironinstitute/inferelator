@@ -4,5 +4,5 @@
 
 [![codecov](https://codecov.io/gh/simonsfoundation/inferelator_ng/branch/master/graph/badge.svg)](https://codecov.io/gh/simonsfoundation/inferelator_ng)
 
-
 Inferelator next generation.
+
