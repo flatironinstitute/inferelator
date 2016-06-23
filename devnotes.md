@@ -71,7 +71,7 @@ After you've done this for every file you've changed (in this case it's just 1 f
 git commit -m "fixed utils.py"
 ```
 
-You might want to follow these instructions in case your name and email are not set properly:
+You might want to follow these instructions in case your name and email are not set properly (you should only need to do this once):
 
 ```
 Your name and email address were configured automatically based
@@ -84,6 +84,10 @@ You can suppress this message by setting them explicitly:
 After doing this, you may fix the identity used for this commit with:
 
     git commit --amend --reset-author
+```
+
+```
+git push
 ```
 
 #7. Pull request
