@@ -89,7 +89,7 @@ class DR_driver:
         #subprocess.call(['R', '-f', driver_path])
         command = "R -f " + driver_path
         stdout = subprocess.check_output(command, shell=True)
-        assert stdout.strip().split()[-2:] == ["done.", ">"], (
+        assert stdout.strip().split()[-2:] == [b"done.", b">"], (
             "bad stdout tail: " + repr(stdout.strip().split()[-2:])
         )
         final_design = pd.read_csv(design_path, sep='\t')
