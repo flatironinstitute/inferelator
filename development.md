@@ -18,3 +18,10 @@ You will also need
 - Your own github fork of the repository.
 - A clone of your fork of the repository in your computer.
 
+## Process
+
+Run this command to follow an upstream branch:
+`git remote add upstread https://github.com/simonsfoundation/inferelator_ng.git`
+
+And to pull the code
+`git pull upstream`
