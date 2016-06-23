@@ -6,5 +6,3 @@
 
 Inferelator next generation.
 
-
-Our proposed workflow is based on Scipy.org's : http://docs.scipy.org/doc/numpy/dev/gitwash/development_workflow.html
