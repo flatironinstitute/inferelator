@@ -21,19 +21,19 @@ version = "0.1"
 #    sys.exit();
 
 setup(
-    name = "inferelator_strawman",
+    name = "inferelator_ng",
     version = version,
-    description = "inferelator refactor strawman",
+    description = "inferelator next generation",
     long_description="\n\n".join([
         open(os.path.join(base_dir, "README.md"), "r").read(),
         #open(os.path.join(base_dir, "CHANGELOG.rst"), "r").read()
     ]),
-    url = "https://github.com/AaronWatters/inferelator_strawman",
+    url = "https://github.com/simonsfoundation/inferelator_ng",
     author = "Aaron Watters",
     author_email = "awatters@simonsfoundation.org",
     maintainer = "Aaron Watters",
     maintainer_email = "awatters@simonsfoundation.org",
-    packages = ["inferelator_strawman"],
+    packages = ["inferelator_ng"],
     zip_safe = False,
     install_requires = install_requires,
     tests_require = tests_require,

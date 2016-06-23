@@ -24,6 +24,6 @@ install:
   # install your own package into the environment
   - python setup.py install
 script:
-  - coverage run --source=inferelator_strawman setup.py test
+  - coverage run --source=inferelator_ng setup.py test
 after_success:
   - codecov
