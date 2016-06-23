@@ -93,7 +93,7 @@ After doing this, you may fix the identity used for this commit with:
 
     git commit --amend --reset-author
 ```
-
+Finally push the changes to your branch:
 ```
 git push
 ```
