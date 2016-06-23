@@ -33,7 +33,9 @@ Switch into the inferelator_ng directory:
 
 run nosetests (this runs the unit tests):
 
-```nosetests```
+```
+nosetests
+```
 
 Output should look like this:
 
@@ -49,7 +51,9 @@ Each dot stands for a unit test that ran, "S" stands for "Skipped".
 
 #5. Modify your files
 
-```cd inferelator_ng/```
+```
+cd inferelator_ng/
+```
 
 Change one of the files (for example the `utils.py` file), by adding a blank line or something.
 
@@ -57,13 +61,17 @@ Change one of the files (for example the `utils.py` file), by adding a blank lin
 
 run nosetests (this runs the unit tests):
 
-```nosetests```
+```
+nosetests
+```
 
 #7. Push your changes to your Github directory
 
 For each file you altered, run the following command:
 
-```git add utils.py```
+```
+git add utils.py
+```
 
 After you've done this for every file you've changed (in this case it's just 1 file), commit the changes to your fork by running:
 
