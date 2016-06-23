@@ -35,12 +35,10 @@ class TestDRAboveDeltMax(TestDR):
         self.calculate_design_and_response()
 
     def test_design_matrix_above_delt_max(self):
-        # Set up variables 
+        # Set up variables
         ds, resp = (self.design, self.response)
         self.assertEqual(ds.shape, (2, 4))
-        print "columns"
-        print ds.columns
-        self.assertEqual(list(ds.columns), ['ts4', 'ss', 'ts1', 'ts2'], 
+        self.assertEqual(list(ds.columns), ['ts4', 'ss', 'ts1', 'ts2'],
             msg = "Guarantee that the ts3 condition is dropped, "
                   "since its delT of 5 is greater than delt_max of 4")
         for col in ds:
@@ -78,10 +76,11 @@ class TestDRBelowDeltMin(TestDR):
         self.meta['is1stLast'] = ['f','m','m','l','e']
         self.meta['prevCol'] = ['NA','ts1','ts2','ts3', 'NA']
         self.meta['del.t'] = ['NA', 1, 2, 3, 'NA']
-        self.meta['condName'] = ['ts1','ts2','ts3','ts4','ss']
-        self.exp = pd.DataFrame(np.reshape(range(10), (2,5)) + 1,
-         index = ['gene' + str(i + 1) for i in range(2)],
-         columns = ['ts' + str(i + 1) for i in range(4)] + ['ss'])
+        self.meta['condName'] = ['ts1', 'ts2', 'ts3', 'ts4', 'ss']
+        self.exp = pd.DataFrame(
+            np.reshape(range(10), (2, 5)) + 1,
+            index=['gene' + str(i + 1) for i in range(2)],
+            columns=['ts' + str(i + 1) for i in range(4)] + ['ss'])
         self.delT_min = 2
         self.delT_max = 4
         self.tau = 2
@@ -132,10 +131,12 @@ class TestBranchingTimeSeries(TestDR):
         self.assertEqual(resp.shape, (3, 2))
         expression_1 = np.array(list(self.exp['ts1']))
         expression_2 = np.array(list(self.exp['ts2']))
-        expected_response_1 = expression_1 + self.tau * (expression_2 - expression_1) /  float(self.meta['del.t'][1])
+        expected_response_1 = (expression_1 + self.tau * (expression_2 - expression_1) /
+            float(self.meta['del.t'][1]))
 
         expression_3 = np.array(list(self.exp['ts3']))
-        expected_response_2 = expression_1 + self.tau * (expression_3 - expression_1) /  float(self.meta['del.t'][2])
+        expected_response_2 = (expression_1 + self.tau * (expression_3 - expression_1) /
+            float(self.meta['del.t'][2]))
 
         np.testing.assert_almost_equal(np.array(resp['ts1_dupl01']), expected_response_1)
         np.testing.assert_almost_equal(np.array(resp['ts1_dupl02']), expected_response_2)
