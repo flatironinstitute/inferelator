@@ -21,7 +21,9 @@ You will also need
 ## Process
 
 Run this command to follow an upstream branch:
-`git remote add upstread https://github.com/simonsfoundation/inferelator_ng.git`
 
-And to pull the code
-`git pull upstream`
+`git remote add upstream https://github.com/simonsfoundation/inferelator_ng.git`
+
+And to pull the code:
+
+`git pull upstream master`
