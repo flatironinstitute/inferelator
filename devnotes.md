@@ -1,3 +1,8 @@
+# Development notes
+
+This project will loosely follow the development protocol
+outlined in the [Numpy/scipy dev documentation](http://docs.scipy.org/doc/numpy/dev/)
+
 #1. Fork
 Go to https://github.com/simonsfoundation/inferelator_ng and click "fork"
 
@@ -98,7 +103,7 @@ Finally push the changes to your branch:
 git push
 ```
 
-#7. Pull request
+#8. Pull request
 
 After you've done that, you should be able to find your modifications on your github
 
@@ -106,7 +111,7 @@ Then, to add these changes to the master repository, go to your github and click
 
 Someone with write access to the master directory will look over your changes.
 
-#8. Keeping up with the master directory
+#9. Keeping up with the master directory
 
 If you made a change to your files on your Github page and you want to update the files on your machine to have those changes, run
 
