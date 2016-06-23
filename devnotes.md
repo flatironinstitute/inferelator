@@ -106,4 +106,18 @@ Then, to add these changes to the master repository, go to your github and click
 
 Someone with write access to the master directory will look over your changes.
 
+#8. Keeping up with the master directory
+
+If you made a change to your files on your Github page and you want to update the files on your machine to have those changes, run
+
+`git pull`
+
+Other people could make changes to the master directory. In order for your branch to get those changes, first run this command to add the upstream directory to the list of "remotes" to update from:
+
+`git remote add upstream https://github.com/simonsfoundation/inferelator_ng.git`
+
+And then pull the code from the master Github directory onto your machine:
+
+`git pull upstream master`
+
 
