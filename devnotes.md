@@ -93,7 +93,9 @@ git fetch upstream
 # Make sure you are in the master branch of your fork
 git checkout master
 # Merge the upstream master to your master branch.
-git checkout master
+git merge upstream/master
+# Push the merge master back to your fork at github.
+git push
 ```
 
 It is a good idea to merge the latest changes before you start any development
