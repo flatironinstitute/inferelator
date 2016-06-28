@@ -87,10 +87,9 @@ class DR_driver:
             design_file=self.path(self.design_file)
         )
         #subprocess.call(['R', '-f', driver_path])
-        command = "R -f " + driver_path
+        # command = "R -f " + driver_path
         # execu = 'C:\Program Files\R\R-3.2.2\bin\Rscript.exe'
-        theproc = subprocess.Popen(['R', '-f', driver_path])
-        theproc.communicate()
+        call_R(driver_path)
         # stdout = subprocess.check_output(command, shell=True)
         # assert stdout.strip().split()[-2:] == [b"done.", b">"], (
         #     "bad stdout tail: " + repr(stdout.strip().split()[-2:])
@@ -99,3 +98,10 @@ class DR_driver:
         final_response = pd.read_csv(response_path, sep='\t')
         return (final_design, final_response)
 
+def call_R(driver_path):
+    if os.name == "posix":
+        command = "R -f " + driver_path
+        return subprocess.check_output(command, shell=True)
+    else:
+        theproc = subprocess.Popen(['R', '-f', driver_path])
+        return theproc.communicate()
