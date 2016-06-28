@@ -26,6 +26,6 @@ install:
 script:
   - python -c "import os; print(repr(os.name))"
   #- coverage run --source=inferelator_ng setup.py test
-  - nosetests --nocapture
+  - nosetests
 after_success:
   - codecov
