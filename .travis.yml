@@ -29,3 +29,6 @@ script:
   - nosetests
 after_success:
   - codecov
+after_failure
+  - pwd
+  - find .
