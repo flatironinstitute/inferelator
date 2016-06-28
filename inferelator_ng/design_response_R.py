@@ -39,7 +39,7 @@ def save_R_driver(to_filename, delTmin=0, delTmax=110, tau=45,
     with open(to_filename, "w") as outfile:
         outfile.write(text)
     # XXXX delete me!
-    print "TEMPORARY PRINT"
+    print "TEMPORARY PRINT", repr((to_filename, design_file, response_file))
     print text
     return (to_filename, design_file, response_file)
 
