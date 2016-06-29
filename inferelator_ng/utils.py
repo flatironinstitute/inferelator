@@ -11,6 +11,18 @@ import subprocess
 my_dir = os.path.dirname(__file__)
 
 
+def convert_to_R_df(df):
+    """
+    Convert booleans to "TRUE" and "FALSE" so they will be read correctly from CSV
+    format by R.
+    """
+    new_df = pd.DataFrame(df)
+    for col in new_df:
+        if new_df[col].dtype == 'bool':
+            new_df[col] = [str(x).upper() for x in new_df[col]]
+    return new_df
+
+
 def call_R(driver_path):
     """
     Run an "R" script in a subprocess.
@@ -23,9 +35,29 @@ def call_R(driver_path):
         theproc = subprocess.Popen(['R', '-f', driver_path])
         return theproc.communicate()
 
+
+def r_path(path):
+    """
+    Convert path to use conventions suitable for use in n "R" script.
+    """
+    return path.replace('\\', '/')
+
+
+class RDriver:
+    """
+    Superclass for R driver objects.
+    """
+    
+    target_directory = "/tmp"
+
+    def path(self, filename):
+        result = os.path.join(self.target_directory, filename).replace('\\', '/')
+        return r_path(result)
+
+
 def local_path(*location):
     "Return location relative to the folder containing this module."
-    return os.path.join(my_dir, *location).replace('\\', '/')
+    return r_path(os.path.join(my_dir, *location))
 
 
 def df_from_tsv(file_like):
