@@ -23,6 +23,8 @@ install:
   - pip install codecov
   # install your own package into the environment
   - python setup.py install
+  # install R components
+  - R -f inferelator_ng/R_code/packages.R
 script:
   - python -c "import os; print(repr(os.name))"
   - coverage run --source=inferelator_ng setup.py test
