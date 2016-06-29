@@ -6,11 +6,11 @@ import os
 import subprocess
 import pandas as pd
 
-my_dir = os.path.dirname(__file__)
+my_dir = os.path.dirname(__file__).replace('\\', '/')
 
-R_dir = os.path.join(my_dir, "R_code")
+R_dir = os.path.join(my_dir, "R_code").replace('\\', '/')
 
-DR_module = os.path.join(R_dir, "design_and_response.R")
+DR_module = os.path.join(R_dir, "design_and_response.R").replace('\\', '/')
 
 R_template = r"""
 source('{module}')
@@ -69,7 +69,7 @@ class DR_driver:
     tau = 45
 
     def path(self, filename):
-        return os.path.join(self.target_directory, filename)
+        return os.path.join(self.target_directory, filename).replace('\\', '/')
 
     def run(self, expression_data_frame, metadata_dataframe):
         exp = convert_to_R_df(expression_data_frame)
@@ -87,12 +87,21 @@ class DR_driver:
             design_file=self.path(self.design_file)
         )
         #subprocess.call(['R', '-f', driver_path])
-        command = "R -f " + driver_path
-        stdout = subprocess.check_output(command, shell=True)
-        assert stdout.strip().split()[-2:] == [b"done.", b">"], (
-            "bad stdout tail: " + repr(stdout.strip().split()[-2:])
-        )
+        # command = "R -f " + driver_path
+        # execu = 'C:\Program Files\R\R-3.2.2\bin\Rscript.exe'
+        call_R(driver_path)
+        # stdout = subprocess.check_output(command, shell=True)
+        # assert stdout.strip().split()[-2:] == [b"done.", b">"], (
+        #     "bad stdout tail: " + repr(stdout.strip().split()[-2:])
+        # )
         final_design = pd.read_csv(design_path, sep='\t')
         final_response = pd.read_csv(response_path, sep='\t')
         return (final_design, final_response)
 
+def call_R(driver_path):
+    if os.name == "posix":
+        command = "R -f " + driver_path
+        return subprocess.check_output(command, shell=True)
+    else:
+        theproc = subprocess.Popen(['R', '-f', driver_path])
+        return theproc.communicate()
