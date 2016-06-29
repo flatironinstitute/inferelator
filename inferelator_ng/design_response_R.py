@@ -8,9 +8,10 @@ import pandas as pd
 
 my_dir = os.path.dirname(__file__).replace('\\', '/')
 
-R_dir = os.path.join(my_dir, "R_code").replace('\\', '/')
+def my_path(location):
+    return os.path.join(my_dir, location).replace('\\', '/')
 
-DR_module = os.path.join(R_dir, "design_and_response.R").replace('\\', '/')
+DR_module = my_path("R_code/design_and_response.R")
 
 R_template = r"""
 source('{module}')
