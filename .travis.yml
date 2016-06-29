@@ -33,4 +33,4 @@ after_failure:
   - pwd
   - find .
   - cat ./inferelator_ng/tests/artifacts/run_mi.R
-  - R ./inferelator_ng/tests/artifacts/run_mi.R
+  - R -f ./inferelator_ng/tests/artifacts/run_mi.R

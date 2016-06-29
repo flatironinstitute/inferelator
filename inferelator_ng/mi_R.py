@@ -52,7 +52,7 @@ class MIDriver(utils.RDriver):
 
     """
     Configurable container for calling R subprocess to
-    compute mutual information.
+    compute mutual information and CLR.
     """
 
     target_directory = "/tmp"
