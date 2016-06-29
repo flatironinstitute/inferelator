@@ -3,15 +3,11 @@ Compute design and response by calling R subprocess.
 """
 
 import os
-import subprocess
 import pandas as pd
+import utils
 
-my_dir = os.path.dirname(__file__).replace('\\', '/')
 
-def my_path(location):
-    return os.path.join(my_dir, location).replace('\\', '/')
-
-DR_module = my_path("R_code/design_and_response.R")
+DR_module = utils.local_path("R_code", "design_and_response.R")
 
 R_template = r"""
 source('{module}')
@@ -30,6 +26,7 @@ write.table(as.matrix(dr$final_design_matrix), '{design_file}', sep = '\t')
 cat("done. \n")
 """
 
+
 def save_R_driver(to_filename, delTmin=0, delTmax=110, tau=45,
         meta_file="meta_data.csv", exp_file="exp_mat.csv",
         module=DR_module, response_file='response.tsv', design_file='design.tsv'):
@@ -40,6 +37,7 @@ def save_R_driver(to_filename, delTmin=0, delTmax=110, tau=45,
     with open(to_filename, "w") as outfile:
         outfile.write(text)
     return (to_filename, design_file, response_file)
+
 
 def convert_to_R_df(df):
     """
@@ -90,7 +88,7 @@ class DR_driver:
         #subprocess.call(['R', '-f', driver_path])
         # command = "R -f " + driver_path
         # execu = 'C:\Program Files\R\R-3.2.2\bin\Rscript.exe'
-        call_R(driver_path)
+        utils.call_R(driver_path)
         # stdout = subprocess.check_output(command, shell=True)
         # assert stdout.strip().split()[-2:] == [b"done.", b">"], (
         #     "bad stdout tail: " + repr(stdout.strip().split()[-2:])
@@ -99,10 +97,3 @@ class DR_driver:
         final_response = pd.read_csv(response_path, sep='\t')
         return (final_design, final_response)
 
-def call_R(driver_path):
-    if os.name == "posix":
-        command = "R -f " + driver_path
-        return subprocess.check_output(command, shell=True)
-    else:
-        theproc = subprocess.Popen(['R', '-f', driver_path])
-        return theproc.communicate()

@@ -1,7 +1,31 @@
+"""
+Miscellaneous utility modules.
+"""
 
+import os
 import pandas as pd
 from . import condition
 from . import time_series
+import subprocess
+
+my_dir = os.path.dirname(__file__)
+
+
+def call_R(driver_path):
+    """
+    Run an "R" script in a subprocess.
+    Any outputs of the script should be saved to files.
+    """
+    if os.name == "posix":
+        command = "R -f " + driver_path
+        return subprocess.check_output(command, shell=True)
+    else:
+        theproc = subprocess.Popen(['R', '-f', driver_path])
+        return theproc.communicate()
+
+def local_path(*location):
+    "Return location relative to the folder containing this module."
+    return os.path.join(my_dir, *location).replace('\\', '/')
 
 
 def df_from_tsv(file_like):
@@ -10,7 +34,10 @@ def df_from_tsv(file_like):
 
 
 def conditions_from_df(data_frame):
-    "Return a dictionary of named conditions from a pandas dataframe where the conditions are columns."
+    """
+    Return a dictionary of named conditions from a pandas dataframe
+    where the conditions are columns.
+    """
     result = {}
     for name in data_frame.columns:
         mapping = data_frame[name]
