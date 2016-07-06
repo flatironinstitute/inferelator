@@ -55,10 +55,6 @@ class DRDriver(utils.RDriver):
     delTmax = 110
     tau = 45
 
-    def path(self, filename):
-        result = os.path.join(self.target_directory, filename).replace('\\', '/')
-        return utils.r_path(result)
-
     def run(self, expression_data_frame, metadata_dataframe):
         exp = utils.convert_to_R_df(expression_data_frame)
         md = utils.convert_to_R_df(metadata_dataframe)
