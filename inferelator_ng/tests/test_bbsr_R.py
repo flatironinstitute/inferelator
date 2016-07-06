@@ -13,6 +13,9 @@ class TestDR(unittest.TestCase):
         self.brd = bbsr_R.BBSR_driver()
         self.brd.target_directory = os.path.join(my_dir, "artifacts")
 
+        if not os.path.exists(self.brd.target_directory):
+            os.makedirs(self.brd.target_directory)
+
     def set_all_zero_priors(self):
         self.priors =  pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2'])
 
