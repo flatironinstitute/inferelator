@@ -10,7 +10,7 @@ class TestDR(unittest.TestCase):
     Superclass for common methods
     """
     def calculate_design_and_response(self):
-        drd = design_response_R.DR_driver()
+        drd = design_response_R.DRDriver()
         target = drd.target_directory = os.path.join(my_dir, "artifacts")
         if not os.path.exists(target):
             os.makedirs(target)
