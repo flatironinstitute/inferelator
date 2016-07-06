@@ -126,8 +126,8 @@ class TestDR(unittest.TestCase):
 
     def test_two_genes_nonzero_clr_two_conditions_positive_influence(self):
         self.set_all_zero_priors()
-        self.X = pd.DataFrame([[1, 1], [2, 2]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
-        self.Y = pd.DataFrame([[1, 1], [2, 2]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
+        self.X = pd.DataFrame([[1, 2], [1, 2]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
+        self.Y = pd.DataFrame([[1, 2], [1, 2]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
         self.clr = pd.DataFrame([[.1, .1],[.1, .2]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2'])
         (betas, resc) = self.brd.run(self.X, self.Y, self.clr, self.priors)
         self.assert_matrix_is_square(2, betas)
@@ -137,8 +137,8 @@ class TestDR(unittest.TestCase):
 
     def test_two_genes_nonzero_clr_two_conditions_zero_gene1_positive_influence(self):
         self.set_all_zero_priors()
-        self.X = pd.DataFrame([[0, 0], [2, 2]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
-        self.Y = pd.DataFrame([[0, 0], [1, 1]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
+        self.X = pd.DataFrame([[0, 2], [0, 2]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
+        self.Y = pd.DataFrame([[1, 2], [1, 2]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
         self.clr = pd.DataFrame([[.1, .1],[.1, .2]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2'])
         (betas, resc) = self.brd.run(self.X, self.Y, self.clr, self.priors)
         self.assert_matrix_is_square(2, betas)
