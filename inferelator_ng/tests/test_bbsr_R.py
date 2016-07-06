@@ -77,7 +77,7 @@ class TestDR(unittest.TestCase):
         pdt.assert_frame_equal(betas, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
         pdt.assert_frame_equal(resc, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
 
-    def test_two_genes_nonzero_clr_nonzero_two_conditions(self):
+    def test_two_genes_nonzero_clr_two_conditions_negative_influence(self):
         self.set_all_zero_priors()
         self.X = pd.DataFrame([[1, 2], [2, 1]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
         self.Y = pd.DataFrame([[1, 2], [2, 1]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
@@ -88,7 +88,7 @@ class TestDR(unittest.TestCase):
         pdt.assert_frame_equal(betas, pd.DataFrame([[0, -1],[-1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
         pdt.assert_frame_equal(resc, pd.DataFrame([[0, 1],[1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
 
-    def test_two_genes_nonzero_clr_nonzero_two_conditions_zero_gene1(self):
+    def test_two_genes_nonzero_clr_two_conditions_zero_gene1_negative_influence(self):
         self.set_all_zero_priors()
         self.X = pd.DataFrame([[0, 2], [2, 0]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
         self.Y = pd.DataFrame([[0, 1], [1, 0]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
@@ -97,4 +97,48 @@ class TestDR(unittest.TestCase):
         self.assert_matrix_is_square(2, betas)
         self.assert_matrix_is_square(2, resc)
         pdt.assert_frame_equal(betas, pd.DataFrame([[0, -1],[-1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
+        pdt.assert_frame_equal(resc, pd.DataFrame([[0, 1],[1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
+
+    def test_two_genes_zero_clr_two_conditions_zero_betas(self):
+        self.set_all_zero_priors()
+        self.set_all_zero_clr()
+        self.X = pd.DataFrame([[1, 2], [2, 1]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
+        self.Y = pd.DataFrame([[1, 2], [2, 1]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
+        (betas, resc) = self.brd.run(self.X, self.Y, self.clr, self.priors)
+        self.assert_matrix_is_square(2, betas)
+        self.assert_matrix_is_square(2, resc)
+        pdt.assert_frame_equal(betas, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
+        pdt.assert_frame_equal(resc, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
+
+    def test_two_genes_zero_clr_two_conditions_zero_gene1_zero_betas(self):
+        self.set_all_zero_priors()
+        self.set_all_zero_clr()
+        self.X = pd.DataFrame([[0, 2], [2, 0]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
+        self.Y = pd.DataFrame([[0, 1], [1, 0]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
+        (betas, resc) = self.brd.run(self.X, self.Y, self.clr, self.priors)
+        self.assert_matrix_is_square(2, betas)
+        self.assert_matrix_is_square(2, resc)
+        pdt.assert_frame_equal(betas, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
+        pdt.assert_frame_equal(resc, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
+
+    def test_two_genes_nonzero_clr_two_conditions_positive_influence(self):
+        self.set_all_zero_priors()
+        self.X = pd.DataFrame([[1, 1], [2, 2]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
+        self.Y = pd.DataFrame([[1, 1], [2, 2]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
+        self.clr = pd.DataFrame([[.1, .1],[.1, .2]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2'])
+        (betas, resc) = self.brd.run(self.X, self.Y, self.clr, self.priors)
+        self.assert_matrix_is_square(2, betas)
+        self.assert_matrix_is_square(2, resc)
+        pdt.assert_frame_equal(betas, pd.DataFrame([[0, 1],[1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
+        pdt.assert_frame_equal(resc, pd.DataFrame([[0, 1],[1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
+
+    def test_two_genes_nonzero_clr_two_conditions_zero_gene1_positive_influence(self):
+        self.set_all_zero_priors()
+        self.X = pd.DataFrame([[0, 0], [2, 2]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
+        self.Y = pd.DataFrame([[0, 0], [1, 1]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
+        self.clr = pd.DataFrame([[.1, .1],[.1, .2]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2'])
+        (betas, resc) = self.brd.run(self.X, self.Y, self.clr, self.priors)
+        self.assert_matrix_is_square(2, betas)
+        self.assert_matrix_is_square(2, resc)
+        pdt.assert_frame_equal(betas, pd.DataFrame([[0, 1],[1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
         pdt.assert_frame_equal(resc, pd.DataFrame([[0, 1],[1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
