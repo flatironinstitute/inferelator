@@ -3,14 +3,10 @@ Compute Bayesian Best Subset Regression by running R script
 """
 
 import os
-import subprocess
+from . import utils
 import pandas as pd
 
-my_dir = os.path.dirname(__file__)
-
-R_dir = os.path.join(my_dir, "R_code")
-
-BBSR_module = os.path.join(R_dir, "bayesianRegression.R")
+BBSR_module = utils.local_path("R_code", "bayesianRegression.R")
 
 R_template = r"""
 library('Matrix')
@@ -65,25 +61,8 @@ def save_R_driver(to_filename, n, cores, no_prior_weight,
         outfile.write(text)
     return (to_filename, betas_file, betas_resc_file)
 
-def convert_to_R_df(df):
-    """
-    Convert booleans to "TRUE" and "FALSE" so they will be read correctly from CSV
-    format by R.
-    """
-    new_df = pd.DataFrame(df)
-    for col in new_df:
-        if new_df[col].dtype == 'bool':
-            new_df[col] = [str(x).upper() for x in new_df[col]]
-    return new_df
+class BBSR_driver(utils.RDriver):
 
-class BBSR_driver:
-
-    """
-    Configurable container for calling R subprocess to
-    compute design and response.
-    """
-
-    target_directory = "/tmp"
     X_file = "X.csv"
     Y_file = "Y.csv"
     priors_file = "priors_mat.csv"
@@ -96,14 +75,11 @@ class BBSR_driver:
     no_prior_weight = 1
     prior_weight = 1
 
-    def path(self, filename):
-        return os.path.join(self.target_directory, filename)
-
     def run(self, X_data_frame, Y_dataframe, clr_dataframe, priors_dataframe):
-        X = convert_to_R_df(X_data_frame)
-        Y = convert_to_R_df(Y_dataframe)
-        clr = convert_to_R_df(clr_dataframe)
-        priors = convert_to_R_df(priors_dataframe)
+        X = utils.convert_to_R_df(X_data_frame)
+        Y = utils.convert_to_R_df(Y_dataframe)
+        clr = utils.convert_to_R_df(clr_dataframe)
+        priors = utils.convert_to_R_df(priors_dataframe)
         X.to_csv(self.path(self.X_file))
         Y.to_csv(self.path(self.Y_file))
         clr.to_csv(self.path(self.clr_file))
@@ -121,12 +97,7 @@ class BBSR_driver:
             X_file=self.path(self.X_file),
             Y_file=self.path(self.Y_file)
         )
-        #subprocess.call(['R', '-f', driver_path])
-        command = "R -f " + driver_path
-        stdout = subprocess.check_output(command, shell=True)
-        assert stdout.strip().split()[-2:] == [b"done.", b">"], (
-            "bad stdout tail: " + repr(stdout.strip().split()[-2:])
-        )
+        utils.call_R(driver_path)
         final_design = pd.read_csv(design_path, sep='\t')
         final_response = pd.read_csv(response_path, sep='\t')
         return (final_design, final_response)
