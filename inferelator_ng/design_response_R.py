@@ -30,7 +30,7 @@ cat("done. \n")
 def save_R_driver(to_filename, delTmin=0, delTmax=110, tau=45,
         meta_file="meta_data.csv", exp_file="exp_mat.csv",
         module=DR_module, response_file='response.tsv', design_file='design.tsv'):
-    assert os.path.exists(DR_module), "doesn't exist " + repr(DR_module)
+    assert os.path.exists(module), "doesn't exist " + repr(module)
     text = R_template.format(delTmin=delTmin, delTmax=delTmax, tau=tau,
                 meta_file=meta_file, exp_file=exp_file, module=module,
                 response_file=response_file, design_file=design_file)
@@ -54,10 +54,6 @@ class DRDriver(utils.RDriver):
     delTmin = 0
     delTmax = 110
     tau = 45
-
-    def path(self, filename):
-        result = os.path.join(self.target_directory, filename).replace('\\', '/')
-        return utils.r_path(result)
 
     def run(self, expression_data_frame, metadata_dataframe):
         exp = utils.convert_to_R_df(expression_data_frame)
