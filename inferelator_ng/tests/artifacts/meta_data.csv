@@ -1,6 +1,0 @@
-,isTs,is1stLast,prevCol,del.t,condName
-0,TRUE,f,NA,NA,ts1
-1,TRUE,m,ts1,1,ts2
-2,TRUE,m,ts2,2,ts3
-3,TRUE,l,ts3,3,ts4
-4,FALSE,e,NA,NA,ss
