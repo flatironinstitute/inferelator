@@ -10,21 +10,22 @@ class TFA:
         Parameters
     --------
     prior: pd.dataframe
-        binary g by t matrix stating existence of gene-TF interactions. 
+        binary or numeric g by t matrix stating existence of gene-TF interactions. 
         g--gene, t--TF.
 
     exp.mat: pd.dataframe
-        normalized expression matrix.
+        normalized expression g by c matrix. g--gene, c--conditions
 
     exp.mat.halftau: pd.dataframe
         normalized expression matrix for time series.
 
     noself=True: boolean
-        By default, self-regulatory interactions are removed.
+        If noself (no self interaction) is True, self-regulatory interactions 
+        in prior matrix are set to 0.
 
     dup_self=True: boolean
-        By default, self interactions for TFs that other TFs with the 
-        exact same set of interactions in the prior are kept
+        If dup_slef (duplicate self) is True, TFs that other TFs with the exact same 
+        set of interactions in the prior are kept and will have the same activities
     """
 
     def __init__(self, prior, exp_mat, exp_mat_halftau):
