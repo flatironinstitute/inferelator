@@ -5,6 +5,10 @@ The goal of this design is to make it easy to share
 code among different variants of the Inferelator workflow.
 """
 
+"""
+Add doc string here.
+"""
+
 from . import utils
 import numpy as np
 import os
@@ -45,6 +49,9 @@ class WorkflowBase(object):
         self.emit_results(priors)
 
     def get_data(self):
+        """
+        Read data files in to data structures.
+        """
         self.exp_mat = self.input_dataframe(self.exp_mat_file)
         tf_file = self.input_file(self.tf_names_file)
         self.tf_names = utils.read_tf_names(tf_file)
