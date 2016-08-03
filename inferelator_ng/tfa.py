@@ -19,8 +19,8 @@ class TFA:
     exp.mat.halftau: pd.dataframe
         normalized expression matrix for time series.
 
-    noself=True: boolean
-        If noself (no self interaction) is True, self-regulatory interactions 
+    no_self=True: boolean
+        If no_self (no self interaction) is True, self-regulatory interactions 
         in prior matrix are set to 0.
 
     dup_self=True: boolean
@@ -33,32 +33,34 @@ class TFA:
         self.exp_mat = exp_mat
         self.exp_mat_halftau = exp_mat_halftau
 
-    def tfa(self, noself = True, dup_self = True):
-        tfwt = self.prior.abs().sum(axis = 0) > 0
-        tfwt = tfwt[tfwt].index.tolist()
+    def tfa(self, no_self = True, dup_self = True):
+    	# tf_w_int (tf with interaction): identify TFs that have evidence of TF-gene interactions in prior matrix
+        tf_w_int = self.prior.abs().sum(axis = 0) > 0
+        tf_w_int = tf_w_int[tf_w_int].index.tolist()
 
-        dTFs = []
+        # dup_tfs: duplicated TFs
+        dup_tfs = []
 
         if dup_self:
-            # subset of prior matrix whose columns are not all zeros (snz: sum non-zero)
-            prior_snz = self.prior[tfwt]            
-            duplicates = prior_snz.transpose().duplicated(keep=False) # mark duplicates as true
-            dTFs = duplicates[duplicates].index.tolist()
+            # subset of prior matrix columns (TFs) that have known TF-gene interactions (tf_w_int == True)
+            prior_tf_w_int = self.prior[tf_w_int]            
+            duplicates = prior_tf_w_int.transpose().duplicated(keep=False) # mark duplicates as true
+            dup_tfs = duplicates[duplicates].index.tolist()
 
         # find non-duplicated TFs that are also present in target gene list 
-        ndTFs = list(set(self.prior.columns.values.tolist()).difference(dTFs))
+        ndup_tfs = list(set(self.prior.columns.values.tolist()).difference(dup_tfs))
 
-        if noself:
-            selfTFs = list(set(ndTFs).intersection(self.prior.index.values.tolist()))
-            self.prior.loc[selfTFs, selfTFs] = 0
+        if no_self:
+            self_tfs = list(set(ndup_tfs).intersection(self.prior.index.values.tolist()))
+            self.prior.loc[self_tfs, self_tfs] = 0
 
         activity = pd.DataFrame(0, index = self.prior.columns, columns = self.exp_mat_halftau.columns)
 
-        if any(tfwt):
-            activity.loc[tfwt,:] = np.matrix(linalg.pinv2(prior_snz))* np.matrix(self.exp_mat_halftau)
+        if any(tf_w_int):
+            activity.loc[tf_w_int,:] = np.matrix(linalg.pinv2(prior_tf_w_int)) * np.matrix(self.exp_mat_halftau)
 
-        ntfwt = list(set(self.prior.columns.values.tolist()).difference(tfwt))
-        activity.loc[ntfwt,:] = self.exp_mat.loc[ntfwt,:]
+        tf_wo_int = list(set(self.prior.columns.values.tolist()).difference(tf_w_int))
+        activity.loc[tf_wo_int,:] = self.exp_mat.loc[tf_wo_int,:]
 
         return activity
 
