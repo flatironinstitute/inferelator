@@ -31,11 +31,13 @@ class TFA:
     def __init__(self, prior, exp_mat, exp_mat_halftau):
         self.prior = prior
         self.exp_mat = exp_mat
-        self.exp_mat = exp_mat_halftau
+        self.exp_mat_halftau = exp_mat_halftau
 
     def tfa(self, noself = True, dup_self = True):
         tfwt = self.prior.abs().sum(axis = 0) > 0
         tfwt = tfwt[tfwt].index.tolist()
+
+        dTFs = []
 
         if dup_self:
             # subset of prior matrix whose columns are not all zeros (snz: sum non-zero)
@@ -48,7 +50,7 @@ class TFA:
 
         if noself:
             selfTFs = list(set(ndTFs).intersection(self.prior.index.values.tolist()))
-            prior.loc[selfTFs, selfTFs] = 0
+            self.prior.loc[selfTFs, selfTFs] = 0
 
         activity = pd.DataFrame(0, index = self.prior.columns, columns = self.exp_mat_halftau.columns)
 
@@ -56,7 +58,7 @@ class TFA:
             activity.loc[tfwt,:] = np.matrix(linalg.pinv2(prior_snz))* np.matrix(self.exp_mat_halftau)
 
         ntfwt = list(set(self.prior.columns.values.tolist()).difference(tfwt))
-        activity.loc[ntfwt,:] = exp_mat.loc[ntfwt,:]
+        activity.loc[ntfwt,:] = self.exp_mat.loc[ntfwt,:]
 
         return activity
 
