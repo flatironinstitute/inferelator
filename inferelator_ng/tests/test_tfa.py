@@ -15,22 +15,22 @@ class TestTFA(unittest.TestCase):
         priors = pd.DataFrame(np.array([[0, 1, 0], [1, 0, 0]]).transpose())
         self.tfa_class = tfa.TFA(priors, exp, exp)
 
-    def test_two_by_two(self):
+    def test_three_by_two(self):
         self.setup()
         activities = self.tfa_class.tfa()
         print activities
 
-    def test_two_by_two_dupes(self):
+    def test_three_by_two_dupes(self):
         self.setup()
         activities = self.tfa_class.tfa(dup_self = False)
         print activities
 
-    def test_two_by_two_self_interactions(self):
+    def test_three_by_two_self_interactions(self):
         self.setup()
         activities = self.tfa_class.tfa(noself = False)
         print activities
 
-    def test_two_by_two_self_interactions_and_dupes(self):
+    def test_three_by_two_self_interactions_and_dupes(self):
         self.setup()
         activities = self.tfa_class.tfa(noself = False, dup_self = False)
         print activities
