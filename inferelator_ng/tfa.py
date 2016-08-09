@@ -30,7 +30,6 @@ class TFA:
         self.exp_mat_halftau = exp_mat_halftau
 
     def tfa(self, allow_self_interactions_for_duplicate_prior_columns = True):
-        import pdb; pdb.set_trace()
         # Create activity dataframe with default values set to the expression
     	activity = pd.DataFrame(self.exp_mat.loc[self.prior.columns,:].values, index = self.prior.columns, columns = self.exp_mat.columns)
         
