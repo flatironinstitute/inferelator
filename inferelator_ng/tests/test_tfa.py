@@ -21,8 +21,18 @@ class TestTFA(unittest.TestCase):
         priors.index = ['g1', 't2', 'g3', 'g4', 'g5']
         self.tfa_python = tfa.TFA(priors, exp, exp)
 
-    def setup(self):
-        tau = 2
+    def setup_three_columns(self):
+        tau = 1
+        exp = pd.DataFrame(np.array([[1, 3], [1, 2], [0, 3]]))
+        exp.columns = ['s1', 's2']
+        exp.index = ['g1', 'tf1', 'g3']
+        priors = pd.DataFrame(np.array([[1, 1, 1], [1, 1, 0], [0, 0, 0]]))
+        priors.columns = ['tf1', 'tf2', 'tf3']
+        priors.index = exp.index
+        self.tfa_python = tfa.TFA(priors, exp, exp/tau)
+
+    def setup_one_column(self):
+        tau = 1
         exp = pd.DataFrame(np.array([[1, 3], [1, 2], [0, 3]]))
         exp.columns = ['s1', 's2']
         exp.index = ['g1', 'tf1', 'g3']
@@ -36,48 +46,67 @@ class TestTFA(unittest.TestCase):
             self.tfa_python.prior = self.tfa_python.prior.drop(i, 1) 
 
     # Test what happens when there are no relevant columns in the prior matrix
+    # TODO: should this raise an error?
     def test_priors_no_columns(self):
-        self.setup()
+        self.setup_one_column()
         self.drop_prior()
         activities = self.tfa_python.tfa()
         # assert that there are no rows in the output activities matrix
         self.assertEqual(activities.shape[0], 0)
 
-    def test_priors_is_zero_vector(self):
-        self.setup()
+    def test_when_prior_is_zero_vector_activity_is_expression_one_column(self):
+        self.setup_one_column()
         self.tfa_python.prior['tf1'] = [0, 0, 0]
         activities = self.tfa_python.tfa()
         np.testing.assert_equal(activities.values, [[1,2]])
         np.testing.assert_equal(self.tfa_python.prior.values, [[0], [0], [0]])
 
     # add a duplicate TF column to the priors matrix
-    def test_duplicate_removal(self):
-        self.setup()
+    # verifying that self interaction remains
+    def test_duplicate_removal_keeps_self_interaction_two_column(self):
+        self.setup_one_column()
         self.tfa_python.prior['g3'] = self.tfa_python.prior['tf1']
-        activities = self.tfa_python.tfa()
+        activities = self.tfa_python.tfa(dup_self=True)
         np.testing.assert_array_almost_equal_nulp(activities.values,
-            np.array([[ 0.25,   0.625], [ 0.25,   0.625]]),
+            np.array([[ .5,   1.25], [ .5,   1.25]]),
             units_in_the_last_place_tolerance)
         # Assert the final priors matrix has no self- interactions
-        np.testing.assert_equal(self.tfa_python.prior.values, np.array([[1, 1], [0, 1], [0, 0]]))
+        np.testing.assert_equal(self.tfa_python.prior.values, np.array([[1, 1], [1, 1], [0, 0]]))
 
     # add a duplicate TF column to the priors matrix
-    def test_duplicate_removal_does_not_happen_with_dupes_flag_false(self):
-        self.setup()
+    def test_duplicate_removal_does_not_happen_with_dupes_flag_false_two_column(self):
+        self.setup_one_column()
         self.tfa_python.prior['g3'] = self.tfa_python.prior['tf1']
         activities = self.tfa_python.tfa(dup_self = False)
         np.testing.assert_array_almost_equal_nulp(activities.values,
-            np.array([[ 0.25,   0.625], [ 0.25,   0.625]]),
+            np.array([[ 0,   1], [ 1,   2]]),
             units_in_the_last_place_tolerance)
         # Assert the final priors matrix has no self- interactions
         np.testing.assert_equal(self.tfa_python.prior.values, np.array([[1, 1], [0, 1], [0, 0]]))
 
-
-    def test_tfa_default(self):
-        self.setup()
+    def test_tfa_default_one_column(self):
+        self.setup_one_column()
         activities = self.tfa_python.tfa()
         np.testing.assert_array_almost_equal_nulp(activities.values,
-            np.array([[ 0.5,   1.25]]),
+            np.array([[ 1,   3]]),
             units_in_the_last_place_tolerance)
         # Assert the final priors matrix has no self- interactions
         np.testing.assert_equal(self.tfa_python.prior.values, np.array([[1], [0], [0]]))
+
+    def test_tfa_default_three_columns(self):
+        self.setup_three_columns()
+        activities = self.tfa_python.tfa()
+        np.testing.assert_array_almost_equal_nulp(activities.values,
+            np.array([[ .5, 1], [.5, 1], [0, 1  ]]),
+            units_in_the_last_place_tolerance)
+        # Assert the final priors matrix has no self- interactions
+        np.testing.assert_equal(self.tfa_python.prior.values, np.array([[1, 1, 1], [1, 1, 0], [0, 0, 0]]))
+
+    def test_tfa_default_three_columns_dup_self_false(self):
+        self.setup_three_columns()
+        activities = self.tfa_python.tfa(dup_self = False)
+        np.testing.assert_array_almost_equal_nulp(activities.values,
+            np.array([[ 0, 0.5], [1, 2], [0, 0.5]]),
+            units_in_the_last_place_tolerance)
+        # Assert the final priors matrix has no self- interactions
+        np.testing.assert_equal(self.tfa_python.prior.values, np.array([[1, 1, 1], [0, 1, 0], [0, 0, 0]]))
