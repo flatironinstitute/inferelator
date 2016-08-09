@@ -114,9 +114,9 @@ class TestTFA(unittest.TestCase):
     def test_tfa_default_three_columns_dup_self_false(self):
         self.setup_three_columns()
         activities = self.tfa_python.tfa(allow_self_interactions_for_duplicate_prior_columns = False)
-        np.testing.assert_array_almost_equal_nulp(activities.values,
+        np.testing.assert_allclose(activities.values,
             np.array([[ 0, 0.5], [1, 2], [0, 0.5]]),
-            units_in_the_last_place_tolerance)
+            atol=1e-15)
         # Assert the final priors matrix has no self- interactions
         np.testing.assert_equal(self.tfa_python.prior.values, np.array([[1, 1, 1], [0, 1, 0], [0, 0, 0]]))
 
