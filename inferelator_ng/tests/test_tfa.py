@@ -13,13 +13,22 @@ class TestTFA(unittest.TestCase):
     # Test for 5 genes, one of which is a TF, 5 condidtions, and 4 TFs.
     # where tau is equal to 1, so exp_mat and exp_mat_tau are equivalent
     def setup_max(self):
-        exp = pd.DataFrame(self.generate_random_matrix(5, 5))
+        tau = 1
+        exp = pd.DataFrame(np.array([[12.28440, 12.55000, 11.86260, 11.86230, 11.88100], 
+            [8.16000, 8.55360, 7.76500, 7.89030, 8.08710],
+            [10.47820, 11.08340, 10.52270, 10.34180, 10.38780],
+            [5.46000,5.48910, 4.90390, 4.69800, 5.07880],
+            [7.96367, 7.86005, 7.82641, 7.94938, 7.67066]]))
         exp.columns = ['s1', 's2', 's3', 's4', 's5']
         exp.index = ['g1', 't2', 'g3', 'g4', 'g5']
-        priors = pd.DataFrame(np.array([[1,0,0,1], [0,0,0,0], [0,0,-1,0], [-1,0,0,-1], [0,0,1,0]]))
+        priors = pd.DataFrame(np.array([[1,0,0,1], 
+            [0,0,0,0], 
+            [0,0,-1,0], 
+            [-1,0,0,-1], 
+            [0,0,1,0]]))
         priors.columns = ['t1', 't2', 't3', 't4']
         priors.index = ['g1', 't2', 'g3', 'g4', 'g5']
-        self.tfa_python = tfa.TFA(priors, exp, exp)
+        self.tfa_python = tfa.TFA(priors, exp, exp/1)
 
     def setup_three_columns(self):
         tau = 1
@@ -110,3 +119,19 @@ class TestTFA(unittest.TestCase):
             units_in_the_last_place_tolerance)
         # Assert the final priors matrix has no self- interactions
         np.testing.assert_equal(self.tfa_python.prior.values, np.array([[1, 1, 1], [0, 1, 0], [0, 0, 0]]))
+
+    def test_tfa_default_setup_max_using_mouse_th17(self):
+        import pdb; pdb.set_trace()
+        self.setup_max()
+        activities = self.tfa_python.tfa()
+        np.testing.assert_equal(activities.values,
+            np.array([[1.706100, 1.765225, 1.739675, 1.791075, 1.70055], 
+                [8.160000, 8.553600, 7.765000, 7.890300, 8.08710], 
+                [-1.257265, -1.611675, -1.348145, -1.196210, -1.35857],
+                [1.706100, 1.765225, 1.739675, 1.791075, 1.70055]]))
+        # Assert the final priors matrix has no self- interactions
+        np.testing.assert_equal(self.tfa_python.prior.values, np.array([[1,0,0,1], 
+            [0,0,0,0], 
+            [0,0,-1,0], 
+            [-1,0,0,-1], 
+            [0,0,1,0]]))
