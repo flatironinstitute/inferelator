@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import subprocess
 
-units_in_the_last_place_tolerance = 9 
+units_in_the_last_place_tolerance = 16
 class TestTFA(unittest.TestCase):
 
     def generate_random_matrix(self, n, m):
@@ -12,7 +12,7 @@ class TestTFA(unittest.TestCase):
 
     # Test for 5 genes, one of which is a TF, 5 condidtions, and 4 TFs.
     # where tau is equal to 1, so exp_mat and exp_mat_tau are equivalent
-    def setup_max(self):
+    def setup_mouse_th17(self):
         tau = 1
         exp = pd.DataFrame(np.array([[12.28440, 12.55000, 11.86260, 11.86230, 11.88100], 
             [8.16000, 8.55360, 7.76500, 7.89030, 8.08710],
@@ -120,15 +120,15 @@ class TestTFA(unittest.TestCase):
         # Assert the final priors matrix has no self- interactions
         np.testing.assert_equal(self.tfa_python.prior.values, np.array([[1, 1, 1], [0, 1, 0], [0, 0, 0]]))
 
-    def test_tfa_default_setup_max_using_mouse_th17(self):
-        import pdb; pdb.set_trace()
-        self.setup_max()
+    def test_tfa_default_using_mouse_th17(self):
+        self.setup_mouse_th17()
         activities = self.tfa_python.tfa()
-        np.testing.assert_equal(activities.values,
+        np.testing.assert_array_almost_equal_nulp(activities.values,
             np.array([[1.706100, 1.765225, 1.739675, 1.791075, 1.70055], 
                 [8.160000, 8.553600, 7.765000, 7.890300, 8.08710], 
                 [-1.257265, -1.611675, -1.348145, -1.196210, -1.35857],
-                [1.706100, 1.765225, 1.739675, 1.791075, 1.70055]]))
+                [1.706100, 1.765225, 1.739675, 1.791075, 1.70055]]),
+            units_in_the_last_place_tolerance)
         # Assert the final priors matrix has no self- interactions
         np.testing.assert_equal(self.tfa_python.prior.values, np.array([[1,0,0,1], 
             [0,0,0,0], 
