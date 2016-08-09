@@ -31,7 +31,7 @@ class TFA:
 
     def tfa(self, allow_self_interactions_for_duplicate_prior_columns = True):
         # Create activity dataframe with default values set to the expression
-    	activity = pd.DataFrame(self.exp_mat.loc[self.prior.columns,:].values, index = self.prior.columns, columns = self.exp_mat.columns)
+        activity = pd.DataFrame(self.exp_mat.loc[self.prior.columns,:].values, index = self.prior.columns, columns = self.exp_mat.columns)
         
         # Finds tfs that have non-zero regulation
         # TODO: Remove as some form of pre-processing???
