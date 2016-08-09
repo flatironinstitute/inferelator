@@ -66,7 +66,7 @@ class TestTFA(unittest.TestCase):
     def test_duplicate_removal_keeps_self_interaction_two_column(self):
         self.setup_one_column()
         self.tfa_python.prior['g3'] = self.tfa_python.prior['tf1']
-        activities = self.tfa_python.tfa(dup_self=True)
+        activities = self.tfa_python.tfa(allow_self_interactions_for_duplicate_prior_columns = True)
         np.testing.assert_array_almost_equal_nulp(activities.values,
             np.array([[ .5,   1.25], [ .5,   1.25]]),
             units_in_the_last_place_tolerance)
@@ -77,7 +77,7 @@ class TestTFA(unittest.TestCase):
     def test_duplicate_removal_does_not_happen_with_dupes_flag_false_two_column(self):
         self.setup_one_column()
         self.tfa_python.prior['g3'] = self.tfa_python.prior['tf1']
-        activities = self.tfa_python.tfa(dup_self = False)
+        activities = self.tfa_python.tfa(allow_self_interactions_for_duplicate_prior_columns = False)
         np.testing.assert_array_almost_equal_nulp(activities.values,
             np.array([[ 0,   1], [ 1,   2]]),
             units_in_the_last_place_tolerance)
@@ -104,7 +104,7 @@ class TestTFA(unittest.TestCase):
 
     def test_tfa_default_three_columns_dup_self_false(self):
         self.setup_three_columns()
-        activities = self.tfa_python.tfa(dup_self = False)
+        activities = self.tfa_python.tfa(allow_self_interactions_for_duplicate_prior_columns = False)
         np.testing.assert_array_almost_equal_nulp(activities.values,
             np.array([[ 0, 0.5], [1, 2], [0, 0.5]]),
             units_in_the_last_place_tolerance)
