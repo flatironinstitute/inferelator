@@ -104,6 +104,18 @@ class TestTFA(unittest.TestCase):
         # Assert the final priors matrix has no self- interactions
         np.testing.assert_equal(self.tfa_object.prior.values, np.array([[1], [0], [0]]))
 
+    # TODO: Fix this test
+    def test_tfa_default_all_zero_prior_no_expression_data(self):
+        self.setup_one_column()
+        self.tfa_object.prior['tf2'] = [0, 0, 0] 
+        activities = self.tfa_object.compute_transcription_factor_activity()
+        # This check fails because the activity is actually computed to be NaN for all conditions for tf2
+        np.testing.assert_array_almost_equal_nulp(activities.values,
+            np.array([[ 1,   3], [0, 0]]),
+            units_in_the_last_place_tolerance)
+        # Assert the final priors matrix has no self- interactions
+        np.testing.assert_equal(self.tfa_object.prior.values, np.array([[1, 0], [0, 0], [0, 0]]))
+
     def test_tfa_default_three_columns(self):
         self.setup_three_columns()
         activities = self.tfa_object.compute_transcription_factor_activity()
