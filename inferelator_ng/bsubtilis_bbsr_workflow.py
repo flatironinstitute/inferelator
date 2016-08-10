@@ -1,8 +1,7 @@
 """
-Run BSubtilis Inference. 
+Run BSubtilis Network Inference with TFA BBSR. 
 """
 
-from . import utils
 import numpy as np
 import os
 from workflow import WorkflowBase
@@ -11,19 +10,6 @@ class Bsubtilis_Bbsr_Workflow(WorkflowBase):
 
     # Common configuration parameters
     input_dir = 'bsubtilis'
-    exp_mat_file = "expression.tsv"
-    tf_names_file = "tf_names.tsv"
-    meta_data_file = "meta_data.tsv"
-    priors_file = "gold_standard.tsv"
-    gold_standard_file = "gold_standard.tsv"
-    random_seed = 42
-
-    # Computed data structures
-    exp_mat = None  # exp_mat dataframe
-    tf_names = None  # tf_names list
-    meta_data = None  # meta data dataframe
-    priors_data = None  # priors data dataframe
-    gold_standard = None  # gold standard dataframe
 
     def __init__(self):
         # Do nothing (all configuration is external to init)
@@ -39,14 +25,6 @@ class Bsubtilis_Bbsr_Workflow(WorkflowBase):
         elif not strict:
             return None
         raise ValueError("no such file " + repr(path))
-
-    def input_dataframe(self, filename, strict=True):
-        f = self.input_file(filename, strict)
-        if f is not None:
-            return utils.df_from_tsv(f)
-        else:
-            assert not strict
-            return None
 
     def compute_common_data(self):
         """
