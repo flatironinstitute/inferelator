@@ -104,7 +104,6 @@ class TestTFA(unittest.TestCase):
         # Assert the final priors matrix has no self- interactions
         np.testing.assert_equal(self.tfa_object.prior.values, np.array([[1], [0], [0]]))
 
-    # TODO: Fix this test
     def test_tfa_default_all_zero_prior_no_expression_data(self):
         self.setup_one_column()
         self.tfa_object.prior['tf2'] = [0, 0, 0] 
