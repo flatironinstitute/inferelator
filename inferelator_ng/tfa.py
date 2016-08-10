@@ -11,7 +11,7 @@ class TFA:
     --------
     prior: pd.dataframe
         binary or numeric g by t matrix stating existence of gene-TF interactions. 
-        g--gene, t--TF.
+        g: gene, t: TF.
 
     expression_matrix: pd.dataframe
         normalized expression g by c matrix. g--gene, c--conditions
@@ -20,8 +20,9 @@ class TFA:
         normalized expression matrix for time series.
 
     allow_self_interactions_for_duplicate_prior_columns=True: boolean
-        If True, TFs that other TFs with the exact same 
-        set of interactions in the prior are kept and will have the same activities
+        If True, TFs that are identical to other columns in the prior matrix 
+        do not have their self-interactios removed from the prior
+        and therefore will have the same activities as their duplicate tfs.
     """
 
     def __init__(self, prior, expression_matrix, expression_matrix_halftau):
@@ -43,7 +44,7 @@ class TFA:
         duplicates = is_duplicated[is_duplicated].index.tolist()
 
         # Find non-zero TFs that are also present in target gene list 
-        self_interacting_tfs = set(non_zero_tfs).intersection(self.prior.index.values.tolist())
+        self_interacting_tfs = set(non_zero_tfs).intersection(self.prior.index)
 
         # If this flag is set to true, don't count duplicates as self-interacting when setting the diag to zero
         if allow_self_interactions_for_duplicate_prior_columns:
@@ -54,6 +55,7 @@ class TFA:
         np.fill_diagonal(subset, 0)
         self.prior.set_value(self_interacting_tfs, self_interacting_tfs, subset)
 
+        # Set the activity of non-zero tfs to the pseudoinverse of the prior matrix times the expression
         if non_zero_tfs:
             activity.loc[non_zero_tfs,:] = np.matrix(linalg.pinv2(self.prior[non_zero_tfs])) * np.matrix(self.expression_matrix_halftau)
 
