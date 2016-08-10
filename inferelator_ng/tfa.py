@@ -13,50 +13,49 @@ class TFA:
         binary or numeric g by t matrix stating existence of gene-TF interactions. 
         g--gene, t--TF.
 
-    exp.mat: pd.dataframe
+    expression_matrix: pd.dataframe
         normalized expression g by c matrix. g--gene, c--conditions
 
-    exp.mat.halftau: pd.dataframe
+    expression_matrix_halftau: pd.dataframe
         normalized expression matrix for time series.
 
-    dup_self=True: boolean
-        If dup_slef (duplicate self) is True, TFs that other TFs with the exact same 
+    allow_self_interactions_for_duplicate_prior_columns=True: boolean
+        If True, TFs that other TFs with the exact same 
         set of interactions in the prior are kept and will have the same activities
     """
 
-    def __init__(self, prior, exp_mat, exp_mat_halftau):
+    def __init__(self, prior, expression_matrix, expression_matrix_halftau):
         self.prior = prior
-        self.exp_mat = exp_mat
-        self.exp_mat_halftau = exp_mat_halftau
+        self.expression_matrix = expression_matrix
+        self.expression_matrix_halftau = expression_matrix_halftau
 
-    def tfa(self, allow_self_interactions_for_duplicate_prior_columns = True):
-        # Create activity dataframe with default values set to the expression
-        activity = pd.DataFrame(self.exp_mat.loc[self.prior.columns,:].values, index = self.prior.columns, columns = self.exp_mat.columns)
+    def compute_transcription_factor_activity(self, allow_self_interactions_for_duplicate_prior_columns = True):
+        # Create activity dataframe with values set by default to the transcription factor's expression
+        activity = pd.DataFrame(self.expression_matrix.loc[self.prior.columns,:].values,
+                index = self.prior.columns,
+                columns = self.expression_matrix.columns)
         
-        # Finds tfs that have non-zero regulation
-        # TODO: Remove as some form of pre-processing???
-        non_zero_tfs = self.prior.loc[:, (self.prior != 0).any(axis=0)].columns.values.tolist()
+        # Find TFs that have non-zero columns in the priors matrix
+        non_zero_tfs = self.prior.columns[(self.prior != 0).any(axis=0)].tolist()
 
-        # dup_tfs: duplicated TFs
-        dup_tfs = []
+        # Find all non-zero TFs that are duplicates of any other non-zero tfs
+        is_duplicated = self.prior[non_zero_tfs].transpose().duplicated(keep=False)
+        duplicates = is_duplicated[is_duplicated].index.tolist()
+
+        # Find non-zero TFs that are also present in target gene list 
+        self_interacting_tfs = set(non_zero_tfs).intersection(self.prior.index.values.tolist())
+
+        # If this flag is set to true, don't count duplicates as self-interacting when setting the diag to zero
         if allow_self_interactions_for_duplicate_prior_columns:
+            self_interacting_tfs = self_interacting_tfs.difference(duplicates)
 
-        # Everything up til now is useless if the prior is well-made.
-        # could replace with checks: check the TF list is            
-            duplicates = self.prior[non_zero_tfs].transpose().duplicated(keep=False) # mark duplicates as true
-            dup_tfs = duplicates[duplicates].index.tolist()
-
-        # find non-duplicated TFs that are also present in target gene list 
-        ndup_tfs = list(set(non_zero_tfs).difference(dup_tfs))
-        self_tfs = list(set(ndup_tfs).intersection(self.prior.index.values.tolist()))
-
-        # Set the diagonal of the self-interaction tfs to zero
-        subset = self.prior.loc[self_tfs, self_tfs].values
+        # Set the diagonal of the matrix subset of self-interacting tfs to zero
+        subset = self.prior.loc[self_interacting_tfs, self_interacting_tfs].values
         np.fill_diagonal(subset, 0)
-        self.prior.set_value(self_tfs, self_tfs, subset)
+        self.prior.set_value(self_interacting_tfs, self_interacting_tfs, subset)
 
         if non_zero_tfs:
-            activity.loc[non_zero_tfs,:] = np.matrix(linalg.pinv2(self.prior[non_zero_tfs])) * np.matrix(self.exp_mat_halftau)
+            activity.loc[non_zero_tfs,:] = np.matrix(linalg.pinv2(self.prior[non_zero_tfs])) * np.matrix(self.expression_matrix_halftau)
 
         return activity
 
