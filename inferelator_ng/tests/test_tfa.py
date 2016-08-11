@@ -108,6 +108,7 @@ class TestTFA(unittest.TestCase):
         self.setup_one_column()
         self.tfa_object.prior['tf2'] = [0, 0, 0] 
         activities = self.tfa_object.compute_transcription_factor_activity()
+        # Assert that the all-zero no-expression tf was dropped from the activity matrix
         np.testing.assert_array_almost_equal_nulp(activities.values,
             np.array([[ 1,   3]]), 
             units_in_the_last_place_tolerance)

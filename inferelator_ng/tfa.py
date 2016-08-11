@@ -33,22 +33,22 @@ class TFA:
         self.expression_matrix_halftau = expression_matrix_halftau
 
     def compute_transcription_factor_activity(self, allow_self_interactions_for_duplicate_prior_columns = True):
-    	# Delete tfs that have neither prior information nor expression
-    	zero_tfs = self.prior.columns[(self.prior == 0).all(axis=0)].tolist()
-    	delete_tfs = set(zero_tfs).difference(self.prior.index)
-    	# Raise warnings
-    	if len(delete_tfs) > 0:
-    		message = " ".join([num2words(len(delete_tfs)).capitalize(), "transcription factors are removed because no expression or prior information exists."])
-    		warnings.warn(message)
-    		self.prior = self.prior.drop(delete_tfs, axis = 1)
+        # Find TFs that have non-zero columns in the priors matrix
+        non_zero_tfs = self.prior.columns[(self.prior != 0).any(axis=0)].tolist()
+
+        # Delete tfs that have neither prior information nor expression
+        delete_tfs = set(self.prior.columns).difference(self.prior.index).difference(non_zero_tfs)
+        # Raise warnings
+        if len(delete_tfs) > 0:
+            message = " ".join([num2words(len(delete_tfs)).capitalize(),
+             "transcription factors are removed because no expression or prior information exists."])
+            warnings.warn(message)
+            self.prior = self.prior.drop(delete_tfs, axis = 1)
 
         # Create activity dataframe with values set by default to the transcription factor's expression
         activity = pd.DataFrame(self.expression_matrix.loc[self.prior.columns,:].values,
                 index = self.prior.columns,
                 columns = self.expression_matrix.columns)
-        
-        # Find TFs that have non-zero columns in the priors matrix
-        non_zero_tfs = self.prior.columns[(self.prior != 0).any(axis=0)].tolist()
 
         # Find all non-zero TFs that are duplicates of any other non-zero tfs
         is_duplicated = self.prior[non_zero_tfs].transpose().duplicated(keep=False)
