@@ -114,6 +114,32 @@ class TestTFA(unittest.TestCase):
         # Assert the final priors matrix has no self- interactions
         np.testing.assert_equal(self.tfa_object.prior.values, np.array([[1], [0], [0]]))
 
+    def test_tfa_default_all_zero_prior_no_expression_data_but_in_prior_matrix(self):
+        self.setup_one_column()
+        self.tfa_object.prior['tf2'] = [0, 0, 0] 
+        # Add a row to the prior matrix
+        self.tfa_object.prior.index = ['g1', 'tf1', 'tf2']
+        activities = self.tfa_object.compute_transcription_factor_activity()
+        np.testing.assert_array_almost_equal_nulp(activities.values,
+            np.array([[ 1,   3]]), 
+            units_in_the_last_place_tolerance)
+        # Assert the final priors matrix has no self- interactions
+        np.testing.assert_equal(self.tfa_object.prior.values, np.array([[1], [0], [0]]))
+
+    def test_tfa_default_all_zero_prior_has_expression_data_but_not_in_prior_matrix(self):
+        self.setup_one_column()
+        self.tfa_object.prior['tf2'] = [0, 0, 0] 
+        # Add a row to the prior matrix
+        self.tfa_object.expression_matrix.index = ['g1', 'tf1', 'tf2']
+        self.tfa_object.expression_matrix_halftau.index = ['g1', 'tf1', 'tf2']
+        activities = self.tfa_object.compute_transcription_factor_activity()
+        np.testing.assert_array_almost_equal_nulp(activities.values,
+            np.array([[ 1,   3], [0, 3]]), 
+            units_in_the_last_place_tolerance)
+        # Assert the final priors matrix has no self- interactions
+        np.testing.assert_equal(self.tfa_object.prior.values, np.array([[1, 0], [0, 0], [0, 0]]))
+
+
     def test_tfa_default_three_columns(self):
         self.setup_three_columns()
         activities = self.tfa_object.compute_transcription_factor_activity()
