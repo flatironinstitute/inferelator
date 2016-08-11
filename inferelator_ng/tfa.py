@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 from scipy import linalg
 import warnings
-from num2words import num2words
 
 class TFA:
 
@@ -40,7 +39,7 @@ class TFA:
         delete_tfs = set(self.prior.columns).difference(self.prior.index).difference(non_zero_tfs)
         # Raise warnings
         if len(delete_tfs) > 0:
-            message = " ".join([num2words(len(delete_tfs)).capitalize(),
+            message = " ".join([str(len(delete_tfs)).capitalize(),
              "transcription factors are removed because no expression or prior information exists."])
             warnings.warn(message)
             self.prior = self.prior.drop(delete_tfs, axis = 1)
