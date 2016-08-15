@@ -73,5 +73,5 @@ class Bsubtilis_Bbsr_Workflow(WorkflowBase):
         """
         output_dir = os.path.join(self.input_dir, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
         for idx, result in enumerate(self.results):
-            result[0].to_csv('betas_{}'.format(idx), sep = '\t')
-            result[1].to_csv('resc_{}'.format(idx), sep = '\t')
+            result[0].to_csv(os.path.join(output_dir, 'betas_{}.tsv'.format(idx)), sep = '\t')
+            result[1].to_csv(os.path.join(output_dir,'resc_{}.tsv'.format(idx)), sep = '\t')
