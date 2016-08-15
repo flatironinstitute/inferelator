@@ -11,7 +11,7 @@ class TestTFA(unittest.TestCase):
         return np.array([np.random.rand(m) for x in range(n)])
 
     # Test for 5 genes, one of which is a TF, 5 condidtions, and 4 TFs.
-    # where tau is equal to 1, so exp_mat and exp_mat_tau are equivalent
+    # where tau is equal to 1, so expression_matrix and expression_matrix_halftau are equivalent
     def setup_mouse_th17(self):
         tau = 1
         exp = pd.DataFrame(np.array([[12.28440, 12.55000, 11.86260, 11.86230, 11.88100], 
