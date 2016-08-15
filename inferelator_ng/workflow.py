@@ -55,7 +55,7 @@ class WorkflowBase(object):
         self.exp_mat = self.input_dataframe(self.exp_mat_file)
         tf_file = self.input_file(self.tf_names_file)
         self.tf_names = utils.read_tf_names(tf_file)
-        self.meta_data = self.input_dataframe(self.meta_data_file)
+        self.meta_data = self.input_dataframe(self.meta_data_file, has_index=False)
         self.priors_data = self.input_dataframe(self.priors_file)
         self.gold_standard = self.input_dataframe(self.gold_standard_file)
 
@@ -70,10 +70,10 @@ class WorkflowBase(object):
             return None
         raise ValueError("no such file " + repr(path))
 
-    def input_dataframe(self, filename, strict=True):
+    def input_dataframe(self, filename, strict=True, has_index=True):
         f = self.input_file(filename, strict)
         if f is not None:
-            return utils.df_from_tsv(f)
+            return utils.df_from_tsv(f, has_index)
         else:
             assert not strict
             return None

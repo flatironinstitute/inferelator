@@ -5,11 +5,10 @@ Run BSubtilis Network Inference with TFA BBSR.
 import numpy as np
 import os
 from workflow import WorkflowBase
+import design_response_R
+from tfa import TFA
 
 class Bsubtilis_Bbsr_Workflow(WorkflowBase):
-
-    # Common configuration parameters
-    input_dir = 'bsubtilis'
 
     def __init__(self):
         # Do nothing (all configuration is external to init)
@@ -30,7 +29,12 @@ class Bsubtilis_Bbsr_Workflow(WorkflowBase):
         """
         Compute common data structures like design and response matrices.
         """
-        raise NotImplementedError  # implement in subclass
+        drd = design_response_R.DRDriver()
+        drd.delTmin = self.delTmin
+        drd.delTmax = self.delTmax
+        drd.tau = self.tau
+        import pdb; pdb.set_trace()
+        (self.design, self.response) = drd.run(self.exp_mat, self.meta_data)
 
     def get_priors(self):
         """

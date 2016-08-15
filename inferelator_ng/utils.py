@@ -60,10 +60,9 @@ def local_path(*location):
     return r_path(os.path.join(my_dir, *location))
 
 
-def df_from_tsv(file_like):
+def df_from_tsv(file_like, has_index = True):
     "Read a tsv file or buffer with headers and row ids into a pandas dataframe."
-    return pd.read_csv(file_like, sep="\t", header=0, index_col=0)
-
+    return pd.read_csv(file_like, sep="\t", header=0, index_col= 0 if has_index else False)
 
 def conditions_from_df(data_frame):
     """
