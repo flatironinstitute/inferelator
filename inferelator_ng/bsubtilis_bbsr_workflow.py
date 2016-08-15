@@ -29,11 +29,13 @@ class Bsubtilis_Bbsr_Workflow(WorkflowBase):
         self.compute_activity()
         self.results = []
 
-        for bootstrap in self.get_bootstraps():
-            print 'in bootstrap'
+        for idx, bootstrap in enumerate(self.get_bootstraps()):
+            print 'Bootstrap {} of {}'.format(idx, self.num_bootstraps)
             X = self.activity.ix[:, bootstrap]
             Y = self.response.ix[:, bootstrap]
+            print 'Calculating MI, Background MI, and CLR Matrix'
             (self.clr_matrix, self.mi_matrix) = self.mi_clr_driver.run(X, Y)
+            print 'Calculating betas using BBSR'
             (betas, resc) = self.brd.run(X, Y, self.clr_matrix, self.priors_data)
             self.results.append((betas, resc))
         self.emit_results()
@@ -43,6 +45,7 @@ class Bsubtilis_Bbsr_Workflow(WorkflowBase):
         Compute common data structures like design and response matrices.
         """
         self.priors_data = self.filter_prior_matrix(self.priors_data, self.expression_matrix, self.tf_names)
+        print 'Creating design and response matrix ... '
         drd = design_response_R.DRDriver()
         drd.delTmin = self.delTmin
         drd.delTmax = self.delTmax
@@ -50,6 +53,7 @@ class Bsubtilis_Bbsr_Workflow(WorkflowBase):
         (self.design, self.response) = drd.run(self.expression_matrix, self.meta_data)
 
         # compute half_tau_response
+        print 'Setting up TFA specific response matrix ... '
         drd.tau = self.tau / 2
         (self.design, self.half_tau_response) = drd.run(self.expression_matrix, self.meta_data)
 
@@ -62,8 +66,9 @@ class Bsubtilis_Bbsr_Workflow(WorkflowBase):
 
     def compute_activity(self):
         """
-        Generate sequence of priors objects for run.
+        Compute Transcription Factor Activity
         """
+        print 'Computing Transcription Factor Activity ... '
         TFA_calculator = TFA(self.priors_data, self.design, self.half_tau_response)
         self.activity = TFA_calculator.compute_transcription_factor_activity()
 
@@ -72,6 +77,7 @@ class Bsubtilis_Bbsr_Workflow(WorkflowBase):
         Output result report(s) for workflow run.
         """
         output_dir = os.path.join(self.input_dir, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+        os.makedirs(output_dir)
         for idx, result in enumerate(self.results):
             result[0].to_csv(os.path.join(output_dir, 'betas_{}.tsv'.format(idx)), sep = '\t')
             result[1].to_csv(os.path.join(output_dir,'resc_{}.tsv'.format(idx)), sep = '\t')
