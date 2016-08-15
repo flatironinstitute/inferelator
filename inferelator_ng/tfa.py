@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from scipy import linalg
+import warnings
 
 class TFA:
 
@@ -11,52 +12,62 @@ class TFA:
     --------
     prior: pd.dataframe
         binary or numeric g by t matrix stating existence of gene-TF interactions. 
-        g--gene, t--TF.
+        g: gene, t: TF.
 
-    exp.mat: pd.dataframe
+    expression_matrix: pd.dataframe
         normalized expression g by c matrix. g--gene, c--conditions
 
-    exp.mat.halftau: pd.dataframe
+    expression_matrix_halftau: pd.dataframe
         normalized expression matrix for time series.
 
-    noself=True: boolean
-        If noself (no self interaction) is True, self-regulatory interactions 
-        in prior matrix are set to 0.
-
-    dup_self=True: boolean
-        If dup_slef (duplicate self) is True, TFs that other TFs with the exact same 
-        set of interactions in the prior are kept and will have the same activities
+    allow_self_interactions_for_duplicate_prior_columns=True: boolean
+        If True, TFs that are identical to other columns in the prior matrix 
+        do not have their self-interactios removed from the prior
+        and therefore will have the same activities as their duplicate tfs.
     """
 
-    def __init__(self, prior, exp_mat, exp_mat_halftau):
+    def __init__(self, prior, expression_matrix, expression_matrix_halftau):
         self.prior = prior
-        self.exp_mat = exp_mat
-        self.exp_mat = exp_mat_halftau
+        self.expression_matrix = expression_matrix
+        self.expression_matrix_halftau = expression_matrix_halftau
 
-    def tfa(self, noself = True, dup_self = True):
-        tfwt = self.prior.abs().sum(axis = 0) > 0
-        tfwt = tfwt[tfwt].index.tolist()
+    def compute_transcription_factor_activity(self, allow_self_interactions_for_duplicate_prior_columns = True):
+        # Find TFs that have non-zero columns in the priors matrix
+        non_zero_tfs = self.prior.columns[(self.prior != 0).any(axis=0)].tolist()
 
-        if dup_self:
-            # subset of prior matrix whose columns are not all zeros (snz: sum non-zero)
-            prior_snz = self.prior[tfwt]            
-            duplicates = prior_snz.transpose().duplicated(keep=False) # mark duplicates as true
-            dTFs = duplicates[duplicates].index.tolist()
+        # Delete tfs that have neither prior information nor expression
+        delete_tfs = set(self.prior.columns).difference(self.prior.index).difference(non_zero_tfs)
+        # Raise warnings
+        if len(delete_tfs) > 0:
+            message = " ".join([str(len(delete_tfs)).capitalize(),
+             "transcription factors are removed because no expression or prior information exists."])
+            warnings.warn(message)
+            self.prior = self.prior.drop(delete_tfs, axis = 1)
 
-        # find non-duplicated TFs that are also present in target gene list 
-        ndTFs = list(set(self.prior.columns.values.tolist()).difference(dTFs))
+        # Create activity dataframe with values set by default to the transcription factor's expression
+        activity = pd.DataFrame(self.expression_matrix.loc[self.prior.columns,:].values,
+                index = self.prior.columns,
+                columns = self.expression_matrix.columns)
 
-        if noself:
-            selfTFs = list(set(ndTFs).intersection(self.prior.index.values.tolist()))
-            prior.loc[selfTFs, selfTFs] = 0
+        # Find all non-zero TFs that are duplicates of any other non-zero tfs
+        is_duplicated = self.prior[non_zero_tfs].transpose().duplicated(keep=False)
+        duplicates = is_duplicated[is_duplicated].index.tolist()
 
-        activity = pd.DataFrame(0, index = self.prior.columns, columns = self.exp_mat_halftau.columns)
+        # Find non-zero TFs that are also present in target gene list 
+        self_interacting_tfs = set(non_zero_tfs).intersection(self.prior.index)
 
-        if any(tfwt):
-            activity.loc[tfwt,:] = np.matrix(linalg.pinv2(prior_snz))* np.matrix(self.exp_mat_halftau)
+        # If this flag is set to true, don't count duplicates as self-interacting when setting the diag to zero
+        if allow_self_interactions_for_duplicate_prior_columns:
+            self_interacting_tfs = self_interacting_tfs.difference(duplicates)
 
-        ntfwt = list(set(self.prior.columns.values.tolist()).difference(tfwt))
-        activity.loc[ntfwt,:] = exp_mat.loc[ntfwt,:]
+        # Set the diagonal of the matrix subset of self-interacting tfs to zero
+        subset = self.prior.loc[self_interacting_tfs, self_interacting_tfs].values
+        np.fill_diagonal(subset, 0)
+        self.prior.set_value(self_interacting_tfs, self_interacting_tfs, subset)
+
+        # Set the activity of non-zero tfs to the pseudoinverse of the prior matrix times the expression
+        if non_zero_tfs:
+            activity.loc[non_zero_tfs,:] = np.matrix(linalg.pinv2(self.prior[non_zero_tfs])) * np.matrix(self.expression_matrix_halftau)
 
         return activity
 
