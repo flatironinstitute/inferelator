@@ -7,19 +7,22 @@ import pandas as pd
 from . import condition
 from . import time_series
 import subprocess
+import numpy as np
 
 my_dir = os.path.dirname(__file__)
 
 
 def convert_to_R_df(df):
     """
-    Convert booleans to "TRUE" and "FALSE" so they will be read correctly from CSV
-    format by R.
+    Convert pandas dataframes so that they will be read correctly from CSV format by R.
     """
     new_df = pd.DataFrame(df)
-    for col in new_df:
-        if new_df[col].dtype == 'bool':
-            new_df[col] = [str(x).upper() for x in new_df[col]]
+    # Convert booleans to "TRUE" and "FALSE" so they will be read correctly
+    for col in new_df.select_dtypes(include=[bool]):
+        new_df[col] = [str(x).upper() for x in new_df[col]]
+    # Replace null entries with NA entries
+    new_df.replace(r'\s+', 'NA', regex=True)
+    new_df.replace(np.nan, 'NA', regex=True)
     return new_df
 
 
