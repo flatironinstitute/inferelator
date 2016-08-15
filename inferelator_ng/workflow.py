@@ -12,12 +12,13 @@ Add doc string here.
 from . import utils
 import numpy as np
 import os
+import random
 
 class WorkflowBase(object):
 
     # Common configuration parameters
     input_dir = None
-    exp_mat_file = "expression.tsv"
+    expression_matrix_file = "expression.tsv"
     tf_names_file = "tf_names.tsv"
     meta_data_file = "meta_data.tsv"
     priors_file = "gold_standard.tsv"
@@ -25,7 +26,7 @@ class WorkflowBase(object):
     random_seed = 42
 
     # Computed data structures
-    exp_mat = None  # exp_mat dataframe
+    expression_matrix = None  # expression_matrix dataframe
     tf_names = None  # tf_names list
     meta_data = None  # meta data dataframe
     priors_data = None  # priors data dataframe
@@ -36,23 +37,17 @@ class WorkflowBase(object):
         pass
 
     def run(self):
-        "Execute workflow, after all configuration."
+        """
+        Execute workflow, after all configuration.
+        """
         self.get_data()
-        np.random.seed(self.random_seed)
         self.compute_common_data()
-        priors = list(self.get_priors())
-        bootstraps = list(self.get_bootstraps())
-        for prior in priors:
-            results = [prior.run_bootstrap(self, bootstrap_parameters)
-                       for bootstrap_parameters in bootstraps]
-            prior.combine_bootstrap_results(self, results)
-        self.emit_results(priors)
 
     def get_data(self):
         """
         Read data files in to data structures.
         """
-        self.exp_mat = self.input_dataframe(self.exp_mat_file)
+        self.expression_matrix = self.input_dataframe(self.expression_matrix_file)
         tf_file = self.input_file(self.tf_names_file)
         self.tf_names = utils.read_tf_names(tf_file)
         self.meta_data = self.input_dataframe(self.meta_data_file, has_index=False)
@@ -70,7 +65,7 @@ class WorkflowBase(object):
             return None
         raise ValueError("no such file " + repr(path))
 
-    def input_dataframe(self, filename, strict=True, has_index=True):
+    def input_dataframe(self, filename, strict=True, has_index =True):
         f = self.input_file(filename, strict)
         if f is not None:
             return utils.df_from_tsv(f, has_index)
@@ -80,23 +75,19 @@ class WorkflowBase(object):
 
     def compute_common_data(self):
         """
-        Compute common data structures like design and response matrices.
-        """
-        raise NotImplementedError  # implement in subclass
-
-    def get_priors(self):
-        """
-        Generate sequence of priors objects for run.
+        Compute common data structures like design, response and priors matrices.
         """
         raise NotImplementedError  # implement in subclass
 
     def get_bootstraps(self):
         """
-        Generate sequence of bootstrap parameter objectss for run.
+        Generate sequence of bootstrap parameter objects for run.
         """
-        raise NotImplementedError  # implement in subclass
+        col_range = range(self.response.shape[1])
+        return [[np.random.choice(col_range) for x in col_range] for y in range(self.num_bootstraps)]
 
-    def emit_results(self, priors):
+
+    def emit_results(self):
         """
         Output result report(s) for workflow run.
         """

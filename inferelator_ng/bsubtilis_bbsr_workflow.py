@@ -7,6 +7,9 @@ import os
 from workflow import WorkflowBase
 import design_response_R
 from tfa import TFA
+import mi_R
+import bbsr_R
+import datetime
 
 class Bsubtilis_Bbsr_Workflow(WorkflowBase):
 
@@ -14,42 +17,61 @@ class Bsubtilis_Bbsr_Workflow(WorkflowBase):
         # Do nothing (all configuration is external to init)
         pass
 
-    def input_path(self, filename):
-        return os.path.abspath(os.path.join(self.input_dir, filename))
+    def run(self):
+        """
+        Execute workflow, after all configuration.
+        """
+        np.random.seed(self.random_seed)
+        self.mi_clr_driver = mi_R.MIDriver()
+        self.brd = bbsr_R.BBSR_driver()
+        self.get_data()
+        self.compute_common_data()
+        self.compute_activity()
+        self.results = []
 
-    def input_file(self, filename, strict=True):
-        path = self.input_path(filename)
-        if os.path.exists(path):
-            return open(path)
-        elif not strict:
-            return None
-        raise ValueError("no such file " + repr(path))
+        for bootstrap in self.get_bootstraps():
+            print 'in bootstrap'
+            X = self.activity.ix[:, bootstrap]
+            Y = self.response.ix[:, bootstrap]
+            (self.clr_matrix, self.mi_matrix) = self.mi_clr_driver.run(X, Y)
+            (betas, resc) = self.brd.run(X, Y, self.clr_matrix, self.priors_data)
+            self.results.append((betas, resc))
+        self.emit_results()
 
     def compute_common_data(self):
         """
         Compute common data structures like design and response matrices.
         """
+        self.priors_data = self.filter_prior_matrix(self.priors_data, self.expression_matrix, self.tf_names)
         drd = design_response_R.DRDriver()
         drd.delTmin = self.delTmin
         drd.delTmax = self.delTmax
         drd.tau = self.tau
-        import pdb; pdb.set_trace()
-        (self.design, self.response) = drd.run(self.exp_mat, self.meta_data)
+        (self.design, self.response) = drd.run(self.expression_matrix, self.meta_data)
 
-    def get_priors(self):
+        # compute half_tau_response
+        drd.tau = self.tau / 2
+        (self.design, self.half_tau_response) = drd.run(self.expression_matrix, self.meta_data)
+
+    def filter_prior_matrix(self, priors_data, expression_matrix, tf_names):
+        """
+        Filter the prior matrix to only include columns in the tfs names list
+        and rows in the expression matrix row names list
+        """
+        return self.priors_data.loc[expression_matrix.index.tolist(), tf_names]
+
+    def compute_activity(self):
         """
         Generate sequence of priors objects for run.
         """
-        raise NotImplementedError  # implement in subclass
+        TFA_calculator = TFA(self.priors_data, self.design, self.half_tau_response)
+        self.activity = TFA_calculator.compute_transcription_factor_activity()
 
-    def get_bootstraps(self):
-        """
-        Generate sequence of bootstrap parameter objectss for run.
-        """
-        raise NotImplementedError  # implement in subclass
-
-    def emit_results(self, priors):
+    def emit_results(self):
         """
         Output result report(s) for workflow run.
         """
-        raise NotImplementedError  # implement in subclass
+        output_dir = os.path.join(self.input_dir, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+        for idx, result in enumerate(self.results):
+            result[0].to_csv('betas_{}'.format(idx), sep = '\t')
+            result[1].to_csv('resc_{}'.format(idx), sep = '\t')
