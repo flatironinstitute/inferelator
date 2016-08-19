@@ -7,15 +7,12 @@ import os
 from workflow import WorkflowBase
 import design_response_R
 from tfa import TFA
+from results_processor import ResultsProcessor
 import mi_R
 import bbsr_R
 import datetime
 
 class Bsubtilis_Bbsr_Workflow(WorkflowBase):
-
-    def __init__(self):
-        # Do nothing (all configuration is external to init)
-        pass
 
     def run(self):
         """
@@ -23,22 +20,26 @@ class Bsubtilis_Bbsr_Workflow(WorkflowBase):
         """
         np.random.seed(self.random_seed)
         self.mi_clr_driver = mi_R.MIDriver()
-        self.brd = bbsr_R.BBSR_driver()
+        self.regression_driver = bbsr_R.BBSR_driver()
+        self.design_response_driver = design_response_R.DRDriver()
+
         self.get_data()
         self.compute_common_data()
         self.compute_activity()
-        self.results = []
+        betas = []
+        rescaled_betas = []
 
         for idx, bootstrap in enumerate(self.get_bootstraps()):
-            print 'Bootstrap {} of {}'.format(idx, self.num_bootstraps)
+            print 'Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps)
             X = self.activity.ix[:, bootstrap]
             Y = self.response.ix[:, bootstrap]
             print 'Calculating MI, Background MI, and CLR Matrix'
             (self.clr_matrix, self.mi_matrix) = self.mi_clr_driver.run(X, Y)
             print 'Calculating betas using BBSR'
-            (betas, resc) = self.brd.run(X, Y, self.clr_matrix, self.priors_data)
-            self.results.append((betas, resc))
-        self.emit_results()
+            current_betas, current_rescaled_betas = self.brd.run(X, Y, self.clr_matrix, self.priors_data)
+            betas.append(current_betas)
+            rescaled_betas.append(current_rescaled_betas)
+        self.emit_results(betas, rescaled_betas)
 
     def compute_common_data(self):
         """
@@ -46,16 +47,15 @@ class Bsubtilis_Bbsr_Workflow(WorkflowBase):
         """
         self.priors_data = self.filter_prior_matrix(self.priors_data, self.expression_matrix, self.tf_names)
         print 'Creating design and response matrix ... '
-        drd = design_response_R.DRDriver()
-        drd.delTmin = self.delTmin
-        drd.delTmax = self.delTmax
-        drd.tau = self.tau
-        (self.design, self.response) = drd.run(self.expression_matrix, self.meta_data)
+        self.design_response_driver.delTmin = self.delTmin
+        self.design_response_driver.delTmax = self.delTmax
+        self.design_response_driver.tau = self.tau
+        (self.design, self.response) = self.design_response_driver.run(self.expression_matrix, self.meta_data)
 
         # compute half_tau_response
         print 'Setting up TFA specific response matrix ... '
-        drd.tau = self.tau / 2
-        (self.design, self.half_tau_response) = drd.run(self.expression_matrix, self.meta_data)
+        self.design_response_driver.tau = self.tau / 2
+        (self.design, self.half_tau_response) = self.design_response_driver.run(self.expression_matrix, self.meta_data)
 
     def filter_prior_matrix(self, priors_data, expression_matrix, tf_names):
         """
@@ -72,12 +72,14 @@ class Bsubtilis_Bbsr_Workflow(WorkflowBase):
         TFA_calculator = TFA(self.priors_data, self.design, self.half_tau_response)
         self.activity = TFA_calculator.compute_transcription_factor_activity()
 
-    def emit_results(self):
+    def emit_results(self, betas, rescaled_betas):
         """
         Output result report(s) for workflow run.
         """
         output_dir = os.path.join(self.input_dir, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
         os.makedirs(output_dir)
-        for idx, result in enumerate(self.results):
-            result[0].to_csv(os.path.join(output_dir, 'betas_{}.tsv'.format(idx)), sep = '\t')
-            result[1].to_csv(os.path.join(output_dir,'resc_{}.tsv'.format(idx)), sep = '\t')
+        self.results_processor = ResultsProcessor(betas, rescaled_betas)
+        combined_confidences = self.results_processor.compute_combined_confidences()
+        betas_stack = self.results_processor.threshold_and_summarize(combined_confidences)
+        combined_confidences.to_csv(os.path.join(output_dir, 'combined_confidences.tsv'), sep = '\t')
+        betas_stack.to_csv(os.path.join(output_dir,'betas_stack.tsv'), sep = '\t')

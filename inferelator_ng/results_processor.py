@@ -5,10 +5,9 @@ from . import condition
 
 class ResultsProcessor:
 
-    def __init__(self, betas, rescaled_betas, num_bootstraps, threshold=0.5)
+    def __init__(self, betas, rescaled_betas, threshold=0.5):
         self.betas = betas
         self.rescaled_betas = rescaled_betas
-        self.num_bootstraps = num_bootstraps
         self.threshold = threshold
 
     def compute_combined_confidences():
@@ -19,7 +18,7 @@ class ResultsProcessor:
             combined_confidences = combined_confidences + ranked_df
 
         min_element = min(combined_confidences.min())
-        combined_confidences = (combined_confidences - min_element) / (self.num_bootstraps * combined_confidences.size - min_element)
+        combined_confidences = (combined_confidences - min_element) / (len(betas) * combined_confidences.size - min_element)
         return combined_confidences
 
     def threshold_and_summarize():
@@ -32,6 +31,7 @@ class ResultsProcessor:
         # we only care about interactions that are present in more than th (fraction) bootstraps
         index_vector = np.where( betas_non_zero > len(betas) * self.threshold)
         betas_stack = np.stack([b.values[index_vector] for b in betas])
+        return betas_stack
 
     def calculate_aupr(combined_confidences, gold_standard):
         candidates = np.where( combined_confidences > 0)
@@ -55,7 +55,7 @@ class ResultsProcessor:
             precision.append(TP / (TP + FP))
             recall.append(TP / condition_positive)
 
-    def plot_pr_curve():
+    def plot_pr_curve(recall, precision):
         plt.plot(recall, precision)
         plt.xlabel('recall')
         plt.ylabel('precision')
