@@ -30,7 +30,7 @@ class ResultsProcessor:
 
         # we only care about interactions that are present in more than th (fraction) bootstraps
         index_vector = np.where( betas_non_zero > len(self.betas) * self.threshold)
-        betas_stack = np.stack([b.values[index_vector] for b in self.betas])
+        betas_stack = pd.DataFrame(np.stack([b.values[index_vector] for b in self.betas]), index = self.betas[0].index, columns = self.betas[0].columns )
         return betas_stack
 
     def calculate_aupr(self, combined_confidences, gold_standard):
