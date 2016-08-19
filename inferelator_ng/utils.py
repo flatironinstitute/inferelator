@@ -8,7 +8,6 @@ from . import condition
 from . import time_series
 import subprocess
 import numpy as np
-from cStringIO import StringIO
 
 my_dir = os.path.dirname(__file__)
 
