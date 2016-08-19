@@ -40,8 +40,7 @@ class WorkflowBase(object):
         """
         Execute workflow, after all configuration.
         """
-        self.get_data()
-        self.compute_common_data()
+        raise NotImplementedError  # implement in subclass
 
     def get_data(self):
         """

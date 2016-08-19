@@ -19,6 +19,7 @@ class Bsubtilis_Bbsr_Workflow(WorkflowBase):
         Execute workflow, after all configuration.
         """
         np.random.seed(self.random_seed)
+        
         self.mi_clr_driver = mi_R.MIDriver()
         self.regression_driver = bbsr_R.BBSR_driver()
         self.design_response_driver = design_response_R.DRDriver()
@@ -36,7 +37,7 @@ class Bsubtilis_Bbsr_Workflow(WorkflowBase):
             print 'Calculating MI, Background MI, and CLR Matrix'
             (self.clr_matrix, self.mi_matrix) = self.mi_clr_driver.run(X, Y)
             print 'Calculating betas using BBSR'
-            current_betas, current_rescaled_betas = self.brd.run(X, Y, self.clr_matrix, self.priors_data)
+            current_betas, current_rescaled_betas = self.regression_driver.run(X, Y, self.clr_matrix, self.priors_data)
             betas.append(current_betas)
             rescaled_betas.append(current_rescaled_betas)
         self.emit_results(betas, rescaled_betas)
@@ -80,6 +81,6 @@ class Bsubtilis_Bbsr_Workflow(WorkflowBase):
         os.makedirs(output_dir)
         self.results_processor = ResultsProcessor(betas, rescaled_betas)
         combined_confidences = self.results_processor.compute_combined_confidences()
-        betas_stack = self.results_processor.threshold_and_summarize(combined_confidences)
+        betas_stack = self.results_processor.threshold_and_summarize()
         combined_confidences.to_csv(os.path.join(output_dir, 'combined_confidences.tsv'), sep = '\t')
         betas_stack.to_csv(os.path.join(output_dir,'betas_stack.tsv'), sep = '\t')
