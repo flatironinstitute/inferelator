@@ -11,7 +11,7 @@ class TestResultsProcessor(unittest.TestCase):
         rp = results_processor.ResultsProcessor([betas], [betas])
         confidences = rp.compute_combined_confidences()
         np.testing.assert_equal(confidences.values,
-            np.array([[0.5,  0.0], [0.5  1.0]])
+            np.array([[0.5,  0.0], [0.5,  1.0]]))
 
     def test_combining_confidences_two_betas(self):
         # rescaled betas are only in the 
