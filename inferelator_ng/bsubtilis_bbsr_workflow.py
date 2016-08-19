@@ -42,29 +42,6 @@ class Bsubtilis_Bbsr_Workflow(WorkflowBase):
             rescaled_betas.append(current_rescaled_betas)
         self.emit_results(betas, rescaled_betas)
 
-    def compute_common_data(self):
-        """
-        Compute common data structures like design and response matrices.
-        """
-        self.priors_data = self.filter_prior_matrix(self.priors_data, self.expression_matrix, self.tf_names)
-        print 'Creating design and response matrix ... '
-        self.design_response_driver.delTmin = self.delTmin
-        self.design_response_driver.delTmax = self.delTmax
-        self.design_response_driver.tau = self.tau
-        (self.design, self.response) = self.design_response_driver.run(self.expression_matrix, self.meta_data)
-
-        # compute half_tau_response
-        print 'Setting up TFA specific response matrix ... '
-        self.design_response_driver.tau = self.tau / 2
-        (self.design, self.half_tau_response) = self.design_response_driver.run(self.expression_matrix, self.meta_data)
-
-    def filter_prior_matrix(self, priors_data, expression_matrix, tf_names):
-        """
-        Filter the prior matrix to only include columns in the tfs names list
-        and rows in the expression matrix row names list
-        """
-        return self.priors_data.loc[expression_matrix.index.tolist(), tf_names]
-
     def compute_activity(self):
         """
         Compute Transcription Factor Activity
