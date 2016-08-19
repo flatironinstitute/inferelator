@@ -19,7 +19,7 @@ install:
   - sudo -H conda init
   #- conda install -c r r
   #- sudo -H conda update conda --yes
-  - deps='pip numpy pandas scikit-learn coverage nose'
+  - deps='pip numpy pandas scikit-learn coverage nose matplotlib'
   - conda create -p $HOME/py --yes $deps "python=$TRAVIS_PYTHON_VERSION"
   - export PATH=$HOME/py/bin:$PATH
   - pip install codecov
