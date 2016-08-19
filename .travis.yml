@@ -3,7 +3,7 @@ python:
   - 2.7
   - 3.4
 install:
-  - sudo apt-get -y update&&sudo apt-get -y dist-upgrade
+  - sudo apt-get -y update
   # install R
   - sudo apt-get -y install r-base
   #- sudo apt-get install libblas-dev liblapack-dev libatlas-base-dev gfortran
