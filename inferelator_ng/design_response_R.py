@@ -58,8 +58,8 @@ class DRDriver(utils.RDriver):
     def run(self, expression_data_frame, metadata_dataframe):
         exp = utils.convert_to_R_df(expression_data_frame)
         md = utils.convert_to_R_df(metadata_dataframe)
-        exp.to_csv(self.path(self.exp_file))
-        md.to_csv(self.path(self.meta_file))
+        exp.to_csv(self.path(self.exp_file), na_rep='NA')
+        md.to_csv(self.path(self.meta_file), na_rep='NA')
         (driver_path, design_path, response_path) = save_R_driver(
             to_filename=self.path(self.script_file),
             delTmin=self.delTmin,

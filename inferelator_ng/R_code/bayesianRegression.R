@@ -210,7 +210,7 @@ AllCombinations <- function(k) {
   return(out)
 }
 
-
+# Get all possible pairs of K predictors
 CombCols <- function(m) {
   K <- ncol(m)
   ret <- matrix(TRUE, nrow(m), K * (K - 1) / 2)

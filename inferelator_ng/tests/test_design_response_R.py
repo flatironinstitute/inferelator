@@ -2,6 +2,7 @@ import unittest, os
 import pandas as pd
 import numpy as np
 from .. import design_response_R
+from .. import utils
 
 my_dir = os.path.dirname(__file__)
 
@@ -18,6 +19,22 @@ class TestDR(unittest.TestCase):
         drd.delTmax = self.delT_max
         drd.tau = self.tau
         (self.design, self.response) = drd.run(self.exp, self.meta)
+
+class TestDRModelOrganisms(TestDR):
+
+    def test_on_bsubtilis(self):
+        self.exp = utils.df_from_tsv('data/bsubtilis/expression.tsv')
+        self.meta = utils.df_from_tsv('data/bsubtilis/meta_data.tsv', has_index=False)
+        expected_design = utils.df_from_tsv('data/bsubtilis/bsubtilis_design_matrix.tsv')
+        expected_response = utils.df_from_tsv('data/bsubtilis/bsubtilis_response_matrix.tsv')
+        self.delT_min = 0
+        self.delT_max = 110
+        self.tau = 45
+        self.calculate_design_and_response()
+        self.assertTrue(pd.DataFrame.equals(expected_design, self.design))
+        np.testing.assert_allclose(self.response.values, expected_response.values, atol=1e-15)
+        self.assertEqual(expected_response.columns.tolist(), self.response.columns.tolist())
+        self.assertEqual(expected_response.index.tolist(), self.response.index.tolist())
 
 class TestDRAboveDeltMax(TestDR):
 
