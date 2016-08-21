@@ -28,10 +28,10 @@ class ResultsProcessor:
             betas_sign = betas_sign + np.sign(beta.values)
             betas_non_zero = betas_non_zero + np.absolute(np.sign(beta.values))
 
-        # we only care about interactions that are present in more than th (fraction) bootstraps
-        index_vector = np.where( betas_non_zero > len(self.betas) * self.threshold)
-        betas_stack = pd.DataFrame(np.stack([b.values[index_vector] for b in self.betas]), index = self.betas[0].index, columns = self.betas[0].columns )
-        return betas_stack
+     
+        #The following line returns 1 for all entries that appear in more than (or equal to) self.threshold fraction of bootstraps and 0 otherwise
+        thresholded_matrix = ((betas_non_zero * self.threshold) >= 1) + 0
+        return thresholded_matrix
 
     def calculate_aupr(self, combined_confidences, gold_standard):
         candidates = np.where( combined_confidences > 0)
