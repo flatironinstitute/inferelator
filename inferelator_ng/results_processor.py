@@ -27,10 +27,10 @@ class ResultsProcessor:
         for beta in self.betas:
             betas_sign = betas_sign + np.sign(beta.values)
             betas_non_zero = betas_non_zero + np.absolute(np.sign(beta.values))
-
      
         #The following line returns 1 for all entries that appear in more than (or equal to) self.threshold fraction of bootstraps and 0 otherwise
         thresholded_matrix = ((betas_non_zero * self.threshold) >= 1) + 0
+        #Note that the current version is blind to the sign of those betas, so the betas_sign matrix is not used. Later we might want to modify this such that only same-sign interactions count.
         return thresholded_matrix
 
     def calculate_aupr(self, combined_confidences, gold_standard):

@@ -21,3 +21,12 @@ class TestResultsProcessor(unittest.TestCase):
         confidences = rp.compute_combined_confidences()
         np.testing.assert_equal(confidences.values,
             np.array([[0.63636363636363635,0],[0.63636363636363635,0.54545454545454541]]))
+
+    def test_threshold_and_summarize(self):
+        beta1 = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
+        beta2 = pd.DataFrame(np.array([[0, 0], [0.5, 1]]), ['gene1', 'gene2'], ['tf1','tf2'])
+        rp = results_processor.ResultsProcessor([beta1, beta2], [beta1, beta2])
+        thresholded_mat = rp.threshold_and_summarize()
+        np.testing.assert_equal(thresholded_mat.values,
+            np.array([[0,0],[1,0]]))
+
