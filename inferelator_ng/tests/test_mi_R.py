@@ -69,8 +69,6 @@ class Test2By2(TestMI):
         self.x_dataframe = pd.DataFrame(np.array(L))
         self.y_dataframe = pd.DataFrame(np.array(L2))
         self.calculate_mi()
-        #print "MI ", L, L2
-        #print self.clr_matrix
         expected = np.array([[0, 1], [1, 0]])
         np.testing.assert_almost_equal(self.clr_matrix.as_matrix(), expected)
 
