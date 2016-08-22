@@ -29,7 +29,7 @@ class ResultsProcessor:
             betas_non_zero = betas_non_zero + np.absolute(np.sign(beta.values))
      
         #The following line returns 1 for all entries that appear in more than (or equal to) self.threshold fraction of bootstraps and 0 otherwise
-        thresholded_matrix = ((betas_non_zero / len(self.betas)) >= self.threshold) + 0
+        thresholded_matrix = ((betas_non_zero / len(self.betas)) >= self.threshold).astype(int)
         #Note that the current version is blind to the sign of those betas, so the betas_sign matrix is not used. Later we might want to modify this such that only same-sign interactions count.
         return thresholded_matrix
 
