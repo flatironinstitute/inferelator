@@ -35,7 +35,7 @@ class TestResultsProcessor(unittest.TestCase):
         rp = results_processor.ResultsProcessor([beta1, beta2], [beta1, beta2])
         thresholded_mat = rp.threshold_and_summarize()
         np.testing.assert_equal(thresholded_mat.values,
-            np.array([[0,0],[1,0]]))
+            np.array([[1,0],[1,1]]))
 
     def test_threshold_and_summarize_three_betas(self):
         beta1 = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
