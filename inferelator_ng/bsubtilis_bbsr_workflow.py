@@ -31,12 +31,12 @@ class Bsubtilis_Bbsr_Workflow(WorkflowBase):
         rescaled_betas = []
 
         for idx, bootstrap in enumerate(self.get_bootstraps()):
-            print 'Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps)
+            print('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps))
             X = self.activity.ix[:, bootstrap]
             Y = self.response.ix[:, bootstrap]
-            print 'Calculating MI, Background MI, and CLR Matrix'
+            print('Calculating MI, Background MI, and CLR Matrix')
             (self.clr_matrix, self.mi_matrix) = self.mi_clr_driver.run(X, Y)
-            print 'Calculating betas using BBSR'
+            print('Calculating betas using BBSR')
             current_betas, current_rescaled_betas = self.regression_driver.run(X, Y, self.clr_matrix, self.priors_data)
             betas.append(current_betas)
             rescaled_betas.append(current_rescaled_betas)
@@ -46,7 +46,7 @@ class Bsubtilis_Bbsr_Workflow(WorkflowBase):
         """
         Compute Transcription Factor Activity
         """
-        print 'Computing Transcription Factor Activity ... '
+        print('Computing Transcription Factor Activity ... ')
         TFA_calculator = TFA(self.priors_data, self.design, self.half_tau_response)
         self.activity = TFA_calculator.compute_transcription_factor_activity()
 
