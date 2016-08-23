@@ -111,29 +111,53 @@ class TestResultsProcessor(unittest.TestCase):
 
 ####################
 
-    def test_precision_recall_one_beta_good_prediction(self):
+    def test_precision_recall_perfect_prediction(self):
         gs = pd.DataFrame(np.array([[1, 0], [1, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
         confidences = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
         rp = results_processor.ResultsProcessor([], [])
-        precision, recall = rp.calculate_precision_recall(confidences, gs)
-        np.testing.assert_equal(precision, [ 0.,   0.5,  1. ])
-        np.testing.assert_equal(recall, [ 1.,  1.,  1.])
+        recall, precision = rp.calculate_precision_recall(confidences, gs)
+        np.testing.assert_equal(recall, [ 0.,   0.5,  1. ])
+        np.testing.assert_equal(precision, [ 1.,  1.,  1.])
 
-    def test_precision_recall_one_beta_prediction_off(self):
-        gs = pd.DataFrame(np.array([[1, 1], [0, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
+    def test_precision_recall_prediction_off(self):
+        gs = pd.DataFrame(np.array([[1, 0], [0, 1]]), ['gene1', 'gene2'], ['tf1','tf2'])
         confidences = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
         rp = results_processor.ResultsProcessor([], [])
-        precision, recall = rp.calculate_precision_recall(confidences, gs)
-        np.testing.assert_equal(precision, [ 0.,   0.5,  1. ])
-        np.testing.assert_equal(recall, [ 1.,  1.,  1.])
+        recall, precision = rp.calculate_precision_recall(confidences, gs)
+        np.testing.assert_equal(recall, [ 0.,   0.5, 0.5, 1., 1. ])
+        np.testing.assert_equal(precision, [ 1.,  1., 0.5, 2./3, 0.5])
 
-    def test_precision_recall_one_beta_bad_prediction(self):
-        gs = pd.DataFrame(np.array([[0, 1], [0, 1]]), ['gene1', 'gene2'], ['tf1','tf2'])
+    def test_precision_recall_bad_prediction(self):
+        gs = pd.DataFrame(np.array([[0, 1], [1, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
+        confidences = pd.DataFrame(np.array([[1, 0], [0, 0.5]]), ['gene1', 'gene2'], ['tf1','tf2'])
+        rp = results_processor.ResultsProcessor([], [])
+        recall, precision = rp.calculate_precision_recall(confidences, gs)
+        np.testing.assert_equal(recall, [ 0., 0., 0.,  0.5,  1. ])
+        np.testing.assert_equal(precision, [ 0., 0., 0., 1./3, 0.5,])
+
+    def test_aupr_perfect_prediction(self):
+        gs = pd.DataFrame(np.array([[1, 0], [1, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
         confidences = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
         rp = results_processor.ResultsProcessor([], [])
-        precision, recall = rp.calculate_precision_recall(confidences, gs)
-        np.testing.assert_equal(precision, [ 0.,   0.5,  1. ])
-        np.testing.assert_equal(recall, [ 1.,  1.,  1.])
+        recall, precision = rp.calculate_precision_recall(confidences, gs)
+        aupr = rp.calculate_aupr(recall, precision)
+        np.testing.assert_equal(aupr, 1.0)
+
+    def test_aupr_prediction_off(self):
+        gs = pd.DataFrame(np.array([[1, 0], [0, 1]]), ['gene1', 'gene2'], ['tf1','tf2'])
+        confidences = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
+        rp = results_processor.ResultsProcessor([], [])
+        recall, precision = rp.calculate_precision_recall(confidences, gs)
+        aupr = rp.calculate_aupr(recall, precision)
+        np.testing.assert_equal(aupr, 19./24)
+
+    def test_aupr_bad_prediction(self):
+        gs = pd.DataFrame(np.array([[0, 1], [1, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
+        confidences = pd.DataFrame(np.array([[1, 0], [0, 0.5]]), ['gene1', 'gene2'], ['tf1','tf2'])
+        rp = results_processor.ResultsProcessor([], [])
+        recall, precision = rp.calculate_precision_recall(confidences, gs)
+        aupr = rp.calculate_aupr(recall, precision)
+        np.testing.assert_approx_equal(aupr, 7./24)
 
     def test_mean_and_median(self):
         beta1 = pd.DataFrame(np.array([[1, 1], [1, 1]]), ['gene1', 'gene2'], ['tf1','tf2'])
@@ -142,4 +166,3 @@ class TestResultsProcessor(unittest.TestCase):
         mean, median = rp.mean_and_median(rp.betas)
         np.testing.assert_equal(mean, np.array([[ 1.5,  1.5],[ 1.5,  1.5]]))
         np.testing.assert_equal(median, np.array([[ 1.5, 1.5],[ 1.5, 1.5]]))
-        
