@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from . import condition
+import os
 
 class ResultsProcessor:
 
@@ -33,30 +34,37 @@ class ResultsProcessor:
         #Note that the current version is blind to the sign of those betas, so the betas_sign matrix is not used. Later we might want to modify this such that only same-sign interactions count.
         return thresholded_matrix
 
-    def calculate_aupr(self, combined_confidences, gold_standard):
-        candidates = np.where( combined_confidences > 0)
+    def calculate_precision_recall(self, combined_confidences, gold_standard):
         # filter gold standard
-        gold_standard_filtered = gold_standard_filtered[combined_confidences.columns]
-        condition_positive = len(np.where(gold_standard_filtered.values > 0)[0])
+        gold_standard_filtered_cols = gold_standard[combined_confidences.columns]
+        gold_standard_filtered = gold_standard_filtered_cols.loc[combined_confidences.index]
+        #the following six lines remove all rows and columns that consist of all zeros in the gold standard
+        index_cols = np.where(gold_standard_filtered.abs().sum(axis=0) > 0)[0]
+        index_rows = np.where(gold_standard_filtered.abs().sum(axis=1) > 0)[0]
+        gold_standard_nozero_cols = gold_standard_filtered[index_cols]
+        gold_standard_nozero = gold_standard_nozero_cols.iloc[index_rows]
+        combined_confidences_nozero_cols = combined_confidences[index_cols]
+        combined_confidences_nozero = combined_confidences_nozero_cols.iloc[index_rows]
         # rank from highest to lowest confidence
-        sorted_candidates = np.argsort(combined_confidences.values[candidates], axis = None)[::-1]
-        combined_confidences.values[candidates][sorted_candidates[0]]
-        gs_values = np.array(gold_standard_filtered.values[candidates])
-        TP = 0.0
-        FP = 0.0
-        precision = []
-        recall = []
-        for i in sorted_candidates:
-            truth = gs_values[i]
-            if truth == 1:
-                TP = TP + 1
-            else:
-                FP = FP + 1
-            precision.append(TP / (TP + FP))
-            recall.append(TP / condition_positive)
+        sorted_candidates = np.argsort(combined_confidences_nozero.values, axis = None)[::-1]
+        gs_values = gold_standard_nozero.values.flatten()[sorted_candidates]
+        #the following mimicks the R function ChristophsPR
+        precision = np.cumsum(gs_values).astype(float) / np.cumsum([1] * len(gs_values))
+        recall = np.cumsum(gs_values).astype(float) / sum(gs_values)
+        precision = np.insert(precision,0,precision[0])
+        recall = np.insert(recall,0,0)
+        return (recall, precision)
 
-    def plot_pr_curve(self, recall, precision):
+    def calculate_aupr(self, recall, precision):
+        #using midpoint integration to calculate the area under the curve
+        d_recall = np.diff(recall)
+        m_precision = precision[:-1] + np.diff(precision) / 2
+        return sum(d_recall * m_precision)
+
+
+    def plot_pr_curve(self, recall, precision, aupr, output_dir):
         plt.plot(recall, precision)
         plt.xlabel('recall')
         plt.ylabel('precision')
-        plt.save('pr_curve.png')
+        plt.annotate("aupr = " + aupr.astype("string"), xy=(0.4, 0.05), xycoords='axes fraction')
+        plt.savefig(os.path.join(output_dir, 'pr_curve.png'))

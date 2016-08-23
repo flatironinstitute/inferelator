@@ -40,7 +40,7 @@ class Bsubtilis_Bbsr_Workflow(WorkflowBase):
             current_betas, current_rescaled_betas = self.regression_driver.run(X, Y, self.clr_matrix, self.priors_data)
             betas.append(current_betas)
             rescaled_betas.append(current_rescaled_betas)
-        self.emit_results(betas, rescaled_betas)
+        self.emit_results(betas, rescaled_betas, self.gold_standard)
 
     def compute_activity(self):
         """
@@ -50,7 +50,7 @@ class Bsubtilis_Bbsr_Workflow(WorkflowBase):
         TFA_calculator = TFA(self.priors_data, self.design, self.half_tau_response)
         self.activity = TFA_calculator.compute_transcription_factor_activity()
 
-    def emit_results(self, betas, rescaled_betas):
+    def emit_results(self, betas, rescaled_betas, gold_standard):
         """
         Output result report(s) for workflow run.
         """
@@ -61,3 +61,7 @@ class Bsubtilis_Bbsr_Workflow(WorkflowBase):
         betas_stack = self.results_processor.threshold_and_summarize()
         combined_confidences.to_csv(os.path.join(output_dir, 'combined_confidences.tsv'), sep = '\t')
         betas_stack.to_csv(os.path.join(output_dir,'betas_stack.tsv'), sep = '\t')
+        (recall, precision) = self.results_processor.calculate_precision_recall(combined_confidences, gold_standard)
+        aupr = self.results_processor.calculate_aupr(recall, precision)
+        self.results_processor.plot_pr_curve(recall, precision, aupr, output_dir)
+
