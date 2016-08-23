@@ -3,4 +3,5 @@ matplotlib>=1.5.1
 scipy>=0.9
 # scikit-learn
 pandas>=0.18
+csv
 

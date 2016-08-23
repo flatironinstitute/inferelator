@@ -51,6 +51,27 @@ class TestResultsProcessor(unittest.TestCase):
         np.testing.assert_equal(confidences.values,
             np.array([[ 0.1,  0. ,  0. ,  0.3,  0.6]]))
 
+    def test_combining_confidences_two_betas_negative_values_assert_nonzero_betas(self):
+        # data was taken from a subset of row 42 of b subtilis run
+        beta1 = pd.DataFrame(np.array([[-0.2841755, 0, 0.2280624, -0.3852462, 0.2545609]]), ['gene1'], ['tf1','tf2','tf3', 'tf4', 'tf5'])
+        rescaled_beta1 = pd.DataFrame(np.array([[0.09488207, 0, 0.07380172, 0.15597205, 0.07595131]]), ['gene1'], ['tf1','tf2','tf3', 'tf4', 'tf5'])
+        beta2 = pd.DataFrame(np.array([[0, 0.2612011, 0.1922999, 0.00000000, 0.19183277]]), ['gene1'], ['tf1','tf2','tf3', 'tf4', 'tf5'])
+        rescaled_beta2 = pd.DataFrame(np.array([[0, 0.09109101, 0.05830292, 0.00000000, 0.3675702]]), ['gene1'], ['tf1','tf2','tf3', 'tf4', 'tf5'])
+        rp = results_processor.ResultsProcessor([beta1, beta2], [rescaled_beta1, rescaled_beta2])
+        thresholded_mat = rp.threshold_and_summarize()
+        np.testing.assert_equal(rp.betas_non_zero, np.array([[1 ,1, 2, 1, 2]]))
+
+    def test_combining_confidences_two_betas_negative_values_assert_sign_betas(self):
+        # data was taken from a subset of row 42 of b subtilis run
+        beta1 = pd.DataFrame(np.array([[-0.2841755, 0, 0.2280624, -0.3852462, 0.2545609]]), ['gene1'], ['tf1','tf2','tf3', 'tf4', 'tf5'])
+        rescaled_beta1 = pd.DataFrame(np.array([[0.09488207, 0, 0.07380172, 0.15597205, 0.07595131]]), ['gene1'], ['tf1','tf2','tf3', 'tf4', 'tf5'])
+        beta2 = pd.DataFrame(np.array([[0, 0.2612011, 0.1922999, 0.00000000, 0.19183277]]), ['gene1'], ['tf1','tf2','tf3', 'tf4', 'tf5'])
+        rescaled_beta2 = pd.DataFrame(np.array([[0, 0.09109101, 0.05830292, 0.00000000, 0.3675702]]), ['gene1'], ['tf1','tf2','tf3', 'tf4', 'tf5'])
+        rp = results_processor.ResultsProcessor([beta1, beta2], [rescaled_beta1, rescaled_beta2])
+        thresholded_mat = rp.threshold_and_summarize()
+        np.testing.assert_equal(rp.betas_sign, np.array([[-1 ,1, 2, -1, 2]]))
+
+
     def test_threshold_and_summarize_one_beta(self):
         beta1 = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
         rp = results_processor.ResultsProcessor([beta1], [beta1])
@@ -113,3 +134,12 @@ class TestResultsProcessor(unittest.TestCase):
         precision, recall = rp.calculate_precision_recall(confidences, gs)
         np.testing.assert_equal(precision, [ 0.,   0.5,  1. ])
         np.testing.assert_equal(recall, [ 1.,  1.,  1.])
+
+    def test_mean_and_median(self):
+        beta1 = pd.DataFrame(np.array([[1, 1], [1, 1]]), ['gene1', 'gene2'], ['tf1','tf2'])
+        beta2 = pd.DataFrame(np.array([[2, 2], [2, 2]]), ['gene1', 'gene2'], ['tf1','tf2'])
+        rp = results_processor.ResultsProcessor([beta1, beta2], [beta1, beta2])
+        mean, median = rp.mean_and_median(rp.betas)
+        np.testing.assert_equal(mean, np.array([[ 1.5,  1.5],[ 1.5,  1.5]]))
+        np.testing.assert_equal(median, np.array([[ 1.5, 1.5],[ 1.5, 1.5]]))
+        
