@@ -22,6 +22,15 @@ class TestResultsProcessor(unittest.TestCase):
         np.testing.assert_equal(confidences.values,
             np.array([[0.5,  0.0], [0.5,      1.0]]))
 
+    def test_combining_confidences_one_beta_all_negative_values(self):
+        # rescaled betas are only in the 
+        beta = pd.DataFrame(np.array([[-1, -.5, -3], [-1, -2, 0]]), ['gene1', 'gene2'], ['tf1','tf2', 'tf3'])
+        rescaled_beta = pd.DataFrame([[0.2, 0.1, 0.4], [0.3, 0.5, 0]], ['gene1', 'gene2'], ['tf1','tf2', 'tf3'])
+        rp = results_processor.ResultsProcessor([beta], [rescaled_beta])
+        confidences = rp.compute_combined_confidences()
+        np.testing.assert_equal(confidences.values,
+            np.array([[0.4, 0.2, 0.8], [0.6,  1.0, 0]]))
+
     def test_combining_confidences_one_beta_with_negative_values(self):
         # data was taken from a subset of row 42 of b subtilis run
         beta = pd.DataFrame(np.array([[-0.2841755, 0, 0.2280624, -0.3852462, 0.2545609]]), ['gene1'], ['tf1','tf2','tf3', 'tf4', 'tf5'])
@@ -75,3 +84,32 @@ class TestResultsProcessor(unittest.TestCase):
         np.testing.assert_equal(thresholded_mat.values,
             np.array([[1,0],[1,1]]))
 
+####################
+
+# TODO: Fix the following three tests so that they have unique and correct precision recall values
+
+####################
+
+    def test_precision_recall_one_beta_good_prediction(self):
+        gs = pd.DataFrame(np.array([[1, 0], [1, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
+        confidences = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
+        rp = results_processor.ResultsProcessor([], [])
+        precision, recall = rp.calculate_precision_recall(confidences, gs)
+        np.testing.assert_equal(precision, [ 0.,   0.5,  1. ])
+        np.testing.assert_equal(recall, [ 1.,  1.,  1.])
+
+    def test_precision_recall_one_beta_prediction_off(self):
+        gs = pd.DataFrame(np.array([[1, 1], [0, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
+        confidences = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
+        rp = results_processor.ResultsProcessor([], [])
+        precision, recall = rp.calculate_precision_recall(confidences, gs)
+        np.testing.assert_equal(precision, [ 0.,   0.5,  1. ])
+        np.testing.assert_equal(recall, [ 1.,  1.,  1.])
+
+    def test_precision_recall_one_beta_bad_prediction(self):
+        gs = pd.DataFrame(np.array([[0, 1], [0, 1]]), ['gene1', 'gene2'], ['tf1','tf2'])
+        confidences = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
+        rp = results_processor.ResultsProcessor([], [])
+        precision, recall = rp.calculate_precision_recall(confidences, gs)
+        np.testing.assert_equal(precision, [ 0.,   0.5,  1. ])
+        np.testing.assert_equal(recall, [ 1.,  1.,  1.])
