@@ -7,20 +7,40 @@ class TestResultsProcessor(unittest.TestCase):
 
     def test_combining_confidences_one_beta(self):
         # rescaled betas are only in the 
-        betas = pd.DataFrame(np.array([[1, 0], [1, 2]]), ['gene1', 'gene2'], ['tf1','tf2'])
-        rp = results_processor.ResultsProcessor([betas], [betas])
+        beta = pd.DataFrame(np.array([[0.5, 0], [0.5, 1]]), ['gene1', 'gene2'], ['tf1','tf2'])
+        rp = results_processor.ResultsProcessor([beta], [beta])
         confidences = rp.compute_combined_confidences()
         np.testing.assert_equal(confidences.values,
             np.array([[0.5,  0.0], [0.5,      1.0]]))
 
-    def test_combining_confidences_two_betas(self):
+    def test_combining_confidences_one_beta_invariant_to_rescale_division(self):
         # rescaled betas are only in the 
-        beta1 = pd.DataFrame(np.array([[1, 0], [1, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
-        beta2 = pd.DataFrame(np.array([[1, 0], [1, 2]]), ['gene1', 'gene2'], ['tf1','tf2'])
-        rp = results_processor.ResultsProcessor([beta1, beta2], [beta1, beta2])
+        beta = pd.DataFrame(np.array([[1, 0], [1, 2]]), ['gene1', 'gene2'], ['tf1','tf2'])
+        rescaled_beta = pd.DataFrame((beta / 3.0), ['gene1', 'gene2'], ['tf1','tf2'])
+        rp = results_processor.ResultsProcessor([beta], [rescaled_beta])
         confidences = rp.compute_combined_confidences()
         np.testing.assert_equal(confidences.values,
-            np.array([[0.63636363636363635,0],[0.63636363636363635,0.54545454545454541]]))
+            np.array([[0.5,  0.0], [0.5,      1.0]]))
+
+    def test_combining_confidences_one_beta_with_negative_values(self):
+        # data was taken from a subset of row 42 of b subtilis run
+        beta = pd.DataFrame(np.array([[-0.2841755, 0, 0.2280624, -0.3852462, 0.2545609]]), ['gene1'], ['tf1','tf2','tf3', 'tf4', 'tf5'])
+        rescaled_beta = pd.DataFrame(np.array([[0.09488207, 0, 0.07380172, 0.15597205, 0.07595131]]), ['gene1'], ['tf1','tf2','tf3', 'tf4', 'tf5'])
+        rp = results_processor.ResultsProcessor([beta], [rescaled_beta])
+        confidences = rp.compute_combined_confidences()
+        np.testing.assert_equal(confidences.values,
+            np.array([[ 0.75,  0,  0.25,  1,  0.5 ]]))
+
+    def test_combining_confidences_two_betas_negative_values(self):
+        # data was taken from a subset of row 42 of b subtilis run
+        beta1 = pd.DataFrame(np.array([[-0.2841755, 0, 0.2280624, -0.3852462, 0.2545609]]), ['gene1'], ['tf1','tf2','tf3', 'tf4', 'tf5'])
+        rescaled_beta1 = pd.DataFrame(np.array([[0.09488207, 0, 0.07380172, 0.15597205, 0.07595131]]), ['gene1'], ['tf1','tf2','tf3', 'tf4', 'tf5'])
+        beta2 = pd.DataFrame(np.array([[0, 0.2612011, 0.1922999, 0.00000000, 0.19183277]]), ['gene1'], ['tf1','tf2','tf3', 'tf4', 'tf5'])
+        rescaled_beta2 = pd.DataFrame(np.array([[0, 0.09109101, 0.05830292, 0.00000000, 0.3675702]]), ['gene1'], ['tf1','tf2','tf3', 'tf4', 'tf5'])
+        rp = results_processor.ResultsProcessor([beta1, beta2], [rescaled_beta1, rescaled_beta2])
+        confidences = rp.compute_combined_confidences()
+        np.testing.assert_equal(confidences.values,
+            np.array([[ 0.1,  0. ,  0. ,  0.3,  0.6]]))
 
     def test_threshold_and_summarize_one_beta(self):
         beta1 = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
