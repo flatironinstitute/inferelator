@@ -49,6 +49,9 @@ coverage.xml
 *.mo
 *.pot
 
+# Testing Artifacts:
+inferelator_ng/tests/artifacts/*
+
 # Django stuff:
 *.log
 

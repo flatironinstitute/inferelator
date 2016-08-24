@@ -3,8 +3,11 @@ python:
   - 2.7
   - 3.4
 install:
+  - sudo apt-get -y update
   # install R
+  - sudo apt-get -y update
   - sudo apt-get -y install r-base
+  - sudo apt-get -y install python-matplotlib
   #- sudo apt-get install libblas-dev liblapack-dev libatlas-base-dev gfortran
   #- pip install -r requirements.txt
   #- pip install 
@@ -17,7 +20,7 @@ install:
   - sudo -H conda init
   #- conda install -c r r
   #- sudo -H conda update conda --yes
-  - deps='pip numpy pandas scikit-learn coverage nose'
+  - deps='pip numpy pandas scikit-learn coverage nose matplotlib'
   - conda create -p $HOME/py --yes $deps "python=$TRAVIS_PYTHON_VERSION"
   - export PATH=$HOME/py/bin:$PATH
   - pip install codecov
@@ -27,6 +30,7 @@ install:
   - sudo R -f inferelator_ng/R_code/packages.R
 script:
   - python -c "import os; print(repr(os.name))"
+  - python -c "import matplotlib.pyplot as plt; print('imported '+plt.__file__)"
   - coverage run --source=inferelator_ng setup.py test
   #- nosetests
 after_success:

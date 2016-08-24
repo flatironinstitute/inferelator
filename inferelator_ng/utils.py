@@ -7,30 +7,33 @@ import pandas as pd
 from . import condition
 from . import time_series
 import subprocess
+import numpy as np
 
 my_dir = os.path.dirname(__file__)
 
 
 def convert_to_R_df(df):
     """
-    Convert booleans to "TRUE" and "FALSE" so they will be read correctly from CSV
-    format by R.
+    Convert pandas dataframes so that they will be read correctly from CSV format by R.
     """
     new_df = pd.DataFrame(df)
-    for col in new_df:
-        if new_df[col].dtype == 'bool':
-            new_df[col] = [str(x).upper() for x in new_df[col]]
+    # Convert booleans to "TRUE" and "FALSE" so they will be read correctly
+    for col in new_df.select_dtypes(include=[bool]):
+        new_df[col] = [str(x).upper() for x in new_df[col]]
+    # Replace null entries with NA entries
+    new_df.replace(r'\s+', 'NA', regex=True)
+    new_df.replace(np.nan, 'NA', regex=True)
     return new_df
 
 
 def call_R(driver_path):
     """
     Run an "R" script in a subprocess.
-    Any outputs of the script should be saved to files.
+    Any outputs of the script, including stderr, should be saved to files.
     """
     if os.name == "posix":
         command = "R -f " + driver_path
-        return subprocess.check_output(command, shell=True)
+        return subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
     else:
         theproc = subprocess.Popen(['R', '-f', driver_path])
         return theproc.communicate()
@@ -60,10 +63,9 @@ def local_path(*location):
     return r_path(os.path.join(my_dir, *location))
 
 
-def df_from_tsv(file_like):
+def df_from_tsv(file_like, has_index = True):
     "Read a tsv file or buffer with headers and row ids into a pandas dataframe."
-    return pd.read_csv(file_like, sep="\t", header=0, index_col=0)
-
+    return pd.read_csv(file_like, sep="\t", header=0, index_col= 0 if has_index else False)
 
 def conditions_from_df(data_frame):
     """

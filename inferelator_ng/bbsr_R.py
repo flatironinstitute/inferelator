@@ -80,10 +80,10 @@ class BBSR_driver(utils.RDriver):
         Y = utils.convert_to_R_df(Y_dataframe)
         clr = utils.convert_to_R_df(clr_dataframe)
         priors = utils.convert_to_R_df(priors_dataframe)
-        X.to_csv(self.path(self.X_file))
-        Y.to_csv(self.path(self.Y_file))
-        clr.to_csv(self.path(self.clr_file))
-        priors.to_csv(self.path(self.priors_file))
+        X.to_csv(self.path(self.X_file), na_rep='NA')
+        Y.to_csv(self.path(self.Y_file), na_rep='NA')
+        clr.to_csv(self.path(self.clr_file), na_rep='NA')
+        priors.to_csv(self.path(self.priors_file), na_rep='NA')
         (driver_path, design_path, response_path) = save_R_driver(
             to_filename=self.path(self.script_file),
             cores=self.cores,
