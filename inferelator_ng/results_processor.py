@@ -86,10 +86,14 @@ class ResultsProcessor:
             column_idx = i % num_cols
             row_name = combined_confidences.index[index_idx]   
             column_name = combined_confidences.columns[column_idx]
+            if row_name in priors.index:
+                prior_value = priors.ix[row_name, column_name]
+            else:
+                prior_value = np.nan
             if (combined_confidences.ix[row_name, column_name] > 0):
-                output_list.append([row_name, column_name, self.betas_sign.ix[row_name, column_name],
+                output_list.append([column_name, row_name, self.betas_sign.ix[row_name, column_name],
                     self.betas_non_zero.ix[row_name, column_name], resc_betas_median[index_idx, column_idx],
-                    combined_confidences.ix[row_name, column_name], priors.ix[row_name, column_name]])
+                    combined_confidences.ix[row_name, column_name],prior_value])
         with open(os.path.join(output_dir, 'network.tsv'), 'w') as myfile:
             wr = csv.writer(myfile,  delimiter = '\t')
             for row in output_list:
