@@ -8,8 +8,15 @@ install:
   - sudo apt-get -y update
   - sudo apt-get -y install r-base
   - sudo apt-get -y install python-matplotlib
+  # make bedtools from source
+  - sudo wget https://github.com/arq5x/bedtools2/releases/download/v2.25.0/bedtools-2.25.0.tar.gz
+  - sudo tar -zxvf bedtools-2.25.0.tar.gz
+  - cd bedtools2
+  - sudo make
+  - sudo cp bin/*  /usr/local/bin/
+  - cd ..
+
   #- sudo apt-get install libblas-dev liblapack-dev libatlas-base-dev gfortran
-  #- pip install -r requirements.txt
   #- pip install 
   # Install conda
   #- sudo -H pip install conda
@@ -20,12 +27,12 @@ install:
   - sudo -H conda init
   #- conda install -c r r
   #- sudo -H conda update conda --yes
-  - deps='pip numpy pandas scikit-learn coverage nose matplotlib'
   - conda create -p $HOME/py --yes $deps "python=$TRAVIS_PYTHON_VERSION"
   - export PATH=$HOME/py/bin:$PATH
   - pip install codecov
   # install your own package into the environment
   - python setup.py install
+  - pip install -r requirements.txt
   # install R components
   - sudo R -f inferelator_ng/R_code/packages.R
 script:
