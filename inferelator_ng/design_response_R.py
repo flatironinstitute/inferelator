@@ -12,8 +12,8 @@ DR_module = utils.local_path("R_code", "design_and_response.R")
 R_template = r"""
 source('{module}')
 
-meta.data <- read.table('{meta_file}', sep = ',', header = 1, row.names = 1)
-exp.mat <- read.table('{exp_file}', sep = ',', header = 1, row.names = 1)
+meta.data <- read.table('{meta_file}', sep = ',', header = 1, row.names = 1, check.names = FALSE)
+exp.mat <- read.table('{exp_file}', sep = ',', header = 1, row.names = 1, check.names = FALSE)
 delT.min <- {delTmin} 
 delT.max <- {delTmax}
 tau <- {tau}
