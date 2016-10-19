@@ -1,5 +1,7 @@
 numpy
+matplotlib>=1.5.1
 scipy>=0.9
 # scikit-learn
-pandas
+pybedtools
+pandas>=0.18
 

@@ -12,8 +12,8 @@ DR_module = utils.local_path("R_code", "design_and_response.R")
 R_template = r"""
 source('{module}')
 
-meta.data <- read.table('{meta_file}', sep = ',', header = 1, row.names = 1)
-exp.mat <- read.table('{exp_file}', sep = ',', header = 1, row.names = 1)
+meta.data <- read.table('{meta_file}', sep = ',', header = 1, row.names = 1, check.names = FALSE)
+exp.mat <- read.table('{exp_file}', sep = ',', header = 1, row.names = 1, check.names = FALSE)
 delT.min <- {delTmin} 
 delT.max <- {delTmax}
 tau <- {tau}
@@ -58,8 +58,8 @@ class DRDriver(utils.RDriver):
     def run(self, expression_data_frame, metadata_dataframe):
         exp = utils.convert_to_R_df(expression_data_frame)
         md = utils.convert_to_R_df(metadata_dataframe)
-        exp.to_csv(self.path(self.exp_file))
-        md.to_csv(self.path(self.meta_file))
+        exp.to_csv(self.path(self.exp_file), na_rep='NA')
+        md.to_csv(self.path(self.meta_file), na_rep='NA')
         (driver_path, design_path, response_path) = save_R_driver(
             to_filename=self.path(self.script_file),
             delTmin=self.delTmin,
