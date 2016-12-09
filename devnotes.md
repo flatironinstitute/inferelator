@@ -1,5 +1,13 @@
 # Development notes
 
+To allow developer freedom coupled with shared code safety
+we ask developers on this project to develop in their own
+*forked* copy of the project.  Changes intended to be added
+to the primary project should always be offered as *pull requests*
+to the project.  The pull requests should be examined and discussed
+by the community before being merged into the project by another
+developer who did not propose the pull request.
+
 This project will loosely follow the development protocol
 outlined in the [Numpy/scipy dev documentation](http://docs.scipy.org/doc/numpy/dev/)
 
