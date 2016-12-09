@@ -19,16 +19,36 @@ install:
   #- sudo apt-get install libblas-dev liblapack-dev libatlas-base-dev gfortran
   #- pip install 
   # Install conda
+  #- sudo pip install ruamel.yaml
+  #- sudo pip install pyinstaller 
+  #- sudo pip install --upgrade pyinstaller 
+  #- sudo -H pip install auxlib
   #- sudo -H pip install conda
-  - sudo -H pip install auxlib
-  - sudo -H pip install conda
+  - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
+      wget https://repo.continuum.io/miniconda/Miniconda2-latest-Linux-x86_64.sh -O miniconda.sh;
+    else
+      wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+    fi
+  - bash miniconda.sh -b -p $HOME/miniconda
+  - export PATH="$HOME/miniconda/bin:$PATH"
+  - hash -r
+  - conda config --set always_yes yes --set changeps1 no
+  - conda update -q conda
+  # Useful for debugging any issues with conda
+  - conda info -a
+
+  # Replace dep1 dep2 ... with your dependencies
+  - deps='pip numpy pandas scikit-learn coverage nose matplotlib'
+  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION $deps
+  - source activate test-environment
+  #- python setup.py install
   # install deps
   #- sudo -H conda init
-  - sudo -H conda init
+  #- sudo -H conda init
   #- conda install -c r r
   #- sudo -H conda update conda --yes
-  - conda create -p $HOME/py --yes $deps "python=$TRAVIS_PYTHON_VERSION"
-  - export PATH=$HOME/py/bin:$PATH
+  #- conda create -p $HOME/py --yes $deps "python=$TRAVIS_PYTHON_VERSION"
+  #- export PATH=$HOME/py/bin:$PATH
   - pip install codecov
   # install your own package into the environment
   - python setup.py install
