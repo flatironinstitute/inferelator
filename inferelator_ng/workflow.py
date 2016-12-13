@@ -13,6 +13,7 @@ from . import utils
 import numpy as np
 import os
 import random
+import pandas as pd
 
 class WorkflowBase(object):
 
@@ -49,12 +50,24 @@ class WorkflowBase(object):
         self.expression_matrix = self.input_dataframe(self.expression_matrix_file)
         tf_file = self.input_file(self.tf_names_file)
         self.tf_names = utils.read_tf_names(tf_file)
-        self.meta_data = self.input_dataframe(self.meta_data_file, has_index=False)
+        
+        # Read metadata, creating a default non-time series metadata file if none is provided
+        self.meta_data = self.input_dataframe(self.meta_data_file, has_index=False, strict=False)
+        if self.meta_data is None:
+            self.meta_data = self.create_default_meta_data(self.expression_matrix)
         self.priors_data = self.input_dataframe(self.priors_file)
         self.gold_standard = self.input_dataframe(self.gold_standard_file)
 
     def input_path(self, filename):
         return os.path.abspath(os.path.join(self.input_dir, filename))
+
+    def create_default_meta_data(self, expression_matrix):
+        metadata_rows = expression_matrix.columns.tolist()
+        metadata_defaults = {"isTs":"FALSE", "is1stLast":"e", "prevCol":"NA", "del.t":"NA", "condName":None}
+        data = {}
+        for key in metadata_defaults.keys():
+            data[key] = pd.Series(data=[metadata_defaults[key] if metadata_defaults[key] else i for i in metadata_rows])
+        return pd.DataFrame(data)
 
     def input_file(self, filename, strict=True):
         path = self.input_path(filename)
