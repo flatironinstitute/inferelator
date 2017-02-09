@@ -25,7 +25,9 @@ class Yeast_Bbsr_Workflow(WorkflowBase):
         self.regression_driver = bbsr_R.BBSR_driver()
         self.design_response_driver = design_response_R.DRDriver()
 
-        self.get_data()
+        
+	self.priors_file = "yeast-motif-prior.tsv"
+	self.get_data()
         self.compute_common_data()
         self.compute_activity()
         betas = []
