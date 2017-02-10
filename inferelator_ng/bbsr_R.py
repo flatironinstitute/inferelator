@@ -20,8 +20,8 @@ source('{module}')
 
 X <- read.table('{X_file}', sep = ',', header = 1, row.names = 1)
 Y <- read.table('{Y_file}', sep = ',', header = 1, row.names = 1)
-clr.mat <- read.table('{clr_file}', sep = ',', header = 1, row.names = 1)
-prior.mat <- read.table('{priors_file}', sep = ',', header = 1, row.names = 1)
+clr.mat <- read.table('{clr_file}', sep = ',', header = 1, row.names = 1, check.names=FALSE)
+prior.mat <- read.table('{priors_file}', sep = ',', header = 1, row.names = 1, check.names=FALSE)
 
 nS <- {n}
 cores <- {cores}
