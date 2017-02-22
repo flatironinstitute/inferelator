@@ -37,18 +37,14 @@ class ResultsProcessor:
 
     def calculate_precision_recall(self, combined_confidences, gold_standard):
         # filter gold standard
-        gold_standard_filtered_cols = gold_standard[combined_confidences.columns]
-        gold_standard_filtered = gold_standard_filtered_cols.loc[combined_confidences.index]
-        #the following six lines remove all rows and columns that consist of all zeros in the gold standard
-        index_cols = np.where(gold_standard_filtered.abs().sum(axis=0) > 0)[0]
-        index_rows = np.where(gold_standard_filtered.abs().sum(axis=1) > 0)[0]
-        gold_standard_nozero_cols = gold_standard_filtered[index_cols]
-        gold_standard_nozero = gold_standard_nozero_cols.iloc[index_rows]
-        combined_confidences_nozero_cols = combined_confidences[index_cols]
-        combined_confidences_nozero = combined_confidences_nozero_cols.iloc[index_rows]
+        gold_standard_nozero = gold_standard.loc[(gold_standard!=0).any(axis=1), (gold_standard!=0).any(axis=0)]
+        intersect_index = combined_confidences.index.intersection(gold_standard_nozero.index)
+        intersect_cols = combined_confidences.columns.intersection(gold_standard_nozero.columns)
+        gold_standard_filtered = gold_standard_nozero.loc[intersect_index, intersect_cols]
+        combined_confidences_filtered = combined_confidences.loc[intersect_index, intersect_cols]
         # rank from highest to lowest confidence
-        sorted_candidates = np.argsort(combined_confidences_nozero.values, axis = None)[::-1]
-        gs_values = gold_standard_nozero.values.flatten()[sorted_candidates]
+        sorted_candidates = np.argsort(combined_confidences_filtered.values, axis = None)[::-1]
+        gs_values = gold_standard_filtered.values.flatten()[sorted_candidates]
         #the following mimicks the R function ChristophsPR
         precision = np.cumsum(gs_values).astype(float) / np.cumsum([1] * len(gs_values))
         recall = np.cumsum(gs_values).astype(float) / sum(gs_values)
