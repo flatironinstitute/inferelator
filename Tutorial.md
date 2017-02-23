@@ -21,6 +21,8 @@ pip install matplotlib
 ## 4) Analyze output
 Look in the data/yeast folder for a time-stamped folder that will contain the predicted network as network.tsv and will contain a precision / recall curve as pr_curve.png. The AUPR should be ~0.2.
 
-## Additional config:
+## Additional Config:
+The number of bootstraps is currently set to 2, but can be modified via setting variables in yeast_bbsr_workflow_runner.py. 
 
-The number of bootstraps is currently set to 2, but can be modified via setting variables in yeast_bbsr_workflow_runner.py
+## Additional Information:
+The whole genome expression.tsv was downloaded from the Gene Expression Omnibus (GEO), filtering for samples from Saccharomyces cerevisiae using the Yeast Affymetrix 2.0 platform (accessioning number GPL2529). The prior data file, yeast-motif-prior.tsv, is derived from ATAC-Seq peaks with motif analysis, using data from GEO (GSE66386), and signed (+/- 1) using knock-out results (GSE42527). The gold standard, gold_standard.tsv, is primarily from the YEASTRACT repository. 
