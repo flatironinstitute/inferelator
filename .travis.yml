@@ -58,7 +58,6 @@ install:
 script:
   - python -c "import os; print(repr(os.name))"
   - python -c "import matplotlib.pyplot as plt; print('imported '+plt.__file__)"
-  - travis_wait 60
   - coverage run --source=inferelator_ng setup.py test
   #- nosetests
 after_success:
