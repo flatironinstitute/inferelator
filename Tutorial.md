@@ -9,7 +9,7 @@ And enter its top-level directory
 
 ## 1) Prepare data
 The largest file needed for network inference is the expression dataset, which for yeast is larger than the github file size cut off. As a result, we host the file on dropbox, where it is publicsly accessible. 
-`wget https://www.dropbox.com/s/dhj4amz0wcfdn58/expression.tsv data/yeast`
+`wget https://www.dropbox.com/s/dhj4amz0wcfdn58/expression.tsv -P data/yeast`
 
 ## 2) Install required python libraries
 If you have Python 2 >=2.7.9 or Python 3 >=3.4 you should already have pip, the tool for installing python libaries, installed, but if you don't you can download it here: https://packaging.python.org/installing/#install-pip-setuptools-and-wheel. 
