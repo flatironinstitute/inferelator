@@ -1,6 +1,12 @@
 
 This tutorial walks through a gene regulatory network example in yeast. 
 
+## 0) Get Code
+Clone the codebase
+`git clone git@github.com:simonsfoundation/inferelator_ng.git`
+And enter its top-level directory
+`cd inferelator_ng`
+
 ## 1) Prepare data
 The largest file needed for network inference is the expression dataset, which for yeast is larger than the github file size cut off. As a result, we host the file on dropbox, where it is publicsly accessible. 
 `wget https://www.dropbox.com/s/dhj4amz0wcfdn58/expression.tsv data/yeast`
