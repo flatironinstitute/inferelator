@@ -10,9 +10,7 @@ If you have Python 2 >=2.7.9 or Python 3 >=3.4 you should already have pip, the 
 
 To install the packages needed for the inferelator, run:
 ```
-pip install pandas
-pip install scipy
-pip install matplotlib
+pip install -r requirements.txt
 ```
 
 ## 3) Run workflow
