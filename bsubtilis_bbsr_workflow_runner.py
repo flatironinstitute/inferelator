@@ -1,6 +1,6 @@
-from inferelator_ng.bsubtilis_bbsr_workflow import Bsubtilis_Bbsr_Workflow
+from inferelator_ng.bbsr_tfa_workflow import BBSR_TFA_Workflow
 
-workflow = Bsubtilis_Bbsr_Workflow()
+workflow = BBSR_TFA_Workflow()
 # Common configuration parameters
 workflow.input_dir = 'data/bsubtilis'
 workflow.num_bootstraps = 2
