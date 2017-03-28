@@ -1,9 +1,13 @@
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from . import condition
 import os
 import csv
+import matplotlib
+matplotlib.use('pdf')
+import matplotlib.pyplot as plt
+
+
 
 class ResultsProcessor:
 
@@ -60,11 +64,13 @@ class ResultsProcessor:
 
 
     def plot_pr_curve(self, recall, precision, aupr, output_dir):
+        plt.figure()
         plt.plot(recall, precision)
         plt.xlabel('recall')
         plt.ylabel('precision')
         plt.annotate("aupr = " + aupr.astype("string"), xy=(0.4, 0.05), xycoords='axes fraction')
-        plt.savefig(os.path.join(output_dir, 'pr_curve.png'))
+        plt.savefig(os.path.join(output_dir, 'pr_curve.pdf'))
+        plt.close()
 
     def mean_and_median(self, stack):
         matrix_stack = [x.values for x in stack]
