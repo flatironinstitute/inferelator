@@ -57,5 +57,5 @@ class BBSR_TFA_Workflow(WorkflowBase):
         output_dir = os.path.join(self.input_dir, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
         os.makedirs(output_dir)
         self.results_processor = ResultsProcessor(betas, rescaled_betas)
-        self.results_processor.summarize_network(output_dir, abs(gold_standard), priors)
+        self.results_processor.summarize_network(output_dir, gold_standard, priors)
 
