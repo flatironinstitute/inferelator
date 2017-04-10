@@ -144,6 +144,7 @@ class TestResultsProcessor(unittest.TestCase):
         np.testing.assert_equal(aupr, 1.0)
 
     def test_negative_gs_aupr_perfect_prediction(self):
+        import pdb; pdb.set_trace()
         gs = pd.DataFrame(np.array([[-1, 0], [-1, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
         confidences = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
         rp = results_processor.ResultsProcessor([], [])

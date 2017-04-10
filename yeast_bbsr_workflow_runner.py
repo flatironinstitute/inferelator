@@ -1,6 +1,6 @@
 from inferelator_ng.yeast_bbsr_workflow import Yeast_Bbsr_Workflow
 
-workflow = Yeast_Bbsr_Workflow()
+workflow = BBSR_TFA_Workflow()
 # Common configuration parameters
 workflow.input_dir = 'data/yeast'
 workflow.priors_file = "yeast-motif-prior.tsv"
