@@ -106,10 +106,12 @@ class WorkflowBase(object):
         Guarantee that each row of the prior is in the expression and vice versa.
         Also filter the priors to only includes columns, transcription factors, that are in the tf_names list
         """
-        common_genes = list(set.intersection(set(self.expression_matrix.index.tolist()), set(self.priors_data.index.tolist())))
-        self.priors_data = self.priors_data.loc[common_genes, self.tf_names]
-        self.expression_matrix = self.expression_matrix.loc[common_genes,]
-
+        exp_genes = self.expression_matrix.index.tolist()
+        all_regs_with_data = list(set.union(set(self.expression_matrix.index.tolist()), set(self.priors_data.columns.tolist())))
+        tf_names = list(set.intersection(set(self.tf_names), set(all_regs_with_data)))
+        self.priors_data = self.priors_data.loc[exp_genes, tf_names]
+        self.priors_data = pd.DataFrame.fillna(self.priors_data, 0)
+        
     def get_bootstraps(self):
         """
         Generate sequence of bootstrap parameter objects for run.

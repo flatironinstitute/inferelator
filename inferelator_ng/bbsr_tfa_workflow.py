@@ -1,9 +1,8 @@
 """
-Run Yeast Network Inference with TFA BBSR. 
+Run BSubtilis Network Inference with TFA BBSR. 
 """
 
 import numpy as np
-import pandas as pd
 import os
 from workflow import WorkflowBase
 import design_response_R
@@ -13,7 +12,7 @@ import mi_R
 import bbsr_R
 import datetime
 
-class Yeast_Bbsr_Workflow(WorkflowBase):
+class BBSR_TFA_Workflow(WorkflowBase):
 
     def run(self):
         """
@@ -25,9 +24,7 @@ class Yeast_Bbsr_Workflow(WorkflowBase):
         self.regression_driver = bbsr_R.BBSR_driver()
         self.design_response_driver = design_response_R.DRDriver()
 
-        
-	self.priors_file = "yeast-motif-prior.tsv"
-	self.get_data()
+        self.get_data()
         self.compute_common_data()
         self.compute_activity()
         betas = []
@@ -45,17 +42,6 @@ class Yeast_Bbsr_Workflow(WorkflowBase):
             rescaled_betas.append(current_rescaled_betas)
         self.emit_results(betas, rescaled_betas, self.gold_standard, self.priors_data)
 
-    def filter_expression_and_priors(self):
-        """
-        Guarantee that each row of the prior is in the expression and vice versa.
-        Also filter the priors to only includes columns, transcription factors, that are in the tf_names list
-        """
-        exp_genes = self.expression_matrix.index.tolist()
-        all_regs_with_data = list(set.union(set(self.expression_matrix.index.tolist()), set(self.priors_data.columns.tolist())))
-        tf_names = list(set.intersection(set(self.tf_names), set(all_regs_with_data)))
-        self.priors_data = self.priors_data.loc[exp_genes, tf_names]
-        self.priors_data = pd.DataFrame.fillna(self.priors_data, 0)
-
     def compute_activity(self):
         """
         Compute Transcription Factor Activity
@@ -71,5 +57,5 @@ class Yeast_Bbsr_Workflow(WorkflowBase):
         output_dir = os.path.join(self.input_dir, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
         os.makedirs(output_dir)
         self.results_processor = ResultsProcessor(betas, rescaled_betas)
-        self.results_processor.summarize_network(output_dir, abs(gold_standard), priors)
+        self.results_processor.summarize_network(output_dir, gold_standard, priors)
 

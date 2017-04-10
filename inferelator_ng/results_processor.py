@@ -36,6 +36,8 @@ class ResultsProcessor:
         return thresholded_matrix
 
     def calculate_precision_recall(self, combined_confidences, gold_standard):
+        # this code only runs for a positive gold standard, so explicitly transform it using the absolute value: 
+        gold_standard = np.abs(gold_standard)
         # filter gold standard
         gold_standard_nozero = gold_standard.loc[(gold_standard!=0).any(axis=1), (gold_standard!=0).any(axis=0)]
         intersect_index = combined_confidences.index.intersection(gold_standard_nozero.index)

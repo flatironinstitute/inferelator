@@ -143,6 +143,22 @@ class TestResultsProcessor(unittest.TestCase):
         aupr = rp.calculate_aupr(recall, precision)
         np.testing.assert_equal(aupr, 1.0)
 
+    def test_negative_gs_aupr_perfect_prediction(self):
+        gs = pd.DataFrame(np.array([[-1, 0], [-1, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
+        confidences = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
+        rp = results_processor.ResultsProcessor([], [])
+        recall, precision = rp.calculate_precision_recall(confidences, gs)
+        aupr = rp.calculate_aupr(recall, precision)
+        np.testing.assert_equal(aupr, 1.0)
+
+    def test_negative_gs_precision_recall_bad_prediction(self):
+        gs = pd.DataFrame(np.array([[0, -1], [-1, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
+        confidences = pd.DataFrame(np.array([[1, 0], [0, 0.5]]), ['gene1', 'gene2'], ['tf1','tf2'])
+        rp = results_processor.ResultsProcessor([], [])
+        recall, precision = rp.calculate_precision_recall(confidences, gs)
+        np.testing.assert_equal(recall, [ 0., 0., 0.,  0.5,  1. ])
+        np.testing.assert_equal(precision, [ 0., 0., 0., 1./3, 0.5,])
+
     def test_aupr_prediction_off(self):
         gs = pd.DataFrame(np.array([[1, 0], [0, 1]]), ['gene1', 'gene2'], ['tf1','tf2'])
         confidences = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
