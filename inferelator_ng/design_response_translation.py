@@ -47,7 +47,7 @@ class PythonDRDriver:
         # check if there are condition names missing in expression matrix
         not_in_mat=set(cond)-set(exp_mat)
         if len(not_in_mat) > 0:
-            print not_in_mat
+            print(not_in_mat)
             raise ValueError('Error when creating design and response. The conditions printed above are in the meta data, but not in the expression matrix')
 
         des_mat=pd.DataFrame(None,index=exp_mat.index,columns=None)
