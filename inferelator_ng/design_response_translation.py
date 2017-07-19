@@ -12,6 +12,7 @@ class PythonDRDriver:
     def run(self, expression_mat, metadata_dataframe):
 
         meta_data = metadata_dataframe.copy()
+        meta_data = meta_data.replace('NA', np.nan, regex=False)
         exp_mat = expression_mat.copy()
 
         special_char_dictionary = {'+' : 'specialplus','-' : 'specialminus','/':'specialslash','\\':'special_back_slash',')':'special_paren_backward',
@@ -111,7 +112,7 @@ class PythonDRDriver:
         cols_des_mat=des_mat.columns.tolist()
         cols_res_mat=res_mat.columns.tolist()
 
-        special_char_inv_map = {v: k for k, v in special_char_dictionary.iteritems()}
+        special_char_inv_map = {v: k for k, v in list(special_char_dictionary.items())}
         for sch in special_char_inv_map.keys():
             cols_des_mat=[item.replace(sch, special_char_inv_map[sch]) for item in cols_des_mat]
             cols_res_mat=[item.replace(sch, special_char_inv_map[sch]) for item in cols_res_mat]
