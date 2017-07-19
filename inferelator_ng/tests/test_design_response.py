@@ -55,10 +55,10 @@ class TestSpecialCharacter(TestDR):
 class TestDRModelOrganisms(TestDR):
 
     def test_on_bsubtilis(self):
-        self.exp = utils.df_from_tsv('/Users/tymorhamamsy/inferelator_ng/data/bsubtilis/expression.tsv')
-        self.meta = utils.df_from_tsv('/Users/tymorhamamsy/inferelator_ng/data/bsubtilis/meta_data.tsv', has_index=False)
-        expected_design = utils.df_from_tsv('/Users/tymorhamamsy/inferelator_ng/data/bsubtilis/bsubtilis_design_matrix.tsv')
-        expected_response = utils.df_from_tsv('/Users/tymorhamamsy/inferelator_ng/data/bsubtilis/bsubtilis_response_matrix.tsv')
+        self.exp = utils.df_from_tsv('data/bsubtilis/expression.tsv')
+        self.meta = utils.df_from_tsv('data/bsubtilis/meta_data.tsv', has_index=False)
+        expected_design = utils.df_from_tsv('data/bsubtilis/bsubtilis_design_matrix.tsv')
+        expected_response = utils.df_from_tsv('data/bsubtilis/bsubtilis_response_matrix.tsv')
         self.delT_min = 0
         self.delT_max = 110
         self.tau = 45
