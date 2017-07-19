@@ -27,7 +27,6 @@ class PythonDRDriver:
             cols=[item.replace(ch,special_char_dictionary[ch]) for item in cols]
         exp_mat.columns=cols
 
-
         cond = meta_data['condName']
         prev = meta_data['prevCol']
         delt = meta_data['del.t']
