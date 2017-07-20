@@ -23,8 +23,15 @@ class PythonDRDriver:
 
         cols=exp_mat.columns.tolist()
         for ch in special_char_dictionary.keys():
-            meta_data['condName']=meta_data['condName'].str.replace(ch,special_char_dictionary[ch])
-            meta_data['prevCol']=meta_data['prevCol'].str.replace(ch,special_char_dictionary[ch])
+            #meta_data['condName']=meta_data['condName'].str.replace(ch,special_char_dictionary[ch])
+            #meta_data['prevCol']=meta_data['prevCol'].str.replace(ch,special_char_dictionary[ch])
+            #meta_data['condName'][~meta_data['condName'].isnull()]=meta_data['condName'][~meta_data['condName'].isnull()].str.replace(ch,special_char_dictionary[ch])
+            #meta_data['prevCol'][~meta_data['prevCol'].isnull()]=meta_data['prevCol'][~meta_data['prevCol'].isnull()].str.replace(ch,special_char_dictionary[ch])
+            #need this edge case for passing micro test
+            if len(meta_data['condName'][~meta_data['condName'].isnull()]) > 0:
+                meta_data['condName']= meta_data['condName'].str.replace(ch,special_char_dictionary[ch])
+            if len(meta_data['prevCol'][~meta_data['prevCol'].isnull()]) > 0:
+                meta_data['prevCol']=meta_data['prevCol'].str.replace(ch,special_char_dictionary[ch])
             cols=[item.replace(ch,special_char_dictionary[ch]) for item in cols]
         exp_mat.columns=cols
 
@@ -50,12 +57,15 @@ class PythonDRDriver:
             print(not_in_mat)
             raise ValueError('Error when creating design and response. The conditions printed above are in the meta data, but not in the expression matrix')
 
-        des_mat=pd.DataFrame(None,index=exp_mat.index,columns=None)
-        res_mat=pd.DataFrame(None,index=exp_mat.index,columns=None)
-        steady = prev.isnull() & ~(cond.isin(prev))
+        #des_mat=pd.DataFrame(None,index=exp_mat.index,columns=None)
+        #res_mat=pd.DataFrame(None,index=exp_mat.index,columns=None)
+        cond_n_na = cond[~cond.isnull()]
+        steady = prev.isnull() & ~(cond_n_na.isin(prev.replace(np.nan,"NA")))
 
-        des_mat=pd.concat([des_mat, exp_mat[cond[steady]]], axis=1)
-        res_mat=pd.concat([res_mat, exp_mat[cond[steady]]], axis=1)
+        #des_mat=pd.concat([des_mat, exp_mat[cond[steady]]], axis=1)
+        #res_mat=pd.concat([res_mat, exp_mat[cond[steady]]], axis=1)
+        des_mat=pd.DataFrame(exp_mat[cond[steady]])
+        res_mat=pd.DataFrame(exp_mat[cond[steady]])
 
         for i in list(np.where(~steady)[0]):
             following = list(np.where(prev.str.contains(cond[i])==True)[0])
