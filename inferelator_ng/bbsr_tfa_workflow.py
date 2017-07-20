@@ -10,7 +10,8 @@ import design_response_translation #added python design_response
 from tfa import TFA
 from results_processor import ResultsProcessor
 import mi_R
-import bbsr_R
+#import bbsr_R
+import bbsr_python
 import datetime
 
 class BBSR_TFA_Workflow(WorkflowBase):
@@ -22,7 +23,8 @@ class BBSR_TFA_Workflow(WorkflowBase):
         np.random.seed(self.random_seed)
 
         self.mi_clr_driver = mi_R.MIDriver()
-        self.regression_driver = bbsr_R.BBSR_driver()
+        #self.regression_driver = bbsr_R.BBSR_driver()
+        self.regression_driver = bbsr_python.BBSR_runner()
         #self.design_response_driver = design_response_R.DRDriver()
         self.design_response_driver = design_response_translation.PythonDRDriver() #this is the python switch
         self.get_data()
