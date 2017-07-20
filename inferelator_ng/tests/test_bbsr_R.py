@@ -36,8 +36,8 @@ class TestBBSRrunnerPython(unittest.TestCase):
         (betas, resc) = self.brd.run(self.X, self.Y, self.clr, self.priors)
         self.assert_matrix_is_square(2, betas)
         self.assert_matrix_is_square(2, resc)
-        pdt.assert_frame_equal(betas, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
-        pdt.assert_frame_equal(resc, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
+        pdt.assert_frame_equal(betas, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
+        pdt.assert_frame_equal(resc, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
 
     def test_fails_with_one_gene(self):
         self.set_all_zero_priors()
@@ -54,11 +54,12 @@ class TestBBSRrunnerPython(unittest.TestCase):
         (betas, resc) = self.brd.run(self.X, self.Y, self.clr, self.priors)
         self.assert_matrix_is_square(2, betas)
         self.assert_matrix_is_square(2, resc)
-        pdt.assert_frame_equal(betas, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
-        pdt.assert_frame_equal(resc, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
+        pdt.assert_frame_equal(betas, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
+        pdt.assert_frame_equal(resc, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
 
     # BBSR fails when there's only one column in the design (or response) matrix
     # That seems like unexpected behavior to me. If it is expected, there should be checks for it earlier -Nick DV
+    '''
     @unittest.skip("""
         There's some unexpected behavior in bayesianRegression.R: a 2 x 1 matrix is getting transformed into a NaN matrix
                ss
@@ -71,6 +72,7 @@ class TestBBSRrunnerPython(unittest.TestCase):
         gene1 gene2
             0     0
     """)
+    '''
     def test_two_genes_nonzero_clr_nonzero(self):
         self.set_all_zero_priors()
         self.X = pd.DataFrame([1, 2], index = ['gene1', 'gene2'], columns = ['ss'])
@@ -79,8 +81,8 @@ class TestBBSRrunnerPython(unittest.TestCase):
         (betas, resc) = self.brd.run(self.X, self.Y, self.clr, self.priors)
         self.assert_matrix_is_square(2, betas)
         self.assert_matrix_is_square(2, resc)
-        pdt.assert_frame_equal(betas, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
-        pdt.assert_frame_equal(resc, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
+        pdt.assert_frame_equal(betas, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
+        pdt.assert_frame_equal(resc, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
 
     def test_two_genes_nonzero_clr_two_conditions_negative_influence(self):
         self.set_all_zero_priors()
@@ -90,8 +92,8 @@ class TestBBSRrunnerPython(unittest.TestCase):
         (betas, resc) = self.brd.run(self.X, self.Y, self.clr, self.priors)
         self.assert_matrix_is_square(2, betas)
         self.assert_matrix_is_square(2, resc)
-        pdt.assert_frame_equal(betas, pd.DataFrame([[0, -1],[-1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
-        pdt.assert_frame_equal(resc, pd.DataFrame([[0, 1],[1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
+        pdt.assert_frame_equal(betas, pd.DataFrame([[0, -1],[-1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
+        pdt.assert_frame_equal(resc, pd.DataFrame([[0, 1],[1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
 
     def test_two_genes_nonzero_clr_two_conditions_zero_gene1_negative_influence(self):
         self.set_all_zero_priors()
@@ -101,8 +103,8 @@ class TestBBSRrunnerPython(unittest.TestCase):
         (betas, resc) = self.brd.run(self.X, self.Y, self.clr, self.priors)
         self.assert_matrix_is_square(2, betas)
         self.assert_matrix_is_square(2, resc)
-        pdt.assert_frame_equal(betas, pd.DataFrame([[0, -1],[-1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
-        pdt.assert_frame_equal(resc, pd.DataFrame([[0, 1],[1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
+        pdt.assert_frame_equal(betas, pd.DataFrame([[0, -1],[-1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
+        pdt.assert_frame_equal(resc, pd.DataFrame([[0, 1],[1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
 
     def test_two_genes_zero_clr_two_conditions_zero_betas(self):
         self.set_all_zero_priors()
@@ -112,8 +114,8 @@ class TestBBSRrunnerPython(unittest.TestCase):
         (betas, resc) = self.brd.run(self.X, self.Y, self.clr, self.priors)
         self.assert_matrix_is_square(2, betas)
         self.assert_matrix_is_square(2, resc)
-        pdt.assert_frame_equal(betas, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
-        pdt.assert_frame_equal(resc, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
+        pdt.assert_frame_equal(betas, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
+        pdt.assert_frame_equal(resc, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
 
     def test_two_genes_zero_clr_two_conditions_zero_gene1_zero_betas(self):
         self.set_all_zero_priors()
@@ -123,8 +125,8 @@ class TestBBSRrunnerPython(unittest.TestCase):
         (betas, resc) = self.brd.run(self.X, self.Y, self.clr, self.priors)
         self.assert_matrix_is_square(2, betas)
         self.assert_matrix_is_square(2, resc)
-        pdt.assert_frame_equal(betas, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
-        pdt.assert_frame_equal(resc, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
+        pdt.assert_frame_equal(betas, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
+        pdt.assert_frame_equal(resc, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
 
     def test_two_genes_nonzero_clr_two_conditions_positive_influence(self):
         self.set_all_zero_priors()
@@ -134,8 +136,8 @@ class TestBBSRrunnerPython(unittest.TestCase):
         (betas, resc) = self.brd.run(self.X, self.Y, self.clr, self.priors)
         self.assert_matrix_is_square(2, betas)
         self.assert_matrix_is_square(2, resc)
-        pdt.assert_frame_equal(betas, pd.DataFrame([[0, 1],[1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
-        pdt.assert_frame_equal(resc, pd.DataFrame([[0, 1],[1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
+        pdt.assert_frame_equal(betas, pd.DataFrame([[0, 1],[1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
+        pdt.assert_frame_equal(resc, pd.DataFrame([[0, 1],[1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
 
     def test_two_genes_nonzero_clr_two_conditions_zero_gene1_positive_influence(self):
         self.set_all_zero_priors()
@@ -145,5 +147,5 @@ class TestBBSRrunnerPython(unittest.TestCase):
         (betas, resc) = self.brd.run(self.X, self.Y, self.clr, self.priors)
         self.assert_matrix_is_square(2, betas)
         self.assert_matrix_is_square(2, resc)
-        pdt.assert_frame_equal(betas, pd.DataFrame([[0, 1],[1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
-        pdt.assert_frame_equal(resc, pd.DataFrame([[0, 1],[1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']))
+        pdt.assert_frame_equal(betas, pd.DataFrame([[0, 1],[1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
+        pdt.assert_frame_equal(resc, pd.DataFrame([[0, 1],[1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
