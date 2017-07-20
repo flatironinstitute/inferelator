@@ -8,7 +8,7 @@ from .. import bbsr_python
 
 my_dir = os.path.dirname(__file__)
 
-class TestDR(unittest.TestCase):
+class TestBBSRrunnerPython(unittest.TestCase):
 
     def setUp(self):
         self.brd = bbsr_python.BBSR_runner()
