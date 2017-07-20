@@ -81,7 +81,7 @@ class PythonDRDriver:
                 off_fol_delt = list(delt.loc[off_fol])
                 following=following[:off[0]] + following[off[0]+1:] + off_fol
                 following_delt = following_delt[:off[0]] + following_delt[off[0]+1:]+[float(off_fol_delt[0]) + float(following_delt[off[0]])]
-                off = list(np.where(following_delt < delTmin)[0])
+                off = list(np.where(following_delt < [delTmin])[0])
 
             n = len(following)
             cntr = 0
