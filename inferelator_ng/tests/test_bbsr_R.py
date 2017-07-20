@@ -3,18 +3,20 @@ import pandas as pd
 import pandas.util.testing as pdt
 import numpy as np
 from subprocess import CalledProcessError
-from .. import bbsr_R
+#from .. import bbsr_R
+from .. import bbsr_python
 
 my_dir = os.path.dirname(__file__)
 
 class TestDR(unittest.TestCase):
 
     def setUp(self):
-        self.brd = bbsr_R.BBSR_driver()
-        self.brd.target_directory = os.path.join(my_dir, "artifacts")
+        self.brd = bbsr_python.BBSR_runner()
+        #self.brd = bbsr_R.BBSR_driver()
+        #self.brd.target_directory = os.path.join(my_dir, "artifacts")
 
-        if not os.path.exists(self.brd.target_directory):
-            os.makedirs(self.brd.target_directory)
+        #if not os.path.exists(self.brd.target_directory):
+        #    os.makedirs(self.brd.target_directory)
 
     def set_all_zero_priors(self):
         self.priors =  pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2'])
@@ -30,7 +32,7 @@ class TestDR(unittest.TestCase):
         self.set_all_zero_clr()
         self.X = pd.DataFrame([0, 0], index = ['gene1', 'gene2'], columns = ['ss'])
         self.Y = pd.DataFrame([0, 0], index = ['gene1', 'gene2'], columns = ['ss'])
-        
+
         (betas, resc) = self.brd.run(self.X, self.Y, self.clr, self.priors)
         self.assert_matrix_is_square(2, betas)
         self.assert_matrix_is_square(2, resc)
@@ -63,11 +65,11 @@ class TestDR(unittest.TestCase):
         gene1 NaN
         gene2 NaN
         attr(,"scaled:center")
-        gene1 gene2 
-            1     2 
+        gene1 gene2
+            1     2
         attr(,"scaled:scale")
-        gene1 gene2 
-            0     0 
+        gene1 gene2
+            0     0
     """)
     def test_two_genes_nonzero_clr_nonzero(self):
         self.set_all_zero_priors()
