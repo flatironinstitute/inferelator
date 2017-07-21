@@ -62,7 +62,7 @@ def BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, cores):
     pool = multiprocessing.Pool(processes=20)
     gene_list = range(0,G)
     BBSR_inp=partial(BBSRforOneGene,X=X, Y=Y, pp=pp, weights_mat=weights_mat, nS=nS)
-    out_list = pool.list(map(BBSR_inp, gene_list))
+    out_list = pool.map(BBSR_inp, gene_list)
     return out_list
 
 def BBSRforOneGene(ind, X, Y, pp, weights_mat, nS):
