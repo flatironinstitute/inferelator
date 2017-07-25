@@ -69,7 +69,7 @@ def BBSRforOneGene(ind, X, Y, pp, weights_mat, nS):
     if ind % 100 == 0:
         print('Progress: BBSR for gene', ind , '\n')
 
-    pp_i = pp.ix[ind,]
+    pp_i = pp.ix[ind,].values # converted to numpy array
     pp_i_index = [l for l, j in enumerate(pp_i) if j]
 
     if sum(pp_i) == 0:
@@ -77,7 +77,7 @@ def BBSRforOneGene(ind, X, Y, pp, weights_mat, nS):
 
     # create BestSubsetRegression input
     y = Y.ix[ind,:][:, np.newaxis]
-    x = X.ix[pp_i_index,:].transpose()
+    x = X.ix[pp_i_index,:].transpose().values # converted to numpy array
     g = np.matrix(weights_mat.ix[ind,pp_i_index],dtype=np.float)
 
     # experimental stuff
@@ -86,7 +86,7 @@ def BBSRforOneGene(ind, X, Y, pp, weights_mat, nS):
     #check again
     pp_i[pp_i==True] = spp # this could cause issues if they aren't the same length
     pp_i_index = [l for l, j in enumerate(pp_i) if j]
-    x = X.ix[pp_i_index,:].transpose()
+    x = X.ix[pp_i_index,:].transpose().values # converted to numpy array
     g = np.matrix(weights_mat.ix[ind,pp_i_index],dtype=np.float)
 
     betas = BestSubsetRegression(y, x, g)
@@ -132,7 +132,7 @@ def BestSubsetRegression(y, x, g):
 
             lst_combos_bool=combos[:, best]
             lst_true_index = [i for i, j in enumerate(lst_combos_bool) if j]
-            x_tmp = x.ix[:,lst_true_index]
+            x_tmp = x[:,lst_true_index]
 
             try:
                 bhat = np.linalg.solve(np.dot(x_tmp.transpose(),x_tmp),np.dot(x_tmp.transpose(),y))
@@ -204,7 +204,7 @@ def ExpBICforAllCombos(y, x, g, combos):
         comb = combos[:, i]
         comb = [l for l, j in enumerate(comb) if j]
 
-        x_tmp = x.ix[:,comb]
+        x_tmp = x[:,comb]
         k = len(comb)
 
         try:
@@ -258,7 +258,7 @@ def PredErrRed(y, x, beta):
         pred_tmp[i] = False
         pred_tmp_index= [l for l, j in enumerate(pred_tmp) if j]
 
-        x_tmp = x.ix[:,pred_tmp_index]    #x_tmp = np.matrix(x[:,pred_tmp], N, P-1)
+        x_tmp = x[:,pred_tmp_index]    #x_tmp = np.matrix(x[:,pred_tmp], N, P-1)
 
         try:
             bhat = np.linalg.solve(np.dot(x_tmp.transpose(),x_tmp),np.dot(x_tmp.transpose(),y))
