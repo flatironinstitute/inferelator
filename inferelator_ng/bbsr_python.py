@@ -162,7 +162,7 @@ def AllCombinations(k):
     if k < 1:
         raise ValueError("No combinations for k < 1")
     lst = map(list, itertools.product([False, True], repeat=k))
-    out=np.matrix(lst).transpose()
+    out=np.array(lst).transpose()
     return out
 
 # Get all possible pairs of K predictors
