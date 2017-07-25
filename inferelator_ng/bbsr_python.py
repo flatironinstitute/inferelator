@@ -202,7 +202,8 @@ def ExpBICforAllCombos(y, x, g, combos):
 
     for i in range(first_combo, C): #will have to fix index
         comb = combos[:, i]
-        comb = [l for l, j in enumerate(comb) if j]
+        #comb = [l for l, j in enumerate(comb) if j]
+        comb=np.where(comb)[0]
 
         x_tmp = x[:,comb]
         k = len(comb)
