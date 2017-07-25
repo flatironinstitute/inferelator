@@ -197,7 +197,7 @@ def ExpBICforAllCombos(y, x, g, combos):
     xtx = np.dot(x.transpose(),x)
     xty = np.dot(x.transpose(),y)
 
-    var_mult = np.matrix(np.repeat(np.sqrt(1 / (g + 1)), K,axis=0)).transpose()
+    var_mult = np.array(np.repeat(np.sqrt(1 / (g + 1)), K,axis=0)).transpose()
     var_mult = np.multiply(var_mult,var_mult.transpose())
 
     for i in range(first_combo, C): #will have to fix index
@@ -208,11 +208,8 @@ def ExpBICforAllCombos(y, x, g, combos):
         k = len(comb)
 
         try:
-            xtx_tmp=xtx[:,comb]
-            xtx_tmp=xtx_tmp[comb,:]
-
-            var_mult_tmp=var_mult[:,comb]
-            var_mult_tmp=var_mult_tmp[comb,:]
+            xtx_tmp=xtx[:,comb][comb,:]
+            var_mult_tmp=var_mult[:,comb][comb,:]
 
             #print xtx_tmp
             bhat = np.linalg.solve(xtx_tmp,xty[comb])
