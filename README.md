@@ -8,4 +8,4 @@ The next generation of the inferelator codebase.
 
 To install, run `python setup.py install`
 
-To run a workflow, invote the corresponding worklow_runner script. For example, to run the B. Subitlis workflow, run `python bsubtilis_bbsr_workflow_runner.py`
+To run a workflow, invote the corresponding workflow_runner script. For example, to run the B. Subitlis workflow, run `python bsubtilis_bbsr_workflow_runner.py`
