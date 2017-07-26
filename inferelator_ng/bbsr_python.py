@@ -27,7 +27,7 @@ def BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, cores):
     pp = pd.DataFrame(((prior_mat.ix[:,:] != 0)|(weights_mat.ix[:,:]!=no_pr_val)) & ~pd.isnull(clr_mat))
     mask = clr_mat == 0
     clr_mat[mask] = np.nan
-
+    #import pdb; pdb.set_trace()
     for ind in range(0,G):
 
         clr_na = len(np.argwhere(np.isnan(clr_mat.ix[ind,])).flatten().tolist()) #tolist()
@@ -59,10 +59,10 @@ def BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, cores):
     #out_list = client.gather(out_list)
     return out_list
     '''
-    pool = multiprocessing.Pool(processes=20)
+    pool = multiprocessing.Pool(processes=8)
     gene_list = range(0,G)
     BBSR_inp=partial(BBSRforOneGene,X=X, Y=Y, pp=pp, weights_mat=weights_mat, nS=nS)
-    out_list = pool.map(BBSR_inp, gene_list)
+    out_list = pool.imap(BBSR_inp, gene_list)
     return out_list
 
 def BBSRforOneGene(ind, X, Y, pp, weights_mat, nS):
@@ -276,7 +276,7 @@ class BBSR_runner:
         n = 10
         cores = 10
         no_prior_weight = 1
-        prior_weight = 1
+        prior_weight = 1 # prior weights has to be larger than 1 to have an effect
         no_pr_val = no_prior_weight
         nS = n
         X = X
@@ -284,7 +284,7 @@ class BBSR_runner:
         clr_mat = clr
         prior_mat = priors
         weights_mat = prior_mat * 0 + no_prior_weight
-        weights_mat=weights_mat.mask(prior_mat != 0, other=prior_mat)
+        weights_mat=weights_mat.mask(prior_mat != 0, other=prior_weight)
 
         x = BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, cores)
         bs_betas = pd.DataFrame(np.zeros((Y.shape[0],prior_mat.shape[1])),index=Y.index,columns=prior_mat.columns)
