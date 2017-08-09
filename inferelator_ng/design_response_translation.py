@@ -9,7 +9,7 @@ class PythonDRDriver:
 
     def __init__(self):
         pass
-    
+
     def run(self, expression_mat, metadata_dataframe):
 
         meta_data = metadata_dataframe.copy()
@@ -27,7 +27,6 @@ class PythonDRDriver:
             meta_data['prevCol']=meta_data['prevCol'].str.replace(ch,special_char_dictionary[ch])
             cols=[item.replace(ch,special_char_dictionary[ch]) for item in cols]
         exp_mat.columns=cols
-
 
         cond = meta_data['condName'].copy()
         prev = meta_data['prevCol'].copy()
