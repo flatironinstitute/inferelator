@@ -3,18 +3,19 @@ from . import utils
 import pandas as pd
 import numpy as np
 
+
 class PythonDRDriver:
 
 
     def __init__(self):
         pass
-
+    
     def run(self, expression_mat, metadata_dataframe):
 
         meta_data = metadata_dataframe.copy()
         exp_mat = expression_mat.copy()
 
-        special_char_dictionary = {'+' : 'specialplus','-' : 'specialminus','/':'specialslash','\\':'special_back_slash',')':'special_paren_backward',
+        special_char_dictionary = {'+' : 'specialplus','-' : 'specialminus', '.' : 'specialperiod' , '/':'specialslash','\\':'special_back_slash',')':'special_paren_backward',
         '(':'special_paren_forward', ',':'special_comma', ':':'special_colon',';':'special_semicoloon','@':'special_at','=':'special_equal',
          '>':'special_great','<':'special_less','[':'special_left_bracket',']':'special_right_bracket',"%":'special_percent',"*":'special_star',
         '&':'special_ampersand','^':'special_arrow','?':'special_question','!':'special_exclamation','#':'special_hashtag',"{":'special_left_curly',
@@ -28,9 +29,9 @@ class PythonDRDriver:
         exp_mat.columns=cols
 
 
-        cond = meta_data['condName']
-        prev = meta_data['prevCol']
-        delt = meta_data['del.t']
+        cond = meta_data['condName'].copy()
+        prev = meta_data['prevCol'].copy()
+        delt = meta_data['del.t'].copy()
         delTmin = self.delTmin
         delTmax = self.delTmax
         tau = self.tau
@@ -57,9 +58,10 @@ class PythonDRDriver:
         des_mat=pd.concat([des_mat, exp_mat[cond[steady]]], axis=1)
         res_mat=pd.concat([res_mat, exp_mat[cond[steady]]], axis=1)
 
+
         for i in list(np.where(~steady)[0]):
             following = list(np.where(prev.str.contains(cond[i])==True)[0])
-            following_delt = list(delt.loc[following])
+            following_delt = list(delt[following])
 
             try:
                 off = list(np.where(following_delt[0] < delTmin)[0])
@@ -68,7 +70,7 @@ class PythonDRDriver:
 
             while len(off)>0:
                 off_fol = list(np.where(prev.str.contains(cond[following[off[0]]])==True)[0])
-                off_fol_delt = list(delt.loc[off_fol])
+                off_fol_delt = list(delt[off_fol])
                 following=following[:off[0]] + following[off[0]+1:] + off_fol
                 following_delt = following_delt[:off[0]] + following_delt[off[0]+1:]+[float(off_fol_delt[0]) + float(following_delt[off[0]])]
                 off = list(np.where(following_delt < delTmin)[0])
@@ -87,14 +89,15 @@ class PythonDRDriver:
                 else:
                     this_cond = cond[i]
 
-                des_mat =  pd.concat([des_mat, exp_mat[cond[i]]], axis=1)
-                des_mat.rename(columns={des_mat.columns.values[len(des_mat.columns)-1]:this_cond}, inplace=True)
 
+
+                des_tmp = np.concatenate((des_mat.values,exp_mat[cond[i]].values[:,np.newaxis]),axis=1)
+                des_names = list(des_mat.columns)+[this_cond]
+                des_mat=pd.DataFrame(des_tmp,index=des_mat.index,columns=des_names)
                 interp_res = (float(tau)/float(following_delt[cntr])) * (exp_mat[cond[j]].astype('float64') - exp_mat[cond[i]].astype('float64')) + exp_mat[cond[i]].astype('float64')
-
-                res_mat = pd.concat([res_mat, interp_res], axis=1)
-
-                res_mat.rename(columns={res_mat.columns.values[len(res_mat.columns)-1]:this_cond}, inplace=True)
+                res_tmp = np.concatenate((res_mat.values,interp_res.values[:,np.newaxis]),axis=1)
+                res_names = list(res_mat.columns)+[this_cond] #list(exp_mat[cond[i]].columns)
+                res_mat=pd.DataFrame(res_tmp,index=res_mat.index,columns=res_names)
 
                 cntr = cntr + 1
 
@@ -102,12 +105,12 @@ class PythonDRDriver:
             # and it is the first of a time series --- treat as steady state
 
             if n == 0 and prev.isnull()[i]:
+
                 des_mat = pd.concat([des_mat, exp_mat[cond[i]]], axis=1)
                 des_mat.rename(columns={des_mat.columns.values[len(des_mat.columns)-1]:cond[i]}, inplace=True)
                 res_mat = pd.concat([res_mat, exp_mat[cond[i]]], axis=1)
                 res_mat.rename(columns={res_mat.columns.values[len(res_mat.columns)-1]:cond[i]}, inplace=True)
 
-        #resp_idx = np.repeat(np.matrix(range(1,len(res_mat.columns.values)+1)),len(exp_mat.index),axis=0)
 
         cols_des_mat=des_mat.columns.tolist()
         cols_res_mat=res_mat.columns.tolist()
