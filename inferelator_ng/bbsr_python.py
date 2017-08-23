@@ -28,7 +28,7 @@ def BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, cores):
     mask = clr_mat == 0
     clr_mat[mask] = np.nan
 
-    for ind in xrange(0,G):
+    for ind in range(0,G):
 
         clr_na = len(np.argwhere(np.isnan(clr_mat.ix[ind,])).flatten().tolist())
         clr_w_na = np.argsort(clr_mat.ix[ind,].tolist())
@@ -48,7 +48,7 @@ def BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, cores):
 
     global gx, gy, gpp, gwm, gns
     gx, gy, gpp, gwm, gns = X, Y, pp, weights_mat, nS
-    for i in xrange(0,G):
+    for i in range(0,G):
         #OneGene=BBSRforOneGene(i, X, Y, pp, weights_mat, nS)
         OneGene=BBSRforOneGeneWrapper(i)
         out_list.append(OneGene)
@@ -60,7 +60,7 @@ def BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, cores):
     gx, gy, gpp, gwm, gns = X, Y, pp, weights_mat, nS
     pool = multiprocessing.Pool(processes=4)
     #G=1
-    gene_list = xrange(0,G)
+    gene_list = range(0,G)
     #BBSR_inp=partial(BBSRforOneGene,X=X, Y=Y, pp=pp, weights_mat=weights_mat, nS=nS)
     out_list = pool.map(BBSRforOneGeneWrapper, gene_list) #chunksize, # shared memory concept , #xy in shared memory, wrapper for BBSR that invokes computation and references copies in shared memoryy
     '''
@@ -134,7 +134,7 @@ def BestSubsetRegression(y, x, g):
 
             try:
                 bhat = np.linalg.solve(np.dot(x_tmp.transpose(),x_tmp),np.dot(x_tmp.transpose(),y))
-                for m in xrange(len(lst_true_index)):
+                for m in range(len(lst_true_index)):
                     ind_t=lst_true_index[m]
                     betas[ind_t]=bhat[m]
                 not_done = False
@@ -168,7 +168,7 @@ def CombCols(K):
     num_pair = K*(K-1)/2
     a = np.full((num_pair,K), False, dtype=bool)
     b = list(list(tup) for tup in itertools.combinations(range(K), 2))
-    for i in xrange(len(b)):
+    for i in range(len(b)):
         a[i,b[i]]=True
     c = a.transpose()
     return c
@@ -196,7 +196,7 @@ def ExpBICforAllCombos(y, x, g, combos):
     var_mult = np.array(np.repeat(np.sqrt(1 / (g + 1)), K,axis=0)).transpose()
     var_mult = np.multiply(var_mult,var_mult.transpose())
 
-    for i in xrange(first_combo, C):
+    for i in range(first_combo, C):
         comb = combos[:, i]
         comb=np.where(comb)[0]
 
