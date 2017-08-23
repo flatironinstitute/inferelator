@@ -13,6 +13,7 @@ class PythonDRDriver:
     def run(self, expression_mat, metadata_dataframe):
 
         meta_data = metadata_dataframe.copy()
+        meta_data = meta_data.replace('NA', np.nan, regex=False)
         exp_mat = expression_mat.copy()
 
         special_char_dictionary = {'+' : 'specialplus','-' : 'specialminus', '.' : 'specialperiod' , '/':'specialslash','\\':'special_back_slash',')':'special_paren_backward',
@@ -23,8 +24,11 @@ class PythonDRDriver:
 
         cols=exp_mat.columns.tolist()
         for ch in special_char_dictionary.keys():
-            meta_data['condName']=meta_data['condName'].str.replace(ch,special_char_dictionary[ch])
-            meta_data['prevCol']=meta_data['prevCol'].str.replace(ch,special_char_dictionary[ch])
+            #need this edge case for passing micro test
+            if len(meta_data['condName'][~meta_data['condName'].isnull()]) > 0:
+                meta_data['condName']= meta_data['condName'].str.replace(ch,special_char_dictionary[ch])
+            if len(meta_data['prevCol'][~meta_data['prevCol'].isnull()]) > 0:
+                meta_data['prevCol']=meta_data['prevCol'].str.replace(ch,special_char_dictionary[ch])
             cols=[item.replace(ch,special_char_dictionary[ch]) for item in cols]
         exp_mat.columns=cols
 
@@ -50,12 +54,11 @@ class PythonDRDriver:
             print(not_in_mat)
             raise ValueError('Error when creating design and response. The conditions printed above are in the meta data, but not in the expression matrix')
 
-        des_mat=pd.DataFrame(None,index=exp_mat.index,columns=None)
-        res_mat=pd.DataFrame(None,index=exp_mat.index,columns=None)
-        steady = prev.isnull() & ~(cond.isin(prev))
+        cond_n_na = cond[~cond.isnull()]
+        steady = prev.isnull() & ~(cond_n_na.isin(prev.replace(np.nan,"NA")))
 
-        des_mat=pd.concat([des_mat, exp_mat[cond[steady]]], axis=1)
-        res_mat=pd.concat([res_mat, exp_mat[cond[steady]]], axis=1)
+        des_mat=pd.DataFrame(exp_mat[cond[steady]])
+        res_mat=pd.DataFrame(exp_mat[cond[steady]])
 
 
         for i in list(np.where(~steady)[0]):
@@ -72,7 +75,7 @@ class PythonDRDriver:
                 off_fol_delt = list(delt[off_fol])
                 following=following[:off[0]] + following[off[0]+1:] + off_fol
                 following_delt = following_delt[:off[0]] + following_delt[off[0]+1:]+[float(off_fol_delt[0]) + float(following_delt[off[0]])]
-                off = list(np.where(following_delt < delTmin)[0])
+                off = list(np.where(following_delt < [delTmin])[0])
 
             n = len(following)
             cntr = 0
@@ -95,7 +98,7 @@ class PythonDRDriver:
                 des_mat=pd.DataFrame(des_tmp,index=des_mat.index,columns=des_names)
                 interp_res = (float(tau)/float(following_delt[cntr])) * (exp_mat[cond[j]].astype('float64') - exp_mat[cond[i]].astype('float64')) + exp_mat[cond[i]].astype('float64')
                 res_tmp = np.concatenate((res_mat.values,interp_res.values[:,np.newaxis]),axis=1)
-                res_names = list(res_mat.columns)+[this_cond] #list(exp_mat[cond[i]].columns)
+                res_names = list(res_mat.columns)+[this_cond] 
                 res_mat=pd.DataFrame(res_tmp,index=res_mat.index,columns=res_names)
 
                 cntr = cntr + 1
@@ -114,7 +117,7 @@ class PythonDRDriver:
         cols_des_mat=des_mat.columns.tolist()
         cols_res_mat=res_mat.columns.tolist()
 
-        special_char_inv_map = {v: k for k, v in special_char_dictionary.iteritems()}
+        special_char_inv_map = {v: k for k, v in list(special_char_dictionary.items())}
         for sch in special_char_inv_map.keys():
             cols_des_mat=[item.replace(sch, special_char_inv_map[sch]) for item in cols_des_mat]
             cols_res_mat=[item.replace(sch, special_char_inv_map[sch]) for item in cols_res_mat]
