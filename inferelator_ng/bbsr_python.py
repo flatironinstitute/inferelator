@@ -6,6 +6,7 @@ import math
 from scipy import special
 import multiprocessing
 from functools import partial
+import os, sys
 
 gx, gy, gpp, gwm, gns = None, None, None, None, None
 def BBSRforOneGeneWrapper(ind): return BBSRforOneGene(ind, gx, gy, gpp, gwm, gns)
