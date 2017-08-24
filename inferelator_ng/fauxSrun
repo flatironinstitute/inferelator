@@ -1,0 +1,13 @@
+#!/bin/bash
+
+ncores=$1
+shift
+
+for x in $(seq 0 $(( ncores - 1 )) )
+do 
+   SLURM_NTASKS=$ncores SLURM_PROCID=$x "$@" & 
+done
+
+wait
+
+echo "All done."
