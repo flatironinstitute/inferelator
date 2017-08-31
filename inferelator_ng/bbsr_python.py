@@ -160,7 +160,7 @@ def AllCombinations(k):
     if k < 1:
         raise ValueError("No combinations for k < 1")
     lst = map(list, itertools.product([False, True], repeat=k))
-    out=np.array(lst).transpose()
+    out=np.array([i for i in lst]).transpose()
     return out
 
 # Get all possible pairs of K predictors
@@ -181,7 +181,6 @@ def ExpBICforAllCombos(y, x, g, combos):
     # Returns list of expected BIC values, one for each model.
     K = x.shape[1]
     N = x.shape[0]
-
     C = combos.shape[1]
     bics = np.array(np.repeat(0,C),dtype=np.float)
 
