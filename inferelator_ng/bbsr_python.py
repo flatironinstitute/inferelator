@@ -8,6 +8,7 @@ import multiprocessing
 from functools import partial
 import os, sys
 
+# Wrapper function for BBSRforOneGene that's called in BBSR
 gx, gy, gpp, gwm, gns = None, None, None, None, None
 def BBSRforOneGeneWrapper(ind): return BBSRforOneGene(ind, gx, gy, gpp, gwm, gns)
 
@@ -17,15 +18,17 @@ def BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, kvs, rank, ownChe
     K = X.shape[0]  # max number of possible predictors (number of TFs)
     tfs = X.index.values.tolist()
 
+    # Scale and permute design and response matrix
     X = ((X.transpose() - X.transpose().mean()) / X.transpose().std(ddof=1)).transpose()
     Y = ((Y.transpose() - Y.transpose().mean()) / Y.transpose().std(ddof=1)).transpose()
 
     weights_mat = weights_mat.loc[genes,tfs]
     clr_mat = clr_mat.loc[genes, tfs]
     prior_mat = prior_mat.loc[genes, tfs]
-
+    # keep all predictors that we have priors for
     pp = pd.DataFrame(((prior_mat.ix[:,:] != 0)|(weights_mat.ix[:,:]!=no_pr_val)) & ~pd.isnull(clr_mat))
     mask = clr_mat == 0
+    # for each gene, add the top nS predictors of the list to possible predictors
     clr_mat[mask] = np.nan
 
     for ind in range(0,G):
@@ -123,6 +126,15 @@ def ReduceNumberOfPredictors(y, x, g, n):
 
 
 def BestSubsetRegression(y, x, g):
+    # Do best subset regression by using all possible combinations of columns of
+    #x as predictors of y. Model selection criterion is BIC using results of
+    # Bayesian regression with Zellner's g-prior.
+    # Args:
+    #   y: dependent variable
+    #   x: independent variable
+    #   g: value for Zellner's g-prior; can be single value or vector
+    # Returns:
+    #   Beta vector of best mode
     K = x.shape[1]
     N = x.shape[0]
     ret = []
@@ -149,15 +161,6 @@ def BestSubsetRegression(y, x, g):
 
             except:
                 bics[best] = np.inf
-
-                '''
-                if e[:,call].str.contains('solve.default') and e[:,message].str.contains('singular'):
-                    # error in solve - system is computationally singular
-                    print bics[best], 'at', best, 'replaced\n'
-                    bics[best] = np.nan #shaky bics[best] <<- Inf
-                else:
-                    raise ValueError('')
-                '''
         else:
             not_done = False
 
@@ -165,41 +168,50 @@ def BestSubsetRegression(y, x, g):
 
 
 def AllCombinations(k):
+    # Create a boolean matrix with all possible combinations of 1:k. Output has k rows and 2^k columns where each column is one combination.
+    # Note that the first column is all FALSE and corresponds to the null model.
     if k < 1:
         raise ValueError("No combinations for k < 1")
     lst = map(list, itertools.product([False, True], repeat=k))
-    out=np.array(lst).transpose()
+    out=np.array([i for i in lst]).transpose()
     return out
 
 # Get all possible pairs of K predictors
-
 def CombCols(K):
     num_pair = K*(K-1)/2
     a = np.full((num_pair,K), False, dtype=bool)
     b = list(list(tup) for tup in itertools.combinations(range(K), 2))
-    for i in xrange(len(b)):
+    for i in range(len(b)):
         a[i,b[i]]=True
     c = a.transpose()
     return c
 def ExpBICforAllCombos(y, x, g, combos):
+    # For a list of combinations of predictors do Bayesian linear regression, more specifically calculate the parametrization of the inverse gamma
+    # distribution that underlies sigma squared using Zellner's g-prior method.
+    # Parameter g can be a vector. The expected value of the log of sigma squared is used to compute expected values of BIC.
+    # Returns list of expected BIC values, one for each model.
     K = x.shape[1]
     N = x.shape[0]
-
     C = combos.shape[1]
     bics = np.array(np.repeat(0,C),dtype=np.float)
 
+    # is the first combination the null model?
     first_combo = 0
     if sum(combos[:,0]) == 0:
         bics[0] = N * math.log(np.var(y,ddof=1))
         first_combo = 1
 
+    # shape parameter for the inverse gamma sigma squared would be drawn from
     shape = N / 2
+    # compute digamma of shape here, so we can re-use it later
     dig_shape = special.digamma(shape)
 
-    #### pre-compute the dot product we will need to solve for beta
+    #### pre-compute the dot products that we will need to solve for beta
     xtx = np.dot(x.transpose(),x)
     xty = np.dot(x.transpose(),y)
 
+    # In Zellner's formulation there is a factor in the calculation of the rate parameter: 1 / (g + 1)
+    # Here we replace the factor with the approriate matrix since g is a vector now.
     var_mult = np.array(np.repeat(np.sqrt(1 / (g + 1)), K,axis=0)).transpose()
     var_mult = np.multiply(var_mult,var_mult.transpose())
 
@@ -213,11 +225,14 @@ def ExpBICforAllCombos(y, x, g, combos):
         try:
             xtx_tmp=xtx[:,comb][comb,:]
             var_mult_tmp=var_mult[:,comb][comb,:]
-
+            #faster than calling lm
             bhat = np.linalg.solve(xtx_tmp,xty[comb])
             ssr = np.sum(np.power(np.subtract(y,np.dot(x_tmp, bhat)),2)) # sum of squares of residuals
+            # rate parameter for the inverse gamma sigma squared would be drawn from our guess on the regression vector beta is all 0 for sparse models
             rate = (ssr + np.dot((0 - bhat.transpose()) , np.dot(np.multiply(xtx_tmp, var_mult_tmp) ,(0 - bhat.transpose()).transpose()))) / 2
+            # the expected value of the log of sigma squared based on the parametrization of the inverse gamma by rate and shape
             exp_log_sigma2 = math.log(rate) - dig_shape
+            # expected value of BIC
             bics[i] = N * exp_log_sigma2 + k * math.log(N)
 
         except:
@@ -237,20 +252,25 @@ def ExpBICforAllCombos(y, x, g, combos):
 
 
 def PredErrRed(y, x, beta):
+    # Calculates the error reduction (measured by variance of residuals) of each
+    # predictor - compare full model to model without that predictor
     N = x.shape[0]
     K = x.shape[1]
     pred = [True if item!=0 else False for item in beta]
     pred_index = [l for l, j in enumerate(pred) if j]
     P = sum(pred)
 
+    # compute sigma^2 for full model
     residuals = np.subtract(y,np.dot(x,beta)[:, np.newaxis])
     sigma_sq_full = np.var(residuals,ddof=1)
+    # this will be the output
     err_red = np.repeat(0.0,K)
 
-
+    # special case if there is only one predictor
     if P == 1:
         err_red[pred_index] = 1 - (sigma_sq_full/np.var(y,ddof=1))
 
+    # one by one leave out each predictor and re-compute the model with the remaining ones
     for i in pred_index[0:K]:
         pred_tmp = pred[:]
         pred_tmp[i] = False
@@ -261,7 +281,7 @@ def PredErrRed(y, x, beta):
         try:
             bhat = np.linalg.solve(np.dot(x_tmp.transpose(),x_tmp),np.dot(x_tmp.transpose(),y))
         except:
-            raise ValueError('')
+            raise ValueError('PredErrRed: error in solve - system is computationally singular')
 
         residuals = np.subtract(y,np.dot(x_tmp,bhat))
         sigma_sq = np.var(residuals,ddof=1)
@@ -275,7 +295,7 @@ class BBSR_runner:
     def run(self, X, Y, clr, priors, kvs, rank, ownCheck):
         n = 10
         no_prior_weight = 1
-        prior_weight = 1 # prior weights has to be larger than 1 to have an effect
+        prior_weight = 1 # prior weight has to be larger than 1 to have an effect
         no_pr_val = no_prior_weight
         nS = n
         X = X
