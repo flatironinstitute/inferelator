@@ -9,9 +9,11 @@
 `srun -N 2 --exclusive --pty bash -i`
 
 #Then we need the relevant python and R versions with the required libraries to run BBSR (you may already have the correct versions in your home directory)
-```export PATH=/mnt/xfs1/bioinfoCentos7/software/installs/python/anaconda/bin:$PATH
+```
+export PATH=/mnt/xfs1/bioinfoCentos7/software/installs/python/anaconda/bin:$PATH
 export PYTHONPATH=~dylan/scc/kvsstcp:/mnt/xfs1/bioinfoCentos7/software/installs/python/anaconda/bin:$PYTHONPATH
-export R_LIBS="/mnt/xfs1/home/ndeveaux/R/x86_64-redhat-linux-gnu-library/3.3"```
+export R_LIBS="/mnt/xfs1/home/ndeveaux/R/x86_64-redhat-linux-gnu-library/3.3" 
+```
 
 #This is how we run bbsr on the cluster, this will also print the time it takes to run. Note that you can change the number of processes (as described by -n), 
 #This is the parallelization parameter. For a bigger dataset like a yeast or human network, might set n to 56 for the srun of 2 nodes (28 cores X 2 nodes)
