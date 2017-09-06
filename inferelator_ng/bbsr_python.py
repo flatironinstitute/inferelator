@@ -2,16 +2,16 @@ import pandas as pd
 import numpy as np
 import itertools
 from itertools import compress
-from sklearn.preprocessing import scale
 import math
 from scipy import special
-#from dask import delayed
-#from dask.distributed import Client
 import multiprocessing
 from functools import partial
+import os, sys
 
-def BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, cores):
+gx, gy, gpp, gwm, gns = None, None, None, None, None
+def BBSRforOneGeneWrapper(ind): return BBSRforOneGene(ind, gx, gy, gpp, gwm, gns)
 
+def BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, kvs, rank, ownCheck):
     G = Y.shape[0] # number of genes
     genes = Y.index.values.tolist()
     K = X.shape[0]  # max number of possible predictors (number of TFs)
@@ -27,12 +27,12 @@ def BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, cores):
     pp = pd.DataFrame(((prior_mat.ix[:,:] != 0)|(weights_mat.ix[:,:]!=no_pr_val)) & ~pd.isnull(clr_mat))
     mask = clr_mat == 0
     clr_mat[mask] = np.nan
-    #import pdb; pdb.set_trace()
+
     for ind in range(0,G):
 
-        clr_na = len(np.argwhere(np.isnan(clr_mat.ix[ind,])).flatten().tolist()) #tolist()
-        clr_w_na = np.argsort(clr_mat.ix[ind,].tolist()) #produces -1 for nan, they will be at end of sort
-        #clr_order= clr_w_na[:-clr_na][::-1]
+        clr_na = len(np.argwhere(np.isnan(clr_mat.ix[ind,])).flatten().tolist())
+        clr_w_na = np.argsort(clr_mat.ix[ind,].tolist())
+
         if clr_na>0:
             clr_order = clr_w_na[:-clr_na][::-1]
         else:
@@ -43,27 +43,37 @@ def BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, cores):
     subset = pp.ix[preds,preds].values
     np.fill_diagonal(subset,False)
     pp=pp.set_value(preds, preds, subset)
-    '''
+
     out_list=[]
 
-    for i in range(0,G):
-        OneGene=BBSRforOneGene(i, X, Y, pp, weights_mat, nS)
-        #OneGene=delayed(BBSRforOneGene)(i, X, Y, pp, weights_mat, nS)
-        out_list.append(OneGene)
-    #return out_list
-    total = delayed(out_list)
-    return total.compute()
-
-    #client = Client()
-    #out_list = [client.submit(BBSRforOneGene, i, X, Y, pp, weights_mat, nS) for i in range(0,G)]
-    #out_list = client.gather(out_list)
-    return out_list
-    '''
-    pool = multiprocessing.Pool(processes=8)
-    gene_list = range(0,G)
-    BBSR_inp=partial(BBSRforOneGene,X=X, Y=Y, pp=pp, weights_mat=weights_mat, nS=nS)
-    out_list = pool.imap(BBSR_inp, gene_list)
-    return out_list
+    global gx, gy, gpp, gwm, gns
+    gx, gy, gpp, gwm, gns = X, Y, pp, weights_mat, nS
+    # Here we illustrate splitting a simple loop, but the same approach
+    # would work with any iterative control structure, as long as it is
+    # deterministic.
+    s = []
+    limit = G
+    for j in xrange(limit):
+        if ownCheck.next():
+            # busy work
+            s.append(BBSRforOneGeneWrapper(j))
+    # Report partial result.
+    print rank, len(s)
+    kvs.put('plist',(rank,s))
+    # One participant gathers the partial results and generates the final
+    # output.
+    if 0 == rank:
+        s=[]
+        workers=int(os.environ['SLURM_NTASKS'])
+        #workers=2
+        for p in xrange(workers):
+            wrank,ps = kvs.get('plist')
+            print 'got', wrank, len(ps)
+            s.extend(ps)
+        print 'final s', len(s)
+        return s
+    else:
+        return None
 
 def BBSRforOneGene(ind, X, Y, pp, weights_mat, nS):
     if ind % 100 == 0:
@@ -92,25 +102,23 @@ def BBSRforOneGene(ind, X, Y, pp, weights_mat, nS):
     betas = BestSubsetRegression(y, x, g)
     betas_resc = PredErrRed(y, x, betas)
 
-    return (dict(ind=ind, pp=pp_i, betas=betas, betas_resc=betas_resc, x=x,g=g,spp=spp,y=y))
+    return (dict(ind=ind, pp=pp_i, betas=betas, betas_resc=betas_resc))
 
 
-#will have to fix index numbers
 
 def ReduceNumberOfPredictors(y, x, g, n):
-    K = x.shape[1]
+    K = x.shape[1] #what is the maximum size of K, print K
     spp = None
     if K <= n:
         spp = np.repeat(True, K).tolist()
         return spp
 
-    combos = np.hstack((np.diag(np.repeat(True,K)),CombCols(np.diag(np.repeat(1,K)))))
+    combos = np.hstack((np.diag(np.repeat(True,K)),CombCols(K)))
     bics = ExpBICforAllCombos(y, x, g, combos)
     bics_avg = np.sum(np.multiply(combos.transpose(),bics[:, np.newaxis]).transpose(),1)
-    bics_avg = list(itertools.chain.from_iterable(np.array(bics_avg)))
+    bics_avg = list(bics_avg)
     ret = np.repeat(False, K)
     ret[np.argsort(bics_avg)[0:n]] = True
-
     return ret
 
 
@@ -120,9 +128,7 @@ def BestSubsetRegression(y, x, g):
     ret = []
 
     combos = AllCombinations(K)
-    #print combos
     bics = ExpBICforAllCombos(y, x, g, combos)
-    #print bics
     not_done = True
     while not_done:
 
@@ -136,14 +142,14 @@ def BestSubsetRegression(y, x, g):
 
             try:
                 bhat = np.linalg.solve(np.dot(x_tmp.transpose(),x_tmp),np.dot(x_tmp.transpose(),y))
-                for m in range(len(lst_true_index)):
+                for m in xrange(len(lst_true_index)):
                     ind_t=lst_true_index[m]
                     betas[ind_t]=bhat[m]
                 not_done = False
 
             except:
-                bics[best] = np.inf #will remove this line later
-                #raise ValueError('')
+                bics[best] = np.inf
+
                 '''
                 if e[:,call].str.contains('solve.default') and e[:,message].str.contains('singular'):
                     # error in solve - system is computationally singular
@@ -166,19 +172,16 @@ def AllCombinations(k):
     return out
 
 # Get all possible pairs of K predictors
-def CombCols(m):
-    K = m.shape[1]
-    lst = map(list, itertools.product([False, True], repeat=K))
-    lst_pairs=[item for item in lst if sum(item)==2]
-    ret=np.matrix(lst_pairs).transpose()
-    return ret
 
-
-
+def CombCols(K):
+    num_pair = K*(K-1)/2
+    a = np.full((num_pair,K), False, dtype=bool)
+    b = list(list(tup) for tup in itertools.combinations(range(K), 2))
+    for i in xrange(len(b)):
+        a[i,b[i]]=True
+    c = a.transpose()
+    return c
 def ExpBICforAllCombos(y, x, g, combos):
-    import math
-    from scipy import special
-
     K = x.shape[1]
     N = x.shape[0]
 
@@ -193,16 +196,15 @@ def ExpBICforAllCombos(y, x, g, combos):
     shape = N / 2
     dig_shape = special.digamma(shape)
 
-    #### pre-compute the crossprod that we will need to solve for beta (this is actually a dot product...misnomer)
+    #### pre-compute the dot product we will need to solve for beta
     xtx = np.dot(x.transpose(),x)
     xty = np.dot(x.transpose(),y)
 
     var_mult = np.array(np.repeat(np.sqrt(1 / (g + 1)), K,axis=0)).transpose()
     var_mult = np.multiply(var_mult,var_mult.transpose())
 
-    for i in range(first_combo, C): #will have to fix index
+    for i in range(first_combo, C):
         comb = combos[:, i]
-        #comb = [l for l, j in enumerate(comb) if j]
         comb=np.where(comb)[0]
 
         x_tmp = x[:,comb]
@@ -212,7 +214,6 @@ def ExpBICforAllCombos(y, x, g, combos):
             xtx_tmp=xtx[:,comb][comb,:]
             var_mult_tmp=var_mult[:,comb][comb,:]
 
-            #print xtx_tmp
             bhat = np.linalg.solve(xtx_tmp,xty[comb])
             ssr = np.sum(np.power(np.subtract(y,np.dot(x_tmp, bhat)),2)) # sum of squares of residuals
             rate = (ssr + np.dot((0 - bhat.transpose()) , np.dot(np.multiply(xtx_tmp, var_mult_tmp) ,(0 - bhat.transpose()).transpose()))) / 2
@@ -238,13 +239,12 @@ def ExpBICforAllCombos(y, x, g, combos):
 def PredErrRed(y, x, beta):
     N = x.shape[0]
     K = x.shape[1]
-    pred = [True if item!=0 else False for item in beta]   #changing up code a bit, in R we do pred <- beta != 0
-    pred_index = [l for l, j in enumerate(pred) if j] #get index of items that are True
+    pred = [True if item!=0 else False for item in beta]
+    pred_index = [l for l, j in enumerate(pred) if j]
     P = sum(pred)
 
     residuals = np.subtract(y,np.dot(x,beta)[:, np.newaxis])
     sigma_sq_full = np.var(residuals,ddof=1)
-
     err_red = np.repeat(0.0,K)
 
 
@@ -256,7 +256,7 @@ def PredErrRed(y, x, beta):
         pred_tmp[i] = False
         pred_tmp_index= [l for l, j in enumerate(pred_tmp) if j]
 
-        x_tmp = x[:,pred_tmp_index]    #x_tmp = np.matrix(x[:,pred_tmp], N, P-1)
+        x_tmp = x[:,pred_tmp_index]
 
         try:
             bhat = np.linalg.solve(np.dot(x_tmp.transpose(),x_tmp),np.dot(x_tmp.transpose(),y))
@@ -272,9 +272,8 @@ def PredErrRed(y, x, beta):
 
 
 class BBSR_runner:
-    def run(self, X, Y, clr, priors):
+    def run(self, X, Y, clr, priors, kvs, rank, ownCheck):
         n = 10
-        cores = 10
         no_prior_weight = 1
         prior_weight = 1 # prior weights has to be larger than 1 to have an effect
         no_pr_val = no_prior_weight
@@ -284,9 +283,10 @@ class BBSR_runner:
         clr_mat = clr
         prior_mat = priors
         weights_mat = prior_mat * 0 + no_prior_weight
-        weights_mat=weights_mat.mask(prior_mat != 0, other=prior_weight)
+        weights_mat = weights_mat.mask(prior_mat != 0, other=prior_weight)
 
-        x = BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, cores)
+        x = BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, kvs, rank, ownCheck)
+        if rank: return (None,None)
         bs_betas = pd.DataFrame(np.zeros((Y.shape[0],prior_mat.shape[1])),index=Y.index,columns=prior_mat.columns)
         bs_betas_resc = bs_betas.copy(deep=True)
         for res in x:
