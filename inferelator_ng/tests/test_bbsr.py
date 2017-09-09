@@ -4,6 +4,7 @@ import pandas.util.testing as pdt
 import numpy as np
 from subprocess import CalledProcessError
 from .. import bbsr_python
+from kvsclient import KVSClient
 
 my_dir = os.path.dirname(__file__)
 
