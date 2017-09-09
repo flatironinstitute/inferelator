@@ -61,7 +61,6 @@ def BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, kvs, rank, ownChe
             # busy work
             s.append(BBSRforOneGeneWrapper(j))
     # Report partial result.
-    print rank, len(s)
     kvs.put('plist',(rank,s))
     # One participant gathers the partial results and generates the final
     # output.
@@ -71,9 +70,9 @@ def BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, kvs, rank, ownChe
         #workers=2
         for p in xrange(workers):
             wrank,ps = kvs.get('plist')
-            print 'got', wrank, len(ps)
+            print ('got', wrank, len(ps))
             s.extend(ps)
-        print 'final s', len(s)
+        print ('final s', len(s))
         return s
     else:
         return None
