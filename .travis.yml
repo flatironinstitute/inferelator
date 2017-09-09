@@ -56,6 +56,8 @@ install:
   # install R components
   - sudo R -f inferelator_ng/R_code/packages.R
 script:
+  - git clone https://github.com/simonsfoundation/kvsstcp
+  - export PYTHONPATH=$PYTHONPATH:$(pwd)/kvsstcp
   - python -c "import os; print(repr(os.name))"
   - python -c "import matplotlib.pyplot as plt; print('imported '+plt.__file__)"
   - coverage run --source=inferelator_ng setup.py test
