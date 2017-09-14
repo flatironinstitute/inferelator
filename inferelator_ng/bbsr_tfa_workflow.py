@@ -12,6 +12,7 @@ import mi_R
 import bbsr_python
 import datetime
 from kvsclient import KVSClient
+from . import utils
 
 # Connect to the key value store service (its location is found via an
 # environment variable that is set when this is started vid kvsstcp.py
@@ -19,20 +20,6 @@ from kvsclient import KVSClient
 kvs = KVSClient()
 # Find out which process we are (assumes running under SLURM).
 rank = int(os.environ['SLURM_PROCID'])
-def own(kvs, rank, chunk=1, reset=False):
-    # initialize a global counter.                                                                                                               
-    #if reset: kvs.get('count')
-    if 0 == rank:
-        if reset: kvs.get('count')
-        kvs.put('count', 0)
-    checks, lower, upper = 0, -1, -1
-    while 1:
-        if checks >= upper:
-            lower = kvs.get('count')
-            upper = lower + chunk
-            kvs.put('count', upper)
-        yield lower <= checks < upper
-        checks += 1
 
 class BBSR_TFA_Workflow(WorkflowBase):
 
@@ -62,7 +49,7 @@ class BBSR_TFA_Workflow(WorkflowBase):
             else:
                 (self.clr_matrix, self.mi_matrix) = kvs.view('mi %d'%idx)
             print('Calculating betas using BBSR')
-            ownCheck = own(kvs, rank, chunk=25, reset=idx!=0)
+            ownCheck = utils.own(kvs, rank, chunk=25, reset=idx!=0)
             current_betas,current_rescaled_betas = self.regression_driver.run(X, Y, self.clr_matrix, self.priors_data,kvs,rank,ownCheck)
             if rank: continue
             betas.append(current_betas)

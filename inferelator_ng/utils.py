@@ -45,6 +45,21 @@ def r_path(path):
     """
     return path.replace('\\', '/')
 
+def own(kvs, rank=0, chunk=1, reset=False):
+    # initialize a global counter.                                                                                                               
+    #if reset: kvs.get('count')
+    if 0 == rank:
+        if reset: kvs.get('count')
+        kvs.put('count', 0)
+    checks, lower, upper = 0, -1, -1
+    while 1:
+        if checks >= upper:
+            lower = kvs.get('count')
+            upper = lower + chunk
+            kvs.put('count', upper)
+        yield lower <= checks < upper
+        checks += 1
+
 
 class RDriver:
     """
