@@ -56,7 +56,7 @@ def BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, kvs, rank, ownChe
     # deterministic.
     s = []
     limit = G
-    for j in xrange(limit):
+    for j in range(limit):
         if not ownCheck or ownCheck.next():
             # busy work
             s.append(BBSRforOneGeneWrapper(j))
@@ -70,7 +70,7 @@ def BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, kvs, rank, ownChe
         s=[]
         workers=int(os.environ['SLURM_NTASKS'])
         #workers=2
-        for p in xrange(workers):
+        for p in range(workers):
             wrank,ps = kvs.get('plist')
             print ('got', wrank, len(ps))
             s.extend(ps)
