@@ -57,9 +57,11 @@ def BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, kvs, rank, ownChe
     s = []
     limit = G
     for j in xrange(limit):
-        if ownCheck.next():
+        if not ownCheck or ownCheck.next():
             # busy work
             s.append(BBSRforOneGeneWrapper(j))
+    if not kvs:
+        return s
     # Report partial result.
     kvs.put('plist',(rank,s))
     # One participant gathers the partial results and generates the final
@@ -291,7 +293,7 @@ def PredErrRed(y, x, beta):
 
 
 class BBSR_runner:
-    def run(self, X, Y, clr, priors, kvs, rank, ownCheck):
+    def run(self, X, Y, clr, priors, kvs=None, rank=0, ownCheck=None):
         n = 10
         no_prior_weight = 1
         prior_weight = 1 # prior weight has to be larger than 1 to have an effect
