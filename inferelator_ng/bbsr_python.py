@@ -182,6 +182,7 @@ def CombCols(K):
         a[i,b[i]]=True
     c = a.transpose()
     return c
+
 def ExpBICforAllCombos(y, x, g, combos):
     # For a list of combinations of predictors do Bayesian linear regression, more specifically calculate the parametrization of the inverse gamma
     # distribution that underlies sigma squared using Zellner's g-prior method.
@@ -220,6 +221,7 @@ def ExpBICforAllCombos(y, x, g, combos):
         k = len(comb)
 
         try:
+            import pdb; pdb.set_trace
             xtx_tmp=xtx[:,comb][comb,:]
             var_mult_tmp=var_mult[:,comb][comb,:]
             #faster than calling lm

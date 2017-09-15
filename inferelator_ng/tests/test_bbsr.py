@@ -136,12 +136,12 @@ class TestBBSRrunnerPython(unittest.TestCase):
         pdt.assert_frame_equal(resc, pd.DataFrame([[0, 1],[1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
 
     # work in progress: to be renamed test_Best_Subset_Regression_linalg_error
-    def Best_Subset_Regression_linalg_error(self):
-        self.X = pd.DataFrame([[1, 2], [1, 2]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
-        self.Y = pd.DataFrame([[1, 2], [1, 2]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
-        result = bbsr_python.BestSubsetRegression(self.X, self.Y, 1)
-        print(result)
-        pass
+    def test_Best_Subset_Regression_all_zero_predictors(self):
+        self.X = np.array([[0, 0], [0, 0]])
+        self.Y = np.array([1, 2])
+        g = np.matrix([1, 1])
+        betas = bbsr_python.BestSubsetRegression(self.Y, self.X, g)
+        self.assertTrue((betas == [ 0.,  0.]).all())
 
     def test_two_genes_nonzero_clr_two_conditions_zero_gene1_positive_influence(self):
         self.set_all_zero_priors()
