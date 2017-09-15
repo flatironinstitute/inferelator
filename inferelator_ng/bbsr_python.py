@@ -160,7 +160,7 @@ def BestSubsetRegression(y, x, g):
                     betas[ind_t]=bhat[m]
                 not_done = False
 
-            except:
+            except np.linalg.linalg.LinAlgError:
                 bics[best] = np.inf
         else:
             not_done = False
@@ -225,6 +225,7 @@ def ExpBICforAllCombos(y, x, g, combos):
 
         try:
             xtx_tmp=xtx[:,comb][comb,:]
+            import pdb; pdb.set_trace()
             var_mult_tmp=var_mult[:,comb][comb,:]
             #faster than calling lm
             bhat = np.linalg.solve(xtx_tmp,xty[comb])
@@ -236,9 +237,8 @@ def ExpBICforAllCombos(y, x, g, combos):
             # expected value of BIC
             bics[i] = N * exp_log_sigma2 + k * math.log(N)
 
-        except:
+        except np.linalg.linalg.LinAlgError:
             bics[i] = np.inf
-            raise ValueError('')
             '''
             if e[:,call].str.contains('solve.default') | e[:,message].str.contains('singular'):
 
