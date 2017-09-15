@@ -225,7 +225,6 @@ def ExpBICforAllCombos(y, x, g, combos):
 
         try:
             xtx_tmp=xtx[:,comb][comb,:]
-            import pdb; pdb.set_trace()
             var_mult_tmp=var_mult[:,comb][comb,:]
             #faster than calling lm
             bhat = np.linalg.solve(xtx_tmp,xty[comb])
