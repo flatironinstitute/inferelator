@@ -153,15 +153,11 @@ def BestSubsetRegression(y, x, g):
             lst_true_index = [i for i, j in enumerate(lst_combos_bool) if j]
             x_tmp = x[:,lst_true_index]
 
-            try:
-                bhat = np.linalg.solve(np.dot(x_tmp.transpose(),x_tmp),np.dot(x_tmp.transpose(),y))
-                for m in range(len(lst_true_index)):
-                    ind_t=lst_true_index[m]
-                    betas[ind_t]=bhat[m]
-                not_done = False
-
-            except np.linalg.linalg.LinAlgError:
-                bics[best] = np.inf
+            bhat = np.linalg.solve(np.dot(x_tmp.transpose(),x_tmp),np.dot(x_tmp.transpose(),y))
+            for m in range(len(lst_true_index)):
+                ind_t=lst_true_index[m]
+                betas[ind_t]=bhat[m]
+            not_done = False
         else:
             not_done = False
 
@@ -236,17 +232,10 @@ def ExpBICforAllCombos(y, x, g, combos):
             # expected value of BIC
             bics[i] = N * exp_log_sigma2 + k * math.log(N)
 
+        # set bic to infinity if lin alg error
         except np.linalg.linalg.LinAlgError:
             bics[i] = np.inf
-            '''
-            if e[:,call].str.contains('solve.default') | e[:,message].str.contains('singular'):
 
-            #https://stackoverflow.com/questions/38745710/simplest-python-equivalent-to-rs-grepl
-            #https://stat.ethz.ch/R-manual/R-devel/library/base/html/grep.html
-                bics[i] = np.nan  # in R this was bics[i] <<- Inf
-            else:
-                raise ValueError('') # in R this was just stop
-            '''
     return(bics)
 
 
@@ -278,15 +267,11 @@ def PredErrRed(y, x, beta):
 
         x_tmp = x[:,pred_tmp_index]
 
-        try:
-            bhat = np.linalg.solve(np.dot(x_tmp.transpose(),x_tmp),np.dot(x_tmp.transpose(),y))
-        except:
-            raise ValueError('PredErrRed: error in solve - system is computationally singular')
-
+        bhat = np.linalg.solve(np.dot(x_tmp.transpose(),x_tmp),np.dot(x_tmp.transpose(),y))
+        
         residuals = np.subtract(y,np.dot(x_tmp,bhat))
         sigma_sq = np.var(residuals,ddof=1)
         err_red[i] = 1 - (sigma_sq_full / sigma_sq)
-
 
     return err_red
 
