@@ -155,7 +155,7 @@ def BestSubsetRegression(y, x, g):
 
             try:
                 bhat = np.linalg.solve(np.dot(x_tmp.transpose(),x_tmp),np.dot(x_tmp.transpose(),y))
-                for m in xrange(len(lst_true_index)):
+                for m in range(len(lst_true_index)):
                     ind_t=lst_true_index[m]
                     betas[ind_t]=bhat[m]
                 not_done = False
