@@ -221,7 +221,6 @@ def ExpBICforAllCombos(y, x, g, combos):
         k = len(comb)
 
         try:
-            import pdb; pdb.set_trace
             xtx_tmp=xtx[:,comb][comb,:]
             var_mult_tmp=var_mult[:,comb][comb,:]
             #faster than calling lm
