@@ -104,7 +104,7 @@ def BBSRforOneGene(ind, X, Y, pp, weights_mat, nS):
     g = np.matrix(weights_mat.ix[ind,pp_i_index],dtype=np.float)
 
     betas = BestSubsetRegression(y, x, g)
-    betas_resc = PredErrRed(y, x, betas)
+    betas_resc = PredictErrorReduction(y, x, betas)
 
     return (dict(ind=ind, pp=pp_i, betas=betas, betas_resc=betas_resc))
 
@@ -241,7 +241,7 @@ def ExpBICforAllCombos(y, x, g, combos):
 
 
 
-def PredErrRed(y, x, beta):
+def PredictErrorReduction(y, x, beta):
     # Calculates the error reduction (measured by variance of residuals) of each
     # predictor - compare full model to model without that predictor
     N = x.shape[0]
