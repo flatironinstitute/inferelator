@@ -142,11 +142,11 @@ class TestBBSRrunnerPython(unittest.TestCase):
         betas = bbsr_python.BestSubsetRegression(self.Y, self.X, g)
         self.assertTrue((betas == [ 0.,  0.]).all())
 
-    def test_PredErrRed_all_zero_predictors(self):
+    def test_PredictErrorReduction_all_zero_predictors(self):
         self.X = np.array([[0, 0], [0, 0]])
         self.Y = np.array([1, 2])
         betas = np.array([ 0.,  0.])
-        result = bbsr_python.PredErrRed(self.Y, self.X, betas)
+        result = bbsr_python.PredictErrorReduction(self.Y, self.X, betas)
         self.assertTrue((result == [ 0.,  0.]).all())
 
     def test_two_genes_nonzero_clr_two_conditions_zero_gene1_positive_influence(self):
