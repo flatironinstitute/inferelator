@@ -26,4 +26,4 @@ export R_LIBS="/mnt/xfs1/home/ndeveaux/R/x86_64-redhat-linux-gnu-library/3.3"
 #We still need the same version of python and R but will also need to have KVS installed
 #Locally, we will use the fauxSrun file rather than srun
 #Below, we specify that we want to run 8 parallel processes at once (the argument after fauxSrun)
-`time python ~dylan/scc/kvsstcp/kvsstcp.py --execcmd 'inferelator_ng/fauxSrun 8 python bsubtilis_bbsr_workflow_runner.py'`
+`time python <path to kvsstcp>/kvsstcp/kvsstcp.py --execcmd 'inferelator_ng/fauxSrun 8 python bsubtilis_bbsr_workflow_runner.py'`
