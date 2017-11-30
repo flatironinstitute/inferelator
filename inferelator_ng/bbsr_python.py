@@ -119,10 +119,10 @@ def ReduceNumberOfPredictors(y, x, g, n):
 
     combos = np.hstack((np.diag(np.repeat(True,K)),CombCols(K)))
     bics = ExpBICforAllCombos(y, x, g, combos)
-    bics_avg = np.sum(np.multiply(combos.transpose(),bics[:, np.newaxis]).transpose(),1)
-    bics_avg = list(bics_avg)
+    bics_sum = np.sum(np.multiply(combos.transpose(),bics[:, np.newaxis]).transpose(),1)
+    bics_sum = list(bics_sum)
     ret = np.repeat(False, K)
-    ret[np.argsort(bics_avg)[0:n]] = True
+    ret[np.argsort(bics_sum)[0:n]] = True
     return ret
 
 
@@ -220,8 +220,9 @@ def ExpBICforAllCombos(y, x, g, combos):
         x_tmp = x[:,comb]
         k = len(comb)
 
-        try:
-            xtx_tmp=xtx[:,comb][comb,:]
+        xtx_tmp=xtx[:,comb][comb,:]
+        # if the xtx_tmp matrix is singular, set bic to infinity
+        if np.linalg.matrix_rank(xtx_tmp, tol=1e-10) == xtx_tmp.shape[1]:
             var_mult_tmp=var_mult[:,comb][comb,:]
             #faster than calling lm
             bhat = np.linalg.solve(xtx_tmp,xty[comb])
@@ -234,7 +235,7 @@ def ExpBICforAllCombos(y, x, g, combos):
             bics[i] = N * exp_log_sigma2 + k * math.log(N)
 
         # set bic to infinity if lin alg error
-        except np.linalg.linalg.LinAlgError:
+        else:
             bics[i] = np.inf
 
     return(bics)
