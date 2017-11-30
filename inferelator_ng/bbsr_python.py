@@ -81,7 +81,7 @@ def BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, kvs, rank, ownChe
 
 def BBSRforOneGene(ind, X, Y, pp, weights_mat, nS):
     if ind % 100 == 0:
-        print('Progress: computing BBSR for gene {}',format(ind))
+        print('Progress: computing BBSR for gene {}'.format(ind))
 
     pp_i = pp.ix[ind,].values # converted to numpy array
     pp_i_index = [l for l, j in enumerate(pp_i) if j]
