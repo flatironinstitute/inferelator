@@ -69,7 +69,6 @@ def BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, kvs, rank, ownChe
     if 0 == rank:
         s=[]
         workers=int(os.environ['SLURM_NTASKS'])
-        #workers=2
         for p in range(workers):
             wrank,ps = kvs.get('plist')
             print ('got', wrank, len(ps))
