@@ -90,9 +90,9 @@ class TestTFA(unittest.TestCase):
         activities = self.tfa_object.compute_transcription_factor_activity(
             allow_self_interactions_for_duplicate_prior_columns = False)
         print(activities.values)
-        np.testing.assert_array_almost_equal_nulp(activities.values,
+        np.testing.assert_allclose(activities.values,
             np.array([[ 0,   1], [ 1,   2]]),
-            units_in_the_last_place_tolerance)
+            atol=1e-15)
         # Assert the final priors matrix has no self- interactions
         np.testing.assert_equal(self.tfa_object.prior.values, np.array([[1, 1], [0, 1], [0, 0]]))
 
