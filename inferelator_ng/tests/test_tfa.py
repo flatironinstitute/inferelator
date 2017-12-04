@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import subprocess
 
-units_in_the_last_place_tolerance = 16
+units_in_the_last_place_tolerance = 15
 class TestTFA(unittest.TestCase):
 
     def generate_random_matrix(self, n, m):
