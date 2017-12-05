@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import subprocess
 
-units_in_the_last_place_tolerance = 16
+units_in_the_last_place_tolerance = 15
 class TestTFA(unittest.TestCase):
 
     def generate_random_matrix(self, n, m):
@@ -89,9 +89,10 @@ class TestTFA(unittest.TestCase):
         self.tfa_object.prior['g3'] = self.tfa_object.prior['tf1']
         activities = self.tfa_object.compute_transcription_factor_activity(
             allow_self_interactions_for_duplicate_prior_columns = False)
-        np.testing.assert_array_almost_equal_nulp(activities.values,
+        print(activities.values)
+        np.testing.assert_allclose(activities.values,
             np.array([[ 0,   1], [ 1,   2]]),
-            units_in_the_last_place_tolerance)
+            atol=1e-15)
         # Assert the final priors matrix has no self- interactions
         np.testing.assert_equal(self.tfa_object.prior.values, np.array([[1, 1], [0, 1], [0, 0]]))
 
