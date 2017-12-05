@@ -26,4 +26,4 @@ export PYTHONPATH=$PYTHONPATH:$LOCALREPO
 export SLURM_PROCID=0
 export SLURM_NTASKS=1
 
-python $LOCALREPO/kvsstcp.py --execcmd 'python $1'
+python $LOCALREPO/kvsstcp.py --execcmd "python $1"
