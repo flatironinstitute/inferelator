@@ -63,7 +63,7 @@ class TFA:
         # Set the diagonal of the matrix subset of self-interacting tfs to zero
         subset = self.prior.loc[self_interacting_tfs, self_interacting_tfs].values
         np.fill_diagonal(subset, 0)
-        self.prior.set_value(self_interacting_tfs, self_interacting_tfs, subset)
+        self.prior.at[self_interacting_tfs, self_interacting_tfs] = subset
 
         # Set the activity of non-zero tfs to the pseudoinverse of the prior matrix times the expression
         if non_zero_tfs:
