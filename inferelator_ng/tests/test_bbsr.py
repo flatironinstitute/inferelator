@@ -2,6 +2,7 @@ import unittest, os
 import pandas as pd
 import pandas.util.testing as pdt
 import numpy as np
+from kvsclient import KVSClient
 from subprocess import CalledProcessError
 from .. import bbsr_python
 from .. import utils
@@ -11,7 +12,23 @@ my_dir = os.path.dirname(__file__)
 class TestBBSRrunnerPython(unittest.TestCase):
 
     def setUp(self):
+        # Extra behavior: only run if KVSClient can reach the host:
+        try:
+            self.kvs = KVSClient()
+        except Exception as e:
+            if e.message == 'Missing host':
+                print 'Test test_bbsr.py exiting since KVS host is not running'
+                print 'Try rerunning tests with python $LOCALREPO/kvsstcp.py --execcmd "nosetests  --nocapture -v"'
+                unittest.main(exit=False)
+        # Check for os.environ['SLURM_NTASKS']
+
+        self.rank = 0
         self.brd = bbsr_python.BBSR_runner()
+        # Extra behavior: only run if this is defined:
+        
+
+    def run_bbsr(self):
+        return self.brd.run(self.X, self.Y, self.clr, self.priors, kvs=self.kvs, ownCheck = utils.own(self.kvs, self.rank, chunk=1, reset=0))
 
     def set_all_zero_priors(self):
         self.priors =  pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2'])
@@ -28,7 +45,7 @@ class TestBBSRrunnerPython(unittest.TestCase):
         self.X = pd.DataFrame([0, 0], index = ['gene1', 'gene2'], columns = ['ss'])
         self.Y = pd.DataFrame([0, 0], index = ['gene1', 'gene2'], columns = ['ss'])
 
-        (betas, resc) = self.brd.run(self.X, self.Y, self.clr, self.priors)
+        (betas, resc) = self.run_bbsr()
         self.assert_matrix_is_square(2, betas)
         self.assert_matrix_is_square(2, resc)
         pdt.assert_frame_equal(betas, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
@@ -47,7 +64,7 @@ class TestBBSRrunnerPython(unittest.TestCase):
         self.set_all_zero_clr()
         self.X = pd.DataFrame([1, 2], index = ['gene1', 'gene2'], columns = ['ss'])
         self.Y = pd.DataFrame([1, 2], index = ['gene1', 'gene2'], columns = ['ss'])
-        (betas, resc) = self.brd.run(self.X, self.Y, self.clr, self.priors)
+        (betas, resc) = self.run_bbsr()
         self.assert_matrix_is_square(2, betas)
         self.assert_matrix_is_square(2, resc)
         pdt.assert_frame_equal(betas, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
@@ -74,7 +91,7 @@ class TestBBSRrunnerPython(unittest.TestCase):
         self.X = pd.DataFrame([1, 2], index = ['gene1', 'gene2'], columns = ['ss'])
         self.Y = pd.DataFrame([1, 2], index = ['gene1', 'gene2'], columns = ['ss'])
         self.clr = pd.DataFrame([[.1, .1],[.1, .2]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2'])
-        (betas, resc) = self.brd.run(self.X, self.Y, self.clr, self.priors)
+        (betas, resc) = self.run_bbsr()
         self.assert_matrix_is_square(2, betas)
         self.assert_matrix_is_square(2, resc)
         pdt.assert_frame_equal(betas, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
@@ -85,7 +102,7 @@ class TestBBSRrunnerPython(unittest.TestCase):
         self.X = pd.DataFrame([[1, 2], [2, 1]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
         self.Y = pd.DataFrame([[1, 2], [2, 1]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
         self.clr = pd.DataFrame([[.1, .1],[.1, .2]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2'])
-        (betas, resc) = self.brd.run(self.X, self.Y, self.clr, self.priors)
+        (betas, resc) = self.run_bbsr()
         self.assert_matrix_is_square(2, betas)
         self.assert_matrix_is_square(2, resc)
         pdt.assert_frame_equal(betas, pd.DataFrame([[0, -1],[-1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
@@ -96,7 +113,7 @@ class TestBBSRrunnerPython(unittest.TestCase):
         self.X = pd.DataFrame([[0, 2], [2, 0]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
         self.Y = pd.DataFrame([[0, 1], [1, 0]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
         self.clr = pd.DataFrame([[.1, .1],[.1, .2]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2'])
-        (betas, resc) = self.brd.run(self.X, self.Y, self.clr, self.priors)
+        (betas, resc) = self.run_bbsr()
         self.assert_matrix_is_square(2, betas)
         self.assert_matrix_is_square(2, resc)
         pdt.assert_frame_equal(betas, pd.DataFrame([[0, -1],[-1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
@@ -107,7 +124,7 @@ class TestBBSRrunnerPython(unittest.TestCase):
         self.set_all_zero_clr()
         self.X = pd.DataFrame([[1, 2], [2, 1]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
         self.Y = pd.DataFrame([[1, 2], [2, 1]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
-        (betas, resc) = self.brd.run(self.X, self.Y, self.clr, self.priors)
+        (betas, resc) = self.run_bbsr()
         self.assert_matrix_is_square(2, betas)
         self.assert_matrix_is_square(2, resc)
         pdt.assert_frame_equal(betas, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
@@ -118,7 +135,7 @@ class TestBBSRrunnerPython(unittest.TestCase):
         self.set_all_zero_clr()
         self.X = pd.DataFrame([[0, 2], [2, 0]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
         self.Y = pd.DataFrame([[0, 1], [1, 0]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
-        (betas, resc) = self.brd.run(self.X, self.Y, self.clr, self.priors)
+        (betas, resc) = self.run_bbsr()
         self.assert_matrix_is_square(2, betas)
         self.assert_matrix_is_square(2, resc)
         pdt.assert_frame_equal(betas, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
@@ -129,7 +146,7 @@ class TestBBSRrunnerPython(unittest.TestCase):
         self.X = pd.DataFrame([[1, 2], [1, 2]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
         self.Y = pd.DataFrame([[1, 2], [1, 2]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
         self.clr = pd.DataFrame([[.1, .1],[.1, .2]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2'])
-        (betas, resc) = self.brd.run(self.X, self.Y, self.clr, self.priors)
+        (betas, resc) = self.run_bbsr()
         self.assert_matrix_is_square(2, betas)
         self.assert_matrix_is_square(2, resc)
         pdt.assert_frame_equal(betas, pd.DataFrame([[0, 1],[1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
@@ -154,8 +171,9 @@ class TestBBSRrunnerPython(unittest.TestCase):
         self.X = pd.DataFrame([[0, 2], [0, 2]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
         self.Y = pd.DataFrame([[1, 2], [1, 2]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
         self.clr = pd.DataFrame([[.1, .1],[.1, .2]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2'])
-        (betas, resc) = self.brd.run(self.X, self.Y, self.clr, self.priors)
+        (betas, resc) = self.run_bbsr()
         self.assert_matrix_is_square(2, betas)
         self.assert_matrix_is_square(2, resc)
+        import pdb; pdb.set_trace()
         pdt.assert_frame_equal(betas, pd.DataFrame([[0, 1],[1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
         pdt.assert_frame_equal(resc, pd.DataFrame([[0, 1],[1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))

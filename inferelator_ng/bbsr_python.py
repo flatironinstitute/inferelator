@@ -57,11 +57,9 @@ def BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, kvs, rank, ownChe
     s = []
     limit = G
     for j in range(limit):
-        if not ownCheck or ownCheck.next():
+        if ownCheck.next():
             # busy work
             s.append(BBSRforOneGeneWrapper(j))
-    if not kvs:
-        return s
     # Report partial result.
     kvs.put('plist',(rank,s))
     # One participant gathers the partial results and generates the final
