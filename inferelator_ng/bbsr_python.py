@@ -56,21 +56,28 @@ def BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, kvs, rank, ownChe
     # deterministic.
     s = []
     limit = G
+    print 'how many genes? {}'.format(limit)
     for j in range(limit):
-        if ownCheck.next():
+        temp_next = ownCheck.next()
+        print 'temp_next: {}'.format(temp_next)
+        if temp_next:
             # busy work
             s.append(BBSRforOneGeneWrapper(j))
+            print ('in per-gene loop. s is : {}, rank is: {}'.format(s, rank))
     # Report partial result.
     kvs.put('plist',(rank,s))
     # One participant gathers the partial results and generates the final
     # output.
+    print 'rank: {}'.format(rank)
     if 0 == rank:
         s=[]
         workers=int(os.environ['SLURM_NTASKS'])
+        print workers
         for p in range(workers):
             wrank,ps = kvs.get('plist')
             print ('got', wrank, len(ps))
             s.extend(ps)
+            print s
         print ('final s', len(s))
         return s
     else:
@@ -289,11 +296,15 @@ class BBSR_runner:
         weights_mat = prior_mat * 0 + no_prior_weight
         weights_mat = weights_mat.mask(prior_mat != 0, other=prior_weight)
 
-        x = BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, kvs, rank, ownCheck)
-        if rank: return (None,None)
+        run_result = BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, kvs, rank, ownCheck)
+        if rank: 
+            print 'rank: {}'.format(rank)
+            return (None,None)
+        print 'run_result: {}'.format(run_result)
         bs_betas = pd.DataFrame(np.zeros((Y.shape[0],prior_mat.shape[1])),index=Y.index,columns=prior_mat.columns)
         bs_betas_resc = bs_betas.copy(deep=True)
-        for res in x:
+        for res in run_result:
+            print bs_betas
             bs_betas.ix[res['ind'],X.index.values[res['pp']]] = res['betas']
             bs_betas_resc.ix[res['ind'],X.index.values[res['pp']]] = res['betas_resc']
         return (bs_betas, bs_betas_resc)

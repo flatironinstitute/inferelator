@@ -7,28 +7,32 @@ from subprocess import CalledProcessError
 from .. import bbsr_python
 from .. import utils
 
+kvsclient = KVSClient()
+print 'INITIALIZING KVS CLIENT'
 my_dir = os.path.dirname(__file__)
 
 class TestBBSRrunnerPython(unittest.TestCase):
 
-    def setUp(self):
+    def __init__(self, *args, **kwargs):
+        super(TestBBSRrunnerPython, self).__init__(*args, **kwargs)
         # Extra behavior: only run if KVSClient can reach the host:
-        try:
-            self.kvs = KVSClient()
-        except Exception as e:
-            if e.message == 'Missing host':
-                print 'Test test_bbsr.py exiting since KVS host is not running'
-                print 'Try rerunning tests with python $LOCALREPO/kvsstcp.py --execcmd "nosetests  --nocapture -v"'
-                unittest.main(exit=False)
+        #try:
+        #    self.kvs = kvsclient
+        #except Exception as e:
+        #    if e.message == 'Missing host':
+        #        print 'Test test_bbsr.py exiting since KVS host is not running'
+        #        print 'Try rerunning tests with python $LOCALREPO/kvsstcp.py --execcmd "nosetests  --nocapture -v"'
+        #        unittest.main(exit=False)
+#
+    def setUp(self):
         # Check for os.environ['SLURM_NTASKS']
-
         self.rank = 0
         self.brd = bbsr_python.BBSR_runner()
         # Extra behavior: only run if this is defined:
         
 
     def run_bbsr(self):
-        return self.brd.run(self.X, self.Y, self.clr, self.priors, kvs=self.kvs, ownCheck = utils.own(self.kvs, self.rank, chunk=1, reset=0))
+        return self.brd.run(self.X, self.Y, self.clr, self.priors, rank=self.rank, kvs=kvsclient, ownCheck = utils.own(kvsclient, self.rank, chunk=1))
 
     def set_all_zero_priors(self):
         self.priors =  pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2'])
@@ -146,6 +150,7 @@ class TestBBSRrunnerPython(unittest.TestCase):
         self.X = pd.DataFrame([[1, 2], [1, 2]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
         self.Y = pd.DataFrame([[1, 2], [1, 2]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
         self.clr = pd.DataFrame([[.1, .1],[.1, .2]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2'])
+        import pdb; pdb.set_trace()
         (betas, resc) = self.run_bbsr()
         self.assert_matrix_is_square(2, betas)
         self.assert_matrix_is_square(2, resc)
