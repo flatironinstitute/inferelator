@@ -24,8 +24,8 @@ class TestBBSRrunnerPython(unittest.TestCase):
             self.kvs = KVSClient()
         except Exception as e:
             if e.message == 'Missing host':
-                print 'Test test_bbsr.py exiting since KVS host is not running'
-                print 'Try rerunning tests with python $LOCALREPO/kvsstcp.py --execcmd "nosetests  --nocapture -v"'
+                print('Test test_bbsr.py exiting since KVS host is not running')
+                print('Try rerunning tests with python $LOCALREPO/kvsstcp.py --execcmd "nosetests  --nocapture -v"')
                 self.missing_kvs_host = True
 
         # Mock out Slurm process IDs so that KVS can access this process ID in bbsr_python.py
