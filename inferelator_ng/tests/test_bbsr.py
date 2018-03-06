@@ -23,7 +23,7 @@ class TestBBSRrunnerPython(unittest.TestCase):
         try:
             self.kvs = KVSClient()
         except Exception as e:
-            if e.message == 'Missing host':
+            if str(e) == 'Missing host':
                 print('Test test_bbsr.py exiting since KVS host is not running')
                 print('Try rerunning tests with python $LOCALREPO/kvsstcp.py --execcmd "nosetests  --nocapture -v"')
                 self.missing_kvs_host = True
