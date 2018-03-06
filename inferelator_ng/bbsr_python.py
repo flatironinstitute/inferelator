@@ -278,21 +278,18 @@ def PredictErrorReduction(y, x, beta):
 
 
 class BBSR_runner:
-    def run(self, X, Y, clr, priors, kvs=None, rank=0, ownCheck=None):
+    def run(self, X, Y, clr, prior_mat, kvs=None, rank=0, ownCheck=None):
         n = 10
         no_prior_weight = 1
         prior_weight = 1 # prior weight has to be larger than 1 to have an effect
-        no_pr_val = no_prior_weight
-        nS = n
-        X = X
-        Y = Y
-        clr_mat = clr
-        prior_mat = priors
         weights_mat = prior_mat * 0 + no_prior_weight
         weights_mat = weights_mat.mask(prior_mat != 0, other=prior_weight)
 
-        x = BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, kvs, rank, ownCheck)
-        if rank: return (None,None)
+        x = BBSR(X, Y, clr, n, no_prior_weight, weights_mat, prior_mat, kvs, rank, ownCheck)
+        if rank: 
+            return (None,None)
+
+        # process run result
         bs_betas = pd.DataFrame(np.zeros((Y.shape[0],prior_mat.shape[1])),index=Y.index,columns=prior_mat.columns)
         bs_betas_resc = bs_betas.copy(deep=True)
         for res in x:
