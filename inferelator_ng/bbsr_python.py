@@ -7,6 +7,7 @@ from scipy import special
 import multiprocessing
 from functools import partial
 import os, sys
+from . import utils
 
 # Wrapper function for BBSRforOneGene that's called in BBSR
 gx, gy, gpp, gwm, gns = None, None, None, None, None
@@ -57,21 +58,18 @@ def BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, kvs, rank, ownChe
     s = []
     limit = G
     for j in range(limit):
-        if not ownCheck or ownCheck.next():
-            # busy work
+        if ownCheck.next():
             s.append(BBSRforOneGeneWrapper(j))
-    if not kvs:
-        return s
     # Report partial result.
     kvs.put('plist',(rank,s))
     # One participant gathers the partial results and generates the final
     # output.
+    utils.kvsTearDown(kvs, rank)
     if 0 == rank:
         s=[]
         workers=int(os.environ['SLURM_NTASKS'])
         for p in range(workers):
             wrank,ps = kvs.get('plist')
-            print ('got', wrank, len(ps))
             s.extend(ps)
         print ('final s', len(s))
         return s
@@ -269,7 +267,7 @@ def PredictErrorReduction(y, x, beta):
         x_tmp = x[:,pred_tmp_index]
 
         bhat = np.linalg.solve(np.dot(x_tmp.transpose(),x_tmp),np.dot(x_tmp.transpose(),y))
-        
+
         residuals = np.subtract(y,np.dot(x_tmp,bhat))
         sigma_sq = np.var(residuals,ddof=1)
         err_red[i] = 1 - (sigma_sq_full / sigma_sq)
@@ -285,14 +283,12 @@ class BBSR_runner:
         weights_mat = prior_mat * 0 + no_prior_weight
         weights_mat = weights_mat.mask(prior_mat != 0, other=prior_weight)
 
-        x = BBSR(X, Y, clr, n, no_prior_weight, weights_mat, prior_mat, kvs, rank, ownCheck)
-        if rank: 
+        run_result = BBSR(X, Y, clr, n, no_prior_weight, weights_mat, prior_mat, kvs, rank, ownCheck)
+        if rank:
             return (None,None)
-
-        # process run result
         bs_betas = pd.DataFrame(np.zeros((Y.shape[0],prior_mat.shape[1])),index=Y.index,columns=prior_mat.columns)
         bs_betas_resc = bs_betas.copy(deep=True)
-        for res in x:
+        for res in run_result:
             bs_betas.ix[res['ind'],X.index.values[res['pp']]] = res['betas']
             bs_betas_resc.ix[res['ind'],X.index.values[res['pp']]] = res['betas_resc']
         return (bs_betas, bs_betas_resc)

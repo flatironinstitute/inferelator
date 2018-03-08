@@ -43,11 +43,9 @@ def r_path(path):
     """
     return path.replace('\\', '/')
 
-def own(kvs, rank=0, chunk=1, reset=False):
+def ownCheck(kvs, rank, chunk=1):
     # initialize a global counter.                                                                                                               
-    #if reset: kvs.get('count')
     if 0 == rank:
-        if reset: kvs.get('count')
         kvs.put('count', 0)
     checks, lower, upper = 0, -1, -1
     while 1:
@@ -58,6 +56,11 @@ def own(kvs, rank=0, chunk=1, reset=False):
         yield lower <= checks < upper
         checks += 1
 
+def kvsTearDown(kvs, rank):
+    # de-initialize the global counter.        
+    if 0 == rank:
+        # Do a hard reset if rank == 0                                                                                                       
+        kvs.get('count')
 
 class RDriver:
     """

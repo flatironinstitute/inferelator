@@ -49,7 +49,7 @@ class BBSR_TFA_Workflow(WorkflowBase):
             else:
                 (self.clr_matrix, self.mi_matrix) = kvs.view('mi %d'%idx)
             print('Calculating betas using BBSR')
-            ownCheck = utils.own(kvs, rank, chunk=25, reset=idx!=0)
+            ownCheck = utils.own(kvs, rank, chunk=25)
             current_betas,current_rescaled_betas = self.regression_driver.run(X, Y, self.clr_matrix, self.priors_data,kvs,rank,ownCheck)
             if rank: continue
             betas.append(current_betas)
