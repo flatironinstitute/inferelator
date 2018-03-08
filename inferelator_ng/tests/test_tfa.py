@@ -138,12 +138,12 @@ class TestTFA(unittest.TestCase):
     def test_tfa_default_using_mouse_th17(self):
         self.setup_mouse_th17()
         activities = self.tfa_object.compute_transcription_factor_activity()
-        np.testing.assert_array_almost_equal_nulp(activities.values,
+        np.testing.assert_allclose(activities.values,
             np.array([[1.706100, 1.765225, 1.739675, 1.791075, 1.70055], 
                 [8.160000, 8.553600, 7.765000, 7.890300, 8.08710], 
                 [-1.257265, -1.611675, -1.348145, -1.196210, -1.35857],
                 [1.706100, 1.765225, 1.739675, 1.791075, 1.70055]]),
-            units_in_the_last_place_tolerance)
+            atol=1e-15)
         # Assert the final priors matrix has no self- interactions
         np.testing.assert_equal(self.tfa_object.prior.values, np.array([[1,0,0,1], 
             [0,0,0,0], 

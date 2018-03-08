@@ -267,7 +267,7 @@ def PredictErrorReduction(y, x, beta):
         x_tmp = x[:,pred_tmp_index]
 
         bhat = np.linalg.solve(np.dot(x_tmp.transpose(),x_tmp),np.dot(x_tmp.transpose(),y))
-        
+
         residuals = np.subtract(y,np.dot(x_tmp,bhat))
         sigma_sq = np.var(residuals,ddof=1)
         err_red[i] = 1 - (sigma_sq_full / sigma_sq)
@@ -283,8 +283,8 @@ class BBSR_runner:
         weights_mat = prior_mat * 0 + no_prior_weight
         weights_mat = weights_mat.mask(prior_mat != 0, other=prior_weight)
 
-        run_result = BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, kvs, rank, ownCheck)
-        if rank: 
+        run_result = BBSR(X, Y, clr, n, no_prior_weight, weights_mat, prior_mat, kvs, rank, ownCheck)
+        if rank:
             return (None,None)
         bs_betas = pd.DataFrame(np.zeros((Y.shape[0],prior_mat.shape[1])),index=Y.index,columns=prior_mat.columns)
         bs_betas_resc = bs_betas.copy(deep=True)
