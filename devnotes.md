@@ -130,7 +130,7 @@ nosetests
 
 The `SKIP_KVS_TESTS` environment variable suppresses tests that require
 external parallelism support from the 
-(KVS package)[https://github.com/flatironinstitute/kvsstcp] because these steps
+[KVS package](https://github.com/flatironinstitute/kvsstcp) because these steps
 require a special invocation (see below).
 
 Output should look like this:
