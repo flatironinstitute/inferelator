@@ -123,9 +123,15 @@ run
 [nosetests](http://pythontesting.net/framework/nose/nose-introduction/) 
 (this runs the unit tests):
 
-```
+```bash
+export SKIP_KVS_TESTS=true
 nosetests
 ```
+
+The `SKIP_KVS_TESTS` environment variable suppresses test that require
+external parallelism support from the 
+(KVS package)[https://github.com/flatironinstitute/kvsstcp] because these steps
+require a special invocation (see below).
 
 Output should look like this:
 
@@ -142,9 +148,24 @@ failures the output will be more extensive, describing which tests failed and ho
 
 For debugging purposes it is sometimes useful to use `print` statements and invoke
 nosetests with the `--nocapture` option in order to see the output.
-```
+
+```bash
+export SKIP_KVS_TESTS=true
 nosetests --nocapture
 ```
+
+## Running the unit tests with parallelism support from KVS
+
+You can run the tests including the ones that require KVS using the
+following command line:
+
+```bash
+export SKIP_KVS_TESTS=false
+python -m kvsstcp.kvsstcp --execcmd "nosetests  --nocapture -v"
+```
+
+The resulting output will include print statements from the tests and also log
+statements from the `kvsstcp` manager process.
 
 # Making a contribution to the project
 

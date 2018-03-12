@@ -9,11 +9,12 @@ from .. import utils
 
 my_dir = os.path.dirname(__file__)
 
-def should_skip():
-    if ("TRAVIS" in os.environ and os.environ["TRAVIS"] == "true"):
-        return True
-    else:
-        return False
+def should_skip(environment_flags=[("TRAVIS", "true"), ("SKIP_KVS_TESTS", "true")]):
+    for (flag, value) in environment_flags:
+        if (flag in os.environ and os.environ[flag] == value):
+            return True
+    # default
+    return False
 
 class TestBBSRrunnerPython(unittest.TestCase):
 
