@@ -11,7 +11,7 @@ from results_processor import ResultsProcessor
 import mi_R
 import bbsr_python
 import datetime
-from kvsclient import KVSClient
+from kvsstcp.kvsclient import KVSClient
 from . import utils
 
 # Connect to the key value store service (its location is found via an
