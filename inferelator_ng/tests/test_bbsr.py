@@ -2,7 +2,7 @@ import unittest, os
 import pandas as pd
 import pandas.util.testing as pdt
 import numpy as np
-from kvsclient import KVSClient
+from kvsstcp.kvsclient import KVSClient
 from subprocess import CalledProcessError
 from .. import bbsr_python
 from .. import utils
@@ -20,6 +20,7 @@ class TestBBSRrunnerPython(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(TestBBSRrunnerPython, self).__init__(*args, **kwargs)
         # Extra behavior: only run if KVSClient can reach the host:
+        self.kvs = None  # dummy value on failure
         try:
             self.kvs = KVSClient()
         except Exception as e:
@@ -32,14 +33,21 @@ class TestBBSRrunnerPython(unittest.TestCase):
         os.environ['SLURM_PROCID'] = str(0)   
         os.environ['SLURM_NTASKS'] = str(1)
 
+    def get_kvs(self):
+        result = self.kvs
+        if result is None:
+            self.fail("Test requires missing KVS host.")
+        return result
+
     def setUp(self):
         # Check for os.environ['SLURM_NTASKS']
         self.rank = 0
         self.brd = bbsr_python.BBSR_runner()
     
     def run_bbsr(self):
+        kvs = self.get_kvs()
         return self.brd.run(self.X, self.Y, self.clr, self.priors, rank=self.rank, \
-                 kvs=self.kvs, ownCheck = utils.ownCheck(self.kvs, self.rank))
+                 kvs=kvs, ownCheck = utils.ownCheck(kvs, self.rank))
 
     def set_all_zero_priors(self):
         self.priors =  pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2'])
