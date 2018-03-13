@@ -5,27 +5,9 @@
 
 INFERELATOR_RUNNER_SCRIPT=$1
 
-REPOSRC=https://github.com/simonsfoundation/kvsstcp
-
-LOCALREPO=$(pwd)/kvsstcp
-
-LOCALREPO_VC_DIR=$LOCALREPO/.git
-
-if [ ! -d $LOCALREPO_VC_DIR ]
-then
-    git clone $REPOSRC $LOCALREPO
-else
-    pushd $LOCALREPO
-    git pull $REPOSRC
-    popd
-fi
-
-export PYTHONPATH=$PYTHONPATH:$LOCALREPO
-
 # Setting mock variables to replicate what Slurm Env variables
 # would show when running 1 single process
-
 export SLURM_PROCID=0
 export SLURM_NTASKS=1
 
-python $LOCALREPO/kvsstcp.py --execcmd "python $1"
+python -m kvsstcp.kvsstcp --execcmd "python $1"

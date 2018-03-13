@@ -115,7 +115,17 @@ Unit tests attempt to check that everything is working properly.
 It is a good idea to run unit tests frequently, especially before making
 changes and after making changes but before committing them.
 
-Switch into the inferelator_ng directory:
+## Running the unit tests with parallelism support from KVS
+
+You can run the tests including the ones that require KVS using the
+following command line:
+
+```bash run_unittests.sh```
+
+The resulting output will include print statements from the tests and also log
+statements from the `kvsstcp` manager process, testing the interaction with KVS.
+
+An alternative way to run tests is to switch into the inferelator_ng directory:
 
 ```cd inferelator_ng/```
 
@@ -130,8 +140,7 @@ nosetests
 
 The `SKIP_KVS_TESTS` environment variable suppresses tests that require
 external parallelism support from the 
-[KVS package](https://github.com/flatironinstitute/kvsstcp) because these steps
-require a special invocation (see below).
+[KVS package](https://github.com/flatironinstitute/kvsstcp).
 
 Output should look like this:
 
@@ -153,19 +162,6 @@ nosetests with the `--nocapture` option in order to see the output.
 export SKIP_KVS_TESTS=true
 nosetests --nocapture
 ```
-
-## Running the unit tests with parallelism support from KVS
-
-You can run the tests including the ones that require KVS using the
-following command line:
-
-```bash
-export SKIP_KVS_TESTS=false
-python -m kvsstcp.kvsstcp --execcmd "nosetests  --nocapture -v"
-```
-
-The resulting output will include print statements from the tests and also log
-statements from the `kvsstcp` manager process.
 
 # Making a contribution to the project
 
