@@ -35,7 +35,7 @@ R -f inferelator_ng/R_code/packages.R
 ```
 
 ## 3) Run workflow
-`python yeast_bbsr_workflow_runner.py`
+`bash inferelator_runner_slurmless.sh yeast_bbsr_workflow_runner.py`
 
 ## 4) Analyze output
 Look in the data/yeast folder for a time-stamped folder that will contain the predicted network as network.tsv and will contain a precision-recall curve as pr_curve.png. The AUPR should be ~0.2.
