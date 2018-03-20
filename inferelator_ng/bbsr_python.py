@@ -64,7 +64,6 @@ def BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, kvs, rank, ownChe
     kvs.put('plist',(rank,s))
     # One participant gathers the partial results and generates the final
     # output.
-    utils.kvsTearDown(kvs, rank)
     if 0 == rank:
         s=[]
         workers=int(os.environ['SLURM_NTASKS'])
@@ -72,6 +71,7 @@ def BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, kvs, rank, ownChe
             wrank,ps = kvs.get('plist')
             s.extend(ps)
         print ('final s', len(s))
+        utils.kvsTearDown(kvs, rank)
         return s
     else:
         return None
