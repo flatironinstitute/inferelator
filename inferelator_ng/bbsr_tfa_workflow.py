@@ -12,6 +12,7 @@ import mi_R
 import bbsr_python
 import datetime
 from kvsstcp.kvsclient import KVSClient
+import pandas as pd
 from . import utils
 
 # Connect to the key value store service (its location is found via an
