@@ -1,14 +1,13 @@
 """
 Workflow class that splits the prior into a gold standard and new prior
 """
-from workflow import WorkflowBase
-import numpy as np
-import os
+
 import random
 import pandas as pd
+import numpy as np
+from . import workflow
 
-
-class PriorGoldStandardSplitWorkflowBase(WorkflowBase):
+class PriorGoldStandardSplitWorkflowBase(workflow.WorkflowBase):
 
     def set_gold_standard_and_priors(self):
         """
