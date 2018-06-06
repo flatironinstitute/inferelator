@@ -4,7 +4,7 @@ Run BSubtilis Network Inference with TFA BBSR.
 
 import numpy as np
 import os
-from workflow import WorkflowBase
+from . import workflow
 import design_response_translation #added python design_response
 from tfa import TFA
 from results_processor import ResultsProcessor
@@ -22,7 +22,7 @@ kvs = KVSClient()
 # Find out which process we are (assumes running under SLURM).
 rank = int(os.environ['SLURM_PROCID'])
 
-class BBSR_TFA_Workflow(WorkflowBase):
+class BBSR_TFA_Workflow(workflow.WorkflowBase):
 
     def run(self):
         """
