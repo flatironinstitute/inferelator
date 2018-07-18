@@ -15,7 +15,8 @@ class Debug:
     verbose_level = 0
     default_level = 1
 
-    levels = dict(normal=0,
+    levels = dict(silent=-1,
+                  normal=0,
                   verbose=1, v=1,
                   very_verbose=2, vv=2,
                   max_output=3, vvv=3)
@@ -32,7 +33,7 @@ class Debug:
         except KeyError:
             level = cls.default_level
         if level <= cls.verbose_level:
-            print(*args, **kwargs)
+            print((" " * level), *args, **kwargs)
         else:
             pass
 
@@ -98,3 +99,44 @@ def read_tf_names(file_like):
     exp = pd.read_csv(file_like, sep="\t", header=None)
     assert exp.shape[1] == 1, "transcription factor file should have one column "
     return list(exp[0])
+
+def df_set_diag(df, val, copy=True):
+    """
+    Sets the diagonal of a dataframe to a value. Diagonal in this case is anything where row label == column label.
+
+    :param df: pd.DataFrame
+        DataFrame to modify
+    :param val: numeric
+        Value to insert into any cells where row label == column label
+    :param copy: bool
+        Force-copy the dataframe instead of modifying in place
+    :return: pd.DataFrame / int
+        Return either the modified dataframe (if copied) or the number of cells modified (if changed in-place)
+    """
+
+    # Find all the labels that are shared between rows and columns
+    isect = df.index.intersection(df.columns)
+
+    if copy:
+        df = df.copy()
+
+    # Set the value where row and column names are the same
+    for i in range(len(isect)):
+        df.loc[isect[i], isect[i]] = val
+
+    if copy:
+        return df
+    else:
+        return len(isect)
+
+
+def bool_to_index(arr):
+    return [i for i, j in enumerate(arr) if j]
+
+
+def nonzero_to_bool(arr):
+    return [True if a != 0 else False for a in arr]
+
+def make_array_2d(arr):
+    if arr.ndim == 1:
+        arr.shape = (arr.shape[0], 1)
