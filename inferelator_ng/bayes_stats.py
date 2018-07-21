@@ -8,9 +8,10 @@ from inferelator_ng.utils import bool_to_index, nonzero_to_bool, make_array_2d
 from inferelator_ng import utils
 
 
-def bbsr(X, y, pp, weights, max_n):
+def bbsr(X, y, pp, weights, max_k):
     """
-
+    Run BBSR to regress a response variable y in n conditions against predictors X in n conditions. Use the prior
+    predictors matrix to filter the number of predictors from something massive to max_k.
     :param X: np.ndarray [K x N]
         Predictor features
     :param y: np.ndarray [N,]
@@ -19,7 +20,7 @@ def bbsr(X, y, pp, weights, max_n):
         Predictors to model with
     :param weights: np.ndarray [K,]
         Weight matrix
-    :param max_n: int
+    :param max_k: int
         Max number of predictors
     :return:
     """
@@ -42,7 +43,7 @@ def bbsr(X, y, pp, weights, max_n):
 
     # Reduce predictors
 
-    pp[pp_idx] = (reduce_predictors(x, y, gprior, max_n))
+    pp[pp_idx] = reduce_predictors(x, y, gprior, max_k)
     pp_idx = bool_to_index(pp)
 
     utils.Debug.vprint("Reduced to {pp_len} predictors".format(pp_len=len(pp_idx)), level=2)
@@ -52,7 +53,7 @@ def bbsr(X, y, pp, weights, max_n):
     gprior = weights[pp_idx].astype(np.dtype(float))
 
     betas = best_subset_regression(x, y, gprior)
-    utils.Debug.vprint("Calculated betas by BSR", level=2)
+    utils.Debug.vprint("Calculated betas", level=2)
 
     betas_resc = predict_error_reduction(x, y, betas)
     utils.Debug.vprint("Calculated error reduction", level=2)
@@ -73,11 +74,14 @@ def best_subset_regression(x, y, gprior):
     """
 
     (n, k) = x.shape
-    combos = combo_index(k)  # [k x 2^k]
-    bic_combos = calc_all_expected_BIC(x, y, gprior, combos)
+    combos = combo_index(k)
+    bic_combos = calc_all_expected_BIC(x, y, gprior, combos, check_rank=False)
 
-    best_combo = combos[:, np.argmin(bic_combos)]
     best_betas = np.zeros(k, dtype=np.dtype(float))
+    try:
+        best_combo = combos[:, _best_combo_idx(x, bic_combos, combos)]
+    except np.linalg.LinAlgError:
+        return best_betas
 
     if best_combo.sum() > 0:
         idx = bool_to_index(best_combo)
@@ -89,28 +93,32 @@ def best_subset_regression(x, y, gprior):
     return best_betas
 
 
-def reduce_predictors(x, y, gprior, max_n):
+def reduce_predictors(x, y, gprior, max_k):
     """
     Determine which predictors are the most valuable by calculating BICs for single and pairwise predictor models
     :param x: np.ndarray [n x k]
     :param y: np.ndarray [n x 1]
     :param gprior: [k x 1]
-    :param max_n: int
+    :param max_k: int
     :return: np.ndarray [k,]
     """
     (_, k) = x.shape
 
-    if k <= max_n:
+    if k <= max_k:
         return np.ones(k, dtype=np.dtype(bool))
     else:
         # Get BIC for every combination of single or double predictors
         combos = np.hstack((np.diag(np.repeat(True, k)), select_index(k)))
         bic = calc_all_expected_BIC(x, y, gprior, combos)
+
+        reset = np.seterr(divide='ignore', invalid='ignore')
         bic = np.multiply(combos.T, bic.reshape(-1, 1)).sum(axis=0)
 
         # Return a boolean index pointing to the lowest BIC predictors
         predictors = np.zeros(k, dtype=np.dtype(bool))
-        predictors[np.argsort(bic)[0:max_n]] = True
+        predictors[np.argsort(bic)[0:max_k]] = True
+
+        np.seterr(**reset)
         return predictors
 
 
@@ -145,7 +153,7 @@ def predict_error_reduction(x, y, betas):
     return error_reduction
 
 
-def calc_all_expected_BIC(x, y, g, combinations):
+def calc_all_expected_BIC(x, y, g, combinations, check_rank=True):
     """
     Calculate BICs for every combination of predictors given in combinations
     :param x: np.ndarray [n x k]
@@ -157,6 +165,9 @@ def calc_all_expected_BIC(x, y, g, combinations):
     :param combinations: np.ndarray [k x c]
         Combinations of predictors to try; each combination should be booleans with a length corresponding to the
         number of predictors
+    :param check_rank: bool
+        Explicitly check to see that xTx is nonsingular for every combination. If false, will only catch singular xTx
+        that causes np.linalg.solve to throw an exception
     :return: np.ndarray [c,]
         Array of BICs corresponding to each combination
     """
@@ -180,43 +191,72 @@ def calc_all_expected_BIC(x, y, g, combinations):
     bic = np.zeros(c, dtype=np.dtype(float))
 
     for i in range(c):
+
+        # Convert the boolean slice into an index
+        c_idx = utils.bool_to_index(combinations[:, i])
+
         # Check for a null model
-        if combinations[:, i].sum() == 0:
+        if len(c_idx) == 0:
             bic[i] = n * np.log(np.var(y, ddof=1))
             continue
 
-        # Convert the boolean slice into an index
-        p_c = np.where(combinations[:, i])[0]
-
         # Calculate the rate parameter from this specific combination of predictors
-        rate = _calc_rate(x[:, p_c],
-                          y,
-                          xtx[:, p_c][p_c, :],
-                          xty[p_c],
-                          gprior[:, p_c][p_c, :])
-
-        # Use the rate parameter to calculate the BIC for this combination of predictors
-        if np.isinf(rate):
-            bic[i] = rate
-        else:
-            bic[i] = n * (np.log(rate) - digamma_shape) + len(p_c) * np.log(n)
+        try:
+            rate = _calc_rate(x[:, c_idx],
+                              y,
+                              xtx[:, c_idx][c_idx, :],
+                              xty[c_idx],
+                              gprior[:, c_idx][c_idx, :],
+                              check_rank=check_rank)
+            bic[i] = n * (np.log(rate) - digamma_shape) + len(c_idx) * np.log(n)
+        except np.linalg.LinAlgError:
+            bic[i] = np.inf
 
     return bic
 
 
-def _calc_rate(x, y, xtx, xty, gprior):
-    if np.linalg.matrix_rank(xtx, tol=1e-10) == xtx.shape[1]:
-        # If xTx is full rank, regress xTx against xTy
-        beta_hat = np.linalg.solve(xtx, xty)
-        beta_flip = (0 - beta_hat.T)
-        # Calculate the rate parameter for Zellner's g-prior
-        rate = np.multiply(xtx, gprior)
-        rate = np.dot(beta_flip, np.dot(rate, beta_flip.T))
-        # Return the mean of the SSR and the rate parameter
-        return (ssr(x, y, beta_hat) + rate) / 2
-    else:
-        # If xTx isn't full rank, return infinity
-        return np.inf
+def _best_combo_idx(x, bic, combo):
+    """
+    Find the lowest BIC combination that yields a nonsingular xTx
+    :param x: [n x k]
+    :param bic: [c,]
+    :param combo: [k x c]
+    :return:
+    """
+
+    sorted_bic = np.argsort(bic).tolist()
+
+    for i in range(combo.shape[1]):
+        c = combo[:, sorted_bic[i]]
+
+        if c.sum() == 0:
+            return sorted_bic[i]
+
+        x_slice = x[:, c]
+        if _matrix_full_rank(np.dot(x_slice.T, x_slice)):
+            return sorted_bic[i]
+        else:
+            continue
+
+    raise np.linalg.LinAlgError
+
+
+def _matrix_full_rank(mat, tol=1e-10):
+    return np.linalg.matrix_rank(mat, tol=tol) == mat.shape[1]
+
+
+def _calc_rate(x, y, xtx, xty, gprior, check_rank=True):
+    # Check to see if xTx is nonsingular
+    if check_rank and not _matrix_full_rank(xtx):
+        raise np.linalg.LinAlgError
+    # Regress xTx against xTy
+    beta_hat = np.linalg.solve(xtx, xty)
+    beta_flip = (0 - beta_hat.T)
+    # Calculate the rate parameter for Zellner's g-prior
+    rate = np.multiply(xtx, gprior)
+    rate = np.dot(beta_flip, np.dot(rate, beta_flip.T))
+    # Return the mean of the SSR and the rate parameter
+    return (ssr(x, y, beta_hat) + rate) / 2
 
 
 def ssr(x, y, beta):

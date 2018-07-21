@@ -3,7 +3,7 @@ import pandas as pd
 import multiprocessing
 from . import utils
 
-DEFAULT_CORES = 1
+DEFAULT_CORES = 10
 DEFAULT_NUM_BINS = 10
 POOL_CHUNKSIZE = 1000
 CLR_DDOF = 1
@@ -156,7 +156,7 @@ def _mi_gen(X, Y, bins, logtype=np.log):
     """
 
     for i in range(X.shape[1]):
-        utils.Debug.vprint("Calculating MI for feature [{i_n} / {total}]".format(i_n=i, total=X.shape[1]), level=2)
+        utils.Debug.vprint("Calculating MI for feature [{i_n} / {total}]".format(i_n=i, total=X.shape[1]), level=3)
         X_slice = X[:, i]
         for j in range(Y.shape[1]):
             yield (i, j, X_slice, Y[:, j], bins, logtype)

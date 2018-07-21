@@ -89,7 +89,7 @@ class BBSR:
         self.X = self._scale_and_permute(X)
         utils.Debug.vprint("Predictor matrix {} ready".format(X.shape))
         self.Y = self._scale_and_permute(Y)
-        utils.Debug.vprint("Response matrix {} ready".format(X.shape))
+        utils.Debug.vprint("Response matrix {} ready".format(Y.shape))
 
         # Rebuild weights, priors, and the CLR matrix for the features that are in this bootstrap
         self.weights_mat = weights_mat.loc[self.genes, self.tfs]
@@ -209,8 +209,7 @@ class BBSR:
         try:
             slurm_total = int(os.environ['SLURM_NTASKS'])
         except KeyError:
-            utils.Debug.vprint("SLURM ENV variabled not detected; Assuming RANK 0")
-            slurm_total = 0
+            slurm_total = 1
 
         # Reach into KVS to get the model data
         for _ in range(slurm_total):
