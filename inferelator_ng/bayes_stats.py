@@ -131,7 +131,7 @@ def predict_error_reduction(x, y, betas):
     :return:
     """
     (n, k) = x.shape
-    pp_idx = bool_to_index(nonzero_to_bool(betas))
+    pp_idx = bool_to_index(nonzero_to_bool(betas)).tolist()
 
     ss_all = sigma_squared(x, y, betas)
     error_reduction = np.zeros(k, dtype=np.dtype(float))
@@ -208,7 +208,10 @@ def calc_all_expected_BIC(x, y, g, combinations, check_rank=True):
                               xty[c_idx],
                               gprior[:, c_idx][c_idx, :],
                               check_rank=check_rank)
-            bic[i] = n * (np.log(rate) - digamma_shape) + len(c_idx) * np.log(n)
+            if np.isfinite(rate):
+                bic[i] = n * (np.log(rate) - digamma_shape) + len(c_idx) * np.log(n)
+            else:
+                raise np.linalg.LinAlgError
         except np.linalg.LinAlgError:
             bic[i] = np.inf
 
@@ -246,17 +249,22 @@ def _matrix_full_rank(mat, tol=1e-10):
 
 
 def _calc_rate(x, y, xtx, xty, gprior, check_rank=True):
-    # Check to see if xTx is nonsingular
+    # Check to see if xTx is nonsingular (if necessary)
     if check_rank and not _matrix_full_rank(xtx):
         raise np.linalg.LinAlgError
-    # Regress xTx against xTy
+
+    # Regress xTx against xTy and calculate the SSR
     beta_hat = np.linalg.solve(xtx, xty)
-    beta_flip = (0 - beta_hat.T)
+    ssr_beta_hat = ssr(x, y, beta_hat)
+
     # Calculate the rate parameter for Zellner's g-prior
-    rate = np.multiply(xtx, gprior)
-    rate = np.dot(beta_flip, np.dot(rate, beta_flip.T))
+    beta_flip = (0 - beta_hat.T)
+    rate = xtx * gprior
+    rate = np.dot(rate, beta_flip.T)
+    rate = np.dot(beta_flip, rate)
+
     # Return the mean of the SSR and the rate parameter
-    return (ssr(x, y, beta_hat) + rate) / 2
+    return (ssr_beta_hat + rate) / 2
 
 
 def ssr(x, y, beta):
@@ -267,7 +275,9 @@ def ssr(x, y, beta):
     :param beta: np.ndarray
     :return: float
     """
-    return np.square(np.subtract(y, np.dot(x, beta))).sum()
+
+    resid = y - np.dot(x, beta)
+    return (resid * resid).sum()
 
 
 def sigma_squared(x, y, betas):
