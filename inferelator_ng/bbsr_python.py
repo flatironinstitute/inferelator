@@ -138,7 +138,7 @@ class BBSR:
         else:
             return None, None
 
-    def _build_pp_matrix(self, filter_priors_for_clr=True):
+    def _build_pp_matrix(self, filter_priors_for_clr=False):
         """
         From priors and context likelihood of relatedness, determine which predictors should be included in the model
 
@@ -161,10 +161,11 @@ class BBSR:
             pp = pp.values
 
         # Mark the nS predictors with the highest CLR true (Do not include anything with a CLR of 0)
-        good_clrs = self.clr_mat[self.clr_mat != 0].count(axis=1)
+        mask = np.logical_or(self.clr_mat == 0, ~np.isfinite(self.clr_mat)).values
+        masked_clr = np.ma.array(self.clr_mat.values, mask=mask)
         for i in range(self.G):
-            n_to_keep = min(self.nS, self.K, good_clrs[i])
-            clrs = np.flip(np.argsort(self.clr_mat.ix[i, :].values), axis=0)[0:n_to_keep]
+            n_to_keep = min(self.nS, self.K, mask.shape[1] - np.sum(mask[i, :]))
+            clrs = np.ma.argsort(masked_clr[i, :], endwith=False)[-1 * n_to_keep:]
             pp[i, clrs] = True
 
         # Rebuild into a DataFrame and set autoregulation to 0

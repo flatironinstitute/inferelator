@@ -4,7 +4,7 @@ import math
 import copy
 import scipy.special
 
-from inferelator_ng.utils import bool_to_index, nonzero_to_bool, make_array_2d
+from inferelator_ng.utils import bool_to_index, index_of_nonzeros, make_array_2d
 from inferelator_ng import utils
 
 
@@ -39,7 +39,7 @@ def bbsr(X, y, pp, weights, max_k):
     # Make sure arrays are 2d
     make_array_2d(x)
     make_array_2d(y)
-    make_array_2d(weights)
+    make_array_2d(gprior)
 
     # Reduce predictors
 
@@ -51,6 +51,7 @@ def bbsr(X, y, pp, weights, max_k):
     # Resubset with the newly reduced predictors
     x = X[pp_idx, :].T
     gprior = weights[pp_idx].astype(np.dtype(float))
+    make_array_2d(gprior)
 
     betas = best_subset_regression(x, y, gprior)
     utils.Debug.vprint("Calculated betas", level=2)
@@ -131,7 +132,7 @@ def predict_error_reduction(x, y, betas):
     :return:
     """
     (n, k) = x.shape
-    pp_idx = bool_to_index(nonzero_to_bool(betas)).tolist()
+    pp_idx = index_of_nonzeros(betas).tolist()
 
     ss_all = sigma_squared(x, y, betas)
     error_reduction = np.zeros(k, dtype=np.dtype(float))
@@ -185,7 +186,7 @@ def calc_all_expected_BIC(x, y, g, combinations, check_rank=True):
     xty = np.dot(x.T, y)  # [k x 1]
 
     # Calculate the g-prior
-    gprior = np.sqrt(1 / (g + 1)).reshape(-1, 1)
+    gprior = np.repeat(np.sqrt(1 / (g + 1)), k, axis=1)
     gprior = np.multiply(gprior, gprior.T)
 
     bic = np.zeros(c, dtype=np.dtype(float))
@@ -218,36 +219,6 @@ def calc_all_expected_BIC(x, y, g, combinations, check_rank=True):
     return bic
 
 
-def _best_combo_idx(x, bic, combo):
-    """
-    Find the lowest BIC combination that yields a nonsingular xTx
-    :param x: [n x k]
-    :param bic: [c,]
-    :param combo: [k x c]
-    :return:
-    """
-
-    sorted_bic = np.argsort(bic).tolist()
-
-    for i in range(combo.shape[1]):
-        c = combo[:, sorted_bic[i]]
-
-        if c.sum() == 0:
-            return sorted_bic[i]
-
-        x_slice = x[:, c]
-        if _matrix_full_rank(np.dot(x_slice.T, x_slice)):
-            return sorted_bic[i]
-        else:
-            continue
-
-    raise np.linalg.LinAlgError
-
-
-def _matrix_full_rank(mat, tol=1e-10):
-    return np.linalg.matrix_rank(mat, tol=tol) == mat.shape[1]
-
-
 def _calc_rate(x, y, xtx, xty, gprior, check_rank=True):
     # Check to see if xTx is nonsingular (if necessary)
     if check_rank and not _matrix_full_rank(xtx):
@@ -265,6 +236,35 @@ def _calc_rate(x, y, xtx, xty, gprior, check_rank=True):
 
     # Return the mean of the SSR and the rate parameter
     return (ssr_beta_hat + rate) / 2
+
+
+def _best_combo_idx(x, bic, combo):
+    """
+    Find the lowest BIC combination that yields a nonsingular xTx
+    :param x: [n x k]
+    :param bic: [c,]
+    :param combo: [k x c]
+    :return:
+    """
+
+    for i in range(combo.shape[1]):
+        bic_idx = np.argmin(bic)
+        c = combo[:, bic_idx]
+
+        if c.sum() == 0:
+            return bic_idx
+
+        x_slice = x[:, c]
+        if _matrix_full_rank(np.dot(x_slice.T, x_slice)):
+            return bic_idx
+        else:
+            bic[bic_idx] = np.inf
+
+    raise np.linalg.LinAlgError
+
+
+def _matrix_full_rank(mat, tol=1e-10):
+    return np.linalg.matrix_rank(mat, tol=tol) == mat.shape[1]
 
 
 def ssr(x, y, beta):

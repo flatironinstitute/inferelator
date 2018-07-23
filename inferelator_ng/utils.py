@@ -137,13 +137,27 @@ def df_set_diag(df, val, copy=True):
 
 
 def bool_to_index(arr):
+    """
+    Returns an array that indexes all the True elements of a boolean array
+    :param arr: np.ndarray
+    :return: np.ndarray
+    """
     return np.where(arr)[0]
 
 
-def nonzero_to_bool(arr):
+def index_of_nonzeros(arr):
+    """
+    Returns an array that indexes all the non-zero elements of an array
+    :param arr: np.ndarray
+    :return: np.ndarray
+    """
     return np.where(arr != 0)[0]
 
 
 def make_array_2d(arr):
+    """
+    Changes array shape from 1d to 2d if needed (in-place)
+    :param arr:  np.ndarray
+    """
     if arr.ndim == 1:
         arr.shape = (arr.shape[0], 1)
