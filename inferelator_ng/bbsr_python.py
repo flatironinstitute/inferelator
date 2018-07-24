@@ -4,25 +4,48 @@ import os
 from . import utils
 from . import bayes_stats
 
+# Default number of predictors to include in the model
 DEFAULT_nS = 10
+
+# Default weight for priors & Non-priors
+# If this is the same as no_prior_weight:
+#   Priors will be included in the pp matrix before the number of predictors is reduced to nS
+#   They won't get special treatment in the model though
 DEFAULT_prior_weight = 1
 DEFAULT_no_prior_weight = 1
 
+# Throw away the priors which have a CLR that is 0 before the number of predictors is reduced by BIC
+DEFAULT_filter_priors_for_clr = False
 
 class BBSR:
     # These are all the things that have to be set in a new BBSR class
 
-    nS = None  # int
-    kvs = None  # KVSClient
-    rank = None  # int
-    ownCheck = None  # Generator
-    X = None  # [K x N]
-    Y = None  # [G x N]
-    weights_mat = None  # [G x K]
-    prior_mat = None  # [G x K]
-    pp = None  # [G x K]
+    # Variables that handle multiprocessing via SLURM / KVS
+    # The defaults here are placeholders for troubleshooting
+    # All three of these should always be provided when instantiating
+    rank = 0  # int
+    kvs = utils.FakeKVS()  # KVSClient
+    ownCheck = utils.always_true()  # Generator
+
+    # Raw Data
+    X = None  # [K x N] float
+    Y = None  # [G x N] float
     G = None  # int G
     K = None  # int K
+    clr_mat = None  # [G x K] float
+
+    # Priors Data
+    prior_mat = None  # [G x K] # numeric
+    filter_priors_for_clr = DEFAULT_filter_priors_for_clr  # bool
+
+    # Weights for Predictors (weights_mat is set with _calc_weight_matrix)
+    weights_mat = None  # [G x K] numeric
+    prior_weight = DEFAULT_prior_weight  # numeric
+    no_prior_weight = DEFAULT_no_prior_weight  # numeric
+
+    # Predictors to include in modeling (pp is set with _build_pp_matrix)
+    pp = None  # [G x K] bool
+    nS = DEFAULT_nS  # int
 
     def __init__(self, X, Y, clr_mat, prior_mat, nS=DEFAULT_nS, prior_weight=DEFAULT_prior_weight,
                  no_prior_weight=DEFAULT_no_prior_weight, kvs=None, rank=0, ownCheck=None):
@@ -54,23 +77,9 @@ class BBSR:
         self.nS = nS
         self.rank = rank
 
-        # Make a fake KVS object that if one isn't passed in
-        # This is just for troubleshooting
-        # You should never not give this a KVS object
-        if kvs is None:
-            self.kvs = FakeKVS()
-        else:
+        if kvs is not None:
             self.kvs = kvs
-
-        # Make a fake ownCheck that always says TRUE if one isn't passed in
-        # This is just for troubleshooting
-        if ownCheck is None:
-            def alwaystrue():
-                while True:
-                    yield True
-
-            self.ownCheck = alwaystrue()
-        else:
+        if ownCheck is not None:
             self.ownCheck = ownCheck
 
         # Calculate the weight matrix
@@ -106,7 +115,7 @@ class BBSR:
         Execute BBSR separately on each response variable in the data
 
         :return: pd.DataFrame [G x K], pd.DataFrame [G x K]
-            Returns the regression betas and beta error reductions for this run if it is the master thread.
+            Returns the regression betas and beta error reductions for all threads if this is the master thread (rank 0)
             Returns None, None if it's a subordinate thread
         """
         regression_data = []
@@ -138,12 +147,10 @@ class BBSR:
         else:
             return None, None
 
-    def _build_pp_matrix(self, filter_priors_for_clr=False):
+    def _build_pp_matrix(self):
         """
         From priors and context likelihood of relatedness, determine which predictors should be included in the model
 
-        :param filter_priors_for_clr: bool
-            Exclude existing priors with no CLR
         :return pp: pd.DataFrame [G x K]
             Boolean matrix indicating which predictor variables should be included in BBSR for each response variable
         """
@@ -154,7 +161,7 @@ class BBSR:
         pp_idx = pp.index
         pp_col = pp.columns
 
-        if filter_priors_for_clr:
+        if self.filter_priors_for_clr:
             # Set priors which have a CLR of 0 to FALSE
             pp = np.logical_and(pp, self.clr_mat != 0).values
         else:
@@ -257,19 +264,3 @@ class BBSR_runner:
 
     def run(self, X, Y, clr, prior_mat, kvs=None, rank=0, ownCheck=None):
         return BBSR(X, Y, clr, prior_mat, kvs=kvs, rank=rank, ownCheck=ownCheck).run()
-
-
-class FakeKVS:
-    """
-    A fake KVS client that only does one thing poorly. Only for troubleshooting when this is not in a workflow.
-    """
-    data = {}
-
-    def put(self, key, val):
-        self.data[key] = val
-
-    def get(self, key):
-        try:
-            return self.data[key]
-        except KeyError:
-            return None

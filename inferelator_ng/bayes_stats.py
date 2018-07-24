@@ -7,7 +7,6 @@ import scipy.special
 from inferelator_ng.utils import bool_to_index, index_of_nonzeros, make_array_2d
 from inferelator_ng import utils
 
-
 def bbsr(X, y, pp, weights, max_k):
     """
     Run BBSR to regress a response variable y in n conditions against predictors X in n conditions. Use the prior
@@ -41,8 +40,7 @@ def bbsr(X, y, pp, weights, max_k):
     make_array_2d(y)
     make_array_2d(gprior)
 
-    # Reduce predictors
-
+    # Reduce predictors to max_k
     pp[pp_idx] = reduce_predictors(x, y, gprior, max_k)
     pp_idx = bool_to_index(pp)
 
