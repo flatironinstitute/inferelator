@@ -89,6 +89,25 @@ def kvsTearDown(kvs, rank):
         kvs.get('count')
 
 
+class FakeKVS:
+    """
+    A fake KVS client that only does one thing poorly. Only for troubleshooting when this is not in a workflow.
+    """
+    data = {}
+
+    def put(self, key, val):
+        self.data[key] = val
+
+    def get(self, key):
+        try:
+            return self.data[key]
+        except KeyError:
+            return None
+
+def always_true():
+    while True:
+        yield True
+
 def df_from_tsv(file_like, has_index=True):
     "Read a tsv file or buffer with headers and row ids into a pandas dataframe."
     return pd.read_csv(file_like, sep="\t", header=0, index_col=0 if has_index else False)
