@@ -21,12 +21,17 @@ def bbsr(X, y, pp, weights, max_k):
         Weight matrix
     :param max_k: int
         Max number of predictors
-    :return:
+    :return: dict
+        pp: Boolean array indicating which predictors are included in the model                 [K,]
+        betas: Float array indicating the beta for each predictor included in the model         [K,]
+        betas_resc: Float array indicating how much each predictor is contributing to the model [K,]
     """
 
     # Skip everything if there are no predictors in pp
     if pp.sum() == 0:
-        return dict(pp=np.repeat(True, pp.shape[0]).tolist(), betas=0, betas_resc=0)
+        return dict(pp=np.repeat(True, pp.shape[0]).tolist(),
+                    betas=np.zeros(pp.shape[0]),
+                    betas_resc=np.zeros(pp.shape[0]))
 
     # Subset data to desired predictors
     pp_idx = bool_to_index(pp)
@@ -57,7 +62,9 @@ def bbsr(X, y, pp, weights, max_k):
     betas_resc = predict_error_reduction(x, y, betas)
     utils.Debug.vprint("Calculated error reduction", level=2)
 
-    return dict(pp=pp, betas=betas, betas_resc=betas_resc)
+    return dict(pp=pp,
+                betas=betas,
+                betas_resc=betas_resc)
 
 
 def best_subset_regression(x, y, gprior):

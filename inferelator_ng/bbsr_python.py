@@ -17,6 +17,7 @@ DEFAULT_no_prior_weight = 1
 # Throw away the priors which have a CLR that is 0 before the number of predictors is reduced by BIC
 DEFAULT_filter_priors_for_clr = False
 
+
 class BBSR:
     # These are all the things that have to be set in a new BBSR class
 
