@@ -3,14 +3,16 @@ import pandas as pd
 import multiprocessing
 from . import utils
 
+DEFAULT_CORES = 10
+DEFAULT_NUM_BINS = 10
 POOL_CHUNKSIZE = 1000
 CLR_DDOF = 1
 DEFAULT_LOG_TYPE = np.log
 
 
 class MIDriver:
-    cores = 10
-    bins = 10
+    cores = DEFAULT_CORES
+    bins = DEFAULT_NUM_BINS
 
     def __init__(self, cores=None, bins=None):
 
@@ -19,7 +21,7 @@ class MIDriver:
         if bins is not None:
             self.bins = bins
 
-    def run(self, x_df, y_df, cores=None, bins=None, logtype=DEFAULT_LOG_TYPE):
+    def run(self, x_df, y_df, cores=None, bins=None, logtype=DEFAULT_LOG_TYPE, set_autoregulation_to_0=True):
         """
         Wrapper to calculate the CLR and MI for two data sets that have common condition columns
         :param x_df: pd.DataFrame
@@ -29,6 +31,8 @@ class MIDriver:
             Number of cores for multiprocessing
         :param bins: int
             Number of bins for discretizing continuous variables
+        :param set_autoregulation_to_0: bool
+
         :return clr, mi: pd.DataFrame, pd.DataFrame
             CLR and MI DataFrames
         """
@@ -44,7 +48,10 @@ class MIDriver:
         utils.Debug.vprint("Calculating background MI")
         mi_bg = mutual_information(x_df, x_df, self.bins, cores=self.cores, logtype=logtype)
         utils.Debug.vprint("Calculating CLR")
-        clr = calc_mixed_clr(_df_set_diag(mi, 0), _df_set_diag(mi_bg, 0))
+        if set_autoregulation_to_0:
+            clr = calc_mixed_clr(utils.df_set_diag(mi, 0), utils.df_set_diag(mi_bg, 0))
+        else:
+            clr = calc_mixed_clr(mi, mi_bg)
 
         return clr, mi
 
@@ -149,7 +156,7 @@ def _mi_gen(X, Y, bins, logtype=np.log):
     """
 
     for i in range(X.shape[1]):
-        utils.Debug.vprint("Calculating MI for feature [{i_n} / {total}]".format(i_n=i, total=X.shape[1]), level=2)
+        utils.Debug.vprint("Calculating MI for feature [{i_n} / {total}]".format(i_n=i, total=X.shape[1]), level=3)
         X_slice = X[:, i]
         for j in range(Y.shape[1]):
             yield (i, j, X_slice, Y[:, j], bins, logtype)
@@ -260,33 +267,3 @@ def _calc_mi(table, logtype=DEFAULT_LOG_TYPE):
 
     np.seterr(**reset)
     return mi_val
-
-
-def _df_set_diag(df, val, copy=True):
-    """
-    Sets the diagonal of a dataframe to a value. Diagonal in this case is anything where row label == column label.
-
-    :param df: pd.DataFrame
-        DataFrame to modify
-    :param val: numeric
-        Value to insert into any cells where row label == column label
-    :param copy: bool
-        Force-copy the dataframe instead of modifying in place
-    :return: pd.DataFrame / int
-        Return either the modified dataframe (if copied) or the number of cells modified (if changed in-place)
-    """
-
-    # Find all the labels that are shared between rows and columns
-    isect = df.index.intersection(df.columns)
-
-    if copy:
-        df = df.copy()
-
-    # Set the value where row and column names are the same
-    for i in range(len(isect)):
-        df.loc[isect[i], isect[i]] = val
-
-    if copy:
-        return df
-    else:
-        return len(isect)

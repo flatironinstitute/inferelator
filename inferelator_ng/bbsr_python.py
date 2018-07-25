@@ -1,294 +1,269 @@
 import pandas as pd
 import numpy as np
-import itertools
-from itertools import compress
-import math
-from scipy import special
-import multiprocessing
-from functools import partial
-import os, sys
+import os
 from . import utils
+from . import bayes_stats
 
-# Wrapper function for BBSRforOneGene that's called in BBSR
-gx, gy, gpp, gwm, gns = None, None, None, None, None
-def BBSRforOneGeneWrapper(ind): return BBSRforOneGene(ind, gx, gy, gpp, gwm, gns)
+# Default number of predictors to include in the model
+DEFAULT_nS = 10
 
-def BBSR(X, Y, clr_mat, nS, no_pr_val, weights_mat, prior_mat, kvs, rank, ownCheck):
-    G = Y.shape[0] # number of genes
-    genes = Y.index.values.tolist()
-    K = X.shape[0]  # max number of possible predictors (number of TFs)
-    tfs = X.index.values.tolist()
+# Default weight for priors & Non-priors
+# If this is the same as no_prior_weight:
+#   Priors will be included in the pp matrix before the number of predictors is reduced to nS
+#   They won't get special treatment in the model though
+DEFAULT_prior_weight = 1
+DEFAULT_no_prior_weight = 1
 
-    # Scale and permute design and response matrix
-    X = ((X.transpose() - X.transpose().mean()) / X.transpose().std(ddof=1)).transpose()
-    Y = ((Y.transpose() - Y.transpose().mean()) / Y.transpose().std(ddof=1)).transpose()
+# Throw away the priors which have a CLR that is 0 before the number of predictors is reduced by BIC
+DEFAULT_filter_priors_for_clr = False
 
-    weights_mat = weights_mat.loc[genes,tfs]
-    clr_mat = clr_mat.loc[genes, tfs]
-    prior_mat = prior_mat.loc[genes, tfs]
-    # keep all predictors that we have priors for
-    pp = pd.DataFrame(((prior_mat.ix[:,:] != 0)|(weights_mat.ix[:,:]!=no_pr_val)) & ~pd.isnull(clr_mat))
-    mask = clr_mat == 0
-    # for each gene, add the top nS predictors of the list to possible predictors
-    clr_mat[mask] = np.nan
 
-    for ind in range(0,G):
+class BBSR:
+    # These are all the things that have to be set in a new BBSR class
 
-        clr_na = len(np.argwhere(np.isnan(clr_mat.ix[ind,])).flatten().tolist())
-        clr_w_na = np.argsort(clr_mat.ix[ind,].tolist())
+    # Variables that handle multiprocessing via SLURM / KVS
+    # The defaults here are placeholders for troubleshooting
+    # All three of these should always be provided when instantiating
+    rank = 0  # int
+    kvs = utils.FakeKVS()  # KVSClient
+    ownCheck = utils.always_true()  # Generator
 
-        if clr_na>0:
-            clr_order = clr_w_na[:-clr_na][::-1]
+    # Raw Data
+    X = None  # [K x N] float
+    Y = None  # [G x N] float
+    G = None  # int G
+    K = None  # int K
+    clr_mat = None  # [G x K] float
+
+    # Priors Data
+    prior_mat = None  # [G x K] # numeric
+    filter_priors_for_clr = DEFAULT_filter_priors_for_clr  # bool
+
+    # Weights for Predictors (weights_mat is set with _calc_weight_matrix)
+    weights_mat = None  # [G x K] numeric
+    prior_weight = DEFAULT_prior_weight  # numeric
+    no_prior_weight = DEFAULT_no_prior_weight  # numeric
+
+    # Predictors to include in modeling (pp is set with _build_pp_matrix)
+    pp = None  # [G x K] bool
+    nS = DEFAULT_nS  # int
+
+    def __init__(self, X, Y, clr_mat, prior_mat, nS=DEFAULT_nS, prior_weight=DEFAULT_prior_weight,
+                 no_prior_weight=DEFAULT_no_prior_weight, kvs=None, rank=0, ownCheck=None):
+        """
+        Create a BBSR object for Bayes Best Subset Regression
+
+        :param X: pd.DataFrame [K x N]
+            Expression / Activity data
+        :param Y: pd.DataFrame [G x N]
+            Response data
+        :param clr_mat: pd.DataFrame [G x K]
+            Calculated CLR between features of X & Y
+        :param prior_mat: pd.DataFrame [G x K]
+            Prior data between features of X & Y
+        :param nS: int
+            Number of predictors to retain
+        :param prior_weight: int
+            Weight of a predictor which does have a prior
+        :param no_prior_weight: int
+            Weight of a predictor which doesn't have a prior
+        :param kvs: KVSClient
+            KVS client object (for SLURM)
+        :param rank: int
+            Process ID under SLURM
+        :param ownCheck:
+            Generator that will yield true if this process should handle a certain index (for SLURM)
+        """
+
+        self.nS = nS
+        self.rank = rank
+
+        if kvs is not None:
+            self.kvs = kvs
+        if ownCheck is not None:
+            self.ownCheck = ownCheck
+
+        # Calculate the weight matrix
+        self.prior_weight = prior_weight
+        self.no_prior_weight = no_prior_weight
+        weights_mat = self._calculate_weight_matrix(prior_mat, p_weight=prior_weight, no_p_weight=no_prior_weight)
+        utils.Debug.vprint("Weight matrix {} construction complete".format(weights_mat.shape))
+
+        # Get the IDs and total count for the genes and predictors
+        self.K = X.shape[0]
+        self.tfs = X.index.values.tolist()
+        self.G = Y.shape[0]
+        self.genes = Y.index.values.tolist()
+
+        # Rescale input data
+        self.X = self._scale_and_permute(X)
+        utils.Debug.vprint("Predictor matrix {} ready".format(X.shape))
+        self.Y = self._scale_and_permute(Y)
+        utils.Debug.vprint("Response matrix {} ready".format(Y.shape))
+
+        # Rebuild weights, priors, and the CLR matrix for the features that are in this bootstrap
+        self.weights_mat = weights_mat.loc[self.genes, self.tfs]
+        self.prior_mat = prior_mat.loc[self.genes, self.tfs]
+        self.clr_mat = clr_mat.loc[self.genes, self.tfs]
+        utils.Debug.vprint("Selection of weights and priors {} complete".format(self.prior_mat.shape))
+
+        # Build a boolean matrix indicating which tfs should be used as predictors for regression for each gene
+        self.pp = self._build_pp_matrix()
+        utils.Debug.vprint("Selection of predictors {} complete".format(self.pp.shape))
+
+    def run(self):
+        """
+        Execute BBSR separately on each response variable in the data
+
+        :return: pd.DataFrame [G x K], pd.DataFrame [G x K]
+            Returns the regression betas and beta error reductions for all threads if this is the master thread (rank 0)
+            Returns None, None if it's a subordinate thread
+        """
+        regression_data = []
+
+        # For every response variable G, check to see if this thread should run BBSR for that variable
+        # If it should (ownCheck is TRUE), slice the data for that response variable
+        # And send the values (as an ndarray because pd.df indexing is glacially slow) to bayes_stats.bbsr
+        # Keep a list of the resulting regression results
+        for j in range(self.G):
+            if next(self.ownCheck):
+                level = 0 if j % 100 == 0 else 3
+                utils.Debug.vprint("Regression on {gn} [{i} / {total}]".format(gn=self.Y.index[j],
+                                                                               i=j,
+                                                                               total=self.G), level=level)
+                data = bayes_stats.bbsr(self.X.values,
+                                        self.Y.ix[j, :].values,
+                                        self.pp.ix[j, :].values,
+                                        self.weights_mat.ix[j, :].values,
+                                        self.nS)
+                data.update(ind=j)
+                regression_data.append(data)
+
+        # Put the regression results that this thread has calculated into KVS
+        self.kvs.put('plist', (self.rank, regression_data))
+
+        # If this is the master thread, pile the regression betas into dataframes and return them
+        if self.rank == 0:
+            return self.pileup_data()
         else:
-            clr_order = clr_w_na[:][::-1]
-        pp.ix[ind, clr_order[0:min(K, nS, len(clr_order))]] = True
+            return None, None
 
-    preds = np.intersect1d(genes, tfs)
-    subset = pp.ix[preds,preds].values
-    np.fill_diagonal(subset,False)
-    pp=pp.set_value(preds, preds, subset)
+    def _build_pp_matrix(self):
+        """
+        From priors and context likelihood of relatedness, determine which predictors should be included in the model
 
-    out_list=[]
+        :return pp: pd.DataFrame [G x K]
+            Boolean matrix indicating which predictor variables should be included in BBSR for each response variable
+        """
 
-    global gx, gy, gpp, gwm, gns
-    gx, gy, gpp, gwm, gns = X, Y, pp, weights_mat, nS
-    # Here we illustrate splitting a simple loop, but the same approach
-    # would work with any iterative control structure, as long as it is
-    # deterministic.
-    s = []
-    limit = G
-    for j in range(limit):
-        if next(ownCheck):
-            s.append(BBSRforOneGeneWrapper(j))
-    # Report partial result.
-    kvs.put('plist',(rank,s))
-    # One participant gathers the partial results and generates the final
-    # output.
-    if 0 == rank:
-        s=[]
-        workers=int(os.environ['SLURM_NTASKS'])
-        for p in range(workers):
-            wrank,ps = kvs.get('plist')
-            s.extend(ps)
-        print ('final s', len(s))
-        utils.kvsTearDown(kvs, rank)
-        return s
-    else:
-        return None
+        # Create a predictor boolean array from priors
+        pp = np.logical_or(self.prior_mat != 0, self.weights_mat != self.no_prior_weight)
 
-def BBSRforOneGene(ind, X, Y, pp, weights_mat, nS):
-    if ind % 100 == 0:
-        print('Progress: computing BBSR for gene {}'.format(ind))
+        pp_idx = pp.index
+        pp_col = pp.columns
 
-    pp_i = pp.ix[ind,].values # converted to numpy array
-    pp_i_index = [l for l, j in enumerate(pp_i) if j]
-
-    if sum(pp_i) == 0:
-        return dict(ind=ind,pp=np.repeat(True, len(pp_i)).tolist(),betas=0, betas_resc=0)
-
-    # create BestSubsetRegression input
-    y = Y.ix[ind,:][:, np.newaxis]
-    x = X.ix[pp_i_index,:].transpose().values # converted to numpy array
-    g = np.matrix(weights_mat.ix[ind,pp_i_index],dtype=np.float)
-
-    # experimental stuff
-    spp = ReduceNumberOfPredictors(y, x, g, nS)
-
-    #check again
-    pp_i[pp_i==True] = spp # this could cause issues if they aren't the same length
-    pp_i_index = [l for l, j in enumerate(pp_i) if j]
-    x = X.ix[pp_i_index,:].transpose().values # converted to numpy array
-    g = np.matrix(weights_mat.ix[ind,pp_i_index],dtype=np.float)
-
-    betas = BestSubsetRegression(y, x, g)
-    betas_resc = PredictErrorReduction(y, x, betas)
-
-    return (dict(ind=ind, pp=pp_i, betas=betas, betas_resc=betas_resc))
-
-
-
-def ReduceNumberOfPredictors(y, x, g, n):
-    K = x.shape[1] #what is the maximum size of K, print K
-    spp = None
-    if K <= n:
-        spp = np.repeat(True, K).tolist()
-        return spp
-
-    combos = np.hstack((np.diag(np.repeat(True,K)),CombCols(K)))
-    bics = ExpBICforAllCombos(y, x, g, combos)
-    bics_sum = np.sum(np.multiply(combos.transpose(),bics[:, np.newaxis]).transpose(),1)
-    bics_sum = list(bics_sum)
-    ret = np.repeat(False, K)
-    ret[np.argsort(bics_sum)[0:n]] = True
-    return ret
-
-
-def BestSubsetRegression(y, x, g):
-    # Do best subset regression by using all possible combinations of columns of
-    #x as predictors of y. Model selection criterion is BIC using results of
-    # Bayesian regression with Zellner's g-prior.
-    # Args:
-    #   y: dependent variable
-    #   x: independent variable
-    #   g: value for Zellner's g-prior; can be single value or vector
-    # Returns:
-    #   Beta vector of best mode
-    K = x.shape[1]
-    N = x.shape[0]
-    ret = []
-
-    combos = AllCombinations(K)
-    bics = ExpBICforAllCombos(y, x, g, combos)
-    not_done = True
-    while not_done:
-
-        best = np.argmin(bics)
-        betas = np.repeat(0.0,K)
-        if best > 0:
-
-            lst_combos_bool=combos[:, best]
-            lst_true_index = [i for i, j in enumerate(lst_combos_bool) if j]
-            x_tmp = x[:,lst_true_index]
-
-            bhat = np.linalg.solve(np.dot(x_tmp.transpose(),x_tmp),np.dot(x_tmp.transpose(),y))
-            for m in range(len(lst_true_index)):
-                ind_t=lst_true_index[m]
-                betas[ind_t]=bhat[m]
-            not_done = False
+        if self.filter_priors_for_clr:
+            # Set priors which have a CLR of 0 to FALSE
+            pp = np.logical_and(pp, self.clr_mat != 0).values
         else:
-            not_done = False
+            pp = pp.values
 
-    return betas
+        # Mark the nS predictors with the highest CLR true (Do not include anything with a CLR of 0)
+        mask = np.logical_or(self.clr_mat == 0, ~np.isfinite(self.clr_mat)).values
+        masked_clr = np.ma.array(self.clr_mat.values, mask=mask)
+        for i in range(self.G):
+            n_to_keep = min(self.nS, self.K, mask.shape[1] - np.sum(mask[i, :]))
+            if n_to_keep == 0:
+                continue
+            clrs = np.ma.argsort(masked_clr[i, :], endwith=False)[-1 * n_to_keep:]
+            pp[i, clrs] = True
 
+        # Rebuild into a DataFrame and set autoregulation to 0
+        pp = pd.DataFrame(pp, index=pp_idx, columns=pp_col, dtype=np.dtype(bool))
+        pp = utils.df_set_diag(pp, False)
 
-def AllCombinations(k):
-    # Create a boolean matrix with all possible combinations of 1:k. Output has k rows and 2^k columns where each column is one combination.
-    # Note that the first column is all FALSE and corresponds to the null model.
-    if k < 1:
-        raise ValueError("No combinations for k < 1")
-    lst = map(list, itertools.product([False, True], repeat=k))
-    out=np.array([i for i in lst]).transpose()
-    return out
+        return pp
 
-# Get all possible pairs of K predictors
-def CombCols(K):
-    num_pair = K*(K-1)/2
-    a = np.full((num_pair,K), False, dtype=bool)
-    b = list(list(tup) for tup in itertools.combinations(range(K), 2))
-    for i in range(len(b)):
-        a[i,b[i]]=True
-    c = a.transpose()
-    return c
+    @staticmethod
+    def _calculate_weight_matrix(p_matrix, no_p_weight=DEFAULT_no_prior_weight, p_weight=DEFAULT_prior_weight):
+        """
+        Create a weights matrix. Everywhere p_matrix is not set to 0, the weights matrix will have p_weight. Everywhere
+        p_matrix is set to 0, the weights matrix will have no_p_weight
+        :param p_matrix: pd.DataFrame [G x K]
+        :param no_p_weight: int
+            Weight of something which doesn't have a prior
+        :param p_weight: int
+            Weight of something which does have a prior
+        :return weights_mat: pd.DataFrame [G x K]
+        """
+        weights_mat = p_matrix * 0 + no_p_weight
+        return weights_mat.mask(p_matrix != 0, other=p_weight)
 
-def ExpBICforAllCombos(y, x, g, combos):
-    # For a list of combinations of predictors do Bayesian linear regression, more specifically calculate the parametrization of the inverse gamma
-    # distribution that underlies sigma squared using Zellner's g-prior method.
-    # Parameter g can be a vector. The expected value of the log of sigma squared is used to compute expected values of BIC.
-    # Returns list of expected BIC values, one for each model.
-    K = x.shape[1]
-    N = x.shape[0]
-    C = combos.shape[1]
-    bics = np.array(np.repeat(0,C),dtype=np.float)
+    @staticmethod
+    def _scale_and_permute(df):
+        """
+        Center and normalize a DataFrame
+        :param df: pd.DataFrame
+        :return df: pd.DataFrame
+        """
+        df = df.T
+        return ((df - df.mean()) / df.std(ddof=1)).T
 
-    # is the first combination the null model?
-    first_combo = 0
-    if sum(combos[:,0]) == 0:
-        bics[0] = N * math.log(np.var(y,ddof=1))
-        first_combo = 1
+    def pileup_data(self):
+        """
+        Take the completed run data and pack it up into a DataFrame of betas
+        :return: (pd.DataFrame [G x K], pd.DataFrame [G x K])
+        """
+        run_data = []
 
-    # shape parameter for the inverse gamma sigma squared would be drawn from
-    shape = N / 2
-    # compute digamma of shape here, so we can re-use it later
-    dig_shape = special.digamma(shape)
+        # If SLURM_NTASKS isn't set assume that this is a 1-process troubleshooting run
+        try:
+            slurm_total = int(os.environ['SLURM_NTASKS'])
+        except KeyError:
+            slurm_total = 1
 
-    #### pre-compute the dot products that we will need to solve for beta
-    xtx = np.dot(x.transpose(),x)
-    xty = np.dot(x.transpose(),y)
+        # Reach into KVS to get the model data
+        for _ in range(slurm_total):
+            _, ps = self.kvs.get('plist')
+            run_data.extend(ps)
+        utils.kvsTearDown(self.kvs, self.rank)
 
-    # In Zellner's formulation there is a factor in the calculation of the rate parameter: 1 / (g + 1)
-    # Here we replace the factor with the approriate matrix since g is a vector now.
-    var_mult = np.array(np.repeat(np.sqrt(1 / (g + 1)), K,axis=0)).transpose()
-    var_mult = np.multiply(var_mult,var_mult.transpose())
+        d_len, b_avg = self._summary_stats(run_data)
+        utils.Debug.vprint("Regression complete:", end=" ", level=0)
+        utils.Debug.vprint("{d_len} Models with {b_avg} Predictors per Model".format(d_len=d_len, b_avg=b_avg), level=0)
 
-    for i in range(first_combo, C):
-        comb = combos[:, i]
-        comb=np.where(comb)[0]
+        # Create G x K arrays of 0s to populate with the regression data
+        betas = np.zeros((self.G, self.K), dtype=np.dtype(float))
+        betas_rescale = np.zeros((self.G, self.K), dtype=np.dtype(float))
 
-        x_tmp = x[:,comb]
-        k = len(comb)
+        # Populate the zero arrays with the BBSR betas
+        for data in run_data:
+            xidx = data['ind']  # Int
+            yidx = data['pp']  # Boolean array of size K
 
-        xtx_tmp=xtx[:,comb][comb,:]
-        # if the xtx_tmp matrix is singular, set bic to infinity
-        if np.linalg.matrix_rank(xtx_tmp, tol=1e-10) == xtx_tmp.shape[1]:
-            var_mult_tmp=var_mult[:,comb][comb,:]
-            #faster than calling lm
-            bhat = np.linalg.solve(xtx_tmp,xty[comb])
-            ssr = np.sum(np.power(np.subtract(y,np.dot(x_tmp, bhat)),2)) # sum of squares of residuals
-            # rate parameter for the inverse gamma sigma squared would be drawn from our guess on the regression vector beta is all 0 for sparse models
-            rate = (ssr + np.dot((0 - bhat.transpose()) , np.dot(np.multiply(xtx_tmp, var_mult_tmp) ,(0 - bhat.transpose()).transpose()))) / 2
-            # the expected value of the log of sigma squared based on the parametrization of the inverse gamma by rate and shape
-            exp_log_sigma2 = math.log(rate) - dig_shape
-            # expected value of BIC
-            bics[i] = N * exp_log_sigma2 + k * math.log(N)
+            betas[xidx, yidx] = data['betas']
+            betas_rescale[xidx, yidx] = data['betas_resc']
 
-        # set bic to infinity if lin alg error
-        else:
-            bics[i] = np.inf
+        # Convert arrays into pd.DataFrames to return results
+        betas = pd.DataFrame(betas, index=self.Y.index, columns=self.X.index)
+        betas_rescale = pd.DataFrame(betas_rescale, index=self.Y.index, columns=self.X.index)
 
-    return(bics)
+        return betas, betas_rescale
 
-
-
-def PredictErrorReduction(y, x, beta):
-    # Calculates the error reduction (measured by variance of residuals) of each
-    # predictor - compare full model to model without that predictor
-    N = x.shape[0]
-    K = x.shape[1]
-    pred = [True if item!=0 else False for item in beta]
-    pred_index = [l for l, j in enumerate(pred) if j]
-    P = sum(pred)
-
-    # compute sigma^2 for full model
-    residuals = np.subtract(y,np.dot(x,beta)[:, np.newaxis])
-    sigma_sq_full = np.var(residuals,ddof=1)
-    # this will be the output
-    err_red = np.repeat(0.0,K)
-
-    # special case if there is only one predictor
-    if P == 1:
-        err_red[pred_index] = 1 - (sigma_sq_full/np.var(y,ddof=1))
-
-    # one by one leave out each predictor and re-compute the model with the remaining ones
-    for i in pred_index[0:K]:
-        pred_tmp = pred[:]
-        pred_tmp[i] = False
-        pred_tmp_index= [l for l, j in enumerate(pred_tmp) if j]
-
-        x_tmp = x[:,pred_tmp_index]
-
-        bhat = np.linalg.solve(np.dot(x_tmp.transpose(),x_tmp),np.dot(x_tmp.transpose(),y))
-
-        residuals = np.subtract(y,np.dot(x_tmp,bhat))
-        sigma_sq = np.var(residuals,ddof=1)
-        err_red[i] = 1 - (sigma_sq_full / sigma_sq)
-
-    return err_red
+    @staticmethod
+    def _summary_stats(data):
+        d_len = len(data)
+        b_avg = 0
+        for g in data:
+            b_avg += np.sum(g['pp'])
+        b_avg = b_avg / d_len
+        return d_len, b_avg
 
 
 class BBSR_runner:
-    def run(self, X, Y, clr, prior_mat, kvs=None, rank=0, ownCheck=None):
-        n = 10
-        no_prior_weight = 1
-        prior_weight = 1 # prior weight has to be larger than 1 to have an effect
-        weights_mat = prior_mat * 0 + no_prior_weight
-        weights_mat = weights_mat.mask(prior_mat != 0, other=prior_weight)
+    """
+    Wrapper for the BBSR class. Passes arguments in and then calls run. Returns the result.
+    """
 
-        run_result = BBSR(X, Y, clr, n, no_prior_weight, weights_mat, prior_mat, kvs, rank, ownCheck)
-        if rank:
-            return (None,None)
-        bs_betas = pd.DataFrame(np.zeros((Y.shape[0],prior_mat.shape[1])),index=Y.index,columns=prior_mat.columns)
-        bs_betas_resc = bs_betas.copy(deep=True)
-        for res in run_result:
-            bs_betas.ix[res['ind'],X.index.values[res['pp']]] = res['betas']
-            bs_betas_resc.ix[res['ind'],X.index.values[res['pp']]] = res['betas_resc']
-        return (bs_betas, bs_betas_resc)
+    def run(self, X, Y, clr, prior_mat, kvs=None, rank=0, ownCheck=None):
+        return BBSR(X, Y, clr, prior_mat, kvs=kvs, rank=rank, ownCheck=ownCheck).run()

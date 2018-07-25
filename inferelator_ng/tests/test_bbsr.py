@@ -4,7 +4,7 @@ import pandas.util.testing as pdt
 import numpy as np
 from kvsstcp.kvsclient import KVSClient
 from subprocess import CalledProcessError
-from .. import bbsr_python
+from .. import bbsr_python, bayes_stats
 from .. import utils
 
 my_dir = os.path.dirname(__file__)
@@ -185,14 +185,14 @@ class TestBBSRrunnerPython(unittest.TestCase):
         self.X = np.array([[0, 0], [0, 0]])
         self.Y = np.array([1, 2])
         g = np.matrix([1, 1])
-        betas = bbsr_python.BestSubsetRegression(self.Y, self.X, g)
+        betas = bayes_stats.best_subset_regression(self.X, self.Y, g)
         self.assertTrue((betas == [ 0.,  0.]).all())
 
     def test_PredictErrorReduction_all_zero_predictors(self):
         self.X = np.array([[0, 0], [0, 0]])
         self.Y = np.array([1, 2])
         betas = np.array([ 0.,  0.])
-        result = bbsr_python.PredictErrorReduction(self.Y, self.X, betas)
+        result = bayes_stats.predict_error_reduction(self.X, self.Y, betas)
         self.assertTrue((result == [ 0.,  0.]).all())
 
     @unittest.skipIf(should_skip(), "Skipping this test on Travis CI.")
