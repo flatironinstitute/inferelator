@@ -172,6 +172,8 @@ class BBSR:
         masked_clr = np.ma.array(self.clr_mat.values, mask=mask)
         for i in range(self.G):
             n_to_keep = min(self.nS, self.K, mask.shape[1] - np.sum(mask[i, :]))
+            if n_to_keep == 0:
+                continue
             clrs = np.ma.argsort(masked_clr[i, :], endwith=False)[-1 * n_to_keep:]
             pp[i, clrs] = True
 

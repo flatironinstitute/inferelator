@@ -193,9 +193,10 @@ def calc_all_expected_BIC(x, y, g, combinations, check_rank=True):
 
         # Convert the boolean slice into an index
         c_idx = utils.bool_to_index(combinations[:, i])
+        k_included = len(c_idx)
 
         # Check for a null model
-        if len(c_idx) == 0:
+        if k_included == 0:
             bic[i] = n * np.log(np.var(y, ddof=1))
             continue
 
@@ -208,7 +209,7 @@ def calc_all_expected_BIC(x, y, g, combinations, check_rank=True):
                               gprior[:, c_idx][c_idx, :],
                               check_rank=check_rank)
             if np.isfinite(rate):
-                bic[i] = n * (np.log(rate) - digamma_shape) + len(c_idx) * np.log(n)
+                bic[i] = n * (np.log(rate) - digamma_shape) + k_included * np.log(n)
             else:
                 raise np.linalg.LinAlgError
         except np.linalg.LinAlgError:
