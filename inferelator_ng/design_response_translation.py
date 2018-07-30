@@ -6,10 +6,10 @@ DEFAULT_tau = 45
 DEFAULT_delTmin = 0
 DEFAULT_delTmax = 120
 
-TS_col_name = 'isTs'
-PREV_col_name = 'prevCol'
-DELTA_T_col_name = 'del.t'
-CONDITION_col_name = 'condName'
+TS_COLUMN_NAME = 'isTs'
+PREV_COLUMN_NAME = 'prevCol'
+DELT_COLUMN_NAME = 'del.t'
+COND_COLUMN_NAME = 'condName'
 
 
 class PythonDRDriver:
@@ -29,6 +29,12 @@ class PythonDRDriver:
     meta_data = None
     steady_idx = None
     ts_group = None
+
+    # Metadata column names
+    ts_col = TS_COLUMN_NAME
+    prev_col = PREV_COLUMN_NAME
+    delt_col = DELT_COLUMN_NAME
+    cond_col = COND_COLUMN_NAME
 
     # Output data
     included = None
@@ -140,13 +146,13 @@ class PythonDRDriver:
             ts_group: Dict keyed by condition. [(Previous_condition_name, Previous_delt),
                                                 (Following_condition, Following_delt)]
         """
-        time_series = self.meta_data[TS_col_name].values.astype(bool)
-        steadies = dict(zip(self.meta_data[CONDITION_col_name], np.logical_not(time_series)))
+        time_series = self.meta_data[self.ts_col].values.astype(bool)
+        steadies = dict(zip(self.meta_data[self.cond_col], np.logical_not(time_series)))
 
         ts_data = self.meta_data[time_series].fillna(False)
-        ts_dict = dict(zip(ts_data[CONDITION_col_name].tolist(),
-                           zip(ts_data[PREV_col_name].tolist(),
-                               ts_data[DELTA_T_col_name].tolist())))
+        ts_dict = dict(zip(ts_data[self.cond_col].tolist(),
+                           zip(ts_data[self.prev_col].tolist(),
+                               ts_data[self.delt_col].tolist())))
         ts_group = {}
         for cond, (prev, delt) in ts_dict.items():
             if prev is False or delt is False:
@@ -173,7 +179,7 @@ class PythonDRDriver:
         """
         # Check to make sure that the conditions in the expression data are matched with conditions in the metadata
         exp_conds = self.exp_data.columns
-        meta_conds = self.meta_data[CONDITION_col_name]
+        meta_conds = self.meta_data[self.cond_col]
 
         # Check to find out if there are any conditions which don't have associated metadata
         # If there are, raise an exception if strict_checking_for_metadata is True
@@ -199,9 +205,9 @@ class PythonDRDriver:
         # Check to find out if the conditions in the meta data are all unique
         # If there are repeats, check and see if the associated information is identical (if it is, just ignore it)
         # If there are repeated conditions with different characteristics, the outcome may be unexpected
-        duplicate_in_meta = self.meta_data[CONDITION_col_name].duplicated()
+        duplicate_in_meta = self.meta_data[self.cond_col].duplicated()
         if np.sum(duplicate_in_meta) > 0:
-            meta_dup = self.meta_data[CONDITION_col_name][duplicate_in_meta].tolist()
+            meta_dup = self.meta_data[self.cond_col][duplicate_in_meta].tolist()
             if np.sum(np.logical_xor(self.meta_data.duplicated(), duplicate_in_meta)) > 0:
                 utils.Debug.vprint("The metadata has non-unique conditions with different characteristics:", level=0)
                 utils.Debug.vprint(" ".join(meta_dup), level=0)
