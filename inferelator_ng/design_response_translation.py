@@ -60,10 +60,11 @@ class PythonDRDriver:
         self.exp_data = exp_data
         self.meta_data = meta_data
 
-        self._fix_NAs()
-        self._process_groups()
-        self._check_for_dupes()
+        self._fix_NAs() #Turn NA in the dataframe into np.NaN
+        self._process_groups() #Parse metadata into dicts
+        self._check_for_dupes() #Make sure that the conditions can be properly matched with metadata
 
+        #Pull apart the expression dataframe into indexes and an ndarray
         genes = exp_data.index.values
         self.conds = exp_data.columns.values
         self.exp_data = exp_data.values.astype(np.dtype('float64'))
@@ -195,7 +196,7 @@ class PythonDRDriver:
                     self.steady_idx[condition] = True
 
         # Check to find out if the conditions in the expression data are all unique
-        # It's not a problem if they're not, just assume the metadata applies to all conditions with the same name
+        # It's not a problem if they're not, we just assume the metadata applies to all conditions with the same name
         duplicate_in_exp = self.exp_data.columns.duplicated()
         if np.sum(duplicate_in_exp) > 0:
             c_dup = self.exp_data.columns[duplicate_in_exp].tolist()
@@ -205,6 +206,7 @@ class PythonDRDriver:
         # Check to find out if the conditions in the meta data are all unique
         # If there are repeats, check and see if the associated information is identical (if it is, just ignore it)
         # If there are repeated conditions with different characteristics, the outcome may be unexpected
+        # (The parser will just overwrite the first ones it comes to with the characteristics of the last one)
         duplicate_in_meta = self.meta_data[self.cond_col].duplicated()
         if np.sum(duplicate_in_meta) > 0:
             meta_dup = self.meta_data[self.cond_col][duplicate_in_meta].tolist()
@@ -214,7 +216,8 @@ class PythonDRDriver:
                 if self.strict_checking_for_duplicates:
                     raise MultipleConditionsError("Identical conditions have non-identical characteristics")
             else:
-                utils.Debug.vprint("The metadata contains duplicate rows: {}".format(" ".join(meta_dup)), level=1)
+                utils.Debug.vprint("The metadata contains duplicate rows:", level=1)
+                utils.Debug.vprint(" ".join(meta_dup), level=1)
 
     def _get_prior_timepoint(self, cond):
         """
