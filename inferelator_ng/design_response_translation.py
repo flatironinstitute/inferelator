@@ -19,6 +19,7 @@ class PythonDRDriver:
     delTmax = DEFAULT_delTmax
     strict_checking_for_metadata = False
     strict_checking_for_duplicates = True
+    deep_walk_timecourse_exps = False
     return_half_tau = False
 
     # Expression data
@@ -60,11 +61,11 @@ class PythonDRDriver:
         self.exp_data = exp_data
         self.meta_data = meta_data
 
-        self._fix_NAs() #Turn NA in the dataframe into np.NaN
-        self._process_groups() #Parse metadata into dicts
-        self._check_for_dupes() #Make sure that the conditions can be properly matched with metadata
+        self._fix_NAs()  # Turn NA in the dataframe into np.NaN
+        self._process_groups()  # Parse metadata into dicts
+        self._check_for_dupes()  # Make sure that the conditions can be properly matched with metadata
 
-        #Pull apart the expression dataframe into indexes and an ndarray
+        # Pull apart the expression dataframe into indexes and an ndarray
         genes = exp_data.index.values
         self.conds = exp_data.columns.values
         self.exp_data = exp_data.values.astype(np.dtype('float64'))
@@ -78,20 +79,16 @@ class PythonDRDriver:
 
         # Walk through all the conditions in the expression data
         for c, cc in enumerate(self.conds):
-            utils.Debug.vprint("Processing condition {cc} [{c} / {tot}]".format(cc=cc, c=c+1, tot=n), level=3)
+            utils.Debug.vprint("Processing condition {cc} [{c} / {tot}]".format(cc=cc, c=c + 1, tot=n), level=3)
             if self.steady_idx[cc]:
                 # This is a steady-state experiment
                 self.static_exp(c)
             else:
-                # This is a timecourse experiment - figure out what came before this timepoint
-                prev_cond, prev_delt = self._get_prior_timepoint(cc)
-                if prev_cond is None:
-                    # This timepoint can't be put into this timecourse - move on
-                    # It will either be included later as the prior timepoint or it will end up as a steady-state
-                    continue
-                else:
-                    # Insert timepoint data from this timecourse
+                # This is a timecourse experiment
+                for prev_cond, prev_delt in self._get_prior_timepoints(cc):
                     self.timecourse_exp(c, self._get_index(prev_cond), prev_delt)
+                    if not self.deep_walk_timecourse_exps:
+                        break
 
         for c in np.where(~self.included)[0].tolist():
             # Run anything that wasn't included initially in as a steady-state experiment
@@ -219,7 +216,7 @@ class PythonDRDriver:
                 utils.Debug.vprint("The metadata contains duplicate rows:", level=1)
                 utils.Debug.vprint(" ".join(meta_dup), level=1)
 
-    def _get_prior_timepoint(self, cond):
+    def _get_prior_timepoints(self, cond):
         """
         Walk backwards through timepoints until a total del.t that falls within the acceptable window is located
         :param cond:
@@ -229,10 +226,9 @@ class PythonDRDriver:
         for pcond, pdelt in self._prior_timepoint_generator(cond):
             total_delt += pdelt
             if self.delTmin <= total_delt <= self.delTmax:
-                return pcond, total_delt
+                yield pcond, total_delt
             elif total_delt > self.delTmax:
-                return None, None
-        return None, None
+                break
 
     def _prior_timepoint_generator(self, cond):
         """
