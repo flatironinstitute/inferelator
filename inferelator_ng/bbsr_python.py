@@ -127,7 +127,7 @@ class BBSR:
         # Keep a list of the resulting regression results
         for j in range(self.G):
             if next(self.ownCheck):
-                level = 0 if j % 100 == 0 else 3
+                level = 0 if j % 100 == 0 else 2
                 utils.Debug.vprint("Regression on {gn} [{i} / {total}]".format(gn=self.Y.index[j],
                                                                                i=j,
                                                                                total=self.G), level=level)

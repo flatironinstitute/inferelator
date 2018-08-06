@@ -57,10 +57,7 @@ def bbsr(X, y, pp, weights, max_k):
     make_array_2d(gprior)
 
     betas = best_subset_regression(x, y, gprior)
-    utils.Debug.vprint("Calculated betas", level=2)
-
     betas_resc = predict_error_reduction(x, y, betas)
-    utils.Debug.vprint("Calculated error reduction", level=2)
 
     return dict(pp=pp,
                 betas=betas,
@@ -246,7 +243,7 @@ def _calc_rate(x, y, xtx, xty, gprior, check_rank=True):
 
 def _best_combo_idx(x, bic, combo):
     """
-    Find the lowest BIC combination that yields a nonsingular xTx
+    Find the lowest BIC combination that comes from a nonsingular xTx
     :param x: [n x k]
     :param bic: [c,]
     :param combo: [k x c]
@@ -254,7 +251,7 @@ def _best_combo_idx(x, bic, combo):
     """
 
     for i in range(combo.shape[1]):
-        bic_idx = np.argmin(bic)
+        bic_idx = np.argmin(bic) # In case of a tie, np.argmin returns the leftmost index
         c = combo[:, bic_idx]
 
         if c.sum() == 0:
