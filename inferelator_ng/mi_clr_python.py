@@ -117,7 +117,7 @@ def mutual_information(X, Y, bins, cores=1, logtype=DEFAULT_LOG_TYPE):
 
 def calc_mixed_clr(mi, mi_bg):
     """
-    Calculate the context liklihood of relatedness from
+    Calculate the context liklihood of relatedness from mutual information and the background mutual information
 
     :param mi: pd.DataFrame
         Mutual information dataframe
@@ -127,13 +127,13 @@ def calc_mixed_clr(mi, mi_bg):
         Context liklihood of relateness dataframe
     """
     # Calculate the zscore for columns
-    z_col = mi.copy().round(8)
+    z_col = mi.copy().round(10) # Rounding so that float precision differences don't turn into huge CLR differences
     z_col = z_col.subtract(mi_bg.mean(axis=0))
     z_col = z_col.divide(mi_bg.std(axis=0, ddof=CLR_DDOF))
     z_col[z_col < 0] = 0
 
     # Calculate the zscore for rows
-    z_row = mi.copy().round(8)
+    z_row = mi.copy().round(10) # Rounding so that float precision differences don't turn into huge CLR differences
     z_row = z_row.subtract(mi.mean(axis=1), axis=0)
     z_row = z_row.divide(mi.std(axis=1, ddof=CLR_DDOF), axis=0)
     z_row[z_row < 0] = 0
