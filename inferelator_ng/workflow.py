@@ -15,6 +15,10 @@ import os
 import random
 import pandas as pd
 
+SBATCH_VARS = {'RUNDIR': 'output_dir', 'DATADIR': 'input_dir', 'SLURM_PROC_ID': 'rank'}
+SBATCH_VAR_TYPE = {'RUNDIR': str, 'DATADIR': str, 'SLURM_PROC_ID': int}
+SBATCH_DEFAULTS = {'RUNDIR': None, 'DATADIR': None, 'SLURM_PROC_ID': 0}
+
 class WorkflowBase(object):
 
     # Common configuration parameters
@@ -34,8 +38,7 @@ class WorkflowBase(object):
     gold_standard = None  # gold standard dataframe
 
     def __init__(self):
-        # Do nothing (all configuration is external to init)
-        pass
+        self.get_sbatch_variables()
 
     def run(self):
         """
@@ -97,12 +100,9 @@ class WorkflowBase(object):
         self.design_response_driver.delTmin = self.delTmin
         self.design_response_driver.delTmax = self.delTmax
         self.design_response_driver.tau = self.tau
-        (self.design, self.response) = self.design_response_driver.run(self.expression_matrix, self.meta_data)
-
-        # compute half_tau_response
-        print('Setting up TFA specific response matrix ... ')
-        self.design_response_driver.tau = self.tau / 2
-        (self.design, self.half_tau_response) = self.design_response_driver.run(self.expression_matrix, self.meta_data)
+        self.design_response_driver.return_half_tau = True
+        (self.design, self.response, self.half_tau_response) = self.design_response_driver.run(self.expression_matrix,
+                                                                                               self.meta_data)
 
     def filter_expression_and_priors(self):
         """
@@ -114,7 +114,9 @@ class WorkflowBase(object):
         tf_names = list(set.intersection(set(self.tf_names), set(all_regs_with_data)))
         self.priors_data = self.priors_data.loc[exp_genes, tf_names]
         self.priors_data = pd.DataFrame.fillna(self.priors_data, 0)
-        
+
+        utils.Debug.vprint("Filter_expression_and_priors complete, priors data {}".format(self.priors_data.shape))
+
     def get_bootstraps(self):
         """
         Generate sequence of bootstrap parameter objects for run.
@@ -123,7 +125,16 @@ class WorkflowBase(object):
         return [[np.random.choice(col_range) for x in col_range] for y in range(self.num_bootstraps)]
 
 
-    def emit_results(self):
+    def get_sbatch_variables(self):
+        for os_var in SBATCH_VARS:
+            try:
+                val = SBATCH_VAR_TYPE[os_var](os.environ[os_var])
+            except KeyError:
+                val = SBATCH_DEFAULTS[os_var]
+            setattr(self, SBATCH_VARS[os_var], val)
+
+
+    def emit_results(self, *args, **kwargs):
         """
         Output result report(s) for workflow run.
         """
