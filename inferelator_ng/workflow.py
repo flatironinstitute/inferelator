@@ -1,3 +1,9 @@
+import os
+import datetime
+from . import utils
+import numpy as np
+import pandas as pd
+
 """
 Base implementation for high level workflow.
 
@@ -5,34 +11,29 @@ The goal of this design is to make it easy to share
 code among different variants of the Inferelator workflow.
 """
 
-"""
-Add doc string here.
-"""
-
-from . import utils
-import numpy as np
-import os
-import pandas as pd
-
 # Get the following environment variables and put them into the workflow object
 # Workflow_variable_name, casting function, default (if the env isn't set or the casting fails for whatever reason)
-SBATCH_VARS = {'RUNDIR':                ('output_dir',  str,    None),
-               'DATADIR':               ('input_dir',   str,    None),
-               'SLURM_PROCID':          ('rank',    int,    0),
-               'SLURM_NTASKS_PER_NODE': ('cores',   int,    10)
+SBATCH_VARS = {'RUNDIR': ('output_dir', str, None),
+               'DATADIR': ('input_dir', str, None),
+               'SLURM_PROCID': ('rank', int, 0),
+               'SLURM_NTASKS_PER_NODE': ('cores', int, 10)
                }
 
 
 class WorkflowBase(object):
-    # Common configuration parameters
+    # File paths
     input_dir = None
+    output_dir = None
     expression_matrix_file = "expression.tsv"
     tf_names_file = "tf_names.tsv"
     meta_data_file = "meta_data.tsv"
     priors_file = "gold_standard.tsv"
     gold_standard_file = "gold_standard.tsv"
+
+    # Required configuration parameters
     random_seed = 42
     cores = 10
+    rank = 0
 
     # Computed data structures
     expression_matrix = None  # expression_matrix dataframe
@@ -89,12 +90,6 @@ class WorkflowBase(object):
         self.priors_data = self.input_dataframe(self.priors_file)
         self.gold_standard = self.input_dataframe(self.gold_standard_file)
 
-    def input_path(self, filename):
-        if self.input_dir is None:
-            return os.path.abspath(os.path.join('.', filename))
-        else:
-            return os.path.abspath(os.path.join(self.input_dir, filename))
-
     def create_default_meta_data(self, expression_matrix):
         metadata_rows = expression_matrix.columns.tolist()
         metadata_defaults = {"isTs": "FALSE", "is1stLast": "e", "prevCol": "NA", "del.t": "NA", "condName": None}
@@ -110,6 +105,20 @@ class WorkflowBase(object):
         elif not strict:
             return None
         raise ValueError("no such file " + repr(path))
+
+    def input_path(self, filename):
+        if self.input_dir is None:
+            return os.path.abspath(os.path.join('.', filename))
+        else:
+            return os.path.abspath(os.path.join(self.input_dir, filename))
+
+    def validate_output_path(self):
+        if self.output_dir is None:
+            self.output_dir = os.path.join(self.input_dir, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+        try:
+            os.makedirs(self.output_dir)
+        except OSError:
+            pass
 
     def input_dataframe(self, filename, strict=True, has_index=True):
         f = self.input_file(filename, strict)

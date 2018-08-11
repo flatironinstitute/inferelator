@@ -73,13 +73,13 @@ class BBSR_TFA_Workflow(workflow.WorkflowBase):
 
         for idx, bootstrap in enumerate(self.get_bootstraps()):
 
-            print('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps))
+            utils.Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps))
 
             # X and Y are resampled based on bootstrap (index generated from np.random.choice(num_cols))
             X = self.activity.ix[:, bootstrap]
             Y = self.response.ix[:, bootstrap]
 
-            print('Calculating MI, Background MI, and CLR Matrix')
+            utils.Debug.vprint('Calculating MI, Background MI, and CLR Matrix')
 
             # Calculate CLR & MI if we're proc 0 or get CLR & MI from the KVS if we're not
             if 0 == self.rank:
@@ -88,7 +88,7 @@ class BBSR_TFA_Workflow(workflow.WorkflowBase):
             else:
                 (clr_matrix, mi_matrix) = kvs.view('mi %d' % idx)
 
-            print('Calculating betas using BBSR')
+            utils.Debug.vprint('Calculating betas using BBSR')
 
             # Create the generator to handle interprocess communication through KVS
             ownCheck = utils.ownCheck(kvs, self.rank, chunk=25)
@@ -116,8 +116,6 @@ class BBSR_TFA_Workflow(workflow.WorkflowBase):
         Output result report(s) for workflow run.
         """
         if 0 == self.rank:
-            if self.output_dir is None:
-                self.output_dir = os.path.join(self.input_dir, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
-            os.makedirs(self.output_dir)
+            self.validate_output_path()
             self.results_processor = ResultsProcessor(betas, rescaled_betas)
             self.results_processor.summarize_network(self.output_dir, gold_standard, priors)
