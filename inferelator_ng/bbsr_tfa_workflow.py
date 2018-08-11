@@ -34,7 +34,7 @@ class BBSR_TFA_Workflow(workflow.WorkflowBase):
         np.random.seed(self.random_seed)
 
         # This is the controller for running mutual information (which is still in R?)
-        self.mi_clr_driver = mi_clr.MIDriver()
+        self.mi_clr_driver = mi_clr.MIDriver(cores=self.cores)
 
         # This is the controller to do bayes subset regression
         self.regression_driver = bbsr_python.BBSR_runner()

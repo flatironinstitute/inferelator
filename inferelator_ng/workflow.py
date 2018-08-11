@@ -14,9 +14,13 @@ import numpy as np
 import os
 import pandas as pd
 
-SBATCH_VARS = {'RUNDIR': ('output_dir', str, None),
-               'DATADIR': ('input_dir', str, None),
-               'SLURM_PROC_ID': ('rank', int, 0)}
+# Get the following environment variables and put them into the workflow object
+# Workflow_variable_name, casting function, default (if the env isn't set or the casting fails for whatever reason)
+SBATCH_VARS = {'RUNDIR':                ('output_dir',  str,    None),
+               'DATADIR':               ('input_dir',   str,    None),
+               'SLURM_PROCID':          ('rank',    int,    0),
+               'SLURM_NTASKS_PER_NODE': ('cores',   int,    10)
+               }
 
 
 class WorkflowBase(object):
@@ -28,6 +32,7 @@ class WorkflowBase(object):
     priors_file = "gold_standard.tsv"
     gold_standard_file = "gold_standard.tsv"
     random_seed = 42
+    cores = 10
 
     # Computed data structures
     expression_matrix = None  # expression_matrix dataframe
@@ -47,7 +52,7 @@ class WorkflowBase(object):
             try:
                 val = mt(os.environ[os_var])
                 utils.Debug.vprint("Setting {var} to {val}".format(var=cv, val=val), level=1)
-            except KeyError:
+            except (KeyError, TypeError):
                 val = de
             setattr(self, cv, val)
 
