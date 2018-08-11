@@ -12,15 +12,14 @@ Add doc string here.
 from . import utils
 import numpy as np
 import os
-import random
 import pandas as pd
 
-SBATCH_VARS = {'RUNDIR': 'output_dir', 'DATADIR': 'input_dir', 'SLURM_PROC_ID': 'rank'}
-SBATCH_VAR_TYPE = {'RUNDIR': str, 'DATADIR': str, 'SLURM_PROC_ID': int}
-SBATCH_DEFAULTS = {'RUNDIR': None, 'DATADIR': None, 'SLURM_PROC_ID': 0}
+SBATCH_VARS = {'RUNDIR': ('output_dir', str, None),
+               'DATADIR': ('input_dir', str, None),
+               'SLURM_PROC_ID': ('rank', int, 0)}
+
 
 class WorkflowBase(object):
-
     # Common configuration parameters
     input_dir = None
     expression_matrix_file = "expression.tsv"
@@ -40,6 +39,27 @@ class WorkflowBase(object):
     def __init__(self):
         self.get_sbatch_variables()
 
+    def get_sbatch_variables(self):
+        """
+        Get environment variables and set them as class variables
+        """
+        for os_var, (cv, mt, de) in SBATCH_VARS.items():
+            try:
+                val = mt(os.environ[os_var])
+                utils.Debug.vprint("Setting {var} to {val}".format(var=cv, val=val), level=1)
+            except KeyError:
+                val = de
+            setattr(self, cv, val)
+
+    def append_to_path(self, var_name, to_append):
+        """
+        Add a string to an existing path variable in class
+        """
+        path = getattr(self, var_name, None)
+        if path is None:
+            raise ValueError("Cannot append to None")
+        setattr(self, var_name, os.path.join(path, to_append))
+
     def run(self):
         """
         Execute workflow, after all configuration.
@@ -53,7 +73,7 @@ class WorkflowBase(object):
         self.expression_matrix = self.input_dataframe(self.expression_matrix_file)
         tf_file = self.input_file(self.tf_names_file)
         self.tf_names = utils.read_tf_names(tf_file)
-        
+
         # Read metadata, creating a default non-time series metadata file if none is provided
         self.meta_data = self.input_dataframe(self.meta_data_file, has_index=False, strict=False)
         if self.meta_data is None:
@@ -72,7 +92,7 @@ class WorkflowBase(object):
 
     def create_default_meta_data(self, expression_matrix):
         metadata_rows = expression_matrix.columns.tolist()
-        metadata_defaults = {"isTs":"FALSE", "is1stLast":"e", "prevCol":"NA", "del.t":"NA", "condName":None}
+        metadata_defaults = {"isTs": "FALSE", "is1stLast": "e", "prevCol": "NA", "del.t": "NA", "condName": None}
         data = {}
         for key in metadata_defaults.keys():
             data[key] = pd.Series(data=[metadata_defaults[key] if metadata_defaults[key] else i for i in metadata_rows])
@@ -86,7 +106,7 @@ class WorkflowBase(object):
             return None
         raise ValueError("no such file " + repr(path))
 
-    def input_dataframe(self, filename, strict=True, has_index =True):
+    def input_dataframe(self, filename, strict=True, has_index=True):
         f = self.input_file(filename, strict)
         if f is not None:
             return utils.df_from_tsv(f, has_index)
@@ -113,7 +133,8 @@ class WorkflowBase(object):
         Also filter the priors to only includes columns, transcription factors, that are in the tf_names list
         """
         exp_genes = self.expression_matrix.index.tolist()
-        all_regs_with_data = list(set.union(set(self.expression_matrix.index.tolist()), set(self.priors_data.columns.tolist())))
+        all_regs_with_data = list(
+            set.union(set(self.expression_matrix.index.tolist()), set(self.priors_data.columns.tolist())))
         tf_names = list(set.intersection(set(self.tf_names), set(all_regs_with_data)))
         self.priors_data = self.priors_data.loc[exp_genes, tf_names]
         self.priors_data = pd.DataFrame.fillna(self.priors_data, 0)
@@ -126,19 +147,6 @@ class WorkflowBase(object):
         """
         col_range = range(self.response.shape[1])
         return [[np.random.choice(col_range) for x in col_range] for y in range(self.num_bootstraps)]
-
-
-    def get_sbatch_variables(self):
-        import pprint
-        pprint.PrettyPrinter().pprint(os.environ)
-        for os_var in SBATCH_VARS:
-            try:
-                val = SBATCH_VAR_TYPE[os_var](os.environ[os_var])
-                utils.Debug.vprint("Setting {var} to {val}".format(var=SBATCH_VARS[os_var], val=val), level=0)
-            except KeyError:
-                val = SBATCH_DEFAULTS[os_var]
-            setattr(self, SBATCH_VARS[os_var], val)
-
 
     def emit_results(self, *args, **kwargs):
         """
