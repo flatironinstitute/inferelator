@@ -65,7 +65,10 @@ class WorkflowBase(object):
         self.gold_standard = self.input_dataframe(self.gold_standard_file)
 
     def input_path(self, filename):
-        return os.path.abspath(os.path.join(self.input_dir, filename))
+        if self.input_dir is None:
+            return os.path.abspath(os.path.join('.', filename))
+        else:
+            return os.path.abspath(os.path.join(self.input_dir, filename))
 
     def create_default_meta_data(self, expression_matrix):
         metadata_rows = expression_matrix.columns.tolist()
@@ -126,9 +129,12 @@ class WorkflowBase(object):
 
 
     def get_sbatch_variables(self):
+        import pprint
+        pprint.PrettyPrinter().pprint(os.environ)
         for os_var in SBATCH_VARS:
             try:
                 val = SBATCH_VAR_TYPE[os_var](os.environ[os_var])
+                utils.Debug.vprint("Setting {var} to {val}".format(var=SBATCH_VARS[os_var], val=val), level=0)
             except KeyError:
                 val = SBATCH_DEFAULTS[os_var]
             setattr(self, SBATCH_VARS[os_var], val)
