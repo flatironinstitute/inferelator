@@ -72,36 +72,41 @@ class BBSR_TFA_Workflow(workflow.WorkflowBase):
         # Bootstrap sample size is the number of experiments
 
         for idx, bootstrap in enumerate(self.get_bootstraps()):
-
             utils.Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps))
-
-            # X and Y are resampled based on bootstrap (index generated from np.random.choice(num_cols))
-            X = self.activity.ix[:, bootstrap]
-            Y = self.response.ix[:, bootstrap]
-
-            utils.Debug.vprint('Calculating MI, Background MI, and CLR Matrix')
-
-            # Calculate CLR & MI if we're proc 0 or get CLR & MI from the KVS if we're not
-            if 0 == self.rank:
-                (clr_matrix, mi_matrix) = self.mi_clr_driver.run(X, Y)
-                kvs.put('mi %d' % idx, (clr_matrix, mi_matrix))
-            else:
-                (clr_matrix, mi_matrix) = kvs.view('mi %d' % idx)
-
-            utils.Debug.vprint('Calculating betas using BBSR')
-
-            # Create the generator to handle interprocess communication through KVS
-            ownCheck = utils.ownCheck(kvs, self.rank, chunk=25)
-
-            # Run the BBSR on this bootstrap
-            current_betas, current_rescaled_betas = self.regression_driver.run(X, Y, clr_matrix, self.priors_data, kvs,
-                                                                               self.rank, ownCheck)
-
-            if self.rank: continue
-            betas.append(current_betas)
-            rescaled_betas.append(current_rescaled_betas)
+            current_betas, current_rescaled_betas = self.run_bootstrap(idx, bootstrap)
+            if self.is_master():
+                betas.append(current_betas)
+                rescaled_betas.append(current_rescaled_betas)
 
         self.emit_results(betas, rescaled_betas, self.gold_standard, self.priors_data)
+
+    def run_bootstrap(self, idx, bootstrap):
+        # X and Y are resampled based on bootstrap (index generated from np.random.choice(num_cols))
+        X = self.activity.ix[:, bootstrap]
+        Y = self.response.ix[:, bootstrap]
+
+        utils.Debug.vprint('Calculating MI, Background MI, and CLR Matrix')
+
+        # Calculate CLR & MI if we're proc 0 or get CLR & MI from the KVS if we're not
+        if self.is_master():
+            (clr_matrix, mi_matrix) = self.mi_clr_driver.run(X, Y)
+            kvs.put('mi %d' % idx, (clr_matrix, mi_matrix))
+        else:
+            (clr_matrix, mi_matrix) = kvs.view('mi %d' % idx)
+
+        utils.Debug.vprint('Calculating betas using BBSR')
+
+        # Create the generator to handle interprocess communication through KVS
+        ownCheck = utils.ownCheck(kvs, self.rank, chunk=25)
+
+        # Run the BBSR on this bootstrap
+        betas, resc_betas = self.regression_driver.run(X, Y, clr_matrix, self.priors_data, kvs, self.rank, ownCheck)
+
+        # Clear the MI data off the KVS
+        if self.is_master():
+            kvs.get('mi %d' % idx)
+
+        return betas, resc_betas
 
     def compute_activity(self):
         """
@@ -115,7 +120,7 @@ class BBSR_TFA_Workflow(workflow.WorkflowBase):
         """
         Output result report(s) for workflow run.
         """
-        if 0 == self.rank:
+        if self.is_master():
             self.validate_output_path()
             self.results_processor = ResultsProcessor(betas, rescaled_betas)
             self.results_processor.summarize_network(self.output_dir, gold_standard, priors)

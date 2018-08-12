@@ -86,6 +86,12 @@ class WorkflowBase(object):
             self.meta_data = self.create_default_meta_data(self.expression_matrix)
         self.set_gold_standard_and_priors()
 
+    def is_master(self):
+        if self.rank == 0:
+            return True
+        else:
+            return False
+
     def set_gold_standard_and_priors(self):
         self.priors_data = self.input_dataframe(self.priors_file)
         self.gold_standard = self.input_dataframe(self.gold_standard_file)
