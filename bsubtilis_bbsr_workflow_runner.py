@@ -1,4 +1,7 @@
 from inferelator_ng.bbsr_tfa_workflow import BBSR_TFA_Workflow
+from inferelator_ng import utils
+
+utils.Debug.set_verbose_level(utils.Debug.levels['verbose'])
 
 workflow = BBSR_TFA_Workflow()
 # Common configuration parameters

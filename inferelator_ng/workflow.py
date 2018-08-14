@@ -1,3 +1,9 @@
+import os
+import datetime
+from . import utils
+import numpy as np
+import pandas as pd
+
 """
 Base implementation for high level workflow.
 
@@ -5,26 +11,29 @@ The goal of this design is to make it easy to share
 code among different variants of the Inferelator workflow.
 """
 
-"""
-Add doc string here.
-"""
+# Get the following environment variables and put them into the workflow object
+# Workflow_variable_name, casting function, default (if the env isn't set or the casting fails for whatever reason)
+SBATCH_VARS = {'RUNDIR': ('output_dir', str, None),
+               'DATADIR': ('input_dir', str, None),
+               'SLURM_PROCID': ('rank', int, 0),
+               'SLURM_NTASKS_PER_NODE': ('cores', int, 10)
+               }
 
-from . import utils
-import numpy as np
-import os
-import random
-import pandas as pd
 
 class WorkflowBase(object):
-
-    # Common configuration parameters
+    # File paths
     input_dir = None
+    output_dir = None
     expression_matrix_file = "expression.tsv"
     tf_names_file = "tf_names.tsv"
     meta_data_file = "meta_data.tsv"
     priors_file = "gold_standard.tsv"
     gold_standard_file = "gold_standard.tsv"
+
+    # Required configuration parameters
     random_seed = 42
+    cores = 10
+    rank = 0
 
     # Computed data structures
     expression_matrix = None  # expression_matrix dataframe
@@ -34,8 +43,28 @@ class WorkflowBase(object):
     gold_standard = None  # gold standard dataframe
 
     def __init__(self):
-        # Do nothing (all configuration is external to init)
-        pass
+        self.get_sbatch_variables()
+
+    def get_sbatch_variables(self):
+        """
+        Get environment variables and set them as class variables
+        """
+        for os_var, (cv, mt, de) in SBATCH_VARS.items():
+            try:
+                val = mt(os.environ[os_var])
+                utils.Debug.vprint("Setting {var} to {val}".format(var=cv, val=val), level=1)
+            except (KeyError, TypeError):
+                val = de
+            setattr(self, cv, val)
+
+    def append_to_path(self, var_name, to_append):
+        """
+        Add a string to an existing path variable in class
+        """
+        path = getattr(self, var_name, None)
+        if path is None:
+            raise ValueError("Cannot append to None")
+        setattr(self, var_name, os.path.join(path, to_append))
 
     def run(self):
         """
@@ -50,23 +79,26 @@ class WorkflowBase(object):
         self.expression_matrix = self.input_dataframe(self.expression_matrix_file)
         tf_file = self.input_file(self.tf_names_file)
         self.tf_names = utils.read_tf_names(tf_file)
-        
+
         # Read metadata, creating a default non-time series metadata file if none is provided
         self.meta_data = self.input_dataframe(self.meta_data_file, has_index=False, strict=False)
         if self.meta_data is None:
             self.meta_data = self.create_default_meta_data(self.expression_matrix)
         self.set_gold_standard_and_priors()
 
+    def is_master(self):
+        if self.rank == 0:
+            return True
+        else:
+            return False
+
     def set_gold_standard_and_priors(self):
         self.priors_data = self.input_dataframe(self.priors_file)
         self.gold_standard = self.input_dataframe(self.gold_standard_file)
 
-    def input_path(self, filename):
-        return os.path.abspath(os.path.join(self.input_dir, filename))
-
     def create_default_meta_data(self, expression_matrix):
         metadata_rows = expression_matrix.columns.tolist()
-        metadata_defaults = {"isTs":"FALSE", "is1stLast":"e", "prevCol":"NA", "del.t":"NA", "condName":None}
+        metadata_defaults = {"isTs": "FALSE", "is1stLast": "e", "prevCol": "NA", "del.t": "NA", "condName": None}
         data = {}
         for key in metadata_defaults.keys():
             data[key] = pd.Series(data=[metadata_defaults[key] if metadata_defaults[key] else i for i in metadata_rows])
@@ -80,7 +112,21 @@ class WorkflowBase(object):
             return None
         raise ValueError("no such file " + repr(path))
 
-    def input_dataframe(self, filename, strict=True, has_index =True):
+    def input_path(self, filename):
+        if self.input_dir is None:
+            return os.path.abspath(os.path.join('.', filename))
+        else:
+            return os.path.abspath(os.path.join(self.input_dir, filename))
+
+    def validate_output_path(self):
+        if self.output_dir is None:
+            self.output_dir = os.path.join(self.input_dir, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+        try:
+            os.makedirs(self.output_dir)
+        except OSError:
+            pass
+
+    def input_dataframe(self, filename, strict=True, has_index=True):
         f = self.input_file(filename, strict)
         if f is not None:
             return utils.df_from_tsv(f, has_index)
@@ -97,12 +143,9 @@ class WorkflowBase(object):
         self.design_response_driver.delTmin = self.delTmin
         self.design_response_driver.delTmax = self.delTmax
         self.design_response_driver.tau = self.tau
-        (self.design, self.response) = self.design_response_driver.run(self.expression_matrix, self.meta_data)
-
-        # compute half_tau_response
-        print('Setting up TFA specific response matrix ... ')
-        self.design_response_driver.tau = self.tau / 2
-        (self.design, self.half_tau_response) = self.design_response_driver.run(self.expression_matrix, self.meta_data)
+        self.design_response_driver.return_half_tau = True
+        (self.design, self.response, self.half_tau_response) = self.design_response_driver.run(self.expression_matrix,
+                                                                                               self.meta_data)
 
     def filter_expression_and_priors(self):
         """
@@ -110,11 +153,14 @@ class WorkflowBase(object):
         Also filter the priors to only includes columns, transcription factors, that are in the tf_names list
         """
         exp_genes = self.expression_matrix.index.tolist()
-        all_regs_with_data = list(set.union(set(self.expression_matrix.index.tolist()), set(self.priors_data.columns.tolist())))
+        all_regs_with_data = list(
+            set.union(set(self.expression_matrix.index.tolist()), set(self.priors_data.columns.tolist())))
         tf_names = list(set.intersection(set(self.tf_names), set(all_regs_with_data)))
         self.priors_data = self.priors_data.loc[exp_genes, tf_names]
         self.priors_data = pd.DataFrame.fillna(self.priors_data, 0)
-        
+
+        utils.Debug.vprint("Filter_expression_and_priors complete, priors data {}".format(self.priors_data.shape))
+
     def get_bootstraps(self):
         """
         Generate sequence of bootstrap parameter objects for run.
@@ -122,8 +168,7 @@ class WorkflowBase(object):
         col_range = range(self.response.shape[1])
         return [[np.random.choice(col_range) for x in col_range] for y in range(self.num_bootstraps)]
 
-
-    def emit_results(self):
+    def emit_results(self, *args, **kwargs):
         """
         Output result report(s) for workflow run.
         """
