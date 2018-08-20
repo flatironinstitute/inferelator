@@ -78,6 +78,8 @@ def best_subset_regression(x, y, gprior):
 
     (n, k) = x.shape
     combos = combo_index(k)
+    make_array_2d(combos)
+
     bic_combos = calc_all_expected_BIC(x, y, gprior, combos, check_rank=False)
 
     best_betas = np.zeros(k, dtype=np.dtype(float))

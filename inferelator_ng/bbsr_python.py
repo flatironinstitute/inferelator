@@ -253,6 +253,8 @@ class BBSR:
     @staticmethod
     def _summary_stats(data):
         d_len = len(data)
+        if d_len == 0:
+            return 0, 0
         b_avg = 0
         for g in data:
             b_avg += np.sum(g['pp'])
