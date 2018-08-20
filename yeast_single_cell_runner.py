@@ -1,9 +1,7 @@
 from inferelator_ng.single_cell_bbsr_tfa_workflow import Single_Cell_BBSR_TFA_Workflow
 from inferelator_ng import utils
 
-utils.Debug.set_verbose_level(utils.Debug.levels["verbose"])
-
-#Build the workflow
+# Build the workflow
 workflow = Single_Cell_BBSR_TFA_Workflow()
 # Common configuration parameters
 workflow.input_dir = 'data/yeast'
@@ -13,8 +11,13 @@ workflow.num_bootstraps = 2
 workflow.delTmax = 110
 workflow.delTmin = 0
 workflow.tau = 45
-workflow.random_seed = 1
+workflow.random_seed = 42
 
-#Run the workflow
+if workflow.is_master():
+    utils.Debug.set_verbose_level(utils.Debug.levels["verbose"])
+else:
+    utils.Debug.set_verbose_level(utils.Debug.levels["silent"])
+
+# Run the workflow
 workflow.preprocess_data()
 workflow.run()

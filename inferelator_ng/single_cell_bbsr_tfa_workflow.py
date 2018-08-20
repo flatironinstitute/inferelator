@@ -3,19 +3,23 @@ from . import bbsr_workflow, utils, single_cell, tfa
 
 class Single_Cell_BBSR_TFA_Workflow(bbsr_workflow.BBSRWorkflow):
 
+    cluster_index = None
+
     def __init__(self):
+        # Read in the normal data files from BBSRWorkflow & Workflow
         super(Single_Cell_BBSR_TFA_Workflow, self).__init__()
 
     def preprocess_data(self):
+        # Run the normal BBSRWorkflow & Workflow preprocessing to generate design & response matrixes
         super(Single_Cell_BBSR_TFA_Workflow, self).preprocess_data()
 
         # Cluster and bulk up single cells to cluster
-        self.bulk, self.cluster_index = single_cell.initial_clustering(self.expression_matrix)
-        utils.Debug.vprint("Pseudobulk data matrix assembled [{}]".format(self.bulk.shape))
+        bulk, self.cluster_index = single_cell.initial_clustering(self.expression_matrix)
+        bulk = bulk.apply(single_cell._library_size_normalizer, axis=0, raw=True)
+        utils.Debug.vprint("Pseudobulk data matrix assembled [{}]".format(bulk.shape))
 
         # Calculate TFA and then break it back into single cells
-        self.bulk = self.bulk.apply(single_cell._library_size_normalizer, axis=0, raw=True)
-        self.design = tfa.TFA(self.priors_data, self.bulk, self.bulk).compute_transcription_factor_activity()
+        self.design = tfa.TFA(self.priors_data, bulk, bulk).compute_transcription_factor_activity()
         self.design = single_cell.declustering(self.design, self.cluster_index, columns=self.expression_matrix.columns)
 
         self.response = self.expression_matrix
@@ -42,7 +46,7 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_workflow.BBSRWorkflow):
         # Run the BBSR on this bootstrap
         X = single_cell.ss_df_norm(X)
         Y = single_cell.ss_df_norm(Y)
-        betas, re_betas = self.regression.run(X, Y, clr_mat, self.priors_data, self.kvs, self.rank,  ownCheck)
+        betas, re_betas = self.regression.run(X, Y, clr_mat, self.priors_data, self.kvs, self.rank, ownCheck)
 
         # Clear the MI data off the KVS
         if self.is_master():

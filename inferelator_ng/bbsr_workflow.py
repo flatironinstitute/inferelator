@@ -23,7 +23,7 @@ class BBSRWorkflow(workflow.WorkflowBase):
 
         self.drd = design_response_translation.PythonDRDriver()
         self.mi_clr_driver = mi.MIDriver(cores=self.cores)
-        self.regression = bbsr_python.BBSR_runner()
+        self.reg_drive = bbsr_python.BBSR_runner()
 
     def run(self):
         betas = []
@@ -45,6 +45,13 @@ class BBSRWorkflow(workflow.WorkflowBase):
             self.emit_results(betas, rescaled_betas, self.gold_standard, self.priors_data)
 
     def run_bootstrap(self, X, Y, idx, bootstrap):
+        """
+        :param X: pd.DataFrame [m x b]
+        :param Y: pd.DataFrame [m x b]
+        :param idx: int
+        :param bootstrap: list [n]
+        :return betas, re_betas: pd.DataFrame [m x b], pd.DataFrame [m x b]
+        """
         utils.Debug.vprint('Calculating MI, Background MI, and CLR Matrix', level=1)
 
         # Calculate CLR & MI if we're proc 0 or get CLR & MI from the KVS if we're not
@@ -58,7 +65,7 @@ class BBSRWorkflow(workflow.WorkflowBase):
         ownCheck = utils.ownCheck(self.kvs, self.rank, chunk=25)
 
         # Run the BBSR on this bootstrap
-        betas, re_betas = self.regression.run(X, Y, clr_mat, self.priors_data, self.kvs, self.rank, ownCheck)
+        betas, re_betas = self.reg_drive.run(X, Y, clr_mat, self.priors_data, self.kvs, self.rank, ownCheck)
 
         # Clear the MI data off the KVS
         if self.is_master():
@@ -79,16 +86,13 @@ class BBSRWorkflow(workflow.WorkflowBase):
         Compute common data structures like design and response matrices.
         """
         utils.Debug.vprint('Creating design and response matrix ... ', level=0)
-        self.drd.delTmin = self.delTmin
-        self.drd.delTmax = self.delTmax
-        self.drd.tau = self.tau
-        self.drd.return_half_tau = True
-        (self.design, self.response, self.half_tau_response) = self.drd.run(self.expression_matrix, self.meta_data)
+        self.drd.delTmin, self.drd.delTmax, self.drd.tau = self.delTmin, self.delTmax, self.tau
+        self.design, self.response = self.drd.run(self.expression_matrix, self.meta_data)
 
     def emit_results(self, betas, rescaled_betas, gold_standard, priors):
         """
         Output result report(s) for workflow run.
         """
         self.validate_output_path()
-        self.results_processor = results_processor.ResultsProcessor(betas, rescaled_betas)
-        self.results_processor.summarize_network(self.output_dir, gold_standard, priors)
+        rp = results_processor.ResultsProcessor(betas, rescaled_betas)
+        rp.summarize_network(self.output_dir, gold_standard, priors)

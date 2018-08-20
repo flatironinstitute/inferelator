@@ -1,8 +1,6 @@
 from inferelator_ng.bbsr_tfa_workflow import BBSR_TFA_Workflow
 from inferelator_ng import utils
 
-utils.Debug.set_verbose_level(utils.Debug.levels["verbose"])
-
 #Build the workflow
 workflow = BBSR_TFA_Workflow()
 # Common configuration parameters
@@ -13,6 +11,11 @@ workflow.delTmax = 110
 workflow.delTmin = 0
 workflow.tau = 45
 workflow.random_seed = 1
+
+if workflow.is_master():
+    utils.Debug.set_verbose_level(utils.Debug.levels["verbose"])
+else:
+    utils.Debug.set_verbose_level(utils.Debug.levels["silent"])
 
 #Run the workflow
 workflow.preprocess_data()
