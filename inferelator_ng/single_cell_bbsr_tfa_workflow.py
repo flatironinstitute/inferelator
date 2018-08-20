@@ -46,7 +46,7 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_workflow.BBSRWorkflow):
         # Run the BBSR on this bootstrap
         X = single_cell.ss_df_norm(X)
         Y = single_cell.ss_df_norm(Y)
-        betas, re_betas = self.regression.run(X, Y, clr_mat, self.priors_data, self.kvs, self.rank, ownCheck)
+        betas, re_betas = self.reg_drive.run(X, Y, clr_mat, self.priors_data, self.kvs, self.rank, ownCheck)
 
         # Clear the MI data off the KVS
         if self.is_master():
