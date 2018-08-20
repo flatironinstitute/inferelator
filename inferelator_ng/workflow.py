@@ -3,6 +3,7 @@ import datetime
 from . import utils
 import numpy as np
 import pandas as pd
+from kvsstcp.kvsclient import KVSClient
 
 """
 Base implementation for high level workflow.
@@ -42,6 +43,9 @@ class WorkflowBase(object):
     priors_data = None  # priors data dataframe
     gold_standard = None  # gold standard dataframe
 
+    # Connect to KVS
+    kvs = KVSClient()
+
     def __init__(self):
         self.get_sbatch_variables()
 
@@ -72,10 +76,12 @@ class WorkflowBase(object):
         """
         raise NotImplementedError  # implement in subclass
 
-    def get_data(self):
+    def preprocess_data(self):
         """
         Read data files in to data structures.
         """
+        np.random.seed(self.random_seed)
+
         self.expression_matrix = self.input_dataframe(self.expression_matrix_file)
         tf_file = self.input_file(self.tf_names_file)
         self.tf_names = utils.read_tf_names(tf_file)
@@ -84,17 +90,16 @@ class WorkflowBase(object):
         self.meta_data = self.input_dataframe(self.meta_data_file, has_index=False, strict=False)
         if self.meta_data is None:
             self.meta_data = self.create_default_meta_data(self.expression_matrix)
-        self.set_gold_standard_and_priors()
+        self.priors_data = self.input_dataframe(self.priors_file)
+        self.gold_standard = self.input_dataframe(self.gold_standard_file)
+
+        self.filter_expression_and_priors()
 
     def is_master(self):
         if self.rank == 0:
             return True
         else:
             return False
-
-    def set_gold_standard_and_priors(self):
-        self.priors_data = self.input_dataframe(self.priors_file)
-        self.gold_standard = self.input_dataframe(self.gold_standard_file)
 
     def create_default_meta_data(self, expression_matrix):
         metadata_rows = expression_matrix.columns.tolist()
@@ -134,19 +139,6 @@ class WorkflowBase(object):
             assert not strict
             return None
 
-    def compute_common_data(self):
-        """
-        Compute common data structures like design and response matrices.
-        """
-        self.filter_expression_and_priors()
-        print('Creating design and response matrix ... ')
-        self.design_response_driver.delTmin = self.delTmin
-        self.design_response_driver.delTmax = self.delTmax
-        self.design_response_driver.tau = self.tau
-        self.design_response_driver.return_half_tau = True
-        (self.design, self.response, self.half_tau_response) = self.design_response_driver.run(self.expression_matrix,
-                                                                                               self.meta_data)
-
     def filter_expression_and_priors(self):
         """
         Guarantee that each row of the prior is in the expression and vice versa.
@@ -161,12 +153,12 @@ class WorkflowBase(object):
 
         utils.Debug.vprint("Filter_expression_and_priors complete, priors data {}".format(self.priors_data.shape))
 
-    def get_bootstraps(self):
+    def get_bootstraps(self, size, num_bootstraps):
         """
         Generate sequence of bootstrap parameter objects for run.
         """
-        col_range = range(self.response.shape[1])
-        return [[np.random.choice(col_range) for x in col_range] for y in range(self.num_bootstraps)]
+        col_range = range(size)
+        return [[np.random.choice(col_range) for x in col_range] for y in range(num_bootstraps)]
 
     def emit_results(self, *args, **kwargs):
         """

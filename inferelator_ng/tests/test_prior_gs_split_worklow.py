@@ -20,7 +20,8 @@ class StubWorkflow(prior_gs_split_workflow.PriorGoldStandardSplitWorkflowBase):
     test_case = None
 
     def run(self):
-        self.get_data()
+        self.preprocess_data()
+        self.set_gold_standard_and_priors()
 
     def emit_results(self, priors):
         # check that everything got initialized properly

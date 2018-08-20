@@ -1,7 +1,7 @@
 import unittest, os
 import pandas as pd
 import numpy as np
-from .. import mi_clr_python
+from .. import mi
 
 class TestMI(unittest.TestCase):
     """
@@ -10,7 +10,7 @@ class TestMI(unittest.TestCase):
     cores = bins = 10
 
     def calculate_mi(self):
-        driver = mi_clr_python.MIDriver()
+        driver = mi.MIDriver()
         driver.cores = self.cores
         driver.bins = self.bins
         (self.clr_matrix, self.mi_matrix) = driver.run(self.x_dataframe, self.y_dataframe)

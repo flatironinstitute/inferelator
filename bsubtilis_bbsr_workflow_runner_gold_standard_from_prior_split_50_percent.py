@@ -14,4 +14,5 @@ workflow.num_bootstraps = 2
 workflow.delTmax = 110
 workflow.delTmin = 0
 workflow.tau = 45
+workflow.preprocess_data()
 workflow.run() 

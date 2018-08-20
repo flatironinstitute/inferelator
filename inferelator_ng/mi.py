@@ -102,14 +102,19 @@ def mutual_information(X, Y, bins, cores=1, logtype=DEFAULT_LOG_TYPE):
     else:
         mp_pool = multiprocessing.Pool(processes=cores)
 
-        if POOL_CHUNKSIZE is None:
-            pool_chunksize = int(X.shape[1] * Y.shape[1] / cores / 2)
-        else:
-            pool_chunksize = POOL_CHUNKSIZE
+        try:
+            for mi_data in mp_pool.imap(_mi_mp_1d, _mi_gen(X, Y, bins, logtype=logtype), chunksize=POOL_CHUNKSIZE):
+                i, j, mi_val = mi_data
+                mi[i, j] = mi_val
+        except KeyboardInterrupt:
+            # In theory this should SIGTERM all the children and then clean them up before reraising the interrupt
+            # In practice it'll probably just hang
+            mp_pool.terminate()
+            mp_pool.join()
+            raise
 
-        for mi_data in mp_pool.imap(_mi_mp_1d, _mi_gen(X, Y, bins, logtype=logtype), chunksize=pool_chunksize):
-            i, j, mi_val = mi_data
-            mi[i, j] = mi_val
+        mp_pool.close()
+        mp_pool.join()
 
     mi_p = pd.DataFrame(mi, index=mi_r, columns=mi_c)
     return mi_p

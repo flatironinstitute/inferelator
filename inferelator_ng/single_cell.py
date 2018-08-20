@@ -10,27 +10,52 @@ DDOF_default = 1
 DEFAULT_method = 'ward'
 DEFAULT_max_cluster_ratio = 0.25
 DEFAULT_max_group_size = 0.1
+DEFAULT_log_transform = np.log10
 
 DEFAULT_start_position = 1
 
 
 def initial_clustering(data):
+    """
+    Take single-cell expression data as a count matrix and cluster the cells by similarity
+    Distance metric is 1 - Pearson correlation between cells
+    :param data: pd.DataFrame [m x n]
+        Dataframe of n single cells with m genes. Preferably in a count matrix
+    :return: pd.DataFrame [m x c], np.ndarray [n, ]
+        Returns bulked up counts for c clusters and a 1d array of indexes to convert the original dataframe to the
+        clustered dataframe (or back).
+    """
+
+    # Convert the data to floats in a ndarray
     genes = data.index.values.tolist()
     data = data.values.astype(np.float64)
 
+    # Normalize the data for library size (per cell) and interval (per gene)
     norm_data = ss_normalization(data)
     utils.Debug.vprint("Interval and Library Size Normalization Complete [{}]".format(data.shape))
 
+    # Calculate the distance matrix
     dist = 1 - _pearson_correlation_matrix(norm_data.T)
     utils.Debug.vprint("Distance matrix construction complete [{}]".format(dist.shape))
 
+    # Convert the distance matrix to a squareform vector
     dist = squareform(dist, force='tovector', checks=False)
+
+    # Perform clustering and find the optimal cluster cut using the default parameters above
     clust_idx = _find_optimal_cluster_cut(dist)
 
+    # Bulk up the clusters
     return reclustering(data, clust_idx, index=genes), clust_idx
 
 
 def declustering(c_data, clust_idx, columns=None):
+    """
+    Take bulked up data and break it into single cells again
+    :param c_data: pd.DataFrame [m x c]
+    :param clust_idx: np.ndarray [n, ]
+    :param columns: list [n]
+    :return: pd.DataFrame [m x n]
+    """
     if columns is None:
         columns = range(len(clust_idx))
     return pd.DataFrame(_break_down_clusters(c_data.values, clust_idx), index=c_data.index, columns=columns)
@@ -64,7 +89,7 @@ def library_size_normalization(data):
     return np.apply_along_axis(_library_size_normalizer, axis=0, arr=data)
 
 
-def log_transform(data, logfunc=np.log10):
+def log_transform(data, logfunc=DEFAULT_log_transform):
     return logfunc(data + 1)
 
 
