@@ -10,8 +10,8 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_workflow.BBSRWorkflow):
         super(Single_Cell_BBSR_TFA_Workflow, self).__init__()
 
     def preprocess_data(self):
-        # Run the normal BBSRWorkflow & Workflow preprocessing to generate design & response matrixes
-        super(Single_Cell_BBSR_TFA_Workflow, self).preprocess_data()
+        # Run the normal workflow preprocessing to read in data
+        super(bbsr_workflow.BBSRWorkflow, self).preprocess_data()
 
         # Cluster and bulk up single cells to cluster
         bulk, self.cluster_index = single_cell.initial_clustering(self.expression_matrix)
