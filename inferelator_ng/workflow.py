@@ -56,7 +56,7 @@ class WorkflowBase(object):
         for os_var, (cv, mt, de) in SBATCH_VARS.items():
             try:
                 val = mt(os.environ[os_var])
-                utils.Debug.vprint("Setting {var} to {val}".format(var=cv, val=val), level=1)
+                utils.Debug.vprint("Setting {var} to {val}".format(var=cv, val=val), level=2)
             except (KeyError, TypeError):
                 val = de
             setattr(self, cv, val)

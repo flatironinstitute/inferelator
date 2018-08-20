@@ -22,8 +22,6 @@ class BBSRWorkflow(workflow.WorkflowBase):
         self.num_bootstraps = num_bootstraps
 
         self.drd = design_response_translation.PythonDRDriver()
-        self.mi_clr_driver = mi.MIDriver(cores=self.cores)
-        self.reg_drive = bbsr_python.BBSR_runner()
 
     def run(self):
         betas = []
@@ -56,20 +54,20 @@ class BBSRWorkflow(workflow.WorkflowBase):
 
         # Calculate CLR & MI if we're proc 0 or get CLR & MI from the KVS if we're not
         if self.is_master():
-            (clr_mat, mi_mat) = self.mi_clr_driver.run(X, Y)
-            self.kvs.put('mi %d' % idx, (clr_mat, mi_mat))
+            clr_mat, _ = mi.MIDriver(cores=self.cores).run(X, Y)
+            self.kvs.put('mi %d' % idx, clr_mat)
         else:
-            (clr_mat, mi_mat) = self.kvs.view('mi %d' % idx)
+            clr_mat = self.kvs.view('mi %d' % idx)
 
         utils.Debug.vprint('Calculating betas using BBSR', level=1)
         ownCheck = utils.ownCheck(self.kvs, self.rank, chunk=25)
 
         # Run the BBSR on this bootstrap
-        betas, re_betas = self.reg_drive.run(X, Y, clr_mat, self.priors_data, self.kvs, self.rank, ownCheck)
+        betas, re_betas = bbsr_python.BBSR_runner().run(X, Y, clr_mat, self.priors_data, self.kvs, self.rank, ownCheck)
 
         # Clear the MI data off the KVS
         if self.is_master():
-            self.kvs.get('mi %d' % idx)
+            _ = self.kvs.get('mi %d' % idx)
 
         return betas, re_betas
 

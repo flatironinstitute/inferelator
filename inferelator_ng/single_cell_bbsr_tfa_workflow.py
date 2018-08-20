@@ -1,4 +1,5 @@
-from . import bbsr_workflow, utils, single_cell, tfa
+from . import bbsr_workflow, bbsr_python, utils, single_cell, tfa, mi
+import gc
 
 
 class Single_Cell_BBSR_TFA_Workflow(bbsr_workflow.BBSRWorkflow):
@@ -35,10 +36,14 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_workflow.BBSRWorkflow):
 
         # Calculate CLR & MI if we're proc 0 or get CLR & MI from the KVS if we're not
         if self.is_master():
-            (clr_mat, mi_mat) = self.mi_clr_driver.run(X_bulk, Y_bulk)
-            self.kvs.put('mi %d' % idx, (clr_mat, mi_mat))
+            clr_mat, _ = mi.MIDriver(cores=self.cores).run(X_bulk, Y_bulk)
+            self.kvs.put('mi %d' % idx, clr_mat)
         else:
-            (clr_mat, mi_mat) = self.kvs.view('mi %d' % idx)
+            clr_mat = self.kvs.view('mi %d' % idx)
+
+        # Trying to get ahead of some memory leaks
+        X_bulk, Y_bulk, bootstrap = None, None, None
+        gc.collect()
 
         utils.Debug.vprint('Calculating betas using BBSR', level=1)
         ownCheck = utils.ownCheck(self.kvs, self.rank, chunk=25)
@@ -46,10 +51,14 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_workflow.BBSRWorkflow):
         # Run the BBSR on this bootstrap
         X = single_cell.ss_df_norm(X)
         Y = single_cell.ss_df_norm(Y)
-        betas, re_betas = self.reg_drive.run(X, Y, clr_mat, self.priors_data, self.kvs, self.rank, ownCheck)
+        betas, re_betas = bbsr_python.BBSR_runner().run(X, Y, clr_mat, self.priors_data, self.kvs, self.rank, ownCheck)
 
         # Clear the MI data off the KVS
         if self.is_master():
-            self.kvs.get('mi %d' % idx)
+            _ = self.kvs.get('mi %d' % idx)
+
+        # Trying to get ahead of some memory leaks
+        X, Y, idx, clr_mat = None, None, None, None
+        gc.collect()
 
         return betas, re_betas
