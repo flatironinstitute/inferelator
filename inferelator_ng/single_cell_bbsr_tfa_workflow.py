@@ -22,7 +22,6 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_workflow.BBSRWorkflow):
         # Calculate TFA and then break it back into single cells
         self.design = tfa.TFA(self.priors_data, bulk, bulk).compute_transcription_factor_activity()
         self.design = single_cell.declustering(self.design, self.cluster_index, columns=self.expression_matrix.columns)
-
         self.response = self.expression_matrix
 
     def run_bootstrap(self, X, Y, idx, bootstrap):
@@ -42,7 +41,7 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_workflow.BBSRWorkflow):
             clr_mat = self.kvs.view('mi %d' % idx)
 
         # Trying to get ahead of some memory leaks
-        X_bulk, Y_bulk, bootstrap = None, None, None
+        X_bulk, Y_bulk, bootstrap, boot_cluster_idx = None, None, None, None
         gc.collect()
 
         utils.Debug.vprint('Calculating betas using BBSR', level=1)
