@@ -28,10 +28,10 @@ def initial_clustering(data):
 
     # Convert the data to floats in a ndarray
     genes = data.index.values.tolist()
-    data = data.values.astype(np.float64)
+    norm_data = data.values.astype(np.float64)
 
     # Normalize the data for library size (per cell) and interval (per gene)
-    norm_data = ss_normalization(data)
+    ss_normalization(norm_data)
     utils.Debug.vprint("Interval and Library Size Normalization Complete [{}]".format(data.shape))
 
     # Calculate the distance matrix
@@ -45,7 +45,7 @@ def initial_clustering(data):
     clust_idx = _find_optimal_cluster_cut(dist)
 
     # Bulk up the clusters
-    return reclustering(data, clust_idx, index=genes), clust_idx
+    return reclustering(data.values.astype(np.float64), clust_idx, index=genes), clust_idx
 
 
 def declustering(c_data, clust_idx, columns=None):
@@ -69,32 +69,19 @@ def reclustering(data, clust_idx, index=None):
     return pd.DataFrame(data, index=index, columns=range(data.shape[1]))
 
 
-def ss_df_norm(data):
-    idx = data.index
-    cols = data.columns
-    data = data.values.astype(np.float64)
-    data = library_size_normalization(data)
+def ss_df_norm(df):
+    data = df.values.astype(np.float64)
+    data[:] = np.apply_along_axis(_library_size_normalizer, axis=0, arr=data)
     data = zscore(data, axis=1, ddof=DDOF_default)
-    return pd.DataFrame(data, index=idx, columns=cols)
+    return pd.DataFrame(data, index=df.index, columns=df.columns)
 
 
-def ss_normalization(data):
-    data = library_size_normalization(data)
-    data = log_transform(data)
-    data = interval_normalization(data)
-    return data
-
-
-def library_size_normalization(data):
-    return np.apply_along_axis(_library_size_normalizer, axis=0, arr=data)
-
-
-def log_transform(data, logfunc=DEFAULT_log_transform):
-    return logfunc(data + 1)
-
-
-def interval_normalization(data):
-    return np.apply_along_axis(_interval_normalizer, axis=1, arr=data)
+def ss_normalization(data, logfunc=DEFAULT_log_transform):
+    data[:] = np.apply_along_axis(_library_size_normalizer, axis=0, arr=data)
+    data += 1
+    data[:] = logfunc(data)
+    data[:] = np.apply_along_axis(_interval_normalizer, axis=1, arr=data)
+    return True
 
 
 def _find_optimal_cluster_cut(dist):
