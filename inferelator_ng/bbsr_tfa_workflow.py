@@ -1,4 +1,4 @@
-from . import bbsr_workflow, utils
+from . import bbsr_workflow, utils, design_response_translation
 from inferelator_ng.tfa import TFA
 
 
@@ -21,9 +21,9 @@ class BBSR_TFA_Workflow(bbsr_workflow.BBSRWorkflow):
         Compute common data structures like design and response matrices.
         """
         utils.Debug.vprint('Creating design and response matrix ... ', level=0)
-        self.drd.delTmin, self.drd.delTmax, self.drd.tau = self.delTmin, self.delTmax, self.tau
-        self.drd.return_half_tau = True
-        self.design, self.response, self.half_tau_response = self.drd.run(self.expression_matrix, self.meta_data)
+        drd = design_response_translation.PythonDRDriver()
+        drd.delTmin, drd.delTmax, drd.tau, drd.return_half_tau = self.delTmin, self.delTmax, self.tau, True
+        self.design, self.response, self.half_tau_response = drd.run(self.expression_matrix, self.meta_data)
 
     def preprocess_data(self):
         # Run preprocess data from WorkflowBase and BBSRWorkflow

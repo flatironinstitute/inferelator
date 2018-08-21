@@ -83,7 +83,7 @@ class BBSRWorkflow(workflow.WorkflowBase):
         """
         utils.Debug.vprint('Creating design and response matrix ... ', level=0)
         drd = design_response_translation.PythonDRDriver()
-        drd.delTmin, drd.delTmax, drd.tau = self.delTmin, self.delTmax, self.tau
+        drd.delTmin, drd.delTmax, drd.tau, drd.return_half_tau = self.delTmin, self.delTmax, self.tau, False
         self.design, self.response = drd.run(self.expression_matrix, self.meta_data)
 
     def emit_results(self, betas, rescaled_betas, gold_standard, priors):
