@@ -17,16 +17,18 @@ class ResultsProcessor:
         self.threshold = threshold
 
     def compute_combined_confidences(self):
-        cc = np.zeros(self.betas[0].shape)
+        combined_confidences = pd.DataFrame(np.zeros((self.betas[0].shape)), index=self.betas[0].index,
+                                            columns=self.betas[0].columns)
         for beta_resc in self.rescaled_betas:
-            beta_ranks = pd.DataFrame(beta_resc.values.flatten()).rank()
-            cc += beta_ranks.values.reshape(self.betas[0].shape)
+            # this ranking code is especially wordy because the rank function only works in one dimension (col or row), so I had to flatten the matrix
+            ranked_df = np.reshape(pd.DataFrame(np.ndarray.flatten(beta_resc.values)).rank(method="average").values,
+                                   self.rescaled_betas[0].shape)
+            combined_confidences = combined_confidences + ranked_df
 
-        min_cc = np.amin(cc)
-        cc -= min_cc
-        cc /= (len(self.rescaled_betas) * np.size(cc) - min_cc)
-
-        return pd.DataFrame(cc, index=self.betas[0].index, columns=self.betas[0].columns)
+        min_element = min(combined_confidences.min())
+        combined_confidences = (combined_confidences - min_element) / (
+                    len(self.betas) * combined_confidences.size - min_element)
+        return combined_confidences
 
     def threshold_and_summarize(self):
         self.betas_sign = pd.DataFrame(np.zeros((self.betas[0].shape)), index = self.betas[0].index, columns = self.betas[0].columns )
@@ -71,7 +73,7 @@ class ResultsProcessor:
         plt.plot(recall, precision)
         plt.xlabel('recall')
         plt.ylabel('precision')
-        plt.annotate("aupr = ".format(aupr), xy=(0.4, 0.05), xycoords='axes fraction')
+        plt.annotate("aupr = {aupr}".format(aupr=aupr), xy=(0.4, 0.05), xycoords='axes fraction')
         plt.savefig(os.path.join(output_dir, 'pr_curve.pdf'))
         plt.close()
 
