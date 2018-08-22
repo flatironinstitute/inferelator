@@ -104,9 +104,11 @@ class FakeKVS:
         except KeyError:
             return None
 
+
 def always_true():
     while True:
         yield True
+
 
 def df_from_tsv(file_like, has_index=True):
     "Read a tsv file or buffer with headers and row ids into a pandas dataframe."

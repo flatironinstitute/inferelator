@@ -29,10 +29,7 @@ class BBSRWorkflow(workflow.WorkflowBase):
 
         for idx, bootstrap in enumerate(self.get_bootstraps(self.design.shape[1], self.num_bootstraps)):
             utils.Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps), level=0)
-            current_betas, current_rescaled_betas = self.run_bootstrap(self.design.ix[:, bootstrap],
-                                                                       self.response.ix[:, bootstrap],
-                                                                       idx,
-                                                                       bootstrap)
+            current_betas, current_rescaled_betas = self.run_bootstrap(idx, bootstrap)
             if self.is_master():
                 betas.append(current_betas)
                 rescaled_betas.append(current_rescaled_betas)
@@ -40,15 +37,16 @@ class BBSRWorkflow(workflow.WorkflowBase):
         if self.is_master():
             self.emit_results(betas, rescaled_betas, self.gold_standard, self.priors_data)
 
-    def run_bootstrap(self, X, Y, idx, bootstrap):
+    def run_bootstrap(self, idx, bootstrap):
         """
-        :param X: pd.DataFrame [m x b]
-        :param Y: pd.DataFrame [m x b]
         :param idx: int
         :param bootstrap: list [n]
         :return betas, re_betas: pd.DataFrame [m x b], pd.DataFrame [m x b]
         """
         utils.Debug.vprint('Calculating MI, Background MI, and CLR Matrix', level=1)
+
+        X = self.design.iloc[:, bootstrap]
+        Y = self.response.iloc[:, bootstrap]
 
         # Calculate CLR & MI if we're proc 0 or get CLR & MI from the KVS if we're not
         if self.is_master():

@@ -82,18 +82,29 @@ class WorkflowBase(object):
         """
         np.random.seed(self.random_seed)
 
-        self.expression_matrix = self.input_dataframe(self.expression_matrix_file)
-        tf_file = self.input_file(self.tf_names_file)
-        self.tf_names = utils.read_tf_names(tf_file)
+        self.read_expression()
+        self.read_metadata()
+        self.read_tfs()
+        self.read_priors()
+        self.read_gold_standard()
+        self.filter_expression_and_priors()
 
-        # Read metadata, creating a default non-time series metadata file if none is provided
+    def read_expression(self):
+        self.expression_matrix = self.input_dataframe(self.expression_matrix_file)
+
+    def read_tfs(self):
+        self.tf_names = utils.read_tf_names(self.input_file(self.tf_names_file))
+
+    def read_metadata(self):
         self.meta_data = self.input_dataframe(self.meta_data_file, has_index=False, strict=False)
         if self.meta_data is None:
             self.meta_data = self.create_default_meta_data(self.expression_matrix)
-        self.priors_data = self.input_dataframe(self.priors_file)
-        self.gold_standard = self.input_dataframe(self.gold_standard_file)
 
-        self.filter_expression_and_priors()
+    def read_priors(self):
+        self.priors_data = self.input_dataframe(self.priors_file)
+
+    def read_gold_standard(self):
+        self.gold_standard = self.input_dataframe(self.gold_standard_file)
 
     def is_master(self):
         if self.rank == 0:

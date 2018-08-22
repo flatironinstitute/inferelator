@@ -28,27 +28,26 @@ def initial_clustering(data):
 
     # Convert the data to floats in a ndarray
     genes = data.index.values.tolist()
-    norm_data = data.values.astype(np.float64)
+    dist = data.values.astype(np.float64)
 
     # Normalize the data for library size (per cell) and interval (per gene)
-    ss_normalization(norm_data)
+    ss_normalization(dist)
     utils.Debug.vprint("Interval and Library Size Normalization Complete [{}]".format(data.shape))
 
-    # Calculate the distance matrix
-    dist = 1 - _pearson_correlation_matrix(norm_data.T)
+    # Calculate the distance matrix (1 - Pearson Correlation Coefficient)
+    dist = np.corrcoef(dist.T)
+    dist *= -1
+    dist += 1
     utils.Debug.vprint("Distance matrix construction complete [{}]".format(dist.shape))
 
     # Convert the distance matrix to a squareform vector
     dist = squareform(dist, force='tovector', checks=False)
 
     # Perform clustering and find the optimal cluster cut using the default parameters above
-    clust_idx = _find_optimal_cluster_cut(dist)
-
-    # Bulk up the clusters
-    return reclustering(data.values.astype(np.float64), clust_idx, index=genes), clust_idx
+    return _find_optimal_cluster_cut(dist)
 
 
-def declustering(c_data, clust_idx, columns=None):
+def make_singles_from_clusters(c_data, clust_idx, columns=None):
     """
     Take bulked up data and break it into single cells again
     :param c_data: pd.DataFrame [m x c]
@@ -61,11 +60,19 @@ def declustering(c_data, clust_idx, columns=None):
     return pd.DataFrame(_break_down_clusters(c_data.values, clust_idx), index=c_data.index, columns=columns)
 
 
-def reclustering(data, clust_idx, index=None):
+def make_clusters_from_singles(data, clust_idx, index=None, pseudocount=False):
     if index is None:
         index = data.index
         data = data.values
     data = _bulk_up_clusters(data, clust_idx)
+
+    #Normalize counts so that each cluster is the same library size
+    avg_count_per_cluster = np.mean(np.sum(data, axis=0))
+    data[:] = np.apply_along_axis(_library_size_normalizer, axis=0, arr=data)
+
+    if pseudocount:
+        data *= avg_count_per_cluster
+
     return pd.DataFrame(data, index=index, columns=range(data.shape[1]))
 
 
@@ -77,9 +84,14 @@ def ss_df_norm(df):
 
 
 def ss_normalization(data, logfunc=DEFAULT_log_transform):
+    # Normalize to library size
     data[:] = np.apply_along_axis(_library_size_normalizer, axis=0, arr=data)
+
+    # Log10 transform x+1 data
     data += 1
     data[:] = logfunc(data)
+
+    # Interval normalize each gene expression (0 to 1)
     data[:] = np.apply_along_axis(_interval_normalizer, axis=1, arr=data)
     return True
 
@@ -109,7 +121,7 @@ def _bulk_up_clusters(data, clust_idx):
     m, n = data.shape
     assert len(clust_idx) == n
 
-    bulk = np.zeros((m, _num_clusters(clust_idx)))
+    bulk = np.zeros((m, _num_clusters(clust_idx)), dtype='float64')
     used_cluster = np.zeros(_num_clusters(clust_idx), dtype=np.dtype(bool))
 
     for i in range(n):
@@ -139,19 +151,6 @@ def _isvalid_cut(cslice, max_cluster_ratio=DEFAULT_max_cluster_ratio, max_group_
     utils.Debug.vprint("Valid cut: {nc} clusters with {ma} maximum size".format(nc=_num_clusters(cslice),
                                                                                 ma=_max_cluster_size(cslice)))
     return True
-
-
-def _pearson_correlation_matrix(data):
-    """
-    Calculate a pearson correlation matrix for columns
-    :param data:
-    :return:
-    """
-    mod_mat = np.var(data, axis=1, ddof=DDOF_default)
-    utils.make_array_2d(mod_mat)
-    mod_mat = np.sqrt(np.dot(mod_mat, mod_mat.T))
-    mod_mat[mod_mat == 0] = 1
-    return np.cov(data, ddof=DDOF_default) / mod_mat
 
 
 def _num_clusters(clust_idx):

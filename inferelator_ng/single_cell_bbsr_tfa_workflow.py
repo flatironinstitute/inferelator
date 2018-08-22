@@ -1,5 +1,7 @@
 from . import bbsr_workflow, bbsr_python, utils, single_cell, tfa, mi
 import gc
+import pandas as pd
+import numpy as np
 
 
 class Single_Cell_BBSR_TFA_Workflow(bbsr_workflow.BBSRWorkflow):
@@ -14,24 +16,29 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_workflow.BBSRWorkflow):
         # Run the normal workflow preprocessing to read in data
         super(bbsr_workflow.BBSRWorkflow, self).preprocess_data()
 
-        # Cluster and bulk up single cells to cluster
-        bulk, self.cluster_index = single_cell.initial_clustering(self.expression_matrix)
-        bulk = bulk.apply(single_cell._library_size_normalizer, axis=0, raw=True)
+        # Cluster single cells by pearson correlation distance
+        self.cluster_index = single_cell.initial_clustering(self.expression_matrix)
+
+        # Bulk up and normalize clusters
+        bulk = single_cell.make_clusters_from_singles(self.expression_matrix, self.cluster_index, pseudocount=True)
         utils.Debug.vprint("Pseudobulk data matrix assembled [{}]".format(bulk.shape))
 
         # Calculate TFA and then break it back into single cells
         self.design = tfa.TFA(self.priors_data, bulk, bulk).compute_transcription_factor_activity()
-        self.design = single_cell.declustering(self.design, self.cluster_index, columns=self.expression_matrix.columns)
+        self.design = single_cell.make_singles_from_clusters(self.design,
+                                                             self.cluster_index,
+                                                             columns=self.expression_matrix.columns)
         self.response = self.expression_matrix
 
-    def run_bootstrap(self, X, Y, idx, bootstrap):
+    def run_bootstrap(self, idx, bootstrap):
         utils.Debug.vprint('Calculating MI, Background MI, and CLR Matrix', level=1)
 
+        X = self.design.iloc[:, bootstrap]
+        Y = self.response.iloc[:, bootstrap]
         boot_cluster_idx = self.cluster_index[bootstrap]
-        X_bulk = single_cell.reclustering(X, boot_cluster_idx).apply(single_cell._library_size_normalizer,
-                                                                     axis=0, raw=True)
-        Y_bulk = single_cell.reclustering(Y, boot_cluster_idx).apply(single_cell._library_size_normalizer,
-                                                                     axis=0, raw=True)
+
+        X_bulk = single_cell.make_clusters_from_singles(X, boot_cluster_idx)
+        Y_bulk = single_cell.make_clusters_from_singles(Y, boot_cluster_idx)
 
         # Calculate CLR & MI if we're proc 0 or get CLR & MI from the KVS if we're not
         if self.is_master():
@@ -48,8 +55,6 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_workflow.BBSRWorkflow):
         ownCheck = utils.ownCheck(self.kvs, self.rank, chunk=25)
 
         # Run the BBSR on this bootstrap
-        X = single_cell.ss_df_norm(X)
-        Y = single_cell.ss_df_norm(Y)
         betas, re_betas = bbsr_python.BBSR_runner().run(X, Y, clr_mat, self.priors_data, self.kvs, self.rank, ownCheck)
 
         # Clear the MI data off the KVS
@@ -61,3 +66,17 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_workflow.BBSRWorkflow):
         gc.collect()
 
         return betas, re_betas
+
+    def read_expression(self, dtype='uint16'):
+        """
+        Overload the workflow.workflowBase expression reader to force count data in as uint16
+        """
+        file_name = self.input_path(self.expression_matrix_file)
+
+        cols = pd.read_csv(file_name, sep="\t", header=0, nrows=1, index_col=0).columns
+        idx = pd.read_csv(file_name, sep="\t", header=0, usecols=[0, 1], index_col=0).index
+
+        self.expression_matrix = pd.read_csv(file_name, sep="\t", header=None, usecols=range(len(cols) + 1)[1:],
+                                             skiprows=1, index_col=None, dtype=dtype)
+        self.expression_matrix.index = idx
+        self.expression_matrix.columns = cols
