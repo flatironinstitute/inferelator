@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import csv
 import matplotlib
+import math
 matplotlib.use('pdf')
 import matplotlib.pyplot as plt
 
@@ -16,15 +17,16 @@ class ResultsProcessor:
         self.threshold = threshold
 
     def compute_combined_confidences(self):
-        combined_confidences = pd.DataFrame(np.zeros((self.betas[0].shape)), index = self.betas[0].index, columns = self.betas[0].columns )
+        cc = np.zeros(self.betas[0].shape)
         for beta_resc in self.rescaled_betas:
-            # this ranking code is especially wordy because the rank function only works in one dimension (col or row), so I had to flatten the matrix
-            ranked_df =np.reshape(pd.DataFrame(np.ndarray.flatten(beta_resc.values)).rank( method = "average").values, self.rescaled_betas[0].shape)
-            combined_confidences = combined_confidences + ranked_df
+            beta_ranks = pd.DataFrame(beta_resc.values.flatten()).rank()
+            cc += beta_ranks.values.reshape(self.betas[0].shape)
 
-        min_element = min(combined_confidences.min())
-        combined_confidences = (combined_confidences - min_element) / (len(self.betas) * combined_confidences.size - min_element)
-        return combined_confidences
+        min_cc = np.amin(cc)
+        cc -= min_cc
+        cc /= (len(self.rescaled_betas) * np.size(cc) - min_cc)
+
+        return pd.DataFrame(cc, index=self.betas[0].index, columns=self.betas[0].columns)
 
     def threshold_and_summarize(self):
         self.betas_sign = pd.DataFrame(np.zeros((self.betas[0].shape)), index = self.betas[0].index, columns = self.betas[0].columns )
@@ -85,8 +87,8 @@ class ResultsProcessor:
         num_cols = len(combined_confidences.columns)
         for i in sorted_by_confidence:
             # Since this was sorted using a flattened index, we need to reconvert into labeled 2d index
-            index_idx = i / num_cols
-            column_idx = i % num_cols
+            index_idx = math.floor(i / num_cols)
+            column_idx = int(i % num_cols)
             row_name = combined_confidences.index[index_idx]   
             column_name = combined_confidences.columns[column_idx]
             if row_name in priors.index:
