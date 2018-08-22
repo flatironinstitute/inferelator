@@ -8,14 +8,17 @@ from . import utils
 
 DDOF_default = 1
 DEFAULT_method = 'ward'
-DEFAULT_max_cluster_ratio = 0.25
-DEFAULT_max_group_size = 0.1
 DEFAULT_log_transform = np.log10
-
 DEFAULT_start_position = 1
 
+DEFAULT_max_cluster_ratio = 0.25
+DEFAULT_start_max_group_size = 0.01
+DEFAULT_give_up_max_group_size = 0.25
+DEFAULT_step_max_group_size = 1.1
 
-def initial_clustering(data):
+
+def initial_clustering(data, max_cluster_ratio=DEFAULT_max_cluster_ratio, max_group_size=DEFAULT_give_up_max_group_size,
+                       group_size_threshold=DEFAULT_start_max_group_size, group_step=DEFAULT_step_max_group_size):
     """
     Take single-cell expression data as a count matrix and cluster the cells by similarity
     Distance metric is 1 - Pearson correlation between cells
@@ -27,7 +30,6 @@ def initial_clustering(data):
     """
 
     # Convert the data to floats in a ndarray
-    genes = data.index.values.tolist()
     dist = data.values.astype(np.float64)
 
     # Normalize the data for library size (per cell) and interval (per gene)
@@ -44,7 +46,8 @@ def initial_clustering(data):
     dist = squareform(dist, force='tovector', checks=False)
 
     # Perform clustering and find the optimal cluster cut using the default parameters above
-    return _find_optimal_cluster_cut(dist)
+    return _find_optimal_cluster_cut(dist, max_cluster_ratio=max_cluster_ratio, max_group_size=max_group_size,
+                                     group_size_threshold=group_size_threshold, group_step=group_step)
 
 
 def make_singles_from_clusters(c_data, clust_idx, columns=None):
@@ -96,7 +99,7 @@ def ss_normalization(data, logfunc=DEFAULT_log_transform):
     return True
 
 
-def _find_optimal_cluster_cut(dist):
+def _find_optimal_cluster_cut(dist, max_cluster_ratio, max_group_size, group_size_threshold, group_step):
     links = linkage(dist, method=DEFAULT_method)
     utils.Debug.vprint("Hierarchial clustering complete: Linkage map constructed")
 
@@ -104,16 +107,17 @@ def _find_optimal_cluster_cut(dist):
     utils.Debug.vprint("Hierarchial clustering complete: Cut tree constructed")
 
     start_pos = int(DEFAULT_start_position * ctree.shape[0])
-    max_group_size = DEFAULT_max_group_size
-    while max_group_size < 0.5:
+    while group_size_threshold < max_group_size:
         for i in list(range(start_pos))[::-1]:
             cslice = ctree[:, i]
             try:
-                if _isvalid_cut(cslice, max_group_size=max_group_size):
+                if _isvalid_cut(cslice, max_cluster_ratio, group_size_threshold):
+                    utils.Debug.vprint("{nc} clusters, {ma} maximum".format(nc=_num_clusters(cslice),
+                                                                            ma=_max_cluster_size(cslice)))
                     return cslice
             except TooManyClusters:
                 break
-        max_group_size = max_group_size * 1.1
+        group_size_threshold = group_size_threshold * group_step
     raise NoSuitableCutError
 
 
@@ -140,16 +144,11 @@ def _break_down_clusters(data, clust_idx):
     return unbulk
 
 
-def _isvalid_cut(cslice, max_cluster_ratio=DEFAULT_max_cluster_ratio, max_group_size=DEFAULT_max_group_size):
-    c_size = cslice.shape[0]
-
-    if _num_clusters(cslice) > c_size * max_cluster_ratio:
+def _isvalid_cut(cslice, max_cluster_ratio, max_group_size):
+    if _num_clusters(cslice) > cslice.shape[0] * max_cluster_ratio:
         raise TooManyClusters(_num_clusters(cslice))
-    if _max_cluster_size(cslice) > c_size * max_group_size:
+    if _max_cluster_size(cslice) > cslice.shape[0] * max_group_size:
         return False
-
-    utils.Debug.vprint("Valid cut: {nc} clusters with {ma} maximum size".format(nc=_num_clusters(cslice),
-                                                                                ma=_max_cluster_size(cslice)))
     return True
 
 
