@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 import pandas as pd
 import multiprocessing
@@ -100,7 +101,10 @@ def mutual_information(X, Y, bins, cores=1, logtype=DEFAULT_LOG_TYPE):
 
     # Run _calc_mi on every pairwise combination of features using Pool to multiprocess
     else:
-        mp_pool = multiprocessing.Pool(processes=cores)
+        try:
+            mp_pool = multiprocessing.Pool(processes=cores, context='spawn')
+        except TypeError:
+            mp_pool = multiprocessing.Pool(processes=cores)
 
         try:
             for mi_data in mp_pool.imap(_mi_mp_1d, _mi_gen(X, Y, bins, logtype=logtype), chunksize=POOL_CHUNKSIZE):
@@ -272,3 +276,4 @@ def _calc_mi(table, logtype=DEFAULT_LOG_TYPE):
 
     np.seterr(**reset)
     return mi_val
+
