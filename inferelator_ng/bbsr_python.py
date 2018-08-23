@@ -215,7 +215,10 @@ class BBSR:
         :return: (pd.DataFrame [G x K], pd.DataFrame [G x K])
         """
         run_data = []
-        slurm_total = utils.slurm_envs()['tasks']
+        try:
+            slurm_total = int(os.environ['SLURM_NTASKS'])
+        except KeyError:
+            slurm_total = 1
 
         # Reach into KVS to get the model data
         for _ in range(slurm_total):
