@@ -51,6 +51,7 @@ class WorkflowBase(object):
         Get environment variables and set them as class variables
         """
         for k, v in utils.slurm_envs().items():
+            utils.Debug.vprint("Setting workflow.{var}={val}".format(var=k, val=v))
             setattr(self, k, v)
 
     def append_to_path(self, var_name, to_append):
