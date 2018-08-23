@@ -116,6 +116,10 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, rank=None
         if rank==0:
             kvs.get('mi_final')
 
+    if np.sum(np.isnan(mi)) > 0:
+        print("There shouldn't be any NaNs in the MI matrix (There are {nans})".format(nans=np.sum(np.isnan(mi))))
+        raise ValueError
+
     return pd.DataFrame(mi, index=mi_r, columns=mi_c)
 
 
@@ -167,8 +171,8 @@ def mi_pileup(mi_shape, kvs):
     :param kvs: KVSClient
     """
     mi = np.full(mi_shape, np.nan, dtype=np.dtype(float))
-    slurm = utils.slurm_envs()
-    for _ in range(slurm['tasks']):
+    n = utils.slurm_envs()['tasks']
+    for _ in range(n):
         mi_two = kvs.get('mi_pileup')
         update = ~np.isnan(mi_two)
         mi[update] = mi_two[update]
