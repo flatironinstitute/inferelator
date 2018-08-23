@@ -3,18 +3,17 @@ import pandas as pd
 from inferelator_ng import utils
 
 DEFAULT_NUM_BINS = 10
-POOL_CHUNKSIZE = 1000
 CLR_DDOF = 1
 DEFAULT_LOG_TYPE = np.log
+KVS_KEY = 'micount'
 
 
 class MIDriver:
     bins = DEFAULT_NUM_BINS
     kvs = None
     rank = None
-    run_local = False
 
-    def __init__(self, bins=None, kvs=None, rank=None, run_local=False):
+    def __init__(self, bins=None, kvs=None, rank=None):
 
         if bins is not None:
             self.bins = bins
@@ -22,7 +21,6 @@ class MIDriver:
             self.kvs = kvs
         if rank is not None:
             self.rank = rank
-        self.run_local = run_local
 
     def run(self, x_df, y_df, bins=None, logtype=DEFAULT_LOG_TYPE, set_autoregulation_to_0=True):
         """
@@ -42,21 +40,20 @@ class MIDriver:
             self.bins = bins
 
         utils.Debug.vprint("Calculating MI")
-        mi = mutual_information(y_df, x_df, self.bins, logtype=logtype, kvs=self.kvs, rank=self.rank,
-                                run_local=self.run_local)
+        mi = mutual_information(y_df, x_df, self.bins, logtype=logtype, kvs=self.kvs, rank=self.rank)
         utils.Debug.vprint("Calculating background MI")
-        mi_bg = mutual_information(x_df, x_df, self.bins, logtype=logtype, kvs=self.kvs, rank=self.rank,
-                                   run_local=self.run_local)
+        mi_bg = mutual_information(x_df, x_df, self.bins, logtype=logtype, kvs=self.kvs, rank=self.rank)
         utils.Debug.vprint("Calculating CLR")
         if set_autoregulation_to_0:
             clr = calc_mixed_clr(utils.df_set_diag(mi, 0), utils.df_set_diag(mi_bg, 0))
         else:
             clr = calc_mixed_clr(mi, mi_bg)
 
+        print(np.sum(clr))
         return clr, mi
 
 
-def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, rank=None, run_local=False):
+def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, rank=None):
     """
     Calculate the mutual information matrix between two data matrices, where the columns are equivalent conditions
 
@@ -72,9 +69,6 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, rank=None
         KVS client object (for SLURM)
     :param rank: int
         Process ID under SLURM
-    :param run_local: bool
-        Run this as a local process but block until all of the KVS processes are complete. Should greatly reduce
-        network traffic at the cost of more CPU time
 
     :return mi: pd.DataFrame (m1 x m2)
         The mutual information between variables m1 and m2
@@ -99,12 +93,7 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, rank=None
     # If there is no KVS object, just run locally on one core
     if kvs is None:
         mi = mi_local(X, Y, bins, logtype)
-    # If there is a KVS object, but run_local is True, run locally on one core and block until everyone's done
-    elif run_local:
-        mi = mi_local(X, Y, bins, logtype)
-        # Block here until all the processes have mi
-        utils.kvs_sync_processes(kvs, rank)
-    # If there is a KVS object and run_local is false, run distributed and give the results to everyone
+    # If there is a KVS object, run distributed and give the results to everyone
     else:
         # Run MI calculations on everything that an ownCheck gives to this process
         mi_kvs(X, Y, bins, logtype, kvs, rank)
@@ -112,13 +101,14 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, rank=None
         mi = kvs.view('mi_final')
         # Block here until all the processes have mi_final
         utils.kvs_sync_processes(kvs, rank)
+        utils.kvsTearDown(kvs, rank, kvs_key=KVS_KEY)
         # Clean up mi_final and finish
         if rank==0:
             kvs.get('mi_final')
 
-    if np.sum(np.isnan(mi)) > 0:
-        print("There shouldn't be any NaNs in the MI matrix (There are {nans})".format(nans=np.sum(np.isnan(mi))))
-        raise ValueError
+        if np.sum(np.isnan(mi)) > 0:
+            print("There shouldn't be any NaNs in the MI matrix (There are {nans})".format(nans=np.sum(np.isnan(mi))))
+            raise ValueError
 
     return pd.DataFrame(mi, index=mi_r, columns=mi_c)
 
@@ -155,7 +145,7 @@ def mi_kvs(X, Y, bins, logtype, kvs, rank):
     mi = np.full((X.shape[1], Y.shape[1]), np.nan, dtype=np.dtype(float))
     # Run _calc_mi on every pairwise combination of features ownCheck says is ours
     # Leave the rest as NaN
-    for mi_data in _mi_gen(X, Y, bins, logtype=logtype, oc=utils.ownCheck(kvs, rank, chunk=25)):
+    for mi_data in _mi_gen(X, Y, bins, logtype=logtype, oc=utils.ownCheck(kvs, rank, chunk=25, kvs_key=KVS_KEY)):
         i, j, mi_val = _mi_mp_1d(mi_data)
         mi[i, j] = mi_val
     kvs.put('mi_pileup', mi)
@@ -176,7 +166,6 @@ def mi_pileup(mi_shape, kvs):
         mi_two = kvs.get('mi_pileup')
         update = ~np.isnan(mi_two)
         mi[update] = mi_two[update]
-    kvs.get('count')
     kvs.put('mi_final', mi)
 
 

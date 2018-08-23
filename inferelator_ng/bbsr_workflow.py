@@ -48,13 +48,14 @@ class BBSRWorkflow(workflow.WorkflowBase):
         X = self.design.iloc[:, bootstrap]
         Y = self.response.iloc[:, bootstrap]
 
-        # Calculate CLR & MI if we're proc 0 or get CLR & MI from the KVS if we're not
+        # Calculate CLR & MI
         clr_mat, _ = mi.MIDriver(kvs=self.kvs, rank=self.rank).run(X, Y)
 
-        utils.Debug.vprint('Calculating betas using BBSR', level=1)
+        # ownCheck should block until the master process is done with MI. Other processes can catch up as needed
         ownCheck = utils.ownCheck(self.kvs, self.rank, chunk=25)
 
         # Run the BBSR on this bootstrap
+        utils.Debug.vprint('Calculating betas using BBSR', level=1)
         betas, re_betas = bbsr_python.BBSR_runner().run(X, Y, clr_mat, self.priors_data, self.kvs, self.rank, ownCheck)
 
         return betas, re_betas

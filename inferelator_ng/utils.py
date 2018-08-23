@@ -62,7 +62,7 @@ class Debug:
         cls.vprint(*args, level=cls.levels["vv"], **kwargs)
 
 
-def ownCheck(kvs, rank, chunk=1):
+def ownCheck(kvs, rank, chunk=1, kvs_key='count'):
     """
     Generator
 
@@ -76,7 +76,7 @@ def ownCheck(kvs, rank, chunk=1):
 
     # If we're the main process, set KVS count to 0
     if 0 == rank:
-        kvs.put('count', 0)
+        kvs.put(kvs_key, 0)
 
     # Start at the baseline
     checks, lower, upper = 0, -1, -1
@@ -89,20 +89,20 @@ def ownCheck(kvs, rank, chunk=1):
         # And then put the new upper bound back into KVS count
 
         if checks >= upper:
-            lower = kvs.get('count')
+            lower = kvs.get(kvs_key)
             upper = lower + chunk
-            kvs.put('count', upper)
+            kvs.put(kvs_key, upper)
 
         # Yield TRUE if this row belongs to this process and FALSE if it doesn't
         yield lower <= checks < upper
         checks += 1
 
 
-def kvsTearDown(kvs, rank):
+def kvsTearDown(kvs, rank, kvs_key='count'):
     # de-initialize the global counter.        
     if 0 == rank:
         # Do a hard reset if rank == 0                                                                                                       
-        kvs.get('count')
+        kvs.get(kvs_key)
 
 def kvs_sync_processes(kvs, rank, pref=""):
     # Block all processes until they reach this point
