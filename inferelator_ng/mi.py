@@ -49,7 +49,8 @@ class MIDriver:
         else:
             clr = calc_mixed_clr(mi, mi_bg)
 
-        print(np.sum(clr))
+        if self.rank is not None:
+            print("Proc {r}: CLR {clr} MI {mi}".format(r=self.rank, clr=np.sum(np.sum(clr)), mi=np.sum(np.sum(mi))))
         return clr, mi
 
 
@@ -98,6 +99,7 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, rank=None
         # Run MI calculations on everything that an ownCheck gives to this process
         mi_kvs(X, Y, bins, logtype, kvs, rank)
         # Block here until mi_pileup is complete and then get the final mi matrix from mi_final
+        utils.kvs_sync_processes(kvs, rank)
         mi = kvs.view('mi_final')
         # Block here until all the processes have mi_final
         utils.kvs_sync_processes(kvs, rank)
