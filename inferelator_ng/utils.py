@@ -1,15 +1,16 @@
-"""
-Miscellaneous utility modules.
-"""
-
 from __future__ import print_function
-import os
 import pandas as pd
-import subprocess
 import numpy as np
+import os
 
-my_dir = os.path.dirname(__file__)
-
+# Get the following environment variables
+# Workflow_variable_name, casting function, default (if the env isn't set or the casting fails for whatever reason)
+SBATCH_VARS = {'RUNDIR': ('output_dir', str, None),
+               'DATADIR': ('input_dir', str, None),
+               'SLURM_PROCID': ('rank', int, 0),
+               'SLURM_NTASKS_PER_NODE': ('cores', int, 10),
+               'SLURM_NTASKS': ('tasks', int, 1)
+               }
 
 class Debug:
     verbose_level = 0
@@ -88,6 +89,23 @@ def kvsTearDown(kvs, rank):
         # Do a hard reset if rank == 0                                                                                                       
         kvs.get('count')
 
+def kvs_sync_processes(kvs, rank, pref=""):
+    # Block all processes until they reach this point
+    # Then release them
+    # It may be wise to use unique prefixes if this is gonna get called rapidly so there's no collision
+    # Or not. I'm a comment, not a cop.
+
+    n = slurm_envs()['tasks']
+    wkey = pref + '_wait'
+    ckey = pref + '_continue'
+
+    kvs.put(wkey, True)
+    if rank == 0:
+        for _ in range(n):
+            kvs.get(wkey)
+        for _ in range(n):
+            kvs.put(ckey, True)
+    kvs.get(ckey)
 
 class FakeKVS:
     """
@@ -182,3 +200,14 @@ def make_array_2d(arr):
     """
     if arr.ndim == 1:
         arr.shape = (arr.shape[0], 1)
+
+def slurm_envs():
+    envs = {}
+    for os_var, (cv, mt, de) in SBATCH_VARS.items():
+        try:
+            val = mt(os.environ[os_var])
+            Debug.vprint("Setting {var} to {val}".format(var=cv, val=val), level=2)
+        except (KeyError, TypeError):
+            val = de
+        envs[cv] = val
+    return envs

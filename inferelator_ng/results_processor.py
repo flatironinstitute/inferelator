@@ -89,7 +89,7 @@ class ResultsProcessor:
         num_cols = len(combined_confidences.columns)
         for i in sorted_by_confidence:
             # Since this was sorted using a flattened index, we need to reconvert into labeled 2d index
-            index_idx = math.floor(i / num_cols)
+            index_idx = int(i / num_cols)
             column_idx = int(i % num_cols)
             row_name = combined_confidences.index[index_idx]   
             column_name = combined_confidences.columns[column_idx]

@@ -40,12 +40,10 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_workflow.BBSRWorkflow):
         X_bulk = single_cell.make_clusters_from_singles(X, boot_cluster_idx)
         Y_bulk = single_cell.make_clusters_from_singles(Y, boot_cluster_idx)
 
+        utils.Debug.vprint("Rebulked design {des} & response {res} data".format(des=X_bulk.shape, res=Y_bulk.shape))
+
         # Calculate CLR & MI if we're proc 0 or get CLR & MI from the KVS if we're not
-        if self.is_master():
-            clr_mat, _ = mi.MIDriver(cores=self.cores).run(X_bulk, Y_bulk)
-            self.kvs.put('mi %d' % idx, clr_mat)
-        else:
-            clr_mat = self.kvs.view('mi %d' % idx)
+        clr_mat, _ = mi.MIDriver(kvs=self.kvs, rank=self.rank).run(X, Y)
 
         # Trying to get ahead of some memory leaks
         X_bulk, Y_bulk, bootstrap, boot_cluster_idx = None, None, None, None

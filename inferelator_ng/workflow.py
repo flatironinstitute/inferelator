@@ -14,11 +14,7 @@ code among different variants of the Inferelator workflow.
 
 # Get the following environment variables and put them into the workflow object
 # Workflow_variable_name, casting function, default (if the env isn't set or the casting fails for whatever reason)
-SBATCH_VARS = {'RUNDIR': ('output_dir', str, None),
-               'DATADIR': ('input_dir', str, None),
-               'SLURM_PROCID': ('rank', int, 0),
-               'SLURM_NTASKS_PER_NODE': ('cores', int, 10)
-               }
+
 
 
 class WorkflowBase(object):
@@ -44,22 +40,18 @@ class WorkflowBase(object):
     gold_standard = None  # gold standard dataframe
 
     # Connect to KVS
-    kvs = KVSClient()
+    kvs = None
 
     def __init__(self):
         self.get_sbatch_variables()
+        self.kvs = KVSClient()
 
     def get_sbatch_variables(self):
         """
         Get environment variables and set them as class variables
         """
-        for os_var, (cv, mt, de) in SBATCH_VARS.items():
-            try:
-                val = mt(os.environ[os_var])
-                utils.Debug.vprint("Setting {var} to {val}".format(var=cv, val=val), level=2)
-            except (KeyError, TypeError):
-                val = de
-            setattr(self, cv, val)
+        for k, v in utils.slurm_envs().items():
+            setattr(self, k, v)
 
     def append_to_path(self, var_name, to_append):
         """
