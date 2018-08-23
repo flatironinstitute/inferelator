@@ -1,11 +1,15 @@
+import itertools
 import numpy as np
 import pandas as pd
 from inferelator_ng import utils
 
 DEFAULT_NUM_BINS = 10
+DEFAULT_CHUNK = 1000
 CLR_DDOF = 1
 DEFAULT_LOG_TYPE = np.log
-KVS_KEY = 'micount'
+COUNT_KEY = 'micount'
+PILEUP_DATA_KEY = 'mi'
+FINAL_DATA_KEY = 'mi_final'
 
 
 class MIDriver:
@@ -49,8 +53,15 @@ class MIDriver:
         else:
             clr = calc_mixed_clr(mi, mi_bg)
 
-        if self.rank is not None:
-            print("Proc {r}: CLR {clr} MI {mi}".format(r=self.rank, clr=np.sum(np.sum(clr)), mi=np.sum(np.sum(mi))))
+        if self.kvs is not None:
+            if self.rank == 0:
+                self.kvs.put('clr', clr)
+            else:
+                clr = self.kvs.view('clr', clr)
+
+            utils.kvs_sync_processes(self.kvs, self.rank)
+            utils.kvsTearDown(self.kvs, self.rank, kvs_key='clr')
+
         return clr, mi
 
 
@@ -93,66 +104,43 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, rank=None
 
     # If there is no KVS object, just run locally on one core
     if kvs is None:
-        mi = mi_local(X, Y, bins, logtype)
+        mi = build_mi_array(X, Y, bins, logtype=logtype)
     # If there is a KVS object, run distributed and give the results to everyone
     else:
         # Run MI calculations on everything that an ownCheck gives to this process
-        mi_kvs(X, Y, bins, logtype, kvs, rank)
-        # Block here until mi_pileup is complete and then get the final mi matrix from mi_final
-        utils.kvs_sync_processes(kvs, rank)
-        mi = kvs.view('mi_final')
-        # Block here until all the processes have mi_final
-        utils.kvs_sync_processes(kvs, rank)
-        utils.kvsTearDown(kvs, rank, kvs_key=KVS_KEY)
-        # Clean up mi_final and finish
-        if rank==0:
-            kvs.get('mi_final')
+        kvs.put(PILEUP_DATA_KEY, build_mi_array(X, Y, bins, logtype=logtype,
+                                                oc=utils.ownCheck(kvs, rank, chunk=25, kvs_key=COUNT_KEY)))
 
-        if np.sum(np.isnan(mi)) > 0:
-            print("There shouldn't be any NaNs in the MI matrix (There are {nans})".format(nans=np.sum(np.isnan(mi))))
-            raise ValueError
+        # Block here until mi_pileup is complete and then get the final mi matrix from mi_final
+        if rank == 0:
+            mi_pileup((X.shape[1], Y.shape[1]), kvs)
+        mi = kvs.view(FINAL_DATA_KEY)
+
+        # Block here until all the processes have mi_final and then tear down the KVS data
+        utils.kvs_sync_processes(kvs, rank)
+        utils.kvsTearDown(kvs, rank, kvs_key=COUNT_KEY)
+        utils.kvsTearDown(kvs, rank, kvs_key=FINAL_DATA_KEY)
 
     return pd.DataFrame(mi, index=mi_r, columns=mi_c)
 
 
-def mi_local(X, Y, bins, logtype):
+def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, oc=None):
     """
-    Calculate MI locally, using a single process
+        Calculate MI into an array initialized with NaNs
 
-    :param X: np.ndarray (n x m1)
-    :param Y: np.ndarray (n x m2)
-    :param bins: int
-    :param logtype: np.log func
-    :return mi: np.ndarray (m1 x m2)
-    """
-    mi = np.zeros((X.shape[1], Y.shape[1]), dtype=np.dtype(float))
-    # Run _calc_mi on every pairwise combination of features
-    for mi_data in _mi_gen(X, Y, bins, logtype=logtype):
-        i, j, mi_val = _mi_mp_1d(mi_data)
-        mi[i, j] = mi_val
+        :param X: np.ndarray (n x m1)
+        :param Y: np.ndarray (n x m2)
+        :param bins: int
+        :param logtype: np.log func
+        :return mi: np.ndarray (m1 x m2)
+        """
+    g, k = X.shape[1], Y.shape[1]
+    mi = np.full((g, k), np.nan, dtype=np.dtype(float))
+    for i, j in itertools.product(range(g), range(k)):
+        if oc is None or next(oc):
+            ctable = _make_table(X[:, i], Y[:, j], bins)
+            mi[i, j] = _calc_mi(ctable, logtype=logtype)
     return mi
-
-
-def mi_kvs(X, Y, bins, logtype, kvs, rank):
-    """
-    Calculate MI using KVS to multiprocess
-
-    :param X: np.ndarray (n x m1)
-    :param Y: np.ndarray (n x m2)
-    :param bins: int
-    :param logtype: np.log func
-    :param kvs: KVSClient
-    :param rank: int
-    """
-    mi = np.full((X.shape[1], Y.shape[1]), np.nan, dtype=np.dtype(float))
-    # Run _calc_mi on every pairwise combination of features ownCheck says is ours
-    # Leave the rest as NaN
-    for mi_data in _mi_gen(X, Y, bins, logtype=logtype, oc=utils.ownCheck(kvs, rank, chunk=25, kvs_key=KVS_KEY)):
-        i, j, mi_val = _mi_mp_1d(mi_data)
-        mi[i, j] = mi_val
-    kvs.put('mi_pileup', mi)
-    if rank == 0:
-        mi_pileup(mi.shape, kvs)
 
 
 def mi_pileup(mi_shape, kvs):
@@ -165,10 +153,10 @@ def mi_pileup(mi_shape, kvs):
     mi = np.full(mi_shape, np.nan, dtype=np.dtype(float))
     n = utils.slurm_envs()['tasks']
     for _ in range(n):
-        mi_two = kvs.get('mi_pileup')
+        mi_two = kvs.get(PILEUP_DATA_KEY)
         update = ~np.isnan(mi_two)
         mi[update] = mi_two[update]
-    kvs.put('mi_final', mi)
+    kvs.put(FINAL_DATA_KEY, mi)
 
 
 def calc_mixed_clr(mi, mi_bg):
@@ -196,37 +184,6 @@ def calc_mixed_clr(mi, mi_bg):
 
     clr = np.sqrt(np.square(z_col) + np.square(z_row))
     return clr
-
-
-def _mi_gen(X, Y, bins, logtype=DEFAULT_LOG_TYPE, oc=None):
-    """
-    Generator that yields a packed tuple of indices i & j, the column slices Xi and Yj, and passes through bins and log
-    This allows for easy use of map
-
-    :param X: np.ndarray
-    :param Y: np.ndarray
-    :param bins: int
-    :param logtype: np.log func
-
-    :yield: int, int, np.ndarray, np.ndarray, int, np.log func
-    """
-
-    for i in range(X.shape[1]):
-        if oc is None or next(oc):
-            utils.Debug.vprint("Calculating MI for feature [{i_n} / {total}]".format(i_n=i, total=X.shape[1]), level=3)
-            X_slice = X[:, i]
-            for j in range(Y.shape[1]):
-                yield (i, j, X_slice, Y[:, j], bins, logtype)
-
-
-def _mi_mp_1d(data):
-    """
-    Wrappers _calc_mi and unpacks _mi_gen tuples. Just so that the generator can be used with map.
-    """
-    i, j, x, y, bins, logtype = data
-    ctable = _make_table(x, y, bins)
-    mi_val = _calc_mi(ctable, logtype=logtype)
-    return i, j, mi_val
 
 
 def _make_array_discrete(array, num_bins, axis=0):
