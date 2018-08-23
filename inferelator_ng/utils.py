@@ -12,9 +12,22 @@ SBATCH_VARS = {'RUNDIR': ('output_dir', str, None),
                'SLURM_NTASKS': ('tasks', int, 1)
                }
 
+def slurm_envs():
+    envs = {}
+    for os_var, (cv, mt, de) in SBATCH_VARS.items():
+        try:
+            val = mt(os.environ[os_var])
+        except (KeyError, TypeError):
+            val = de
+        envs[cv] = val
+    return envs
+
 class Debug:
     verbose_level = 0
     default_level = 1
+
+    silence_clients=True
+    rank = slurm_envs()['rank']
 
     levels = dict(silent=-1,
                   normal=0,
@@ -29,6 +42,8 @@ class Debug:
 
     @classmethod
     def vprint(cls, *args, **kwargs):
+        if cls.silence_clients and cls.rank != 0:
+            return
         try:
             level = kwargs.pop('level')
         except KeyError:
@@ -36,7 +51,7 @@ class Debug:
         if level <= cls.verbose_level:
             print((" " * level), *args, **kwargs)
         else:
-            pass
+            return
 
     @classmethod
     def warn(cls, *args, **kwargs):
@@ -200,14 +215,3 @@ def make_array_2d(arr):
     """
     if arr.ndim == 1:
         arr.shape = (arr.shape[0], 1)
-
-def slurm_envs():
-    envs = {}
-    for os_var, (cv, mt, de) in SBATCH_VARS.items():
-        try:
-            val = mt(os.environ[os_var])
-            Debug.vprint("Setting {var} to {val}".format(var=cv, val=val), level=2)
-        except (KeyError, TypeError):
-            val = de
-        envs[cv] = val
-    return envs
