@@ -215,15 +215,12 @@ class BBSR:
         :return: (pd.DataFrame [G x K], pd.DataFrame [G x K])
         """
         run_data = []
-        try:
-            slurm_total = int(os.environ['SLURM_NTASKS'])
-        except KeyError:
-            slurm_total = 1
 
         # Reach into KVS to get the model data
-        for _ in range(slurm_total):
-            _, ps = self.kvs.get('plist')
+        for p in range(utils.slurm_envs()['tasks']):
+            pid, ps = self.kvs.get('plist')
             run_data.extend(ps)
+            utils.Debug.vprint("Collected {l} models from proc {id}".format(l=len(ps), id=pid))
         utils.kvsTearDown(self.kvs, self.rank)
 
         d_len, b_avg = self._summary_stats(run_data)
