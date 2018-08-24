@@ -43,10 +43,13 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_workflow.BBSRWorkflow):
         utils.Debug.vprint("Rebulked design {des} & response {res} data".format(des=X_bulk.shape, res=Y_bulk.shape))
 
         # Calculate CLR & MI if we're proc 0 or get CLR & MI from the KVS if we're not
-        clr_mat, _ = mi.MIDriver(kvs=self.kvs, rank=self.rank).run(X, Y)
+        if self.process_mi_local:
+            clr_mat, mi_mat = mi.MIDriver().run(X, Y)
+        else:
+            clr_mat, mi_mat = mi.MIDriver(kvs=self.kvs, rank=self.rank).run(X, Y)
 
         # Trying to get ahead of some memory leaks
-        X_bulk, Y_bulk, bootstrap, boot_cluster_idx = None, None, None, None
+        X_bulk, Y_bulk, bootstrap, boot_cluster_idx, mi_mat = None, None, None, None, None
         gc.collect()
 
         utils.Debug.vprint('Calculating betas using BBSR', level=1)

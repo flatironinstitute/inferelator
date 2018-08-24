@@ -50,10 +50,11 @@ class BBSRWorkflow(workflow.WorkflowBase):
         Y = self.response.iloc[:, bootstrap]
 
         # Calculate CLR & MI
-        if self.process_mi_local:
-            clr_mat, _ = mi.MIDriver().run(X, Y)
+        if self.is_master():
+            (clr_mat, mi_mat) = mi.MIDriver().run(X, Y)
+            self.kvs.put('mi %d' % idx, (clr_mat, mi_mat))
         else:
-            clr_mat, _ = mi.MIDriver(kvs=self.kvs, rank=self.rank).run(X, Y)
+            (clr_mat, mi_mat) = self.kvs.view('mi %d' % idx)
 
         # ownCheck should block until the master process is done with MI. Other processes can catch up as needed
         ownCheck = utils.ownCheck(self.kvs, self.rank, chunk=25)

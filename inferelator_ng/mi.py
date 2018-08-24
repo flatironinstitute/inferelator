@@ -1,101 +1,78 @@
-import itertools
 import numpy as np
 import pandas as pd
-from inferelator_ng import utils
+import multiprocessing
+from . import utils
 
-# Number of discrete bins for mutual information calculation
+DEFAULT_CORES = 10
 DEFAULT_NUM_BINS = 10
-
-# DDOF for
+POOL_CHUNKSIZE = 1000
 CLR_DDOF = 1
 DEFAULT_LOG_TYPE = np.log
 
-# Multiprocessing chunk size
-DEFAULT_CHUNK = 1000
-
-# KVS keys for multiprocessing
-COUNT_KEY = 'micount'
-PILEUP_DATA_KEY = 'pcalc'
-FINAL_MI_DATA_KEY = 'mi_final'
-FINAL_CLR_DATA_KEY = 'clr_final'
-
 
 class MIDriver:
+    cores = DEFAULT_CORES
     bins = DEFAULT_NUM_BINS
-    kvs = None
-    rank = None
 
-    def __init__(self, bins=None, kvs=None, rank=None):
+    def __init__(self, cores=None, bins=None):
 
+        if cores is not None:
+            self.cores = cores
         if bins is not None:
             self.bins = bins
-        if kvs is not None:
-            self.kvs = kvs
-        if rank is not None:
-            self.rank = rank
 
-    def run(self, x_df, y_df, bins=None, logtype=DEFAULT_LOG_TYPE):
+    def run(self, x_df, y_df, cores=None, bins=None, logtype=DEFAULT_LOG_TYPE, set_autoregulation_to_0=True):
         """
         Wrapper to calculate the CLR and MI for two data sets that have common condition columns
         :param x_df: pd.DataFrame
         :param y_df: pd.DataFrame
         :param logtype: np.log func
+        :param cores: int
+            Number of cores for multiprocessing
         :param bins: int
             Number of bins for discretizing continuous variables
-
+        :param set_autoregulation_to_0: bool
         :return clr, mi: pd.DataFrame, pd.DataFrame
             CLR and MI DataFrames
         """
 
+        if cores is not None:
+            self.cores = cores
+
         if bins is not None:
             self.bins = bins
 
-        utils.Debug.vprint("Calculating MI")
-        mi = mutual_information(y_df, x_df, self.bins, logtype=logtype, kvs=self.kvs, rank=self.rank)
-        utils.Debug.vprint("Calculating background MI")
-        mi_bg = mutual_information(x_df, x_df, self.bins, logtype=logtype, kvs=self.kvs, rank=self.rank)
-        utils.Debug.vprint("Calculating CLR")
-
-        if self.kvs is not None:
-            if self.rank == 0:
-                clr = calc_mixed_clr(utils.df_set_diag(mi, 0), utils.df_set_diag(mi_bg, 0))
-                self.kvs.put(FINAL_CLR_DATA_KEY, clr)
-            else:
-                clr = self.kvs.view(FINAL_CLR_DATA_KEY)
-
-            utils.kvs_sync_processes(self.kvs, self.rank)
-            utils.kvsTearDown(self.kvs, self.rank, kvs_key=FINAL_CLR_DATA_KEY)
-
-        else:
+        mi = mutual_information(y_df, x_df, self.bins, cores=self.cores, logtype=logtype)
+        mi_bg = mutual_information(x_df, x_df, self.bins, cores=self.cores, logtype=logtype)
+        if set_autoregulation_to_0:
             clr = calc_mixed_clr(utils.df_set_diag(mi, 0), utils.df_set_diag(mi_bg, 0))
+        else:
+            clr = calc_mixed_clr(mi, mi_bg)
 
         return clr, mi
 
 
-def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, rank=None):
+def mutual_information(X, Y, bins, cores=1, logtype=DEFAULT_LOG_TYPE):
     """
     Calculate the mutual information matrix between two data matrices, where the columns are equivalent conditions
-
     :param X: pd.DataFrame (m1 x n)
         The data from m1 variables across n conditions
     :param Y: pd.DataFrame (m2 x n)
         The data from m2 variables across n conditions
     :param bins: int
         Number of bins to discretize continuous data into for the generation of a contingency table
+    :param cores: int
+        Number of cores to use for this process
     :param logtype: np.log func
         Which type of log function should be used (log2 results in MI bits, log results in MI nats, log10... is weird)
-    :param kvs: KVSClient
-        KVS client object (for SLURM)
-    :param rank: int
-        Process ID under SLURM
-
-    :return mi: pd.DataFrame (m1 x m2)
+    :return mi: pd.DataFrame (m2 x m1)
         The mutual information between variables m1 and m2
     """
     assert X.shape[1] == Y.shape[1]
     assert (X.columns == Y.columns).all()
 
     # Create dense output matrix and copy the inputs
+    mi = np.zeros((X.shape[0], Y.shape[0]), dtype=np.dtype(float))
     mi_r = X.index
     mi_c = Y.index
 
@@ -103,96 +80,97 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, rank=None
     Y = Y.values
 
     # Discretize the input matrixes
-    utils.Debug.vprint("Discretizing {} matrix".format(X.shape), level=3)
     X = _make_array_discrete(X, bins, axis=1).transpose()
-
-    utils.Debug.vprint("Discretizing {} matrix".format(Y.shape), level=3)
     Y = _make_array_discrete(Y, bins, axis=1).transpose()
 
-    # If there is no KVS object, just run locally on one core
-    if kvs is None:
-        mi = build_mi_array(X, Y, bins, logtype=logtype)
-    # If there is a KVS object, run distributed and give the results to everyone
+    # Run _calc_mi on every pairwise combination of features
+    if cores == 1:
+        for mi_data in _mi_gen(X, Y, bins, logtype=logtype):
+            i, j, mi_val = _mi_mp_1d(mi_data)
+            mi[i, j] = mi_val
+
+    # Run _calc_mi on every pairwise combination of features using Pool to multiprocess
     else:
-        # Run MI calculations on everything that an ownCheck gives to this process and stash it in KVS
-        kvs.put(PILEUP_DATA_KEY, build_mi_array(X, Y, bins, logtype=logtype,
-                                                oc=utils.ownCheck(kvs, rank, chunk=25, kvs_key=COUNT_KEY)))
+        # Create child processes with Pool. Spawn instead of os.fork() if possible.
+        # For python 3.6 this works nicely to fix memory overallocation in jobs
+        # For python 2.7 the only real solution now is to limit the number of cores
+        # TODO: Do something smart to fix this problem with 2.7
+        try:
+            mp_pool = multiprocessing.Pool(processes=cores, context='spawn')
+        except TypeError:
+            mp_pool = multiprocessing.Pool(processes=cores)
 
-        # Block here until mi_pileup is complete and then get the final mi matrix from mi_final
-        if rank == 0:
-            mi = mi_pileup((X.shape[1], Y.shape[1]), kvs)
-        else:
-            mi = kvs.view(FINAL_MI_DATA_KEY)
+        try:
+            for mi_data in mp_pool.imap(_mi_mp_1d, _mi_gen(X, Y, bins, logtype=logtype), chunksize=POOL_CHUNKSIZE):
+                i, j, mi_val = mi_data
+                mi[i, j] = mi_val
+        except KeyboardInterrupt:
+            # In theory this should SIGTERM all the children and then clean them up before reraising the interrupt
+            # In practice it'll probably just hang
+            mp_pool.terminate()
+            mp_pool.join()
+            raise
 
-        # Block here until all the processes have mi_final and then tear down the KVS data
-        utils.kvs_sync_processes(kvs, rank)
-        utils.kvsTearDown(kvs, rank, kvs_key=COUNT_KEY)
-        utils.kvsTearDown(kvs, rank, kvs_key=FINAL_MI_DATA_KEY)
+        # Clean up the remaining child processes
+        # This should happen on return but why take the chance
+        mp_pool.close()
+        mp_pool.join()
 
-    return pd.DataFrame(mi, index=mi_r, columns=mi_c)
-
-
-def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, oc=None):
-    """
-        Calculate MI into an array initialized with NaNs
-
-        :param X: np.ndarray (n x m1)
-        :param Y: np.ndarray (n x m2)
-        :param bins: int
-        :param logtype: np.log func
-        :return mi: np.ndarray (m1 x m2)
-        """
-    m1, m2 = X.shape[1], Y.shape[1]
-    mi = np.full((m1, m2), np.nan, dtype=np.dtype(float))
-    for i, j in itertools.product(range(m1), range(m2)):
-        if oc is None or next(oc):
-            ctable = _make_table(X[:, i], Y[:, j], bins)
-            mi[i, j] = _calc_mi(ctable, logtype=logtype)
-    return mi
-
-
-def mi_pileup(mi_shape, kvs):
-    """
-    Pile up the partial data generated by each process and push the final matrix into mi_final on the KVS server
-
-    :param mi_shape: Tuple (int, int)
-    :param kvs: KVSClient
-    """
-    mi = np.full(mi_shape, np.nan, dtype=np.dtype(float))
-    n = utils.slurm_envs()['tasks']
-    for _ in range(n):
-        mi_tmp = kvs.get(PILEUP_DATA_KEY)
-        update = ~np.isnan(mi_tmp)
-        mi[update] = mi_tmp[update]
-    kvs.put(FINAL_MI_DATA_KEY, mi)
-    return mi
+    mi_p = pd.DataFrame(mi, index=mi_r, columns=mi_c)
+    return mi_p
 
 
 def calc_mixed_clr(mi, mi_bg):
     """
-    Calculate the context liklihood of relatedness from mutual information and the background mutual information
-
+    Calculate the context likelihood of relatedness from the dynamic data mi and a static background mi
     :param mi: pd.DataFrame
         Mutual information dataframe
     :param mi_bg: pd.DataFrame
         Background mutual information dataframe
     :return clr: pd.DataFrame
-        Context liklihood of relateness dataframe
+        Context likelihood of relatedness dataframe
     """
     # Calculate the zscore for columns
-    z_col = mi.copy().round(10)  # Rounding so that float precision differences don't turn into huge CLR differences
+    z_col = mi.copy().round(8)
     z_col = z_col.subtract(mi_bg.mean(axis=0))
     z_col = z_col.divide(mi_bg.std(axis=0, ddof=CLR_DDOF))
     z_col[z_col < 0] = 0
 
     # Calculate the zscore for rows
-    z_row = mi.copy().round(10)  # Rounding so that float precision differences don't turn into huge CLR differences
+    z_row = mi.copy().round(8)
     z_row = z_row.subtract(mi.mean(axis=1), axis=0)
     z_row = z_row.divide(mi.std(axis=1, ddof=CLR_DDOF), axis=0)
     z_row[z_row < 0] = 0
 
     clr = np.sqrt(np.square(z_col) + np.square(z_row))
     return clr
+
+
+def _mi_gen(X, Y, bins, logtype=np.log):
+    """
+    Generator that yields a packed tuple of indices i & j, the column slices Xi and Yj, and passes through bins and log
+    This allows for easy use of map
+    :param X: np.ndarray
+    :param Y: np.ndarray
+    :param bins: int
+    :param logtype: np.log func
+    :yield: int, int, np.ndarray, np.ndarray, int, np.log func
+    """
+
+    for i in range(X.shape[1]):
+        X_slice = X[:, i]
+        for j in range(Y.shape[1]):
+            yield (i, j, X_slice, Y[:, j], bins, logtype)
+
+
+def _mi_mp_1d(data):
+    """
+    Wrappers _calc_mi and unpacks _mi_gen tuples. Just so that the generator can be used with map.
+    """
+    i, j, x, y, bins, logtype = data
+    ctable = _make_table(x, y, bins)
+    mi_val = _calc_mi(ctable, logtype=logtype)
+    return i, j, mi_val
 
 
 def _make_array_discrete(array, num_bins, axis=0):
@@ -251,7 +229,6 @@ def _make_table(x, y, num_bins):
 def _calc_mi(table, logtype=DEFAULT_LOG_TYPE):
     """
     Calculate Mutual Information from a contingency table of two variables
-
     :param table: np.ndarray (num_bins x num_bins)
         Contingency table
     :param logtype: np.log func

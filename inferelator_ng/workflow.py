@@ -31,6 +31,7 @@ class WorkflowBase(object):
     random_seed = 42
     cores = 10
     rank = 0
+    tasks = 1
 
     # Computed data structures
     expression_matrix = None  # expression_matrix dataframe
@@ -45,6 +46,8 @@ class WorkflowBase(object):
     def __init__(self):
         self.get_sbatch_variables()
         self.kvs = KVSClient()
+        self.kvs.my_rank = self.rank
+        self.kvs.my_pop = self.tasks
 
     def get_sbatch_variables(self):
         """
