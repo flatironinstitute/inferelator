@@ -50,14 +50,16 @@ class BBSRWorkflow(workflow.WorkflowBase):
         Y = self.response.iloc[:, bootstrap]
 
         # Calculate CLR & MI
-        if self.is_master():
-            (clr_mat, mi_mat) = mi.MIDriver().run(X, Y)
-            self.kvs.put('mi %d' % idx, (clr_mat, mi_mat))
+        if self.process_mi_local:
+            clr_mat, mi_mat = mi.MIDriver().run(X, Y)
         else:
-            (clr_mat, mi_mat) = self.kvs.view('mi %d' % idx)
+            clr_mat, mi_mat = mi.MIDriver(kvs=self.kvs, rank=self.rank).run(X, Y)
 
         # ownCheck should block until the master process is done with MI. Other processes can catch up as needed
         ownCheck = utils.ownCheck(self.kvs, self.rank, chunk=25)
+
+        utils.Debug.vprint('Validating data across processes', level=1)
+        self.validate_across_processes(X=X, Y=Y, clr_mat=clr_mat, priors_data=self.priors_data, idx=idx)
 
         # Run the BBSR on this bootstrap
         utils.Debug.vprint('Calculating betas using BBSR', level=1)
@@ -89,3 +91,14 @@ class BBSRWorkflow(workflow.WorkflowBase):
         self.validate_output_path()
         rp = results_processor.ResultsProcessor(betas, rescaled_betas)
         rp.summarize_network(self.output_dir, gold_standard, priors)
+
+    def validate_across_processes(self, **kwargs):
+        if self.is_master():
+            for k, v in kwargs.items():
+                self.kvs.put(k, v)
+        else:
+            for k, v in kwargs.items():
+                try:
+                    assert v == self.kvs.view(k)
+                except AssertionError:
+                    print("Variable mismatch (Proc {p}): {var}".format(p=self.rank, var=k))
