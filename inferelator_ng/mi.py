@@ -3,13 +3,21 @@ import numpy as np
 import pandas as pd
 from inferelator_ng import utils
 
+# Number of discrete bins for mutual information calculation
 DEFAULT_NUM_BINS = 10
-DEFAULT_CHUNK = 1000
+
+# DDOF for
 CLR_DDOF = 1
 DEFAULT_LOG_TYPE = np.log
+
+# Multiprocessing chunk size
+DEFAULT_CHUNK = 1000
+
+# KVS keys for multiprocessing
 COUNT_KEY = 'micount'
-PILEUP_DATA_KEY = 'mi'
-FINAL_DATA_KEY = 'mi_final'
+PILEUP_DATA_KEY = 'pcalc'
+FINAL_MI_DATA_KEY = 'mi_final'
+FINAL_CLR_DATA_KEY = 'clr_final'
 
 
 class MIDriver:
@@ -26,7 +34,7 @@ class MIDriver:
         if rank is not None:
             self.rank = rank
 
-    def run(self, x_df, y_df, bins=None, logtype=DEFAULT_LOG_TYPE, set_autoregulation_to_0=True):
+    def run(self, x_df, y_df, bins=None, logtype=DEFAULT_LOG_TYPE):
         """
         Wrapper to calculate the CLR and MI for two data sets that have common condition columns
         :param x_df: pd.DataFrame
@@ -34,7 +42,6 @@ class MIDriver:
         :param logtype: np.log func
         :param bins: int
             Number of bins for discretizing continuous variables
-        :param set_autoregulation_to_0: bool
 
         :return clr, mi: pd.DataFrame, pd.DataFrame
             CLR and MI DataFrames
@@ -48,19 +55,19 @@ class MIDriver:
         utils.Debug.vprint("Calculating background MI")
         mi_bg = mutual_information(x_df, x_df, self.bins, logtype=logtype, kvs=self.kvs, rank=self.rank)
         utils.Debug.vprint("Calculating CLR")
-        if set_autoregulation_to_0:
-            clr = calc_mixed_clr(utils.df_set_diag(mi, 0), utils.df_set_diag(mi_bg, 0))
-        else:
-            clr = calc_mixed_clr(mi, mi_bg)
 
         if self.kvs is not None:
             if self.rank == 0:
-                self.kvs.put('clr', clr)
+                clr = calc_mixed_clr(utils.df_set_diag(mi, 0), utils.df_set_diag(mi_bg, 0))
+                self.kvs.put(FINAL_CLR_DATA_KEY, clr)
             else:
-                clr = self.kvs.view('clr', clr)
+                clr = self.kvs.view(FINAL_CLR_DATA_KEY)
 
             utils.kvs_sync_processes(self.kvs, self.rank)
-            utils.kvsTearDown(self.kvs, self.rank, kvs_key='clr')
+            utils.kvsTearDown(self.kvs, self.rank, kvs_key=FINAL_CLR_DATA_KEY)
+
+        else:
+            clr = calc_mixed_clr(utils.df_set_diag(mi, 0), utils.df_set_diag(mi_bg, 0))
 
         return clr, mi
 
@@ -107,19 +114,20 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, rank=None
         mi = build_mi_array(X, Y, bins, logtype=logtype)
     # If there is a KVS object, run distributed and give the results to everyone
     else:
-        # Run MI calculations on everything that an ownCheck gives to this process
+        # Run MI calculations on everything that an ownCheck gives to this process and stash it in KVS
         kvs.put(PILEUP_DATA_KEY, build_mi_array(X, Y, bins, logtype=logtype,
                                                 oc=utils.ownCheck(kvs, rank, chunk=25, kvs_key=COUNT_KEY)))
 
         # Block here until mi_pileup is complete and then get the final mi matrix from mi_final
         if rank == 0:
-            mi_pileup((X.shape[1], Y.shape[1]), kvs)
-        mi = kvs.view(FINAL_DATA_KEY)
+            mi = mi_pileup((X.shape[1], Y.shape[1]), kvs)
+        else:
+            mi = kvs.view(FINAL_MI_DATA_KEY)
 
         # Block here until all the processes have mi_final and then tear down the KVS data
         utils.kvs_sync_processes(kvs, rank)
         utils.kvsTearDown(kvs, rank, kvs_key=COUNT_KEY)
-        utils.kvsTearDown(kvs, rank, kvs_key=FINAL_DATA_KEY)
+        utils.kvsTearDown(kvs, rank, kvs_key=FINAL_MI_DATA_KEY)
 
     return pd.DataFrame(mi, index=mi_r, columns=mi_c)
 
@@ -134,9 +142,9 @@ def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, oc=None):
         :param logtype: np.log func
         :return mi: np.ndarray (m1 x m2)
         """
-    g, k = X.shape[1], Y.shape[1]
-    mi = np.full((g, k), np.nan, dtype=np.dtype(float))
-    for i, j in itertools.product(range(g), range(k)):
+    m1, m2 = X.shape[1], Y.shape[1]
+    mi = np.full((m1, m2), np.nan, dtype=np.dtype(float))
+    for i, j in itertools.product(range(m1), range(m2)):
         if oc is None or next(oc):
             ctable = _make_table(X[:, i], Y[:, j], bins)
             mi[i, j] = _calc_mi(ctable, logtype=logtype)
@@ -153,10 +161,11 @@ def mi_pileup(mi_shape, kvs):
     mi = np.full(mi_shape, np.nan, dtype=np.dtype(float))
     n = utils.slurm_envs()['tasks']
     for _ in range(n):
-        mi_two = kvs.get(PILEUP_DATA_KEY)
-        update = ~np.isnan(mi_two)
-        mi[update] = mi_two[update]
-    kvs.put(FINAL_DATA_KEY, mi)
+        mi_tmp = kvs.get(PILEUP_DATA_KEY)
+        update = ~np.isnan(mi_tmp)
+        mi[update] = mi_tmp[update]
+    kvs.put(FINAL_MI_DATA_KEY, mi)
+    return mi
 
 
 def calc_mixed_clr(mi, mi_bg):

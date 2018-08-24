@@ -12,6 +12,7 @@ SBATCH_VARS = {'RUNDIR': ('output_dir', str, None),
                'SLURM_NTASKS': ('tasks', int, 1)
                }
 
+
 def slurm_envs():
     envs = {}
     for os_var, (cv, mt, de) in SBATCH_VARS.items():
@@ -22,11 +23,12 @@ def slurm_envs():
         envs[cv] = val
     return envs
 
+
 class Debug:
     verbose_level = 0
     default_level = 1
 
-    silence_clients=True
+    silence_clients = True
     rank = slurm_envs()['rank']
 
     levels = dict(silent=-1,
@@ -66,15 +68,20 @@ def ownCheck(kvs, rank, chunk=1, kvs_key='count'):
     """
     Generator
 
-    :param kvs: KVS object
-    :param rank: SLURM proc ID
-    :param chunk: The size of the chunk given to each subprocess
+    :param kvs: KVSClient
+        KVS object for server access
+    :param rank: int
+        SLURM proc ID
+    :param chunk: int
+        The size of the chunk given to each subprocess
+    :param kvs_key: str
+        The KVS key to increment (default is 'count')
 
     :yield: bool
+        True if this process has dibs on whatever. False if some other process has claimed it first.
     """
-    # initialize a global counter.                                                                                                               
 
-    # If we're the main process, set KVS count to 0
+    # If we're the main process, set KVS key to 0
     if 0 == rank:
         kvs.put(kvs_key, 0)
 
@@ -86,7 +93,7 @@ def ownCheck(kvs, rank, chunk=1, kvs_key='count'):
         # Checks increments every loop
         # If it's greater than the upper bound, get a new lower bound from the KVS count
         # Set the new upper bound by adding chunk to lower
-        # And then put the new upper bound back into KVS count
+        # And then put the new upper bound back into KVS key
 
         if checks >= upper:
             lower = kvs.get(kvs_key)
@@ -103,6 +110,7 @@ def kvsTearDown(kvs, rank, kvs_key='count'):
     if 0 == rank:
         # Do a hard reset if rank == 0                                                                                                       
         kvs.get(kvs_key)
+
 
 def kvs_sync_processes(kvs, rank, pref=""):
     # Block all processes until they reach this point
@@ -122,6 +130,7 @@ def kvs_sync_processes(kvs, rank, pref=""):
             kvs.put(ckey, True)
     kvs.get(ckey)
 
+
 class FakeKVS:
     """
     A fake KVS client that only does one thing poorly. Only for troubleshooting when this is not in a workflow.
@@ -129,9 +138,18 @@ class FakeKVS:
     data = {}
 
     def put(self, key, val):
-        self.data[key] = val
+        try:
+            self.data[key].append(val)
+        except KeyError:
+            self.data[key] = [val]
 
     def get(self, key):
+        try:
+            return self.data[key].pop()
+        except KeyError:
+            return None
+
+    def view(self, key):
         try:
             return self.data[key]
         except KeyError:

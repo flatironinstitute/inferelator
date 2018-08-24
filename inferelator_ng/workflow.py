@@ -162,7 +162,16 @@ class WorkflowBase(object):
         Generate sequence of bootstrap parameter objects for run.
         """
         col_range = range(size)
-        return [[np.random.choice(col_range) for x in col_range] for y in range(num_bootstraps)]
+        bs = [[np.random.choice(col_range) for x in col_range] for y in range(num_bootstraps)]
+        return bs
+
+    def get_sync_bootstraps(self, size, num_boostraps):
+        if self.is_master():
+            bs = self.get_bootstraps(size, num_boostraps)
+            self.kvs.put('bootstraps', bs)
+        else:
+            bs = self.kvs.view('bootstraps')
+        return bs
 
     def emit_results(self, *args, **kwargs):
         """

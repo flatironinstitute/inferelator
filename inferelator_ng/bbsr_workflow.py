@@ -11,6 +11,7 @@ class BBSRWorkflow(workflow.WorkflowBase):
     delTmax = DEFAULT_delTmax
     tau = DEFAULT_tau
     num_bootstraps = DEFAULT_bs
+    process_mi_local = False
 
     def __init__(self, delTmin=DEFAULT_delTmin, delTmax=DEFAULT_delTmax, tau=DEFAULT_tau, num_bootstraps=DEFAULT_bs):
         # Call out to super __init__
@@ -27,7 +28,7 @@ class BBSRWorkflow(workflow.WorkflowBase):
 
         # Bootstrap sample size is the number of experiments
 
-        for idx, bootstrap in enumerate(self.get_bootstraps(self.design.shape[1], self.num_bootstraps)):
+        for idx, bootstrap in enumerate(self.get_sync_bootstraps(self.design.shape[1], self.num_bootstraps)):
             utils.Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps), level=0)
             current_betas, current_rescaled_betas = self.run_bootstrap(idx, bootstrap)
             if self.is_master():
@@ -49,7 +50,10 @@ class BBSRWorkflow(workflow.WorkflowBase):
         Y = self.response.iloc[:, bootstrap]
 
         # Calculate CLR & MI
-        clr_mat, _ = mi.MIDriver(kvs=self.kvs, rank=self.rank).run(X, Y)
+        if self.process_mi_local:
+            clr_mat, _ = mi.MIDriver().run(X, Y)
+        else:
+            clr_mat, _ = mi.MIDriver(kvs=self.kvs, rank=self.rank).run(X, Y)
 
         # ownCheck should block until the master process is done with MI. Other processes can catch up as needed
         ownCheck = utils.ownCheck(self.kvs, self.rank, chunk=25)
