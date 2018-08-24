@@ -93,12 +93,20 @@ class BBSRWorkflow(workflow.WorkflowBase):
         rp.summarize_network(self.output_dir, gold_standard, priors)
 
     def validate_across_processes(self, **kwargs):
+        """
+        Make sure everyone is thinking the same thing
+        :param kwargs:
+        """
         if self.is_master():
             for k, v in kwargs.items():
                 self.kvs.put(k, v)
-        else:
-            for k, v in kwargs.items():
+        for k, v in kwargs.items():
+            try:
+                assert v == self.kvs.view(k)
+            except AssertionError:
+                print("Variable mismatch (Proc {p}): {var}".format(p=self.rank, var=k))
+            except ValueError:
                 try:
-                    assert v == self.kvs.view(k)
+                    assert (v.equals(self.kvs.view(k)))
                 except AssertionError:
                     print("Variable mismatch (Proc {p}): {var}".format(p=self.rank, var=k))
