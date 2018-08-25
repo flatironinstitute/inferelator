@@ -1,32 +1,73 @@
-from . import bbsr_workflow, utils, design_response_translation
-from inferelator_ng.tfa import TFA
+"""
+Run BSubtilis Network Inference with TFA BBSR.
+"""
 
+import numpy as np
+import os
+from . import workflow
+import design_response_translation #added python design_response
+from tfa import TFA
+from results_processor import ResultsProcessor
+import mi
+import bbsr_python
+import datetime
+from kvsstcp.kvsclient import KVSClient
+import pandas as pd
+from . import utils
 
-# This is a WorkflowBase with BBSR & TFA specific addons
-class BBSR_TFA_Workflow(bbsr_workflow.BBSRWorkflow):
+# Connect to the key value store service (its location is found via an
+# environment variable that is set when this is started vid kvsstcp.py
+# --execcmd).
+kvs = KVSClient()
+# Find out which process we are (assumes running under SLURM).
+rank = int(os.environ['SLURM_PROCID'])
 
-    activity = None
-
-    def __init__(self):
-        super(BBSR_TFA_Workflow, self).__init__()
+class BBSR_TFA_Workflow(workflow.WorkflowBase):
 
     def run(self):
         """
         Execute workflow, after all configuration.
         """
-        super(BBSR_TFA_Workflow, self).run()
+        np.random.seed(self.random_seed)
 
-    def compute_common_data(self):
-        """
-        Compute common data structures like design and response matrices.
-        """
-        utils.Debug.vprint('Creating design and response matrix ... ', level=0)
-        drd = design_response_translation.PythonDRDriver()
-        drd.delTmin, drd.delTmax, drd.tau, drd.return_half_tau = self.delTmin, self.delTmax, self.tau, True
-        self.design, self.response, self.half_tau_response = drd.run(self.expression_matrix, self.meta_data)
+        self.mi_clr_driver = mi.MIDriver(kvs=kvs, rank=rank)
+        self.regression_driver = bbsr_python.BBSR_runner()
+        self.design_response_driver = design_response_translation.PythonDRDriver() #this is the python switch
+        self.get_data()
+        self.compute_common_data()
+        self.compute_activity()
+        betas = []
+        rescaled_betas = []
 
-    def preprocess_data(self):
-        # Run preprocess data from WorkflowBase and BBSRWorkflow
-        super(BBSR_TFA_Workflow, self).preprocess_data()
-        utils.Debug.vprint('Computing Transcription Factor Activity ... ', level=0)
-        self.design = TFA(self.priors_data, self.design, self.half_tau_response).compute_transcription_factor_activity()
+        for idx, bootstrap in enumerate(self.get_bootstraps()):
+            print('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps))
+            X = self.activity.ix[:, bootstrap]
+            Y = self.response.ix[:, bootstrap]
+            print('Calculating MI, Background MI, and CLR Matrix')
+            (self.clr_matrix, self.mi_matrix) = self.mi_clr_driver.run(X, Y)
+            print('Calculating betas using BBSR')
+            ownCheck = utils.ownCheck(kvs, rank, chunk=25)
+            current_betas,current_rescaled_betas = self.regression_driver.run(X, Y, self.clr_matrix, self.priors_data,kvs,rank, ownCheck)
+            if rank: continue
+            betas.append(current_betas)
+            rescaled_betas.append(current_rescaled_betas)
+
+        self.emit_results(betas, rescaled_betas, self.gold_standard, self.priors_data)
+
+    def compute_activity(self):
+        """
+        Compute Transcription Factor Activity
+        """
+        print('Computing Transcription Factor Activity ... ')
+        TFA_calculator = TFA(self.priors_data, self.design, self.half_tau_response)
+        self.activity = TFA_calculator.compute_transcription_factor_activity()
+
+    def emit_results(self, betas, rescaled_betas, gold_standard, priors):
+        """
+        Output result report(s) for workflow run.
+        """
+        if 0 == rank:
+            output_dir = os.path.join(self.input_dir, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+            os.makedirs(output_dir)
+            self.results_processor = ResultsProcessor(betas, rescaled_betas)
+            self.results_processor.summarize_network(output_dir, gold_standard, priors)

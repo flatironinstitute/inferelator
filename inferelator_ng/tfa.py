@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from scipy import linalg
-from . import utils
+import warnings
 
 class TFA:
 
@@ -41,7 +41,7 @@ class TFA:
         if len(delete_tfs) > 0:
             message = " ".join([str(len(delete_tfs)).capitalize(),
              "transcription factors are removed because no expression or prior information exists."])
-            utils.Debug.vprint(message, level=0)
+            warnings.warn(message)
             self.prior = self.prior.drop(delete_tfs, axis = 1)
 
         # Create activity dataframe with values set by default to the transcription factor's expression
