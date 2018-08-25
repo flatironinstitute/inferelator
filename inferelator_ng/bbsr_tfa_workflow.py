@@ -12,7 +12,6 @@ from inferelator_ng import mi
 from inferelator_ng import bbsr_python
 import datetime
 from kvsstcp.kvsclient import KVSClient
-import pandas as pd
 from . import utils
 
 # Connect to the key value store service (its location is found via an
@@ -44,19 +43,22 @@ class BBSR_TFA_Workflow(workflow.WorkflowBase):
         rescaled_betas = []
 
         for idx, bootstrap in enumerate(self.get_bootstraps()):
-            print('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps))
-            X = self.activity.ix[:, bootstrap]
-            Y = self.response.ix[:, bootstrap]
-            print('Calculating MI, Background MI, and CLR Matrix')
-            (clr_matrix, mi_matrix) = mi.MIDriver(kvs=kvs, rank=rank).run(X, Y)
-            print('Calculating betas using BBSR')
-            ownCheck = utils.ownCheck(kvs, rank, chunk=25)
-            current_betas,current_rescaled_betas = bbsr_python.BBSR_runner().run(X, Y, clr_matrix, self.priors_data,kvs,rank, ownCheck)
+            utils.Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps), level=0)
+            current_betas,current_rescaled_betas = self.run_bootstrap(bootstrap)
             if self.is_master():
                 betas.append(current_betas)
                 rescaled_betas.append(current_rescaled_betas)
 
         self.emit_results(betas, rescaled_betas, self.gold_standard, self.priors_data)
+
+    def run_bootstrap(self, bootstrap):
+        X = self.design.ix[:, bootstrap]
+        Y = self.response.ix[:, bootstrap]
+        utils.Debug.vprint('Calculating MI, Background MI, and CLR Matrix', level=0)
+        (clr_matrix, mi_matrix) = mi.MIDriver(kvs=kvs, rank=rank).run(X, Y)
+        utils.Debug.vprint('Calculating betas using BBSR', level=0)
+        ownCheck = utils.ownCheck(kvs, rank, chunk=25)
+        return bbsr_python.BBSR_runner().run(X, Y, clr_matrix, self.priors_data, kvs, rank, ownCheck)
 
     def compute_activity(self):
         """
@@ -64,7 +66,7 @@ class BBSR_TFA_Workflow(workflow.WorkflowBase):
         """
         print('Computing Transcription Factor Activity ... ')
         TFA_calculator = TFA(self.priors_data, self.design, self.half_tau_response)
-        self.activity = TFA_calculator.compute_transcription_factor_activity()
+        self.design = TFA_calculator.compute_transcription_factor_activity()
 
     def emit_results(self, betas, rescaled_betas, gold_standard, priors):
         """
@@ -85,14 +87,7 @@ class BBSR_TFA_Workflow(workflow.WorkflowBase):
         Compute common data structures like design and response matrices.
         """
         self.filter_expression_and_priors()
-        design_response_driver = design_response_translation.PythonDRDriver()
+        drd = design_response_translation.PythonDRDriver()
         print('Creating design and response matrix ... ')
-        design_response_driver.delTmin = self.delTmin
-        design_response_driver.delTmax = self.delTmax
-        design_response_driver.tau = self.tau
-        (self.design, self.response) = design_response_driver.run(self.expression_matrix, self.meta_data)
-
-        # compute half_tau_response
-        print('Setting up TFA specific response matrix ... ')
-        design_response_driver.tau = self.tau / 2
-        (self.design, self.half_tau_response) = design_response_driver.run(self.expression_matrix, self.meta_data)
+        drd.delTmin, drd.delTmax, drd.tau, drd.return_half_tau = self.delTmin, self.delTmax, self.tau, True
+        self.design, self.response, self.half_tau_response = drd.run(self.expression_matrix, self.meta_data)
