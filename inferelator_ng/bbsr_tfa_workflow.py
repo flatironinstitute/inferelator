@@ -4,12 +4,12 @@ Run BSubtilis Network Inference with TFA BBSR.
 
 import numpy as np
 import os
-from . import workflow
-import design_response_translation #added python design_response
-from tfa import TFA
-from results_processor import ResultsProcessor
-import mi
-import bbsr_python
+from inferelator_ng import workflow
+from inferelator_ng import design_response_translation #added python design_response
+from inferelator_ng.tfa import TFA
+from inferelator_ng.results_processor import ResultsProcessor
+from inferelator_ng import mi
+from inferelator_ng import bbsr_python
 import datetime
 from kvsstcp.kvsclient import KVSClient
 import pandas as pd
