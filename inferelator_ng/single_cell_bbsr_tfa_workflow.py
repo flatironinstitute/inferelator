@@ -38,7 +38,7 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         utils.Debug.vprint("Rebulked design {des} & response {res} data".format(des=X_bulk.shape, res=Y_bulk.shape))
 
         # Calculate CLR & MI if we're proc 0 or get CLR & MI from the KVS if we're not
-        clr_mat, mi_mat = mi.MIDriver(kvs=self.kvs, rank=self.rank).run(X, Y)
+        clr_mat, mi_mat = mi.MIDriver(kvs=self.kvs, rank=self.rank).run(X_bulk, Y_bulk)
 
         # Trying to get ahead of this memory fire
         X_bulk = Y_bulk = bootstrap = boot_cluster_idx = mi_mat = None
