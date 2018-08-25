@@ -220,7 +220,7 @@ class BBSR:
         for p in range(utils.slurm_envs()['tasks']):
             pid, ps = self.kvs.get('plist')
             run_data.extend(ps)
-            utils.Debug.vprint("Collected {l} models from proc {id}".format(l=len(ps), id=pid))
+            utils.Debug.vprint("Collected {l} models from proc {id}".format(l=len(ps), id=pid), level=2)
         utils.kvsTearDown(self.kvs, self.rank)
 
         # Create G x K arrays of 0s to populate with the regression data

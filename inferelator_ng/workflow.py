@@ -51,15 +51,22 @@ class WorkflowBase(object):
         Read data files in to data structures.
         """
 
+        self.read_expression()
+        self.read_tfs()
+        self.read_metadata()
+        self.set_gold_standard_and_priors()
+
+    def read_expression(self):
         self.expression_matrix = self.input_dataframe(self.expression_matrix_file)
+
+    def read_tfs(self):
         tf_file = self.input_file(self.tf_names_file)
         self.tf_names = utils.read_tf_names(tf_file)
 
-        # Read metadata, creating a default non-time series metadata file if none is provided
+    def read_metadata(self):
         self.meta_data = self.input_dataframe(self.meta_data_file, has_index=False, strict=False)
         if self.meta_data is None:
             self.meta_data = self.create_default_meta_data(self.expression_matrix)
-        self.set_gold_standard_and_priors()
 
     def set_gold_standard_and_priors(self):
         self.priors_data = self.input_dataframe(self.priors_file)

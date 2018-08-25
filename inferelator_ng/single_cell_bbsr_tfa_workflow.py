@@ -1,24 +1,20 @@
-from . import bbsr_workflow, bbsr_python, utils, single_cell, tfa, mi
+from inferelator_ng import bbsr_tfa_workflow, bbsr_python, utils, single_cell, tfa, mi
 import gc
 import pandas as pd
 import numpy as np
 
 
-class Single_Cell_BBSR_TFA_Workflow(bbsr_workflow.BBSRWorkflow):
-
+class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
     cluster_index = None
 
-    def __init__(self):
-        # Read in the normal data files from BBSRWorkflow & Workflow
-        super(Single_Cell_BBSR_TFA_Workflow, self).__init__()
-
-    def preprocess_data(self):
-        # Run the normal workflow preprocessing to read in data
-        super(bbsr_workflow.BBSRWorkflow, self).preprocess_data()
-
-        # Cluster single cells by pearson correlation distance
+    def compute_common_data(self):
+        """
+        Compute common data structures like design and response matrices.
+        """
+        self.filter_expression_and_priors()
         self.cluster_index = single_cell.initial_clustering(self.expression_matrix)
 
+    def compute_activity(self):
         # Bulk up and normalize clusters
         bulk = single_cell.make_clusters_from_singles(self.expression_matrix, self.cluster_index, pseudocount=True)
         utils.Debug.vprint("Pseudobulk data matrix assembled [{}]".format(bulk.shape))
@@ -30,7 +26,7 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_workflow.BBSRWorkflow):
                                                              columns=self.expression_matrix.columns)
         self.response = self.expression_matrix
 
-    def run_bootstrap(self, idx, bootstrap):
+    def run_bootstrap(self, bootstrap):
         utils.Debug.vprint('Calculating MI, Background MI, and CLR Matrix', level=1)
 
         X = self.design.iloc[:, bootstrap]
@@ -43,13 +39,10 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_workflow.BBSRWorkflow):
         utils.Debug.vprint("Rebulked design {des} & response {res} data".format(des=X_bulk.shape, res=Y_bulk.shape))
 
         # Calculate CLR & MI if we're proc 0 or get CLR & MI from the KVS if we're not
-        if self.process_mi_local:
-            clr_mat, mi_mat = mi.MIDriver().run(X, Y)
-        else:
-            clr_mat, mi_mat = mi.MIDriver(kvs=self.kvs, rank=self.rank).run(X, Y)
+        clr_mat, mi_mat = mi.MIDriver(kvs=self.kvs, rank=self.rank).run(X, Y)
 
-        # Trying to get ahead of some memory leaks
-        X_bulk, Y_bulk, bootstrap, boot_cluster_idx, mi_mat = None, None, None, None, None
+        # Trying to get ahead of this memory fire
+        X_bulk = Y_bulk = bootstrap = boot_cluster_idx = mi_mat = None
         gc.collect()
 
         utils.Debug.vprint('Calculating betas using BBSR', level=1)
@@ -58,12 +51,8 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_workflow.BBSRWorkflow):
         # Run the BBSR on this bootstrap
         betas, re_betas = bbsr_python.BBSR_runner().run(X, Y, clr_mat, self.priors_data, self.kvs, self.rank, ownCheck)
 
-        # Clear the MI data off the KVS
-        if self.is_master():
-            _ = self.kvs.get('mi %d' % idx)
-
-        # Trying to get ahead of some memory leaks
-        X, Y, idx, clr_mat = None, None, None, None
+        # Trying to get ahead of this memory fire
+        X = Y = clr_mat = None
         gc.collect()
 
         return betas, re_betas
