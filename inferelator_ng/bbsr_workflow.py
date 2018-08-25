@@ -59,7 +59,7 @@ class BBSRWorkflow(workflow.WorkflowBase):
         ownCheck = utils.ownCheck(self.kvs, self.rank, chunk=25)
 
         utils.Debug.vprint('Validating data across processes', level=1)
-        self.validate_across_processes(X=X, Y=Y, clr_mat=clr_mat, priors_data=self.priors_data, idx=idx)
+        self.validate_across_processes(X=X, Y=Y, clr_mat=clr_mat, priors_data=self.priors_data, idx=idx, bootstrap=bootstrap)
 
         # Run the BBSR on this bootstrap
         utils.Debug.vprint('Calculating betas using BBSR', level=1)

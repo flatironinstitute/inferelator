@@ -5,12 +5,11 @@ utils.Debug.set_verbose_level(utils.Debug.levels['verbose'])
 
 workflow = BBSR_TFA_Workflow()
 # Common configuration parameters
-workflow.append_to_path('input_dir', 'bsubtilis')
+workflow.input_dir='data/bsubtilis'
 workflow.num_bootstraps = 2
 workflow.delTmax = 110
 workflow.delTmin = 0
 workflow.tau = 45
 
 # Run the workflow
-workflow.preprocess_data()
-workflow.run() 
+workflow.run()

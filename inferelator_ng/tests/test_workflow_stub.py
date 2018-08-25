@@ -19,7 +19,7 @@ class StubWorkflow(workflow.WorkflowBase):
     test_case = None
 
     def run(self):
-        self.preprocess_data()
+        self.get_data()
 
     def compute_common_data(self):
         cd_called = True
