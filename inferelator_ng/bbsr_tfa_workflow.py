@@ -5,24 +5,16 @@ Run BSubtilis Network Inference with TFA BBSR.
 import numpy as np
 import os
 from inferelator_ng import workflow
-from inferelator_ng import design_response_translation #added python design_response
+from inferelator_ng import design_response_translation  # added python design_response
 from inferelator_ng.tfa import TFA
 from inferelator_ng.results_processor import ResultsProcessor
 from inferelator_ng import mi
 from inferelator_ng import bbsr_python
 import datetime
-from kvsstcp.kvsclient import KVSClient
-from . import utils
+from inferelator_ng import utils
 
-# Connect to the key value store service (its location is found via an
-# environment variable that is set when this is started vid kvsstcp.py
-# --execcmd).
-kvs = KVSClient()
-# Find out which process we are (assumes running under SLURM).
-rank = int(os.environ['SLURM_PROCID'])
 
 class BBSR_TFA_Workflow(workflow.WorkflowBase):
-
     delTmin = 0
     delTmax = 120
     tau = 45
@@ -44,7 +36,7 @@ class BBSR_TFA_Workflow(workflow.WorkflowBase):
 
         for idx, bootstrap in enumerate(self.get_bootstraps()):
             utils.Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps), level=0)
-            current_betas,current_rescaled_betas = self.run_bootstrap(bootstrap)
+            current_betas, current_rescaled_betas = self.run_bootstrap(bootstrap)
             if self.is_master():
                 betas.append(current_betas)
                 rescaled_betas.append(current_rescaled_betas)
@@ -55,10 +47,10 @@ class BBSR_TFA_Workflow(workflow.WorkflowBase):
         X = self.design.ix[:, bootstrap]
         Y = self.response.ix[:, bootstrap]
         utils.Debug.vprint('Calculating MI, Background MI, and CLR Matrix', level=0)
-        (clr_matrix, mi_matrix) = mi.MIDriver(kvs=kvs, rank=rank).run(X, Y)
+        (clr_matrix, mi_matrix) = mi.MIDriver(kvs=self.kvs, rank=self.rank).run(X, Y)
         utils.Debug.vprint('Calculating betas using BBSR', level=0)
-        ownCheck = utils.ownCheck(kvs, rank, chunk=25)
-        return bbsr_python.BBSR_runner().run(X, Y, clr_matrix, self.priors_data, kvs, rank, ownCheck)
+        ownCheck = utils.ownCheck(self.kvs, self.rank, chunk=25)
+        return bbsr_python.BBSR_runner().run(X, Y, clr_matrix, self.priors_data, self.kvs, self.rank, ownCheck)
 
     def compute_activity(self):
         """

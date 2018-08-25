@@ -15,6 +15,5 @@ workflow.tau = 45
 workflow.random_seed = 1
 
 #Run the workflow
-workflow.preprocess_data()
-workflow.run() 
+workflow.run()
 

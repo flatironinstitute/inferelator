@@ -5,18 +5,14 @@ The goal of this design is to make it easy to share
 code among different variants of the Inferelator workflow.
 """
 
-"""
-Add doc string here.
-"""
-
+from kvsstcp import KVSClient
 from . import utils
 import numpy as np
 import os
-import random
 import pandas as pd
 
-class WorkflowBase(object):
 
+class WorkflowBase(object):
     # Common configuration parameters
     input_dir = None
     expression_matrix_file = "expression.tsv"
@@ -33,8 +29,14 @@ class WorkflowBase(object):
     priors_data = None  # priors data dataframe
     gold_standard = None  # gold standard dataframe
 
+    # Hold the KVS information
+    rank = 0
+    kvs = None
+    tasks = None
+
     def __init__(self):
-        # Do nothing (all configuration is external to init)
+        # Connect to KVS and get environment variables
+        self.kvs = KVSClient()
         for k, v in utils.slurm_envs().items():
             setattr(self, k, v)
 
@@ -52,7 +54,7 @@ class WorkflowBase(object):
         self.expression_matrix = self.input_dataframe(self.expression_matrix_file)
         tf_file = self.input_file(self.tf_names_file)
         self.tf_names = utils.read_tf_names(tf_file)
-        
+
         # Read metadata, creating a default non-time series metadata file if none is provided
         self.meta_data = self.input_dataframe(self.meta_data_file, has_index=False, strict=False)
         if self.meta_data is None:
@@ -77,7 +79,7 @@ class WorkflowBase(object):
 
     def create_default_meta_data(self, expression_matrix):
         metadata_rows = expression_matrix.columns.tolist()
-        metadata_defaults = {"isTs":"FALSE", "is1stLast":"e", "prevCol":"NA", "del.t":"NA", "condName":None}
+        metadata_defaults = {"isTs": "FALSE", "is1stLast": "e", "prevCol": "NA", "del.t": "NA", "condName": None}
         data = {}
         for key in metadata_defaults.keys():
             data[key] = pd.Series(data=[metadata_defaults[key] if metadata_defaults[key] else i for i in metadata_rows])
@@ -91,7 +93,7 @@ class WorkflowBase(object):
             return None
         raise ValueError("no such file " + repr(path))
 
-    def input_dataframe(self, filename, strict=True, has_index =True):
+    def input_dataframe(self, filename, strict=True, has_index=True):
         f = self.input_file(filename, strict)
         if f is not None:
             return utils.df_from_tsv(f, has_index)
@@ -99,25 +101,24 @@ class WorkflowBase(object):
             assert not strict
             return None
 
-
     def filter_expression_and_priors(self):
         """
         Guarantee that each row of the prior is in the expression and vice versa.
         Also filter the priors to only includes columns, transcription factors, that are in the tf_names list
         """
         exp_genes = self.expression_matrix.index.tolist()
-        all_regs_with_data = list(set.union(set(self.expression_matrix.index.tolist()), set(self.priors_data.columns.tolist())))
+        all_regs_with_data = list(
+            set.union(set(self.expression_matrix.index.tolist()), set(self.priors_data.columns.tolist())))
         tf_names = list(set.intersection(set(self.tf_names), set(all_regs_with_data)))
         self.priors_data = self.priors_data.loc[exp_genes, tf_names]
         self.priors_data = pd.DataFrame.fillna(self.priors_data, 0)
-        
+
     def get_bootstraps(self):
         """
         Generate sequence of bootstrap parameter objects for run.
         """
         col_range = range(self.response.shape[1])
         return [[np.random.choice(col_range) for x in col_range] for y in range(self.num_bootstraps)]
-
 
     def emit_results(self):
         """
