@@ -69,7 +69,7 @@ class ResultsProcessor:
         plt.plot(recall, precision)
         plt.xlabel('recall')
         plt.ylabel('precision')
-        plt.annotate("aupr = " + aupr.astype("string"), xy=(0.4, 0.05), xycoords='axes fraction')
+        plt.annotate("aupr = {aupr}".format(aupr=aupr), xy=(0.4, 0.05), xycoords='axes fraction')
         plt.savefig(os.path.join(output_dir, 'pr_curve.pdf'))
         plt.close()
 
@@ -85,7 +85,7 @@ class ResultsProcessor:
         num_cols = len(combined_confidences.columns)
         for i in sorted_by_confidence:
             # Since this was sorted using a flattened index, we need to reconvert into labeled 2d index
-            index_idx = i / num_cols
+            index_idx = int(i / num_cols)
             column_idx = i % num_cols
             row_name = combined_confidences.index[index_idx]   
             column_name = combined_confidences.columns[column_idx]
@@ -109,6 +109,7 @@ class ResultsProcessor:
         betas_stack.to_csv(os.path.join(output_dir,'betas_stack.tsv'), sep = '\t')
         (recall, precision) = self.calculate_precision_recall(combined_confidences, gold_standard)
         aupr = self.calculate_aupr(recall, precision)
+        print("Model AUPR:\t{aupr}".format(aupr=aupr))
         self.plot_pr_curve(recall, precision, aupr, output_dir)
         resc_betas_mean, resc_betas_median = self.mean_and_median(self.rescaled_betas)
         self.save_network_to_tsv(combined_confidences, resc_betas_median, priors, output_dir)
