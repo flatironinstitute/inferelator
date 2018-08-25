@@ -75,7 +75,8 @@ class PythonDRDriver:
         self.included = np.zeros((n, 1), dtype=bool)
         self.design = np.zeros((k, 0), dtype=float)
         self.response = np.zeros((k, 0), dtype=float)
-        self.response_half = np.zeros((k, 0), dtype=float)
+        if self.return_half_tau:
+            self.response_half = np.zeros((k, 0), dtype=float)
 
         # Walk through all the conditions in the expression data
         for c, cc in enumerate(self.conds):
@@ -96,7 +97,8 @@ class PythonDRDriver:
 
         self.design = pd.DataFrame(self.design, index=genes, columns=self.col_labels)
         self.response = pd.DataFrame(self.response, index=genes, columns=self.col_labels)
-        self.response_half = pd.DataFrame(self.response_half, index=genes, columns=self.col_labels)
+        if self.return_half_tau:
+            self.response_half = pd.DataFrame(self.response_half, index=genes, columns=self.col_labels)
 
         if self.return_half_tau:
             return self.design, self.response, self.response_half
@@ -113,7 +115,9 @@ class PythonDRDriver:
         self.included[idx] = True
         self.design = np.hstack((self.design, self.exp_data[:, idx].reshape(-1, 1)))
         self.response = np.hstack((self.response, self.exp_data[:, idx].reshape(-1, 1)))
-        self.response_half = np.hstack((self.response_half, self.exp_data[:, idx].reshape(-1, 1)))
+
+        if self.return_half_tau:
+            self.response_half = np.hstack((self.response_half, self.exp_data[:, idx].reshape(-1, 1)))
 
     def timecourse_exp(self, idx, prev_idx, prev_delt):
         """
@@ -130,11 +134,13 @@ class PythonDRDriver:
 
         diff = self.exp_data[:, idx] - self.exp_data[:, prev_idx]
         resp = float(self.tau) / float(prev_delt) * diff + self.exp_data[:, prev_idx]
-        half_resp = float(self.tau) / 2 / float(prev_delt) * diff + self.exp_data[:, prev_idx]
 
         self.design = np.hstack((self.design, self.exp_data[:, prev_idx].reshape(-1, 1)))
         self.response = np.hstack((self.response, resp.reshape(-1, 1)))
-        self.response_half = np.hstack((self.response_half, half_resp.reshape(-1, 1)))
+
+        if self.return_half_tau:
+            half_resp = float(self.tau) / 2 / float(prev_delt) * diff + self.exp_data[:, prev_idx]
+            self.response_half = np.hstack((self.response_half, half_resp.reshape(-1, 1)))
 
     def _process_groups(self):
         """

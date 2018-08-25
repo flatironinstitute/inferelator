@@ -1,19 +1,35 @@
-"""
-Miscellaneous utility modules.
-"""
-
 from __future__ import print_function
-import os
 import pandas as pd
-import subprocess
 import numpy as np
+import os
 
-my_dir = os.path.dirname(__file__)
+# Get the following environment variables
+# Workflow_variable_name, casting function, default (if the env isn't set or the casting fails for whatever reason)
+SBATCH_VARS = {'RUNDIR': ('output_dir', str, None),
+               'DATADIR': ('input_dir', str, None),
+               'SLURM_PROCID': ('rank', int, 0),
+               'SLURM_NTASKS_PER_NODE': ('cores', int, 10),
+               'SLURM_NTASKS': ('tasks', int, 1)
+               }
+
+
+def slurm_envs():
+    envs = {}
+    for os_var, (cv, mt, de) in SBATCH_VARS.items():
+        try:
+            val = mt(os.environ[os_var])
+        except (KeyError, TypeError):
+            val = de
+        envs[cv] = val
+    return envs
 
 
 class Debug:
     verbose_level = 0
     default_level = 1
+
+    silence_clients = True
+    rank = slurm_envs()['rank']
 
     levels = dict(silent=-1,
                   normal=0,
@@ -28,6 +44,8 @@ class Debug:
 
     @classmethod
     def vprint(cls, *args, **kwargs):
+        if cls.silence_clients and cls.rank != 0:
+            return
         try:
             level = kwargs.pop('level')
         except KeyError:
@@ -35,7 +53,7 @@ class Debug:
         if level <= cls.verbose_level:
             print((" " * level), *args, **kwargs)
         else:
-            pass
+            return
 
     @classmethod
     def warn(cls, *args, **kwargs):
@@ -46,21 +64,26 @@ class Debug:
         cls.vprint(*args, level=cls.levels["vv"], **kwargs)
 
 
-def ownCheck(kvs, rank, chunk=1):
+def ownCheck(kvs, rank, chunk=1, kvs_key='count'):
     """
     Generator
 
-    :param kvs: KVS object
-    :param rank: SLURM proc ID
-    :param chunk: The size of the chunk given to each subprocess
+    :param kvs: KVSClient
+        KVS object for server access
+    :param rank: int
+        SLURM proc ID
+    :param chunk: int
+        The size of the chunk given to each subprocess
+    :param kvs_key: str
+        The KVS key to increment (default is 'count')
 
     :yield: bool
+        True if this process has dibs on whatever. False if some other process has claimed it first.
     """
-    # initialize a global counter.                                                                                                               
 
-    # If we're the main process, set KVS count to 0
+    # If we're the main process, set KVS key to 0
     if 0 == rank:
-        kvs.put('count', 0)
+        kvs.put(kvs_key, 0)
 
     # Start at the baseline
     checks, lower, upper = 0, -1, -1
@@ -70,43 +93,43 @@ def ownCheck(kvs, rank, chunk=1):
         # Checks increments every loop
         # If it's greater than the upper bound, get a new lower bound from the KVS count
         # Set the new upper bound by adding chunk to lower
-        # And then put the new upper bound back into KVS count
+        # And then put the new upper bound back into KVS key
 
         if checks >= upper:
-            lower = kvs.get('count')
+            lower = kvs.get(kvs_key)
             upper = lower + chunk
-            kvs.put('count', upper)
+            kvs.put(kvs_key, upper)
 
         # Yield TRUE if this row belongs to this process and FALSE if it doesn't
         yield lower <= checks < upper
         checks += 1
 
 
-def kvsTearDown(kvs, rank):
+def kvsTearDown(kvs, rank, kvs_key='count'):
     # de-initialize the global counter.        
     if 0 == rank:
         # Do a hard reset if rank == 0                                                                                                       
-        kvs.get('count')
+        kvs.get(kvs_key)
 
 
-class FakeKVS:
-    """
-    A fake KVS client that only does one thing poorly. Only for troubleshooting when this is not in a workflow.
-    """
-    data = {}
+def kvs_sync_processes(kvs, rank, pref=""):
+    # Block all processes until they reach this point
+    # Then release them
+    # It may be wise to use unique prefixes if this is gonna get called rapidly so there's no collision
+    # Or not. I'm a comment, not a cop.
 
-    def put(self, key, val):
-        self.data[key] = val
+    n = slurm_envs()['tasks']
+    wkey = pref + '_wait'
+    ckey = pref + '_continue'
 
-    def get(self, key):
-        try:
-            return self.data[key]
-        except KeyError:
-            return None
+    kvs.put(wkey, True)
+    if rank == 0:
+        for _ in range(n):
+            kvs.get(wkey)
+        for _ in range(n):
+            kvs.put(ckey, True)
+    kvs.get(ckey)
 
-def always_true():
-    while True:
-        yield True
 
 def df_from_tsv(file_like, has_index=True):
     "Read a tsv file or buffer with headers and row ids into a pandas dataframe."

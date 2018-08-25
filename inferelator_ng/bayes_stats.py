@@ -78,6 +78,7 @@ def best_subset_regression(x, y, gprior):
 
     (n, k) = x.shape
     combos = combo_index(k)
+
     bic_combos = calc_all_expected_BIC(x, y, gprior, combos, check_rank=False)
 
     best_betas = np.zeros(k, dtype=np.dtype(float))
@@ -296,7 +297,7 @@ def combo_index(n):
         [n x 2^n] array of bool
     """
 
-    return np.array(map(list, itertools.product([False, True], repeat=n))).T
+    return np.array(list(itertools.product([False, True], repeat=n))).T
 
 
 def select_index(n, r=2):
@@ -310,11 +311,11 @@ def select_index(n, r=2):
         [n x n!/(r!(n-r)!)] array of bool
     """
 
-    combos = math.factorial(n) / (math.factorial(r) * math.factorial(n - r))
-    idx = np.array(map(list, itertools.combinations(range(n), r)))
-    reindex = idx + np.array(range(idx.shape[0])).reshape(-1, 1) * n
+    combos = int(math.factorial(n) / (math.factorial(r) * math.factorial(n - r)))
+    idx = np.array(list(itertools.combinations(range(n), r)))
+    idx = idx + np.array(range(idx.shape[0])).reshape(-1, 1) * n
 
     arr = np.full(combos * n, False, dtype=np.dtype(bool))
-    arr[reindex.reshape(1, -1)] = True
+    arr[idx.reshape(1, -1)] = True
 
     return arr.reshape((combos, n)).T

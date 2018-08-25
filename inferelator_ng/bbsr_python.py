@@ -25,8 +25,8 @@ class BBSR:
     # The defaults here are placeholders for troubleshooting
     # All three of these should always be provided when instantiating
     rank = 0  # int
-    kvs = utils.FakeKVS()  # KVSClient
-    ownCheck = utils.always_true()  # Generator
+    kvs = None  # KVSClient
+    ownCheck = None  # Generator
 
     # Raw Data
     X = None  # [K x N] float
@@ -136,7 +136,7 @@ class BBSR:
                                         self.pp.ix[j, :].values,
                                         self.weights_mat.ix[j, :].values,
                                         self.nS)
-                data.update(ind=j)
+                data['ind'] = j
                 regression_data.append(data)
 
         # Put the regression results that this thread has calculated into KVS
@@ -216,21 +216,12 @@ class BBSR:
         """
         run_data = []
 
-        # If SLURM_NTASKS isn't set assume that this is a 1-process troubleshooting run
-        try:
-            slurm_total = int(os.environ['SLURM_NTASKS'])
-        except KeyError:
-            slurm_total = 1
-
         # Reach into KVS to get the model data
-        for _ in range(slurm_total):
-            _, ps = self.kvs.get('plist')
+        for p in range(utils.slurm_envs()['tasks']):
+            pid, ps = self.kvs.get('plist')
             run_data.extend(ps)
+            utils.Debug.vprint("Collected {l} models from proc {id}".format(l=len(ps), id=pid), level=2)
         utils.kvsTearDown(self.kvs, self.rank)
-
-        d_len, b_avg = self._summary_stats(run_data)
-        utils.Debug.vprint("Regression complete:", end=" ", level=0)
-        utils.Debug.vprint("{d_len} Models with {b_avg} Predictors per Model".format(d_len=d_len, b_avg=b_avg), level=0)
 
         # Create G x K arrays of 0s to populate with the regression data
         betas = np.zeros((self.G, self.K), dtype=np.dtype(float))
@@ -244,6 +235,12 @@ class BBSR:
             betas[xidx, yidx] = data['betas']
             betas_rescale[xidx, yidx] = data['betas_resc']
 
+        d_len, b_avg, null_m = self._summary_stats(betas)
+        utils.Debug.vprint("Regression complete:", end=" ", level=0)
+        utils.Debug.vprint("{d_len} Models, {b_avg} Preds per Model, {nom} Null Models".format(d_len=d_len,
+                                                                                               b_avg=round(b_avg, 4),
+                                                                                               nom=null_m), level=0)
+
         # Convert arrays into pd.DataFrames to return results
         betas = pd.DataFrame(betas, index=self.Y.index, columns=self.X.index)
         betas_rescale = pd.DataFrame(betas_rescale, index=self.Y.index, columns=self.X.index)
@@ -251,13 +248,11 @@ class BBSR:
         return betas, betas_rescale
 
     @staticmethod
-    def _summary_stats(data):
-        d_len = len(data)
-        b_avg = 0
-        for g in data:
-            b_avg += np.sum(g['pp'])
-        b_avg = b_avg / d_len
-        return d_len, b_avg
+    def _summary_stats(arr):
+        d_len = arr.shape[0]
+        b_avg = np.mean(np.sum(arr != 0, axis=1))
+        null_m = np.sum(np.sum(arr != 0, axis=1) == 0)
+        return d_len, b_avg, null_m
 
 
 class BBSR_runner:
