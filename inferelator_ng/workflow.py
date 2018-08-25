@@ -64,6 +64,15 @@ class WorkflowBase(object):
     def input_path(self, filename):
         return os.path.abspath(os.path.join(self.input_dir, filename))
 
+    def append_to_path(self, var_name, to_append):
+        """
+        Add a string to an existing path variable in class
+        """
+        path = getattr(self, var_name, None)
+        if path is None:
+            raise ValueError("Cannot append to None")
+        setattr(self, var_name, os.path.join(path, to_append))
+
     def create_default_meta_data(self, expression_matrix):
         metadata_rows = expression_matrix.columns.tolist()
         metadata_defaults = {"isTs": "FALSE", "is1stLast": "e", "prevCol": "NA", "del.t": "NA", "condName": None}
