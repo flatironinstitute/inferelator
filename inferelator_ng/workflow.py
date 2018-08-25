@@ -34,7 +34,8 @@ class WorkflowBase(object):
 
     def __init__(self):
         # Do nothing (all configuration is external to init)
-        pass
+        for k, v in utils.slurm_envs():
+            setattr(self, k, v)
 
     def run(self):
         """
