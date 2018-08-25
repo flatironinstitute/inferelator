@@ -28,7 +28,7 @@ class BBSRWorkflow(workflow.WorkflowBase):
 
         # Bootstrap sample size is the number of experiments
 
-        for idx, bootstrap in enumerate(self.get_sync_bootstraps(self.design.shape[1], self.num_bootstraps)):
+        for idx, bootstrap in enumerate(self.get_bootstraps(self.design.shape[1], self.num_bootstraps)):
             utils.Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps), level=0)
             current_betas, current_rescaled_betas = self.run_bootstrap(idx, bootstrap)
             if self.is_master():

@@ -12,4 +12,5 @@ workflow.delTmin = 0
 workflow.tau = 45
 
 # Run the workflow
+workflow.preprocess_data()
 workflow.run()
