@@ -116,6 +116,7 @@ class ResultsProcessor:
         betas_stack.to_csv(os.path.join(output_dir, 'betas_stack.tsv'), sep='\t')
         (recall, precision) = self.calculate_precision_recall(combined_confidences, gold_standard)
         aupr = self.calculate_aupr(recall, precision)
+        print("Summary AUPR: {aupr}".format(aupr))
         self.plot_pr_curve(recall, precision, aupr, output_dir)
         resc_betas_mean, resc_betas_median = self.mean_and_median(self.rescaled_betas)
         self.save_network_to_tsv(combined_confidences, resc_betas_median, priors, output_dir)
