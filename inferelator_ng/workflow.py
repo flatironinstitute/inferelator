@@ -35,7 +35,8 @@ class WorkflowBase(object):
 
     def __init__(self):
         # Do nothing (all configuration is external to init)
-        pass
+        for k, v in utils.slurm_envs().items:
+            setattr(self, k, v)
 
     def run(self):
         """
@@ -47,6 +48,7 @@ class WorkflowBase(object):
         """
         Read data files in to data structures.
         """
+
         self.expression_matrix = self.input_dataframe(self.expression_matrix_file)
         tf_file = self.input_file(self.tf_names_file)
         self.tf_names = utils.read_tf_names(tf_file)
@@ -63,6 +65,15 @@ class WorkflowBase(object):
 
     def input_path(self, filename):
         return os.path.abspath(os.path.join(self.input_dir, filename))
+
+    def append_to_path(self, var_name, to_append):
+        """
+        Add a string to an existing path variable in class
+        """
+        path = getattr(self, var_name, None)
+        if path is None:
+            raise ValueError("Cannot append to None")
+        setattr(self, var_name, os.path.join(path, to_append))
 
     def create_default_meta_data(self, expression_matrix):
         metadata_rows = expression_matrix.columns.tolist()
@@ -88,21 +99,6 @@ class WorkflowBase(object):
             assert not strict
             return None
 
-    def compute_common_data(self):
-        """
-        Compute common data structures like design and response matrices.
-        """
-        self.filter_expression_and_priors()
-        print('Creating design and response matrix ... ')
-        self.design_response_driver.delTmin = self.delTmin
-        self.design_response_driver.delTmax = self.delTmax
-        self.design_response_driver.tau = self.tau
-        (self.design, self.response) = self.design_response_driver.run(self.expression_matrix, self.meta_data)
-
-        # compute half_tau_response
-        print('Setting up TFA specific response matrix ... ')
-        self.design_response_driver.tau = self.tau / 2
-        (self.design, self.half_tau_response) = self.design_response_driver.run(self.expression_matrix, self.meta_data)
 
     def filter_expression_and_priors(self):
         """
@@ -128,3 +124,10 @@ class WorkflowBase(object):
         Output result report(s) for workflow run.
         """
         raise NotImplementedError  # implement in subclass
+
+    def is_master(self):
+
+        if self.rank == 0:
+            return True
+        else:
+            return False

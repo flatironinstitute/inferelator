@@ -24,15 +24,19 @@ rank = int(os.environ['SLURM_PROCID'])
 
 class BBSR_TFA_Workflow(workflow.WorkflowBase):
 
+    delTmin = 0
+    delTmax = 120
+    tau = 45
+
+    num_bootstraps = 2
+    output_dir = None
+
     def run(self):
         """
         Execute workflow, after all configuration.
         """
         np.random.seed(self.random_seed)
 
-        self.mi_clr_driver = mi.MIDriver(kvs=kvs, rank=rank)
-        self.regression_driver = bbsr_python.BBSR_runner()
-        self.design_response_driver = design_response_translation.PythonDRDriver() #this is the python switch
         self.get_data()
         self.compute_common_data()
         self.compute_activity()
@@ -44,13 +48,13 @@ class BBSR_TFA_Workflow(workflow.WorkflowBase):
             X = self.activity.ix[:, bootstrap]
             Y = self.response.ix[:, bootstrap]
             print('Calculating MI, Background MI, and CLR Matrix')
-            (self.clr_matrix, self.mi_matrix) = self.mi_clr_driver.run(X, Y)
+            (clr_matrix, mi_matrix) = mi.MIDriver(kvs=kvs, rank=rank).run(X, Y)
             print('Calculating betas using BBSR')
             ownCheck = utils.ownCheck(kvs, rank, chunk=25)
-            current_betas,current_rescaled_betas = self.regression_driver.run(X, Y, self.clr_matrix, self.priors_data,kvs,rank, ownCheck)
-            if rank: continue
-            betas.append(current_betas)
-            rescaled_betas.append(current_rescaled_betas)
+            current_betas,current_rescaled_betas = bbsr_python.BBSR_runner().run(X, Y, clr_matrix, self.priors_data,kvs,rank, ownCheck)
+            if self.is_master():
+                betas.append(current_betas)
+                rescaled_betas.append(current_rescaled_betas)
 
         self.emit_results(betas, rescaled_betas, self.gold_standard, self.priors_data)
 
@@ -66,8 +70,29 @@ class BBSR_TFA_Workflow(workflow.WorkflowBase):
         """
         Output result report(s) for workflow run.
         """
-        if 0 == rank:
-            output_dir = os.path.join(self.input_dir, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
-            os.makedirs(output_dir)
+        if self.is_master():
+            if self.output_dir is None:
+                self.output_dir = os.path.join(self.input_dir, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+            try:
+                os.makedirs(self.output_dir)
+            except OSError:
+                pass
             self.results_processor = ResultsProcessor(betas, rescaled_betas)
-            self.results_processor.summarize_network(output_dir, gold_standard, priors)
+            self.results_processor.summarize_network(self.output_dir, gold_standard, priors)
+
+    def compute_common_data(self):
+        """
+        Compute common data structures like design and response matrices.
+        """
+        self.filter_expression_and_priors()
+        design_response_driver = design_response_translation.PythonDRDriver()
+        print('Creating design and response matrix ... ')
+        design_response_driver.delTmin = self.delTmin
+        design_response_driver.delTmax = self.delTmax
+        design_response_driver.tau = self.tau
+        (self.design, self.response) = design_response_driver.run(self.expression_matrix, self.meta_data)
+
+        # compute half_tau_response
+        print('Setting up TFA specific response matrix ... ')
+        design_response_driver.tau = self.tau / 2
+        (self.design, self.half_tau_response) = design_response_driver.run(self.expression_matrix, self.meta_data)
