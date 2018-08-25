@@ -21,8 +21,7 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
 
         # Calculate TFA and then break it back into single cells
         self.design = tfa.TFA(self.priors_data, bulk, bulk).compute_transcription_factor_activity()
-        self.design = single_cell.make_singles_from_clusters(self.design,
-                                                             self.cluster_index,
+        self.design = single_cell.make_singles_from_clusters(self.design, self.cluster_index,
                                                              columns=self.expression_matrix.columns)
         self.response = self.expression_matrix
 
