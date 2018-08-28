@@ -70,25 +70,17 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         Overload the workflow.workflowBase expression reader to force count data in as uint16
         """
         file_name = self.input_path(self.expression_matrix_file)
-        utils.Debug.vprint("Reading {f} file headers".format(f=file_name))
-        cols = pd.read_csv(file_name, sep="\t", header=0, nrows=1, index_col=0).columns
-        idx = pd.read_csv(file_name, sep="\t", header=0, usecols=[0, 1], index_col=0).index
-
-        self.expression_matrix = np.zeros((len(idx), len(cols)), dtype=dtype)
-
         st = time.time()
         utils.Debug.vprint("Reading {f} file data".format(f=file_name))
-        for i, df in enumerate(pd.read_csv(file_name, sep="\t", header=None, skiprows=1, usecols=range(1,len(cols)+1),
-                                           dtype=dtype, chunksize=1, iterator=True)):
-            self.expression_matrix[i,:] = df.values
-            if i % 100:
-                utils.Debug.vprint("[{n}/{t}".format(n=i, t=len(idx)), level=2)
-        et = int(time.time() - st)
+        self.expression_matrix = pd.read_csv(file_name, sep="\t", header=0, index_col=0, low_memory=False)
+        self.expression_matrix = pd.DataFrame(self.expression_matrix.values.astype(np.uint16),
+                                              index=self.expression_matrix.index,
+                                              columns=self.expression_matrix.columns)
 
-        self.expression_matrix = pd.DataFrame(self.expression_matrix, index=idx, columns=cols)
+        et = int(time.time() - st)
         df_shape = self.expression_matrix.shape
         df_size = int(sys.getsizeof(self.expression_matrix)/1000000)
-        utils.Debug.vprint_all("Proc {r}: Single-cell data {s} read into memory ({m} MB in {t} sec)".format(r=self.rank,
-                                                                                                            s=df_shape,
-                                                                                                            m=df_size,
-                                                                                                            t=et))
+        utils.Debug.vprint("Proc {r}: Single-cell data {s} read into memory ({m} MB in {t} sec)".format(r=self.rank,
+                                                                                                        s=df_shape,
+                                                                                                        m=df_size,
+                                                                                                        t=et))
