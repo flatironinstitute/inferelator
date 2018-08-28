@@ -46,14 +46,7 @@ class Debug:
     def vprint(cls, *args, **kwargs):
         if cls.silence_clients and cls.rank != 0:
             return
-        try:
-            level = kwargs.pop('level')
-        except KeyError:
-            level = cls.default_level
-        if level <= cls.verbose_level:
-            print((" " * level), *args, **kwargs)
-        else:
-            return
+        cls.print_level(*args, **kwargs)
 
     @classmethod
     def warn(cls, *args, **kwargs):
@@ -62,6 +55,21 @@ class Debug:
     @classmethod
     def notify(cls, *args, **kwargs):
         cls.vprint(*args, level=cls.levels["vv"], **kwargs)
+
+    @classmethod
+    def vprint_all(cls, *args, **kwargs):
+        cls.print_level(*args, **kwargs)
+
+    @classmethod
+    def print_level(cls, *args, **kwargs):
+        try:
+            level = kwargs.pop('level')
+        except KeyError:
+            level = cls.default_level
+        if level <= cls.verbose_level:
+            print((" " * level), *args, **kwargs)
+        else:
+            return
 
 
 def ownCheck(kvs, rank, chunk=1, kvs_key='count'):

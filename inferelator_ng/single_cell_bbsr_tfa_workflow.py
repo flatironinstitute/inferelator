@@ -1,8 +1,10 @@
 from inferelator_ng import bbsr_tfa_workflow, bbsr_python, utils, single_cell, tfa, mi
 import gc
+import sys
 import pandas as pd
 import numpy as np
 
+KVS_CLUSTER_KEY = 'cluster_idx'
 
 class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
     cluster_index = None
@@ -12,7 +14,13 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         Compute common data structures like design and response matrices.
         """
         self.filter_expression_and_priors()
-        self.cluster_index = single_cell.initial_clustering(self.expression_matrix)
+        if self.is_master():
+            self.cluster_index = single_cell.initial_clustering(self.expression_matrix)
+            self.kvs.put(KVS_CLUSTER_KEY, self.cluster_index)
+        else:
+            self.cluster_index = self.kvs.get(KVS_CLUSTER_KEY)
+        utils.kvs_sync_processes(self.kvs, self.rank)
+        utils.kvsTearDown(self.kvs, self.rank, kvs_key=KVS_CLUSTER_KEY)
 
     def compute_activity(self):
         # Bulk up and normalize clusters
@@ -69,3 +77,9 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
                                              skiprows=1, index_col=None, dtype=dtype)
         self.expression_matrix.index = idx
         self.expression_matrix.columns = cols
+
+        df_shape = self.expression_matrix.shape
+        df_size = int(sys.getsizeof(self.expression_matrix)/1024)
+        utils.Debug.vprint_all("Proc {r}: Single-cell data {s} read into memory ({m} MB)".format(r=self.rank,
+                                                                                                 s=df_shape,
+                                                                                                 m=df_size))
