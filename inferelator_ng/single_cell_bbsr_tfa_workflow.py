@@ -76,7 +76,8 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
 
         utils.Debug.vprint("Reading {f} file data".format(f=file_name))
         st = time.time()
-        self.expression_matrix = pd.read_csv(file_name, sep="\t", skiprows=1, usecols=range(1,len(cols)), dtype=dtype)
+        self.expression_matrix = pd.read_csv(file_name, sep="\t", header=None, skiprows=1, usecols=range(1,len(cols)+1),
+                                             dtype=dtype)
         et = int(time.time() - st)
 
         self.expression_matrix.index = idx

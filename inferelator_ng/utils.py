@@ -139,6 +139,40 @@ def kvs_sync_processes(kvs, rank, pref=""):
     kvs.get(ckey)
 
 
+def kvs_async_start(kvs, chunk=1, pref='sync'):
+    r, n = kvs_envs()
+
+    rkey = pref + "_runner_" + str(r)
+    if r == 0:
+        for i in range(chunk):
+            r += i
+            kvs.put(rkey, True)
+
+    kvs.get(rkey)
+
+
+def kvs_async_hold(kvs, chunk=1, pref='sync'):
+    r, n = kvs_envs()
+
+    readykey = pref + "_ready"
+    releasekey = pref + "_release"
+    kvs.put(readykey, r)
+    if r == 0:
+        for i in range(n):
+            nextkey = pref + "_runner_" + str(kvs.get(readykey) + chunk)
+            kvs.put(nextkey, True)
+        kvs.put(releasekey)
+    else:
+        kvs.view(releasekey)
+
+
+def kvs_envs():
+    envs = slurm_envs()
+    n = envs['tasks']
+    r = envs['rank']
+    return r, n
+
+
 def df_from_tsv(file_like, has_index=True):
     "Read a tsv file or buffer with headers and row ids into a pandas dataframe."
     return pd.read_csv(file_like, sep="\t", header=0, index_col=0 if has_index else False)

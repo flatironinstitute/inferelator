@@ -19,6 +19,9 @@ class BBSR_TFA_Workflow(workflow.WorkflowBase):
     delTmax = 120
     tau = 45
 
+    async_start = False
+    async_chunk = 2
+
     num_bootstraps = 2
     output_dir = None
 
@@ -26,11 +29,20 @@ class BBSR_TFA_Workflow(workflow.WorkflowBase):
         """
         Execute workflow, after all configuration.
         """
+
+        if self.async_start:
+            utils.kvs_async_start(self.kvs, chunk=self.async_chunk)
+
         np.random.seed(self.random_seed)
 
         self.get_data()
+
+        if self.async_start:
+            utils.kvs_async_hold(self.kvs, chunk=self.async_chunk)
+
         self.compute_common_data()
         self.compute_activity()
+
         betas = []
         rescaled_betas = []
 
