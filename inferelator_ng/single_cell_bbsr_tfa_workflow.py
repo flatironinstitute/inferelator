@@ -77,10 +77,14 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         self.expression_matrix = np.zeros((len(idx), len(cols)), dtype=dtype)
 
         st = time.time()
-        utils.Debug.vprint("Reading {f} file data".format(f=file_name))
+        utils.Debug.vprint("Reading {f} file data".format(f=file_name), end="")
         for i, df in enumerate(pd.read_csv(file_name, sep="\t", header=None, skiprows=1, usecols=range(1,len(cols)+1),
                                            dtype=dtype, iterator=True)):
             self.expression_matrix[i,:] = df.values
+            if i % 100:
+                utils.Debug.vprint(".", end="")
+        utils.Debug.vprint("Done")
+
         et = int(time.time() - st)
 
         self.expression_matrix = pd.DataFrame(self.expression_matrix, index=idx, columns=cols)
