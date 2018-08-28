@@ -70,18 +70,18 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         """
         file_name = self.input_path(self.expression_matrix_file)
 
-        """
+
         utils.Debug.vprint("Reading {f} file headers".format(f=file_name))
         cols = pd.read_csv(file_name, sep="\t", header=0, nrows=1, index_col=0).columns
         idx = pd.read_csv(file_name, sep="\t", header=0, usecols=[0, 1], index_col=0).index
 
         utils.Debug.vprint("Reading {f} file data".format(f=file_name))
-        self.expression_matrix = pd.read_csv(file_name, sep="\t", header=None, usecols=range(len(cols) + 1)[1:],
-                                             skiprows=1, index_col=None, dtype=dtype)
-        self.expression_matrix.index = idx
-        self.expression_matrix.columns = cols"""
+        self.expression_matrix = np.loadtxt(file_name, delimiter="\t", usecols=range(1,len(cols)),skiprows=1,
+                                            dtype=dtype)
 
-        self.expression_matrix = pd.read_csv(file_name, sep="\t", header=0, index_col=0)    
+        utils.Debug.vprint("Packing Dataframe")
+        self.expression_matrix = pd.DataFrame(self.expression_matrix, index=idx, columns=cols)
+
         df_shape = self.expression_matrix.shape
         df_size = int(sys.getsizeof(self.expression_matrix)/1024)
         utils.Debug.vprint_all("Proc {r}: Single-cell data {s} read into memory ({m} MB)".format(r=self.rank,
