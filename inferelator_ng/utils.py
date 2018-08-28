@@ -144,7 +144,7 @@ def kvs_async_start(kvs, chunk=1, pref='sync'):
 
     rkey = pref + "_runner_" + str(r)
     if r == 0:
-        for i in range(chunk):
+        for i in range(min(chunk,n)):
             r += i
             kvs.put(rkey, True)
             Debug.vprint("Starting process {rank}".format(rank=r))
