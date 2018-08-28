@@ -70,12 +70,17 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         Overload the workflow.workflowBase expression reader to force count data in as uint16
         """
         file_name = self.input_path(self.expression_matrix_file)
+        utils.Debug.vprint("Reading {f} file headers".format(f=file_name))
+        cols = pd.read_csv(file_name, sep="\t", header=0, nrows=1, index_col=0).columns
+        idx = pd.read_csv(file_name, sep="\t", header=0, usecols=[0, 1], index_col=0).index
 
         utils.Debug.vprint("Reading {f} file data".format(f=file_name))
-
         st = time.time()
-        self.expression_matrix = pd.read_csv(file_name, delimiter="\t", header=0, index_col=0, engine='c')
+        self.expression_matrix = pd.read_csv(file_name, sep="\t", skiprows=1, usecols=range(1,len(cols)), dtype=dtype)
         et = int(time.time() - st)
+
+        self.expression_matrix.index = idx
+        self.expression_matrix.columns = cols
 
         df_shape = self.expression_matrix.shape
         df_size = int(sys.getsizeof(self.expression_matrix)/1000000)
