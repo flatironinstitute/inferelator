@@ -148,7 +148,7 @@ class PythonDRDriver:
         :return steady_idx, ts_group: dict, dict
             steady_idx:  Dict keyed by condition, value is boolean (True if the condition is a steady-state experiment)
             ts_group: Dict keyed by condition. [(Previous_condition_name, Previous_delt),
-                                                (Following_condition, Following_delt)]
+                                                (Following_condition_name, Following_delt)]
         """
         time_series = self.meta_data[self.ts_col].values.astype(bool)
         steadies = dict(zip(self.meta_data[self.cond_col], np.logical_not(time_series)))
@@ -231,10 +231,14 @@ class PythonDRDriver:
         total_delt = 0
         for pcond, pdelt in self._prior_timepoint_generator(cond):
             total_delt += pdelt
-            if self.delTmin <= total_delt <= self.delTmax:
-                yield pcond, total_delt
-            elif total_delt > self.delTmax:
-                break
+            if self.delTmax is not None:
+                if self.delTmin <= total_delt <= self.delTmax:
+                    yield pcond, total_delt
+                elif total_delt > self.delTmax:
+                    break
+            else:
+                if self.delTmin <= total_delt:
+                    yield pcond, total_delt
 
     def _prior_timepoint_generator(self, cond):
         """
