@@ -9,12 +9,15 @@ KVS_CLUSTER_KEY = 'cluster_idx'
 
 class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
     cluster_index = None
+    count_file_compression = None
 
     def compute_common_data(self):
         """
         Compute common data structures like design and response matrices.
         """
         self.filter_expression_and_priors()
+
+        # Run the clustering once and distribute it to avoid a nasty spike in memory usage
         if self.is_master():
             self.cluster_index = single_cell.initial_clustering(self.expression_matrix)
             self.kvs.put(KVS_CLUSTER_KEY, self.cluster_index)
@@ -65,17 +68,20 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
 
         return betas, re_betas
 
-    def read_expression(self, dtype='uint16'):
+    def read_expression(self):
         """
         Overload the workflow.workflowBase expression reader to force count data in as uint16
         """
         file_name = self.input_path(self.expression_matrix_file)
         st = time.time()
         utils.Debug.vprint("Reading {f} file data".format(f=file_name))
-        self.expression_matrix = pd.read_csv(file_name, sep="\t", header=0, index_col=0, low_memory=False)
-        self.expression_matrix = pd.DataFrame(self.expression_matrix.values.astype(np.uint16),
-                                              index=self.expression_matrix.index,
-                                              columns=self.expression_matrix.columns)
+
+        # Read in the count file as a pandas dataframe
+        self.expression_matrix = pd.read_csv(file_name, sep="\t", header=0, index_col=0,
+                                             compression=self.count_file_compression)
+
+        # Downcast to save on memory
+        self.expression_matrix = self.expression_matrix.apply(pd.to_numeric, downcast='unsigned')
 
         et = int(time.time() - st)
         df_shape = self.expression_matrix.shape
