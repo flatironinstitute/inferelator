@@ -161,8 +161,9 @@ def kvs_async_hold(kvs, chunk=1, pref='sync'):
     if r == 0:
         for i in range(n):
             nextkey = pref + "_runner_" + str(kvs.get(readykey) + chunk)
-            kvs.put(nextkey, True)
-            Debug.vprint("Starting process {rank}".format(rank=nextkey))
+            if nextkey < n:
+                kvs.put(nextkey, True)
+                Debug.vprint("Starting process {rank}".format(rank=nextkey))
         kvs.put(releasekey, True)
         Debug.vprint("Asynchronous start complete. Releasing processes.")
     else:
