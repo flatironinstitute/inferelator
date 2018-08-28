@@ -1,6 +1,7 @@
 from inferelator_ng import bbsr_tfa_workflow, bbsr_python, utils, single_cell, tfa, mi
 import gc
 import sys
+import time
 import pandas as pd
 import numpy as np
 
@@ -71,10 +72,14 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         file_name = self.input_path(self.expression_matrix_file)
 
         utils.Debug.vprint("Reading {f} file data".format(f=file_name))
-        self.expression_matrix = pd.read_csv(file_name, delimiter="\t", header=0, index_col=1, engine='c')
+
+        st = time.time()
+        self.expression_matrix = pd.read_csv(file_name, delimiter="\t", header=0, index_col=0, engine='c')
+        et = int(time.time() - st)
 
         df_shape = self.expression_matrix.shape
-        df_size = int(sys.getsizeof(self.expression_matrix)/1024)
-        utils.Debug.vprint_all("Proc {r}: Single-cell data {s} read into memory ({m} MB)".format(r=self.rank,
-                                                                                                 s=df_shape,
-                                                                                                 m=df_size))
+        df_size = int(sys.getsizeof(self.expression_matrix)/1000000)
+        utils.Debug.vprint_all("Proc {r}: Single-cell data {s} read into memory ({m} MB in {t} sec)".format(r=self.rank,
+                                                                                                            s=df_shape,
+                                                                                                            m=df_size,
+                                                                                                            t=et))
