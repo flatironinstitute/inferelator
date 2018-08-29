@@ -24,7 +24,7 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
             self.cluster_index = single_cell.initial_clustering(self.expression_matrix)
             self.kvs.put(KVS_CLUSTER_KEY, self.cluster_index)
         else:
-            self.cluster_index = self.kvs.get(KVS_CLUSTER_KEY)
+            self.cluster_index = self.kvs.view(KVS_CLUSTER_KEY)
         utils.kvs_sync_processes(self.kvs, self.rank)
         utils.kvsTearDown(self.kvs, self.rank, kvs_key=KVS_CLUSTER_KEY)
 
@@ -71,19 +71,22 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
 
     def read_expression(self):
         """
-        Overload the workflow.workflowBase expression reader to force count data in as uint16
+        Overload the workflow.workflowBase expression reader to force count data in as a uint with the smallest memory
+        footprint possible
+
+        Sets self.expression_matrix.
         """
 
+        # Set controller variables that will be needed to read stuff in
         csv = dict(sep="\t", header=0, index_col=0, compression=self.count_file_compression)
         dtype = np.dtype('uint16')
-
         file_name = self.input_path(self.expression_matrix_file)
 
-        # Read in the count file as a pandas dataframe
         utils.Debug.vprint("Reading {f} file data".format(f=file_name))
-
         st = time.time()
 
+        # If count_file_chunk_size is set, read it into memory chunkwise
+        # This is significantly slower, but should cut peak memory usage a lot
         if self.count_file_chunk_size is not None:
             utils.Debug.vprint("Reading {f} file indexes".format(f=file_name))
             cols = pd.read_table(file_name, nrows=2, **csv).columns
@@ -94,6 +97,8 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
                 self.expression_matrix = np.vstack((self.expression_matrix, chunk.values.astype(dtype)))
                 utils.Debug.vprint("Processed row {i} of {l}".format(i=i*self.count_file_chunk_size, l=len(idx)), level=2)
             self.expression_matrix = pd.DataFrame(self.expression_matrix, index=idx, columns=cols)
+
+        # If count_file_chunk_size isn't set, just read everything in with pandas and downcast afterwards
         else:
             self.expression_matrix = pd.read_table(file_name, **csv)
             self.expression_matrix = self.expression_matrix.apply(pd.to_numeric, downcast='unsigned')
