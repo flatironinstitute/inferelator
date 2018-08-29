@@ -30,15 +30,12 @@ class BBSR_TFA_Workflow(workflow.WorkflowBase):
         Execute workflow, after all configuration.
         """
 
-        if self.async_start:
-            utils.kvs_async_start(self.kvs, chunk=self.async_chunk)
-
         np.random.seed(self.random_seed)
 
-        self.get_data()
-
         if self.async_start:
-            utils.kvs_async_hold(self.kvs, chunk=self.async_chunk)
+            utils.kvs_async(self.kvs, chunk=self.async_chunk).execute_async(self.get_data, self)
+        else:
+            self.get_data()
 
         self.compute_common_data()
         self.compute_activity()

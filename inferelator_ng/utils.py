@@ -139,42 +139,54 @@ def kvs_sync_processes(kvs, rank, pref=""):
     kvs.get(ckey)
 
 
-def kvs_async_start(kvs, chunk=1, pref='sync'):
-    r, n = kvs_envs()
+class kvs_async:
+    """
+    Controller for process condition. Allows processes to synchronize at specific points or to execute workflow
+    asynchronously.
+    """
 
-    rkey = pref + "_runner_" + str(r)
-    if r == 0:
-        for i in range(min(chunk,n)):
-            r += i
-            kvs.put(rkey, True)
-            Debug.vprint("Starting process {rank}".format(rank=r))
+    def __init__(self, kvs, chunk=1, pref='sync'):
+        self.kvs = kvs
+        self.chunk = chunk
+        self.pref = pref
 
-    kvs.get(rkey)
+        envs = slurm_envs()
+        self.n = envs['tasks']
+        self.r = envs['rank']
 
+    def execute_async(self, fun, *args, **kwargs):
+        self.async_start()
+        fun(*args, **kwargs)
+        self.async_hold()
 
-def kvs_async_hold(kvs, chunk=1, pref='sync'):
-    r, n = kvs_envs()
+    def async_start(self):
+        rkey = self.pref + "_runner_" + str(self.r)
+        if self.r == 0:
+            for i in range(min(self.chunk, self.n)):
+                self.r += i
+                self.kvs.put(rkey, True)
+                Debug.vprint("Starting process {rank}".format(rank=self.r))
 
-    readykey = pref + "_ready"
-    releasekey = pref + "_release"
-    kvs.put(readykey, r)
-    if r == 0:
-        for i in range(n):
-            nextkey = pref + "_runner_" + str(kvs.get(readykey) + chunk)
-            if nextkey < n:
-                kvs.put(nextkey, True)
-                Debug.vprint("Starting process {rank}".format(rank=nextkey))
-        kvs.put(releasekey, True)
-        Debug.vprint("Asynchronous start complete. Releasing processes.")
-    else:
-        kvs.view(releasekey)
+        self.kvs.get(rkey)
 
+    def async_hold(self):
+        readykey = self.pref + "_ready"
+        releasekey = self.pref + "_release"
+        self.kvs.put(readykey, self.r)
+        if self.r == 0:
+            for i in range(self.n):
+                nextkey = self.pref + "_runner_" + str(self.kvs.get(readykey) + self.chunk)
+                if nextkey < self.n:
+                    self.kvs.put(nextkey, True)
+                    Debug.vprint("Starting process {rank}".format(rank=nextkey))
+            for i in range(self.n):
+                self.kvs.put(releasekey, True)
+            Debug.vprint("Asynchronous start complete. Releasing processes.")
 
-def kvs_envs():
-    envs = slurm_envs()
-    n = envs['tasks']
-    r = envs['rank']
-    return r, n
+            self.kvs.get(releasekey)
+
+    def sync_point(self):
+        kvs_sync_processes(self.kvs, self.r, pref=self.pref)
 
 
 def df_from_tsv(file_like, has_index=True):
