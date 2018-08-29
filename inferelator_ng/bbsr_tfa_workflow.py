@@ -33,7 +33,7 @@ class BBSR_TFA_Workflow(workflow.WorkflowBase):
         np.random.seed(self.random_seed)
 
         if self.async_start:
-            utils.kvs_async(self.kvs, chunk=self.async_chunk).execute_async(self.get_data, self)
+            utils.kvs_async(self.kvs, chunk=self.async_chunk).execute_async(self.get_data)
         else:
             self.get_data()
 
