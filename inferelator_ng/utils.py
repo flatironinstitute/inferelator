@@ -148,9 +148,20 @@ class kvs_async:
     master = False
 
     def __init__(self, kvs, chunk=1, pref='sync'):
+        """
+        Creates the kvs manager
+        :param kvs: KVSClient
+        :param chunk: int
+            Number of processes to run at the same time
+        :param pref: str
+            Prefix for this kvs manager's KVS keys. Only needed if there's a couple of these running around the same
+            time. 
+        """
+
         self.kvs = kvs
         self.chunk = chunk
 
+        # Get rank & ntasks from environment variables
         envs = slurm_envs()
         self.n = envs['tasks']
         self.r = envs['rank']
@@ -158,39 +169,64 @@ class kvs_async:
         if self.r == 0:
             self.master = True
 
+        # Create key names for KVS
         self.pref = pref
         self.startkey = pref + "_runner_"
         self.readykey = pref + "_ready"
         self.releasekey = pref + "_release"
 
     def execute_async(self, fun, *args, **kwargs):
+        """
+        Execute function asynchronously and then block till everyone's finished. Pass all other arguments to the
+        function
+
+        :param fun: function
+        """
+
         self.async_start()
         fun(*args, **kwargs)
         self.async_hold()
 
     def async_start(self):
+        """
+        Create the initial start keys if master. Otherwise sit here and wait.
+        """
         if self.master:
-            self.master_start()
+            self._master_start()
         rkey = self.startkey + str(self.r)
         self.kvs.get(rkey)
 
     def async_hold(self):
+        """
+        Create a key to report that this process is complete. If master, create a new start key every time someone
+        reports that they're complete. Once all the processes are complete, create release keys to allow everyone to
+        move past this blocking point.
+        """
         self.kvs.put(self.readykey, self.r)
         if self.master:
-            self.master_control()
-            self.master_release()
+            self._master_control()
+            self._master_release()
         self.kvs.get(self.releasekey)
 
     def sync_point(self):
+        """
+        Wrapper for kvs_sync_processes
+        """
         kvs_sync_processes(self.kvs, self.r, pref=self.pref)
 
-    def master_start(self):
+    def _master_start(self):
+        """
+        Start either chunk number of processes or ntasks number of processes (whichever is smaller)
+        """
         for i in range(min(self.chunk, self.n)):
             rkey = self.startkey + str(self.r + i)
             self.kvs.put(rkey, True)
             Debug.vprint("Starting process {rank}".format(rank=(self.r + i)))
 
-    def master_control(self):
+    def _master_control(self):
+        """
+        Every time a process finishes, start another one until ntasks processes have been reached
+        """
         for i in range(self.n):
             nextkey = self.kvs.get(self.readykey) + self.chunk
             if nextkey < self.n:
@@ -198,7 +234,10 @@ class kvs_async:
                 self.kvs.put(rkey, True)
                 Debug.vprint("Starting process {rank}".format(rank=nextkey))
 
-    def master_release(self):
+    def _master_release(self):
+        """
+        Put a release key onto KVS for every process
+        """
         for i in range(self.n):
             self.kvs.put(self.releasekey, True)
         Debug.vprint("Asynchronous start complete. Releasing processes.")

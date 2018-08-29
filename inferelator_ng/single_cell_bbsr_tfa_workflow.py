@@ -30,7 +30,7 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
 
     def compute_activity(self):
         # Bulk up and normalize clusters
-        bulk = single_cell.make_clusters_from_singles(self.expression_matrix, self.cluster_index, pseudocount=True)
+        bulk = single_cell.make_clusters_from_singles(self.expression_matrix, self.cluster_index)
         utils.Debug.vprint("Pseudobulk data matrix assembled [{}]".format(bulk.shape))
 
         # Calculate TFA and then break it back into single cells
@@ -78,31 +78,27 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         """
 
         # Set controller variables that will be needed to read stuff in
-        csv = dict(sep="\t", header=0, index_col=0, compression=self.count_file_compression)
+        tsv = dict(sep="\t", header=0, index_col=0, compression=self.count_file_compression)
         dtype = np.dtype('uint16')
-        file_name = self.input_path(self.expression_matrix_file)
 
-        utils.Debug.vprint("Reading {f} file data".format(f=file_name))
-        st = time.time()
-
-        # If count_file_chunk_size is set, read it into memory chunkwise
-        # This is significantly slower, but should cut peak memory usage a lot
-        if self.count_file_chunk_size is not None:
-            utils.Debug.vprint("Reading {f} file indexes".format(f=file_name))
-            cols = pd.read_table(file_name, nrows=2, **csv).columns
-            idx = pd.read_table(file_name, usecols=[0, 1], **csv).index
-
-            self.expression_matrix = np.zeros((0, len(cols)), dtype=dtype)
-            for i, chunk in enumerate(pd.read_table(file_name, chunksize=self.count_file_chunk_size, **csv)):
-                self.expression_matrix = np.vstack((self.expression_matrix, chunk.values.astype(dtype)))
-                utils.Debug.vprint("Processed row {i} of {l}".format(i=i*self.count_file_chunk_size, l=len(idx)), level=2)
-            self.expression_matrix = pd.DataFrame(self.expression_matrix, index=idx, columns=cols)
-
-        # If count_file_chunk_size isn't set, just read everything in with pandas and downcast afterwards
+        if isinstance(self.expression_matrix_file, list):
+            file_name_list = self.expression_matrix_file
         else:
-            self.expression_matrix = pd.read_table(file_name, **csv)
-            self.expression_matrix = self.expression_matrix.apply(pd.to_numeric, downcast='unsigned')
+            file_name_list = [self.expression_matrix_file]
 
+        idx = pd.read_table(self.input_path(file_name_list[0]), usecols=[0, 1], **tsv).index
+        cols = []
+        self.expression_matrix = np.zeros((len(idx), 0), dtype=dtype)
+
+        st = time.time()
+        for file in file_name_list:
+            file_name = self.input_path(file)
+            data = pd.read_table(file_name, **tsv)
+            assert data.index.equals(idx)
+            cols.extend(data.columns.tolist())
+            self.expression_matrix = np.hstack((self.expression_matrix, data.values.astype(dtype)))
+
+        self.expression_matrix = pd.DataFrame(self.expression_matrix, index=idx, columns=cols)
         et = int(time.time() - st)
 
         # Report on the result
