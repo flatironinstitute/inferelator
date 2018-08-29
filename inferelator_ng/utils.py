@@ -145,6 +145,8 @@ class kvs_async:
     asynchronously.
     """
 
+    master = False
+
     def __init__(self, kvs, chunk=1, pref='sync'):
         self.kvs = kvs
         self.chunk = chunk
@@ -154,6 +156,9 @@ class kvs_async:
         self.n = envs['tasks']
         self.r = envs['rank']
 
+        if self.r == 0:
+            self.master = True
+
     def execute_async(self, fun, *args, **kwargs):
         self.async_start()
         fun(*args, **kwargs)
@@ -161,32 +166,41 @@ class kvs_async:
 
     def async_start(self):
         rkey = self.pref + "_runner_" + str(self.r)
-        if self.r == 0:
-            for i in range(min(self.chunk, self.n)):
-                self.r += i
-                self.kvs.put(rkey, True)
-                Debug.vprint("Starting process {rank}".format(rank=self.r))
-
+        if self.master:
+            self.master_start()
         self.kvs.get(rkey)
 
     def async_hold(self):
         readykey = self.pref + "_ready"
         releasekey = self.pref + "_release"
         self.kvs.put(readykey, self.r)
-        if self.r == 0:
-            for i in range(self.n):
-                nextkey = self.pref + "_runner_" + str(self.kvs.get(readykey) + self.chunk)
-                if nextkey < self.n:
-                    self.kvs.put(nextkey, True)
-                    Debug.vprint("Starting process {rank}".format(rank=nextkey))
-            for i in range(self.n):
-                self.kvs.put(releasekey, True)
-            Debug.vprint("Asynchronous start complete. Releasing processes.")
-
+        if self.master:
+            self.master_control()
+            self.master_release()
         self.kvs.get(releasekey)
 
     def sync_point(self):
         kvs_sync_processes(self.kvs, self.r, pref=self.pref)
+
+    def master_start(self):
+        for i in range(min(self.chunk, self.n)):
+            rkey = self.pref + "_runner_" + str(self.r + i)
+            self.kvs.put(rkey, True)
+            Debug.vprint("Starting process {rank}".format(rank=(self.r + i)))
+
+    def master_control(self):
+        readykey = self.pref + "_ready"
+        for i in range(self.n):
+            nextkey = self.pref + "_runner_" + str(self.kvs.get(readykey) + self.chunk)
+            if nextkey < self.n:
+                self.kvs.put(nextkey, True)
+                Debug.vprint("Starting process {rank}".format(rank=nextkey))
+
+    def master_release(self):
+        releasekey = self.pref + "_release"
+        for i in range(self.n):
+            self.kvs.put(releasekey, True)
+        Debug.vprint("Asynchronous start complete. Releasing processes.")
 
 
 def df_from_tsv(file_like, has_index=True):
