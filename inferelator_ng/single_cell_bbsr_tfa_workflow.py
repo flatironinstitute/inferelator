@@ -11,7 +11,7 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
     cluster_index = None
 
     count_file_compression = None
-    count_file_chunk_size = 100
+    count_file_chunk_size = None
 
     def compute_common_data(self):
         """
@@ -97,7 +97,7 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         else:
             self.expression_matrix = pd.read_table(file_name, **csv)
             self.expression_matrix = self.expression_matrix.apply(pd.to_numeric, downsample='unsigned')
-            
+
         et = int(time.time() - st)
 
         # Report on the result
