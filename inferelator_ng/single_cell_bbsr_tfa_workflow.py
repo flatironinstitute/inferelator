@@ -96,7 +96,7 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
             self.expression_matrix = pd.DataFrame(self.expression_matrix, index=idx, columns=cols)
         else:
             self.expression_matrix = pd.read_table(file_name, **csv)
-            self.expression_matrix = self.expression_matrix.apply(pd.to_numeric, downsample='unsigned')
+            self.expression_matrix = self.expression_matrix.apply(pd.to_numeric, downcast='unsigned')
 
         et = int(time.time() - st)
 
