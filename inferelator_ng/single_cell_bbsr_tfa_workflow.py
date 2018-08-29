@@ -90,7 +90,7 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         self.expression_matrix = np.zeros((0, len(cols)), dtype=dtype)
         for i, chunk in enumerate(pd.read_table(file_name, chunksize=self.count_file_chunk_size, **csv)):
             self.expression_matrix = np.vstack((self.expression_matrix, chunk.values.astype(dtype)))
-            print("Processed row {i} of {l}".format(i=i*self.count_file_chunk_size, l=len(idx)))
+            utils.Debug.vprint("Processed row {i} of {l}".format(i=i*self.count_file_chunk_size, l=len(idx)), level=2)
         self.expression_matrix = pd.DataFrame(self.expression_matrix, index=idx, columns=cols)
         et = int(time.time() - st)
 
