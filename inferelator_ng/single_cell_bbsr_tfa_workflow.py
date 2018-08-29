@@ -9,7 +9,9 @@ KVS_CLUSTER_KEY = 'cluster_idx'
 
 class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
     cluster_index = None
+
     count_file_compression = None
+    count_file_chunk_size = 100
 
     def compute_common_data(self):
         """
@@ -38,8 +40,6 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         self.response = self.expression_matrix
 
     def run_bootstrap(self, bootstrap):
-        utils.Debug.vprint('Calculating MI, Background MI, and CLR Matrix', level=1)
-
         X = self.design.iloc[:, bootstrap]
         Y = self.response.iloc[:, bootstrap]
         boot_cluster_idx = self.cluster_index[bootstrap]
@@ -50,6 +50,7 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         utils.Debug.vprint("Rebulked design {des} & response {res} data".format(des=X_bulk.shape, res=Y_bulk.shape))
 
         # Calculate CLR & MI if we're proc 0 or get CLR & MI from the KVS if we're not
+        utils.Debug.vprint('Calculating MI, Background MI, and CLR Matrix', level=1)
         clr_mat, mi_mat = mi.MIDriver(kvs=self.kvs, rank=self.rank).run(X_bulk, Y_bulk)
 
         # Trying to get ahead of this memory fire
@@ -72,18 +73,28 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         """
         Overload the workflow.workflowBase expression reader to force count data in as uint16
         """
+
+        csv = dict(sep="\t", header=0, index_col=0, compression=self.count_file_compression)
+        dtype = np.dtype('uint16')
+
         file_name = self.input_path(self.expression_matrix_file)
-        st = time.time()
-        utils.Debug.vprint("Reading {f} file data".format(f=file_name))
+
+        utils.Debug.vprint("Reading {f} file indexes".format(f=file_name))
+        cols = pd.read_table(file_name, nrows=2, **csv).columns
+        idx = pd.read_table(file_name, usecols=[0,1], **csv).index
 
         # Read in the count file as a pandas dataframe
-        self.expression_matrix = pd.read_csv(file_name, sep="\t", header=0, index_col=0,
-                                             compression=self.count_file_compression)
+        utils.Debug.vprint("Reading {f} file data".format(f=file_name))
 
-        # Downcast to save on memory
-        self.expression_matrix = self.expression_matrix.apply(pd.to_numeric, downcast='unsigned')
-
+        st = time.time()
+        self.expression_matrix = np.zeros((0, len(cols)), dtype=dtype)
+        for i, chunk in enumerate(pd.read_table(file_name, chunksize=self.count_file_chunk_size, **csv)):
+            self.expression_matrix = np.vstack((self.expression_matrix, chunk.values.astype(dtype)))
+            print("Processed row {i} of {l}".format(i=i*self.count_file_chunk_size, l=len(idx)))
+        self.expression_matrix = pd.DataFrame(self.expression_matrix, index=idx, columns=cols)
         et = int(time.time() - st)
+
+        # Report on the result
         df_shape = self.expression_matrix.shape
         df_size = int(sys.getsizeof(self.expression_matrix)/1000000)
         utils.Debug.vprint("Proc {r}: Single-cell data {s} read into memory ({m} MB in {t} sec)".format(r=self.rank,
