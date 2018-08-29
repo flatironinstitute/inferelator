@@ -183,7 +183,7 @@ class kvs_async:
                 self.kvs.put(releasekey, True)
             Debug.vprint("Asynchronous start complete. Releasing processes.")
 
-            self.kvs.get(releasekey)
+        self.kvs.get(releasekey)
 
     def sync_point(self):
         kvs_sync_processes(self.kvs, self.r, pref=self.pref)
