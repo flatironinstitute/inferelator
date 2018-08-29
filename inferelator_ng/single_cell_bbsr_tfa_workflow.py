@@ -79,25 +79,31 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
 
         file_name = self.input_path(self.expression_matrix_file)
 
-        utils.Debug.vprint("Reading {f} file indexes".format(f=file_name))
-        cols = pd.read_table(file_name, nrows=2, **csv).columns
-        idx = pd.read_table(file_name, usecols=[0,1], **csv).index
-
         # Read in the count file as a pandas dataframe
         utils.Debug.vprint("Reading {f} file data".format(f=file_name))
 
         st = time.time()
-        self.expression_matrix = np.zeros((0, len(cols)), dtype=dtype)
-        for i, chunk in enumerate(pd.read_table(file_name, chunksize=self.count_file_chunk_size, **csv)):
-            self.expression_matrix = np.vstack((self.expression_matrix, chunk.values.astype(dtype)))
-            utils.Debug.vprint("Processed row {i} of {l}".format(i=i*self.count_file_chunk_size, l=len(idx)), level=2)
-        self.expression_matrix = pd.DataFrame(self.expression_matrix, index=idx, columns=cols)
+
+        if self.count_file_chunk_size is not None:
+            utils.Debug.vprint("Reading {f} file indexes".format(f=file_name))
+            cols = pd.read_table(file_name, nrows=2, **csv).columns
+            idx = pd.read_table(file_name, usecols=[0, 1], **csv).index
+
+            self.expression_matrix = np.zeros((0, len(cols)), dtype=dtype)
+            for i, chunk in enumerate(pd.read_table(file_name, chunksize=self.count_file_chunk_size, **csv)):
+                self.expression_matrix = np.vstack((self.expression_matrix, chunk.values.astype(dtype)))
+                utils.Debug.vprint("Processed row {i} of {l}".format(i=i*self.count_file_chunk_size, l=len(idx)), level=2)
+            self.expression_matrix = pd.DataFrame(self.expression_matrix, index=idx, columns=cols)
+        else:
+            self.expression_matrix = pd.read_table(file_name, **csv)
+            self.expression_matrix = self.expression_matrix.apply(pd.to_numeric, downsample='unsigned')
+            
         et = int(time.time() - st)
 
         # Report on the result
         df_shape = self.expression_matrix.shape
         df_size = int(sys.getsizeof(self.expression_matrix)/1000000)
-        utils.Debug.vprint("Proc {r}: Single-cell data {s} read into memory ({m} MB in {t} sec)".format(r=self.rank,
-                                                                                                        s=df_shape,
-                                                                                                        m=df_size,
-                                                                                                        t=et))
+        utils.Debug.vprint_all("Proc {r}: Single-cell data {s} read into memory ({m} MB in {t} sec)".format(r=self.rank,
+                                                                                                            s=df_shape,
+                                                                                                            m=df_size,
+                                                                                                            t=et))
