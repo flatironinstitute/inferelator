@@ -150,7 +150,6 @@ class kvs_async:
     def __init__(self, kvs, chunk=1, pref='sync'):
         self.kvs = kvs
         self.chunk = chunk
-        self.pref = pref
 
         envs = slurm_envs()
         self.n = envs['tasks']
@@ -159,47 +158,49 @@ class kvs_async:
         if self.r == 0:
             self.master = True
 
+        self.pref = pref
+        self.startkey = pref + "_runner_"
+        self.readykey = pref + "_ready"
+        self.releasekey = pref + "_release"
+
     def execute_async(self, fun, *args, **kwargs):
         self.async_start()
         fun(*args, **kwargs)
         self.async_hold()
 
     def async_start(self):
-        rkey = self.pref + "_runner_" + str(self.r)
         if self.master:
             self.master_start()
+        rkey = self.startkey + str(self.r)
         self.kvs.get(rkey)
 
     def async_hold(self):
-        readykey = self.pref + "_ready"
-        releasekey = self.pref + "_release"
-        self.kvs.put(readykey, self.r)
+        self.kvs.put(self.readykey, self.r)
         if self.master:
             self.master_control()
             self.master_release()
-        self.kvs.get(releasekey)
+        self.kvs.get(self.releasekey)
 
     def sync_point(self):
         kvs_sync_processes(self.kvs, self.r, pref=self.pref)
 
     def master_start(self):
         for i in range(min(self.chunk, self.n)):
-            rkey = self.pref + "_runner_" + str(self.r + i)
+            rkey = self.startkey + str(self.r + i)
             self.kvs.put(rkey, True)
             Debug.vprint("Starting process {rank}".format(rank=(self.r + i)))
 
     def master_control(self):
-        readykey = self.pref + "_ready"
         for i in range(self.n):
-            nextkey = self.pref + "_runner_" + str(self.kvs.get(readykey) + self.chunk)
+            nextkey = self.kvs.get(self.readykey) + self.chunk
             if nextkey < self.n:
-                self.kvs.put(nextkey, True)
+                rkey = self.startkey + str(nextkey)
+                self.kvs.put(rkey, True)
                 Debug.vprint("Starting process {rank}".format(rank=nextkey))
 
     def master_release(self):
-        releasekey = self.pref + "_release"
         for i in range(self.n):
-            self.kvs.put(releasekey, True)
+            self.kvs.put(self.releasekey, True)
         Debug.vprint("Asynchronous start complete. Releasing processes.")
 
 
