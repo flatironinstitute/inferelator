@@ -37,7 +37,7 @@ def initial_clustering(data, max_cluster_ratio=DEFAULT_max_cluster_ratio, max_gr
     utils.Debug.vprint("Interval and Library Size Normalization Complete [{}]".format(data.shape))
 
     # Calculate the distance matrix (1 - Pearson Correlation Coefficient)
-    dist = pdist(data, 'correlation')
+    dist = pdist(data.T, 'correlation')
     utils.Debug.vprint("Distance matrix construction complete [{}]".format(dist.shape))
 
     # Perform clustering and find the optimal cluster cut using the default parameters above
