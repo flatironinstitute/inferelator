@@ -185,8 +185,6 @@ class kvs_async:
             fun(*args, **kwargs)
         self.async_hold()
 
-
-
     def execute_async(self, fun, *args, **kwargs):
         """
         Execute function asynchronously and then block till everyone's finished. Pass all other arguments to the

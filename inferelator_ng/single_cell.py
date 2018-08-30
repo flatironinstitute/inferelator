@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 from scipy.cluster.hierarchy import linkage, cut_tree
-from scipy.spatial.distance import squareform
+from scipy.spatial.distance import pdist, squareform
 from scipy.stats import zscore
 from . import utils
 
@@ -37,13 +37,8 @@ def initial_clustering(data, max_cluster_ratio=DEFAULT_max_cluster_ratio, max_gr
     utils.Debug.vprint("Interval and Library Size Normalization Complete [{}]".format(data.shape))
 
     # Calculate the distance matrix (1 - Pearson Correlation Coefficient)
-    dist = np.corrcoef(dist.T)
-    dist *= -1
-    dist += 1
+    dist = pdist(data, 'correlation')
     utils.Debug.vprint("Distance matrix construction complete [{}]".format(dist.shape))
-
-    # Convert the distance matrix to a squareform vector
-    dist = squareform(dist, force='tovector', checks=False)
 
     # Perform clustering and find the optimal cluster cut using the default parameters above
     return _find_optimal_cluster_cut(dist, max_cluster_ratio=max_cluster_ratio, max_group_size=max_group_size,
