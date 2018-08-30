@@ -33,12 +33,11 @@ class BBSR_TFA_Workflow(workflow.WorkflowBase):
         np.random.seed(self.random_seed)
 
         if self.async_start:
-            utils.kvs_async(self.kvs, chunk=self.async_chunk).execute_async(self.get_data)
+            self.startup_controller()
         else:
-            self.get_data()
+            self.startup_run()
 
-        self.compute_common_data()
-        self.compute_activity()
+        self.startup_finish()
 
         betas = []
         rescaled_betas = []
@@ -51,6 +50,16 @@ class BBSR_TFA_Workflow(workflow.WorkflowBase):
                 rescaled_betas.append(current_rescaled_betas)
 
         self.emit_results(betas, rescaled_betas, self.gold_standard, self.priors_data)
+
+    def startup_controller(self):
+        utils.kvs_async(self.kvs, chunk=self.async_chunk).execute_async(self.startup_run)
+
+    def startup_run(self):
+        self.get_data()
+        self.compute_common_data()
+
+    def startup_finish(self):
+        self.compute_activity()
 
     def run_bootstrap(self, bootstrap):
         X = self.design.ix[:, bootstrap]

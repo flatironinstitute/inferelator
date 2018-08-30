@@ -175,6 +175,18 @@ class kvs_async:
         self.readykey = pref + "_ready"
         self.releasekey = pref + "_release"
 
+    def execute_master_first(self, fun, *args, **kwargs):
+        Debug.vprint("Running master setup")
+        if self.master:
+            fun(*args, **kwargs)
+        Debug.vprint("Master setup complete")
+        self.async_start()
+        if not self.master:
+            fun(*args, **kwargs)
+        self.async_hold()
+
+
+
     def execute_async(self, fun, *args, **kwargs):
         """
         Execute function asynchronously and then block till everyone's finished. Pass all other arguments to the

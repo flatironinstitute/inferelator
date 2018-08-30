@@ -12,8 +12,18 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
     cluster_index = None
 
     count_file_compression = None
-    count_file_chunk_size = None
     count_file_transpose = False
+
+    def startup_controller(self):
+        utils.kvs_async(self.kvs, chunk=self.async_chunk).execute_master_first(self.startup_run)
+
+    def startup_run(self):
+        self.get_data()
+        self.compute_common_data()
+
+    def startup_finish(self):
+        utils.kvsTearDown(self.kvs, self.rank, kvs_key=KVS_CLUSTER_KEY)
+        self.compute_activity()
 
     def compute_common_data(self):
         """
@@ -27,8 +37,6 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
             self.kvs.put(KVS_CLUSTER_KEY, self.cluster_index)
         else:
             self.cluster_index = self.kvs.view(KVS_CLUSTER_KEY)
-        utils.kvs_sync_processes(self.kvs, self.rank)
-        utils.kvsTearDown(self.kvs, self.rank, kvs_key=KVS_CLUSTER_KEY)
 
     def compute_activity(self):
         # Bulk up and normalize clusters
