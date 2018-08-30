@@ -7,11 +7,13 @@ import numpy as np
 
 KVS_CLUSTER_KEY = 'cluster_idx'
 
+
 class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
     cluster_index = None
 
     count_file_compression = None
     count_file_chunk_size = None
+    count_file_transpose = False
 
     def compute_common_data(self):
         """
@@ -72,39 +74,58 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
     def read_expression(self):
         """
         Overload the workflow.workflowBase expression reader to force count data in as a uint with the smallest memory
-        footprint possible
+        footprint possible. Also allows for importing and then concatenating multiple files.
 
-        Sets self.expression_matrix.
+        Sets self.expression_matrix with the data
         """
-
-        # Set controller variables that will be needed to read stuff in
-        tsv = dict(sep="\t", header=0, index_col=0, compression=self.count_file_compression)
-        dtype = np.dtype('uint16')
 
         if isinstance(self.expression_matrix_file, list):
             file_name_list = self.expression_matrix_file
         else:
             file_name_list = [self.expression_matrix_file]
 
-        idx = pd.read_table(self.input_path(file_name_list[0]), usecols=[0, 1], **tsv).index
-        cols = []
-        self.expression_matrix = np.zeros((len(idx), 0), dtype=dtype)
+        self.expression_matrix = None
 
         st = time.time()
         for file in file_name_list:
-            file_name = self.input_path(file)
-            data = pd.read_table(file_name, **tsv)
-            assert data.index.equals(idx)
-            cols.extend(data.columns.tolist())
-            self.expression_matrix = np.hstack((self.expression_matrix, data.values.astype(dtype)))
-
-        self.expression_matrix = pd.DataFrame(self.expression_matrix, index=idx, columns=cols)
+            if self.expression_matrix is None:
+                self.expression_matrix = self._read_count_matrix_file(file)
+            else:
+                self._concat_count_matrix_df(self._read_count_matrix_file(file))
         et = int(time.time() - st)
 
         # Report on the result
         df_shape = self.expression_matrix.shape
-        df_size = int(sys.getsizeof(self.expression_matrix)/1000000)
+        df_size = int(sys.getsizeof(self.expression_matrix) / 1000000)
         utils.Debug.vprint_all("Proc {r}: Single-cell data {s} read into memory ({m} MB in {t} sec)".format(r=self.rank,
                                                                                                             s=df_shape,
                                                                                                             m=df_size,
                                                                                                             t=et))
+
+    def _read_count_matrix_file(self, file_name):
+
+        tsv = dict(sep="\t", header=0, index_col=0, compression=self.count_file_compression)
+
+        file_name = self.input_path(file_name)
+        data = pd.read_table(file_name, **tsv)
+        data = data.apply(pd.to_numeric, downcast='unsigned')
+
+        if self.count_file_transpose:
+            data = data.transpose()
+
+        return data
+
+    def _concat_count_matrix_df(self, data):
+
+        if self.count_file_transpose:
+            assert self.expression_matrix.columns.equals(data.columns)
+            newidx = self.expression_matrix.index.tolist().extend(data.index.tolist())
+            self.expression_matrix = pd.DataFrame(np.concatenate((self.expression_matrix.values, data.values), axis=0),
+                                                  index=newidx,
+                                                  columns=data.columns)
+        else:
+            assert self.expression_matrix.index.equals(data.index)
+            newidx = self.expression_matrix.columns.tolist().extend(data.columns.tolist())
+            self.expression_matrix = pd.DataFrame(np.concatenate((self.expression_matrix.values, data.values), axis=1),
+                                                  index=data.index,
+                                                  columns=newidx)

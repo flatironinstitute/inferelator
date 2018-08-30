@@ -155,7 +155,7 @@ class kvs_async:
             Number of processes to run at the same time
         :param pref: str
             Prefix for this kvs manager's KVS keys. Only needed if there's a couple of these running around the same
-            time. 
+            time.
         """
 
         self.kvs = kvs
