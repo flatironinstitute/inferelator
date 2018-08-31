@@ -23,7 +23,7 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         self.compute_common_data()
 
     def startup_finish(self):
-        utils.kvsTearDown(self.kvs, self.rank, kvs_key=KVS_CLUSTER_KEY)
+        #utils.kvsTearDown(self.kvs, self.rank, kvs_key=KVS_CLUSTER_KEY)
         self.compute_activity()
 
     def compute_common_data(self):
