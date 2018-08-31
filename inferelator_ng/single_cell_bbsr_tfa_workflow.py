@@ -9,10 +9,11 @@ KVS_CLUSTER_KEY = 'cluster_idx'
 
 
 class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
+    # Computed Data Structure
     cluster_index = None
 
-    count_file_compression = None
-    count_file_transpose = False
+    # Configuration parameters
+    expression_matrix_compression = None
 
     def startup_controller(self):
         utils.kvs_async(self.kvs, chunk=self.async_chunk).execute_master_first(self.startup_run)
@@ -112,20 +113,20 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
 
     def _read_count_matrix_file(self, file_name):
 
-        tsv = dict(sep="\t", header=0, index_col=0, compression=self.count_file_compression)
+        tsv = dict(sep="\t", header=0, index_col=0, compression=self.expression_matrix_compression)
 
         file_name = self.input_path(file_name)
         data = pd.read_table(file_name, **tsv)
         data = data.apply(pd.to_numeric, downcast='unsigned')
 
-        if self.count_file_transpose:
+        if self.expression_matrix_transpose:
             data = data.transpose()
 
         return data
 
     def _concat_count_matrix_df(self, data):
 
-        if self.count_file_transpose:
+        if self.expression_matrix_transpose:
             assert self.expression_matrix.columns.equals(data.columns)
             newidx = self.expression_matrix.index.tolist().extend(data.index.tolist())
             self.expression_matrix = pd.DataFrame(np.concatenate((self.expression_matrix.values, data.values), axis=0),

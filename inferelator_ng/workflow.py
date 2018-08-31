@@ -20,7 +20,9 @@ class WorkflowBase(object):
     meta_data_file = "meta_data.tsv"
     priors_file = "gold_standard.tsv"
     gold_standard_file = "gold_standard.tsv"
+    output_dir = None
     random_seed = 42
+    expression_matrix_transpose = False
 
     # Computed data structures
     expression_matrix = None  # expression_matrix dataframe
@@ -58,6 +60,8 @@ class WorkflowBase(object):
 
     def read_expression(self):
         self.expression_matrix = self.input_dataframe(self.expression_matrix_file)
+        if self.expression_matrix_transpose:
+            self.expression_matrix = self.expression_matrix.T
 
     def read_tfs(self):
         tf_file = self.input_file(self.tf_names_file)
