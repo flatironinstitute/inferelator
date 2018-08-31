@@ -188,7 +188,7 @@ class PythonDRDriver:
         # Check to find out if there are any conditions which don't have associated metadata
         # If there are, raise an exception if strict_checking_for_metadata is True
         # Otherwise just assume they're steady-state data and move on
-        in_exp_not_meta = exp_conds.difference(meta_conds).tolist()
+        in_exp_not_meta = exp_conds.difference(meta_conds).astype(str).tolist()
         if len(in_exp_not_meta) != 0:
             utils.Debug.vprint("The following conditions cannot be properly matched to metadata:", level=1)
             utils.Debug.vprint(" ".join(in_exp_not_meta), level=1)
@@ -202,7 +202,7 @@ class PythonDRDriver:
         # It's not a problem if they're not, we just assume the metadata applies to all conditions with the same name
         duplicate_in_exp = self.exp_data.columns.duplicated()
         if np.sum(duplicate_in_exp) > 0:
-            c_dup = self.exp_data.columns[duplicate_in_exp].tolist()
+            c_dup = self.exp_data.columns[duplicate_in_exp].astype(str).tolist()
             utils.Debug.vprint("The expression data has non-unique condition indexes:", level=1)
             utils.Debug.vprint(" ".join(c_dup), level=1)
 
@@ -212,7 +212,7 @@ class PythonDRDriver:
         # (The parser will just overwrite the first ones it comes to with the characteristics of the last one)
         duplicate_in_meta = self.meta_data[self.cond_col].duplicated()
         if np.sum(duplicate_in_meta) > 0:
-            meta_dup = self.meta_data[self.cond_col][duplicate_in_meta].tolist()
+            meta_dup = self.meta_data[self.cond_col][duplicate_in_meta].astype(str).tolist()
             if np.sum(np.logical_xor(self.meta_data.duplicated(), duplicate_in_meta)) > 0:
                 utils.Debug.vprint("The metadata has non-unique conditions with different characteristics:", level=0)
                 utils.Debug.vprint(" ".join(meta_dup), level=0)
