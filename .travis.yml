@@ -54,7 +54,7 @@ install:
   - python setup.py install
   - pip install -r requirements.txt
   # install R components
-  - sudo R -f inferelator_ng/R_code/packages.R
+  # sudo R -f inferelator_ng/R_code/packages.R
 script:
   - git clone https://github.com/simonsfoundation/kvsstcp
   - export PYTHONPATH=$PYTHONPATH:$(pwd)/kvsstcp
@@ -67,5 +67,5 @@ after_success:
 after_failure:
   - pwd
   - find .
-  - cat ./inferelator_ng/tests/artifacts/run_mi.R
-  - R -f ./inferelator_ng/tests/artifacts/run_mi.R
+  # cat ./inferelator_ng/tests/artifacts/run_mi.R
+  # R -f ./inferelator_ng/tests/artifacts/run_mi.R
