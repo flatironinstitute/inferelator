@@ -21,15 +21,17 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
     def startup_run(self):
         self.get_data()
         self.compute_common_data()
+        self.compute_activity()
 
     def startup_finish(self):
-        #utils.kvsTearDown(self.kvs, self.rank, kvs_key=KVS_CLUSTER_KEY)
-        self.compute_activity()
+        # utils.kvsTearDown(self.kvs, self.rank, kvs_key=KVS_CLUSTER_KEY)
+        utils.Debug.vprint("Beginning Regression")
 
     def compute_common_data(self):
         self.filter_expression_and_priors()
 
     def compute_activity(self):
+        utils.Debug.vprint("Calculating transcription factor activity")
         self.design = tfa.TFA(self.priors_data, self.expression_matrix,
                               self.expression_matrix).compute_transcription_factor_activity()
         self.response = self.expression_matrix
@@ -65,11 +67,11 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         Y = self.response.iloc[:, bootstrap]
 
         #
-        #boot_cluster_idx = self.cluster_index[bootstrap]
-        #X_bulk = single_cell.make_clusters_from_singles(X, boot_cluster_idx)
-        #Y_bulk = single_cell.make_clusters_from_singles(Y, boot_cluster_idx)
+        # boot_cluster_idx = self.cluster_index[bootstrap]
+        # X_bulk = single_cell.make_clusters_from_singles(X, boot_cluster_idx)
+        # Y_bulk = single_cell.make_clusters_from_singles(Y, boot_cluster_idx)
 
-        #utils.Debug.vprint("Rebulked design {des} & response {res} data".format(des=X_bulk.shape, res=Y_bulk.shape))
+        # utils.Debug.vprint("Rebulked design {des} & response {res} data".format(des=X_bulk.shape, res=Y_bulk.shape))
 
         # Calculate CLR & MI if we're proc 0 or get CLR & MI from the KVS if we're not
         utils.Debug.vprint('Calculating MI, Background MI, and CLR Matrix', level=1)
