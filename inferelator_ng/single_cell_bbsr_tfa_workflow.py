@@ -27,9 +27,15 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         self.compute_activity()
 
     def compute_common_data(self):
-        """
-        Compute common data structures like design and response matrices.
-        """
+        self.filter_expression_and_priors()
+
+    def compute_activity(self):
+        self.design = tfa.TFA(self.priors_data, self.expression_matrix,
+                              self.expression_matrix).compute_transcription_factor_activity()
+        self.response = self.expression_matrix
+
+    """
+    def compute_common_data(self):
         self.filter_expression_and_priors()
 
         # Run the clustering once and distribute it to avoid a nasty spike in memory usage
@@ -38,6 +44,9 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
             self.kvs.put(KVS_CLUSTER_KEY, self.cluster_index)
         else:
             self.cluster_index = self.kvs.view(KVS_CLUSTER_KEY)
+            
+    
+
 
     def compute_activity(self):
         # Bulk up and normalize clusters
@@ -49,20 +58,22 @@ class Single_Cell_BBSR_TFA_Workflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         self.design = single_cell.make_singles_from_clusters(self.design, self.cluster_index,
                                                              columns=self.expression_matrix.columns)
         self.response = self.expression_matrix
+    """
 
     def run_bootstrap(self, bootstrap):
         X = self.design.iloc[:, bootstrap]
         Y = self.response.iloc[:, bootstrap]
-        boot_cluster_idx = self.cluster_index[bootstrap]
 
-        X_bulk = single_cell.make_clusters_from_singles(X, boot_cluster_idx)
-        Y_bulk = single_cell.make_clusters_from_singles(Y, boot_cluster_idx)
+        #
+        #boot_cluster_idx = self.cluster_index[bootstrap]
+        #X_bulk = single_cell.make_clusters_from_singles(X, boot_cluster_idx)
+        #Y_bulk = single_cell.make_clusters_from_singles(Y, boot_cluster_idx)
 
-        utils.Debug.vprint("Rebulked design {des} & response {res} data".format(des=X_bulk.shape, res=Y_bulk.shape))
+        #utils.Debug.vprint("Rebulked design {des} & response {res} data".format(des=X_bulk.shape, res=Y_bulk.shape))
 
         # Calculate CLR & MI if we're proc 0 or get CLR & MI from the KVS if we're not
         utils.Debug.vprint('Calculating MI, Background MI, and CLR Matrix', level=1)
-        clr_mat, mi_mat = mi.MIDriver(kvs=self.kvs, rank=self.rank).run(X_bulk, Y_bulk)
+        clr_mat, mi_mat = mi.MIDriver(kvs=self.kvs, rank=self.rank).run(X, Y)
 
         # Trying to get ahead of this memory fire
         X_bulk = Y_bulk = bootstrap = boot_cluster_idx = mi_mat = None
