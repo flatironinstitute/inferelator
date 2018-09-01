@@ -18,6 +18,9 @@ class StubWorkflow(workflow.WorkflowBase):
     cd_called = False
     test_case = None
 
+    def __init__(self):
+        pass
+
     def run(self):
         self.get_data()
 

@@ -5,8 +5,8 @@ The goal of this design is to make it easy to share
 code among different variants of the Inferelator workflow.
 """
 
-from kvsstcp import KVSClient
-from . import utils
+
+from inferelator_ng import utils
 import numpy as np
 import os
 import pandas as pd
@@ -36,11 +36,48 @@ class WorkflowBase(object):
     kvs = None
     tasks = None
 
+    # Startup configuration parameters. Set async_start to true to enable a staggered startup. startup_run will be
+    # executed asynchronously and then startup_finish will be run together.
+    async_start = False
+    async_chunk = 2
+
     def __init__(self):
         # Connect to KVS and get environment variables
-        self.kvs = KVSClient()
+        self.initialize_multiprocessing()
         for k, v in utils.slurm_envs().items():
             setattr(self, k, v)
+
+    def initialize_multiprocessing(self):
+        """
+        Overload this if you want to use something besides KVS for multiprocessing.
+        """
+        from kvsstcp import KVSClient
+        self.kvs = KVSClient()
+
+    def startup(self):
+        """
+        Startup by preprocessing all data into a ready format for regression.
+        :return:
+        """
+        if self.async_start:
+            utils.kvs_async(self.kvs, chunk=self.async_chunk).execute_async(self.startup_run)
+        else:
+            self.startup_run()
+        self.startup_finish()
+
+    def startup_run(self):
+        """
+        Execute any data preprocessing necessary before regression. This should include only steps that can be
+        run asynchronously by each separate client
+        """
+        raise NotImplementedError  # implement in subclass
+
+    def startup_finish(self):
+        """
+        Execute any data preprocessing necessary before regression. This should include steps that need to be run
+        synchronously. It will be executed after startup_run.
+        """
+        raise NotImplementedError  # implement in subclass
 
     def run(self):
         """

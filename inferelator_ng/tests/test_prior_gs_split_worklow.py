@@ -19,6 +19,9 @@ class StubWorkflow(prior_gs_split_workflow.PriorGoldStandardSplitWorkflowBase):
 
     test_case = None
 
+    def __init__(self):
+        pass
+
     def run(self):
         self.get_data()
         self.set_gold_standard_and_priors()
