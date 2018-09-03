@@ -8,8 +8,10 @@ import os
 SBATCH_VARS = {'RUNDIR': ('output_dir', str, None),
                'DATADIR': ('input_dir', str, None),
                'SLURM_PROCID': ('rank', int, 0),
-               'SLURM_NTASKS_PER_NODE': ('cores', int, 10),
-               'SLURM_NTASKS': ('tasks', int, 1)
+               'SLURM_NTASKS_PER_NODE': ('cores', int, 1),
+               'SLURM_NTASKS': ('tasks', int, 1),
+               'SLURM_NODEID': ('node', int, 0),
+               'SLURM_JOB_NUM_NODES': ('num_nodes', int, 1)
                }
 
 
@@ -170,12 +172,15 @@ class kvs_async:
         envs = slurm_envs()
         self.n = envs['tasks']
         self.r = envs['rank']
+        self.node = envs['node']
+        self.num_nodes = envs['num_nodes']
 
         if self.r == 0:
             self.master = True
 
         # Create key names for KVS
         self.pref = pref
+        self.nodekey = pref + "_node"
         self.startkey = pref + "_runner_"
         self.readykey = pref + "_ready"
         self.releasekey = pref + "_release"
@@ -197,7 +202,6 @@ class kvs_async:
 
         :param fun: function
         """
-
         self.async_start()
         fun(*args, **kwargs)
         self.async_hold()
@@ -206,7 +210,9 @@ class kvs_async:
         """
         Create the initial start keys if master. Otherwise sit here and wait.
         """
+        self._put_node()
         if self.master:
+            self._get_nodes()
             self._master_start()
         rkey = self.startkey + str(self.r)
         self.kvs.get(rkey)
@@ -233,21 +239,23 @@ class kvs_async:
         """
         Start either chunk number of processes or ntasks number of processes (whichever is smaller)
         """
-        for i in range(min(self.chunk, self.n)):
-            rkey = self.startkey + str(self.r + i)
-            self.kvs.put(rkey, True)
-            Debug.vprint("Starting process {rank}".format(rank=(self.r + i)))
+        for i in range(len(self.wait_nodes)):
+            for _ in range(self.chunk):
+                try:
+                    # Make sure that the master process gets started
+                    start = self.wait_nodes[i].pop(self.wait_nodes[i].index(0))
+                except IndexError:
+                    start = self.wait_nodes[i].pop()
+                self._start_process(start)
 
     def _master_control(self):
         """
         Every time a process finishes, start another one until ntasks processes have been reached
         """
         for i in range(self.n):
-            nextkey = self.kvs.get(self.readykey) + self.chunk
-            if nextkey < self.n:
-                rkey = self.startkey + str(nextkey)
-                self.kvs.put(rkey, True)
-                Debug.vprint("Starting process {rank}".format(rank=nextkey))
+            open_node = self.proc_map[self.kvs.get(self.readykey)]
+            if len(self.wait_nodes[open_node]) > 0:
+                self._start_process(self.wait_nodes[open_node].pop())
 
     def _master_release(self):
         """
@@ -256,6 +264,30 @@ class kvs_async:
         for i in range(self.n):
             self.kvs.put(self.releasekey, True)
         Debug.vprint("Asynchronous start complete. Releasing processes.")
+
+    def _put_node(self):
+        """
+        Put a key onto KVS identifying which node this process is on
+        """
+        self.kvs.put(self.nodekey, (self.r, self.node))
+
+    def _get_nodes(self):
+        """
+        Get the node keys off KVS to build a map of which processes are on which nodes
+        :return:
+        """
+        self.proc_map = {}
+        self.wait_nodes = [[]] * self.num_nodes
+        for i in range(self.n):
+            rank, node = self.kvs.get(self.nodekey)
+            self.wait_nodes[node].append(rank)
+            self.proc_map[rank] = node
+
+    def _start_process(self, pid):
+        key = self.startkey + str(pid)
+        self.kvs.put(key, True)
+        Debug.vprint("Starting process {rank}".format(rank=pid))
+
 
 
 def df_from_tsv(file_like, has_index=True):

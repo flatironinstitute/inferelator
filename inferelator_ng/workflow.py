@@ -5,12 +5,12 @@ The goal of this design is to make it easy to share
 code among different variants of the Inferelator workflow.
 """
 
-
 from inferelator_ng import utils
 import numpy as np
 import os
 import pandas as pd
 
+PD_INPUT_SETTINGS = dict(sep="\t", header=0)
 
 class WorkflowBase(object):
     # Common configuration parameters
@@ -44,20 +44,25 @@ class WorkflowBase(object):
     def __init__(self):
         # Connect to KVS and get environment variables
         self.initialize_multiprocessing()
-        for k, v in utils.slurm_envs().items():
-            setattr(self, k, v)
+        self.get_environmentals()
 
     def initialize_multiprocessing(self):
         """
-        Overload this if you want to use something besides KVS for multiprocessing.
+        Override this if you want to use something besides KVS for multiprocessing.
         """
         from kvsstcp import KVSClient
         self.kvs = KVSClient()
 
+    def get_environmentals(self):
+        """
+        Load environmental variables into class variables
+        """
+        for k, v in utils.slurm_envs().items():
+            setattr(self, k, v)
+
     def startup(self):
         """
         Startup by preprocessing all data into a ready format for regression.
-        :return:
         """
         if self.async_start:
             utils.kvs_async(self.kvs, chunk=self.async_chunk).execute_async(self.startup_run)
@@ -95,26 +100,60 @@ class WorkflowBase(object):
         self.read_metadata()
         self.set_gold_standard_and_priors()
 
-    def read_expression(self):
-        self.expression_matrix = self.input_dataframe(self.expression_matrix_file)
-        if self.expression_matrix_transpose:
+    def read_expression(self, file=None, transpose=None):
+        """
+        Read expression matrix file into expression_matrix
+        """
+        if file is None:
+            file = self.expression_matrix_file
+        self.expression_matrix = self.input_dataframe(file)
+
+        if transpose is None:
+            transpose = self.expression_matrix_transpose
+        if transpose:
             self.expression_matrix = self.expression_matrix.T
 
-    def read_tfs(self):
-        tf_file = self.input_file(self.tf_names_file)
-        self.tf_names = utils.read_tf_names(tf_file)
+    def read_tfs(self, file=None):
+        """
+        Read tf names file into tf_names
+        """
+        if file is None:
+            file = self.tf_names_file
 
-    def read_metadata(self):
-        self.meta_data = self.input_dataframe(self.meta_data_file, has_index=False, strict=False)
-        if self.meta_data is None:
+        tfs = self.input_dataframe(file, index_col=None)
+        assert tfs.shape[1] == 1
+        self.tf_names = tfs.values.flatten().tolist()
+
+    def read_metadata(self, file=None):
+        """
+        Read metadata file into meta_data or make fake metadata
+        """
+        if file is None:
+            file = self.meta_data_file
+
+        try:
+            self.meta_data = self.input_dataframe(file, index_col=None)
+        except IOError:
             self.meta_data = self.create_default_meta_data(self.expression_matrix)
 
     def set_gold_standard_and_priors(self):
+        """
+        Read priors file into priors_data and gold standard file into gold_standard
+        """
         self.priors_data = self.input_dataframe(self.priors_file)
         self.gold_standard = self.input_dataframe(self.gold_standard_file)
 
     def input_path(self, filename):
+        """
+        Join filename to input_dir
+        """
         return os.path.abspath(os.path.join(self.input_dir, filename))
+
+    def input_dataframe(self, filename, index_col=0):
+        """
+        Read a file in as a pandas dataframe
+        """
+        return pd.read_table(self.input_path(filename), index_col=index_col, **PD_INPUT_SETTINGS)
 
     def append_to_path(self, var_name, to_append):
         """
@@ -132,22 +171,6 @@ class WorkflowBase(object):
         for key in metadata_defaults.keys():
             data[key] = pd.Series(data=[metadata_defaults[key] if metadata_defaults[key] else i for i in metadata_rows])
         return pd.DataFrame(data)
-
-    def input_file(self, filename, strict=True):
-        path = self.input_path(filename)
-        if os.path.exists(path):
-            return open(path)
-        elif not strict:
-            return None
-        raise ValueError("no such file " + repr(path))
-
-    def input_dataframe(self, filename, strict=True, has_index=True):
-        f = self.input_file(filename, strict)
-        if f is not None:
-            return utils.df_from_tsv(f, has_index)
-        else:
-            assert not strict
-            return None
 
     def filter_expression_and_priors(self):
         """

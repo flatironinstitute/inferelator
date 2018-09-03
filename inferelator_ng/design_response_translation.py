@@ -198,7 +198,7 @@ class PythonDRDriver:
         # Otherwise just assume they're steady-state data and move on
         in_exp_not_meta = exp_conds.difference(meta_conds).astype(str).tolist()
         if len(in_exp_not_meta) != 0:
-            utils.Debug.vprint("{n} conditions cannot be properly matched to metadata:".format(n=len(in_exp_not_meta)),
+            utils.Debug.vprint("{n} conditions cannot be properly matched to metadata".format(n=len(in_exp_not_meta)),
                                level=1)
             utils.Debug.vprint(" ".join(in_exp_not_meta), level=2)
             if self.strict_checking_for_metadata:
@@ -222,7 +222,8 @@ class PythonDRDriver:
         # If there are repeated conditions with different characteristics, the outcome may be unexpected
         # (The parser will just overwrite the first ones it comes to with the characteristics of the last one)
         duplicate_in_meta = self.meta_data[self.cond_col].duplicated()
-        if np.sum(duplicate_in_meta) > 0:
+        n_dup_in_meta = np.sum(duplicate_in_meta)
+        if n_dup_in_meta > 0:
             meta_dup = self.meta_data[self.cond_col][duplicate_in_meta].astype(str).tolist()
             if np.sum(np.logical_xor(self.meta_data.duplicated(), duplicate_in_meta)) > 0:
                 utils.Debug.vprint("The metadata has non-unique conditions with different characteristics:", level=0)
@@ -230,7 +231,7 @@ class PythonDRDriver:
                 if self.strict_checking_for_duplicates:
                     raise MultipleConditionsError("Identical conditions have non-identical characteristics")
             else:
-                utils.Debug.vprint("The metadata contains duplicate rows:", level=1)
+                utils.Debug.vprint("The metadata contains {n} duplicate rows".format(n=n_dup_in_meta), level=1)
                 utils.Debug.vprint(" ".join(meta_dup), level=2)
 
     def _get_prior_timepoints(self, cond):
