@@ -76,7 +76,7 @@ class PythonDRDriver:
 
         # Pull apart the expression dataframe into indexes and an ndarray
         genes = exp_data.index.values
-        self.conds = exp_data.columns.values
+        self.conds = exp_data.columns.values.astype(str)
         self.exp_data = exp_data.values.astype(np.dtype('float64'))
 
         # Construct empty arrays for the output data
@@ -198,8 +198,9 @@ class PythonDRDriver:
         # Otherwise just assume they're steady-state data and move on
         in_exp_not_meta = exp_conds.difference(meta_conds).astype(str).tolist()
         if len(in_exp_not_meta) != 0:
-            utils.Debug.vprint("The following conditions cannot be properly matched to metadata:", level=1)
-            utils.Debug.vprint(" ".join(in_exp_not_meta), level=1)
+            utils.Debug.vprint("{n} conditions cannot be properly matched to metadata:".format(n=len(in_exp_not_meta)),
+                               level=1)
+            utils.Debug.vprint(" ".join(in_exp_not_meta), level=2)
             if self.strict_checking_for_metadata:
                 raise ConditionDoesNotExistError("Conditions exist without associated metadata")
             else:
@@ -209,10 +210,12 @@ class PythonDRDriver:
         # Check to find out if the conditions in the expression data are all unique
         # It's not a problem if they're not, we just assume the metadata applies to all conditions with the same name
         duplicate_in_exp = self.exp_data.columns.duplicated()
-        if np.sum(duplicate_in_exp) > 0:
+        n_dup_in_exp = np.sum(duplicate_in_exp)
+        if n_dup_in_exp > 0:
             c_dup = self.exp_data.columns[duplicate_in_exp].astype(str).tolist()
-            utils.Debug.vprint("The expression data has non-unique condition indexes:", level=1)
-            utils.Debug.vprint(" ".join(c_dup), level=1)
+            utils.Debug.vprint("The expression data has {n} non-unique condition indexes".format(n=n_dup_in_exp),
+                               level=1)
+            utils.Debug.vprint(" ".join(c_dup), level=2)
 
         # Check to find out if the conditions in the meta data are all unique
         # If there are repeats, check and see if the associated information is identical (if it is, just ignore it)
@@ -228,7 +231,7 @@ class PythonDRDriver:
                     raise MultipleConditionsError("Identical conditions have non-identical characteristics")
             else:
                 utils.Debug.vprint("The metadata contains duplicate rows:", level=1)
-                utils.Debug.vprint(" ".join(meta_dup), level=1)
+                utils.Debug.vprint(" ".join(meta_dup), level=2)
 
     def _get_prior_timepoints(self, cond):
         """
