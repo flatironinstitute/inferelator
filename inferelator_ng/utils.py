@@ -139,6 +139,11 @@ def kvs_sync_processes(kvs, rank, pref=""):
     kvs.get(ckey)
 
 
+def kvs_sync_then_teardown(kvs, rank, kvs_key='count'):
+    kvs_sync_processes(kvs, rank)
+    kvsTearDown(kvs, rank, kvs_key=kvs_key)
+
+
 class kvs_async:
     """
     Controller for process condition. Allows processes to synchronize at specific points or to execute workflow
