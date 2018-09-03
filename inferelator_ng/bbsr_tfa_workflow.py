@@ -28,12 +28,27 @@ class BBSR_TFA_Workflow(workflow.WorkflowBase):
         Execute workflow, after all configuration.
         """
 
+        # Set the random seed (for bootstrap selection)
         np.random.seed(self.random_seed)
 
         # Call the startup workflow
         self.startup()
 
         # Run regression after startup
+        betas, rescaled_betas = self.run_regression()
+
+        # Write the results out to a file
+        self.emit_results(betas, rescaled_betas, self.gold_standard, self.priors_data)
+
+    def startup_run(self):
+        self.get_data()
+        self.compute_common_data()
+        self.compute_activity()
+
+    def startup_finish(self):
+        pass
+
+    def run_regression(self):
         betas = []
         rescaled_betas = []
 
@@ -44,15 +59,7 @@ class BBSR_TFA_Workflow(workflow.WorkflowBase):
                 betas.append(current_betas)
                 rescaled_betas.append(current_rescaled_betas)
 
-        self.emit_results(betas, rescaled_betas, self.gold_standard, self.priors_data)
-
-    def startup_run(self):
-        self.get_data()
-        self.compute_common_data()
-        self.compute_activity()
-
-    def startup_finish(self):
-        pass
+        return betas, rescaled_betas
 
     def run_bootstrap(self, bootstrap):
         X = self.design.iloc[:, bootstrap]
