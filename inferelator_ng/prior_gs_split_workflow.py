@@ -9,22 +9,35 @@ from . import workflow
 
 class PriorGoldStandardSplitWorkflowBase(workflow.WorkflowBase):
 
-    def set_gold_standard_and_priors(self):
+    def set_gold_standard_and_priors(self, gold_standard_split=0.5):
         """
         Ignore the gold standard file. Instead, create a gold standard
         from a 50/50 split of the prior. Half of original prior becomes the new prior, 
         the other half becomes the gold standard
         """
-        split_ratio = 0.5
-        self.priors_data = self.input_dataframe(self.priors_file)
-        prior = pd.melt(self.priors_data.reset_index(), id_vars='index')
-        prior_edges = prior.index[prior.value != 0]
-        keep = np.random.choice(prior_edges, int(len(prior_edges)*split_ratio), replace=False)
-        prior_subsample = prior.copy(deep=True)
-        gs_subsample = prior.copy(deep=True)
-        prior_subsample.loc[prior_edges[~prior_edges.isin(keep)], 'value'] = 0
-        gs_subsample.loc[prior_edges[prior_edges.isin(keep)], 'value'] = 0
-        prior_subsample = pd.pivot_table(prior_subsample, index='index', columns='variable', values='value', fill_value=0)
-        gs_subsample = pd.pivot_table(gs_subsample, index='index', columns='variable', values='value', fill_value=0)
-        self.priors_data = prior_subsample
-        self.gold_standard = gs_subsample
+
+        if self.priors_data is None:
+            all_priors = self.input_dataframe(self.priors_file)
+        else:
+            all_priors = self.priors_data.copy()
+
+        pc = np.sum(all_priors.values != 0)
+        gs_count = int(gold_standard_split * pc)
+
+        idx = list(range(pc))
+        np.random.shuffle(idx)
+
+        pr_idx = all_priors.values[all_priors.values != 0].copy()
+        gs_idx = all_priors.values[all_priors.values != 0].copy()
+
+        pr_idx[idx[0:gs_count]] = 0
+        gs_idx[idx[gs_count:]] = 0
+
+        gs = all_priors.values.copy()
+        pr = all_priors.values.copy()
+
+        gs[gs != 0] = gs_idx
+        pr[pr != 0] = pr_idx
+
+        self.priors_data = pd.DataFrame(pr, index=all_priors.index, columns=all_priors.columns)
+        self.gold_standard = pd.DataFrame(gs, index=all_priors.index, columns=all_priors.columns)
