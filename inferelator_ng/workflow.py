@@ -50,8 +50,8 @@ class WorkflowBase(object):
         """
         Override this if you want to use something besides KVS for multiprocessing.
         """
-        from kvsstcp import KVSClient
-        self.kvs = KVSClient()
+        from inferelator_ng.kvs_controller import KVSController
+        self.kvs = KVSController()
 
     def get_environmentals(self):
         """
@@ -65,7 +65,7 @@ class WorkflowBase(object):
         Startup by preprocessing all data into a ready format for regression.
         """
         if self.async_start:
-            utils.kvs_async(self.kvs, chunk=self.async_chunk).execute_async(self.startup_run)
+            self.kvs.async_settings(chunk=self.async_chunk).execute_async(self.startup_run)
         else:
             self.startup_run()
         self.startup_finish()

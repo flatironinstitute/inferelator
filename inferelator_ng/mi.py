@@ -19,7 +19,6 @@ DEFAULT_CHUNK = 1000
 COUNT_KEY = 'micount'
 PILEUP_DATA_KEY = 'mi'
 FINAL_MI_DATA_KEY = 'mi_final'
-FINAL_CLR_DATA_KEY = 'clr_final'
 
 
 class MIDriver:
@@ -27,14 +26,12 @@ class MIDriver:
     kvs = None
     rank = None
 
-    def __init__(self, bins=None, kvs=None, rank=None):
+    def __init__(self, bins=None, kvs=None):
 
         if bins is not None:
             self.bins = bins
         if kvs is not None:
             self.kvs = kvs
-        if rank is not None:
-            self.rank = rank
 
     def run(self, x_df, y_df, bins=None, logtype=DEFAULT_LOG_TYPE):
         """
@@ -51,26 +48,17 @@ class MIDriver:
         if bins is not None:
             self.bins = bins
 
-        mi = mutual_information(y_df, x_df, self.bins, logtype=logtype, kvs=self.kvs, rank=self.rank)
-        mi_bg = mutual_information(x_df, x_df, self.bins, logtype=logtype, kvs=self.kvs, rank=self.rank)
+        mi = mutual_information(y_df, x_df, self.bins, logtype=logtype, kvs=self.kvs)
+        mi_bg = mutual_information(x_df, x_df, self.bins, logtype=logtype, kvs=self.kvs)
+        clr = calc_mixed_clr(utils.df_set_diag(mi, 0), utils.df_set_diag(mi_bg, 0))
 
         if self.kvs is not None:
-            if self.rank == 0:
-                clr = calc_mixed_clr(utils.df_set_diag(mi, 0), utils.df_set_diag(mi_bg, 0))
-                self.kvs.put(FINAL_CLR_DATA_KEY, clr)
-            else:
-                clr = self.kvs.view(FINAL_CLR_DATA_KEY)
-
-            utils.kvs_sync_processes(self.kvs, self.rank)
-            utils.kvsTearDown(self.kvs, self.rank, kvs_key=FINAL_CLR_DATA_KEY)
-
-        else:
-            clr = calc_mixed_clr(utils.df_set_diag(mi, 0), utils.df_set_diag(mi_bg, 0))
+            self.kvs.sync_processes()
 
         return clr, mi
 
 
-def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, rank=None):
+def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, chunk=25):
     """
     Calculate the mutual information matrix between two data matrices, where the columns are equivalent conditions
 
@@ -84,8 +72,6 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, rank=None
         Which type of log function should be used (log2 results in MI bits, log results in MI nats, log10... is weird)
     :param kvs: KVSClient
         KVS client object (for SLURM)
-    :param rank: int
-        Process ID under SLURM
 
     :return mi: pd.DataFrame (m1 x m2)
         The mutual information between variables m1 and m2
@@ -110,19 +96,19 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, rank=None
     # If there is a KVS object, run distributed and give the results to everyone
     else:
         # Run MI calculations on everything that an ownCheck gives to this process and stash it in KVS
-        kvs.put(PILEUP_DATA_KEY, build_mi_array(X, Y, bins, logtype=logtype,
-                                                oc=utils.ownCheck(kvs, rank, chunk=25, kvs_key=COUNT_KEY)))
+        oc = kvs.own_check(chunk=chunk, kvs_key=COUNT_KEY)
+        kvs.put(PILEUP_DATA_KEY, build_mi_array(X, Y, bins, logtype=logtype, oc=oc))
+        kvs.finish_own_check(kvs_key=COUNT_KEY)
 
         # Block here until mi_pileup is complete and then get the final mi matrix from mi_final
-        if rank == 0:
+        if kvs.is_master:
             mi = mi_pileup((X.shape[1], Y.shape[1]), kvs)
         else:
             mi = kvs.view(FINAL_MI_DATA_KEY)
 
         # Block here until all the processes have mi_final and then tear down the KVS data
-        utils.kvs_sync_processes(kvs, rank)
-        utils.kvsTearDown(kvs, rank, kvs_key=COUNT_KEY)
-        utils.kvsTearDown(kvs, rank, kvs_key=FINAL_MI_DATA_KEY)
+        kvs.sync_processes()
+        kvs.get_persistant_key(FINAL_MI_DATA_KEY)
 
     return pd.DataFrame(mi, index=mi_r, columns=mi_c)
 
@@ -154,12 +140,11 @@ def mi_pileup(mi_shape, kvs):
     :param kvs: KVSClient
     """
     mi = np.full(mi_shape, np.nan, dtype=np.dtype(float))
-    n = utils.slurm_envs()['tasks']
-    for _ in range(n):
+    for _ in range(kvs.tasks):
         mi_two = kvs.get(PILEUP_DATA_KEY)
         update = ~np.isnan(mi_two)
         mi[update] = mi_two[update]
-    kvs.put(FINAL_MI_DATA_KEY, mi)
+    kvs.put_persistant_key(FINAL_MI_DATA_KEY, mi)
     return mi
 
 

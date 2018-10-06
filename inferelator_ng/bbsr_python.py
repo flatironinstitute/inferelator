@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import os
 from . import utils
 from . import bayes_stats
 
@@ -24,9 +23,8 @@ class BBSR:
     # Variables that handle multiprocessing via SLURM / KVS
     # The defaults here are placeholders for troubleshooting
     # All three of these should always be provided when instantiating
-    rank = 0  # int
     kvs = None  # KVSClient
-    ownCheck = None  # Generator
+    chunk = None  # int
 
     # Raw Data
     X = None  # [K x N] float
@@ -48,8 +46,8 @@ class BBSR:
     pp = None  # [G x K] bool
     nS = DEFAULT_nS  # int
 
-    def __init__(self, X, Y, clr_mat, prior_mat, nS=DEFAULT_nS, prior_weight=DEFAULT_prior_weight,
-                 no_prior_weight=DEFAULT_no_prior_weight, kvs=None, rank=0, ownCheck=None):
+    def __init__(self, X, Y, clr_mat, prior_mat, kvs, nS=DEFAULT_nS, prior_weight=DEFAULT_prior_weight,
+                 no_prior_weight=DEFAULT_no_prior_weight, chunk=25):
         """
         Create a BBSR object for Bayes Best Subset Regression
 
@@ -69,19 +67,11 @@ class BBSR:
             Weight of a predictor which doesn't have a prior
         :param kvs: KVSClient
             KVS client object (for SLURM)
-        :param rank: int
-            Process ID under SLURM
-        :param ownCheck:
-            Generator that will yield true if this process should handle a certain index (for SLURM)
         """
 
         self.nS = nS
-        self.rank = rank
-
-        if kvs is not None:
-            self.kvs = kvs
-        if ownCheck is not None:
-            self.ownCheck = ownCheck
+        self.kvs = kvs
+        self.chunk = chunk
 
         # Calculate the weight matrix
         self.prior_weight = prior_weight
@@ -125,8 +115,9 @@ class BBSR:
         # If it should (ownCheck is TRUE), slice the data for that response variable
         # And send the values (as an ndarray because pd.df indexing is glacially slow) to bayes_stats.bbsr
         # Keep a list of the resulting regression results
+        oc = self.kvs.own_check(chunk=self.chunk)
         for j in range(self.G):
-            if next(self.ownCheck):
+            if next(oc):
                 level = 0 if j % 100 == 0 else 2
                 utils.Debug.vprint("Regression on {gn} [{i} / {total}]".format(gn=self.Y.index[j],
                                                                                i=j,
@@ -140,10 +131,10 @@ class BBSR:
                 regression_data.append(data)
 
         # Put the regression results that this thread has calculated into KVS
-        self.kvs.put('plist', (self.rank, regression_data))
+        self.kvs.put('plist', (self.kvs.rank, regression_data))
 
         # If this is the master thread, pile the regression betas into dataframes and return them
-        if self.rank == 0:
+        if self.kvs.is_master:
             return self.pileup_data()
         else:
             return None, None
@@ -221,7 +212,7 @@ class BBSR:
             pid, ps = self.kvs.get('plist')
             run_data.extend(ps)
             utils.Debug.vprint("Collected {l} models from proc {id}".format(l=len(ps), id=pid), level=2)
-        utils.kvsTearDown(self.kvs, self.rank)
+        self.kvs.finish_own_check()
 
         # Create G x K arrays of 0s to populate with the regression data
         betas = np.zeros((self.G, self.K), dtype=np.dtype(float))
@@ -261,4 +252,4 @@ class BBSR_runner:
     """
 
     def run(self, X, Y, clr, prior_mat, kvs=None, rank=0, ownCheck=None):
-        return BBSR(X, Y, clr, prior_mat, kvs=kvs, rank=rank, ownCheck=ownCheck).run()
+        return BBSR(X, Y, clr, prior_mat, kvs).run()
