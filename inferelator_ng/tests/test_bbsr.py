@@ -2,8 +2,7 @@ import unittest, os
 import pandas as pd
 import pandas.util.testing as pdt
 import numpy as np
-from kvsstcp.kvsclient import KVSClient
-from subprocess import CalledProcessError
+from .. import kvs_controller
 from .. import bbsr_python, bayes_stats
 from .. import utils
 
@@ -23,7 +22,7 @@ class TestBBSRrunnerPython(unittest.TestCase):
         # Extra behavior: only run if KVSClient can reach the host:
         self.kvs = None  # dummy value on failure
         try:
-            self.kvs = KVSClient()
+            self.kvs = kvs_controller.KVSController()
         except Exception as e:
             if str(e) == 'Missing host':
                 print('Test test_bbsr.py exiting since KVS host is not running')
@@ -47,8 +46,7 @@ class TestBBSRrunnerPython(unittest.TestCase):
     
     def run_bbsr(self):
         kvs = self.get_kvs()
-        return self.brd.run(self.X, self.Y, self.clr, self.priors, rank=self.rank, \
-                 kvs=kvs, ownCheck = utils.ownCheck(kvs, self.rank))
+        return self.brd.run(self.X, self.Y, self.clr, self.priors, kvs=kvs)
 
     def set_all_zero_priors(self):
         self.priors =  pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2'])
