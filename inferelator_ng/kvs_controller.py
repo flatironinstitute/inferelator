@@ -1,3 +1,11 @@
+"""
+KVSController is a wrapper for KVSClient that adds some useful functionality related to interprocess
+communication.
+
+It also keeps track of a bunch of SLURM related stuff that was previously workflow's problem.
+"""
+
+
 from kvsstcp import KVSClient
 
 import os
@@ -26,7 +34,7 @@ class KVSController(KVSClient):
     proc_nodes = list()  # list
 
     # Which keys are on the server that need to be removed later
-    persist_keys = list()
+    persist_keys = list() # list
 
     # Async settings
     pref = "async"
@@ -34,18 +42,34 @@ class KVSController(KVSClient):
     master_first = False
 
     def __init__(self, slurm=True, **kwargs):
-        self._get_env(use_defaults=not slurm)
+
+        # Get local environment variables
+        self._get_env(allow_defaults=not slurm)
+
+        # Connect to the host server by calling to KVSClient.__init__
         super(KVSController, self).__init__(**kwargs)
+
+        # Map the process to nodes
         if slurm:
             self._create_node_map()
 
-    def _get_env(self, use_defaults=False):
+    """
+    The following code polls environment variables and other nodes to get information needed to manage
+    processes through KVS
+    """
+
+    def _get_env(self, allow_defaults=False):
+        """
+
+        :param use_defaults:
+        :return:
+        """
         for env_var, (class_var, func, default) in SBATCH_VARS.items():
             try:
                 val = func(os.environ[env_var])
             except (KeyError, TypeError):
                 val = default
-                if not use_defaults:
+                if not allow_defaults:
                     print("ENV {var} is not set. Using default {defa}".format(var=env_var, defa=default))
             setattr(self, class_var, val)
         if self.rank == 0:
@@ -67,15 +91,26 @@ class KVSController(KVSClient):
                 self.proc_nodes[n].append(r)
 
     def own_check(self, chunk=1, kvs_key='count'):
+        # Create the persistant key for ownCheck
         if self.is_master:
             self.put_persistant_key(kvs_key, 0)
 
-        # Start at the baseline
+        # Create an ownCheck generator and return it
         return ownCheck(self, chunk, kvs_key)
 
     def finish_own_check(self, kvs_key='count'):
         if self.is_master:
             self.get_persistant_key(kvs_key)
+
+    """
+    Persistant keys are keys that are created by one process with no explicit kvs.get to remove them
+    in the code (usually one process putting up data the others will view).
+    
+    This is management for these (so that they're easy to remove later).
+    
+    TODO: Implement a non-blocking delete that won't require any state knowledge
+    """
+
 
     def put_persistant_key(self, key, value, encoding=True):
         if key in self.persist_keys:
@@ -121,6 +156,11 @@ class KVSController(KVSClient):
 
         # Every process waits here until go keys are available
         self.get(ckey)
+
+    """
+    Everything under this is code to manage asynchronous process starts.
+    This can be used to mitigate memory spiking
+    """
 
     def async_settings(self, **kwargs):
         """
@@ -247,7 +287,7 @@ def ownCheck(kvs, chunk=1, kvs_key='count'):
     # Start at the baseline
     checks, lower, upper = 0, -1, -1
 
-    while 1:
+    while True:
 
         # Checks increments every loop
         # If it's greater than the upper bound, get a new lower bound from the KVS count
