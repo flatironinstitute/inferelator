@@ -198,7 +198,7 @@ class PythonDRDriver:
         # Otherwise just assume they're steady-state data and move on
         in_exp_not_meta = exp_conds.difference(meta_conds).astype(str).tolist()
         if len(in_exp_not_meta) != 0:
-            utils.Debug.vprint("{n} conditions cannot be properly matched to metadata".format(n=len(in_exp_not_meta)),
+            utils.Debug.vprint("{n} conditions cannot be properly matched to metadata:".format(n=len(in_exp_not_meta)),
                                level=1)
             utils.Debug.vprint(" ".join(in_exp_not_meta), level=2)
             if self.strict_checking_for_metadata:
@@ -231,7 +231,7 @@ class PythonDRDriver:
                 if self.strict_checking_for_duplicates:
                     raise MultipleConditionsError("Identical conditions have non-identical characteristics")
             else:
-                utils.Debug.vprint("The metadata contains {n} duplicate rows".format(n=n_dup_in_meta), level=1)
+                utils.Debug.vprint("The metadata contains duplicate rows:", level=1)
                 utils.Debug.vprint(" ".join(meta_dup), level=2)
 
     def _get_prior_timepoints(self, cond):
