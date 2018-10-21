@@ -10,8 +10,8 @@ from inferelator_ng import utils
 
 EXPRESSION_MATRIX_METADATA = ['Genotype', 'Genotype_Group', 'Replicate', 'Condition', 'tenXBarcode']
 
-class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
 
+class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
     # Gene list
     gene_list_file = None
     gene_list = None
@@ -20,10 +20,10 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
 
     # Normalization method flags
     library_normalization = True
+    expression_matrix_transpose = True
 
     def startup_run(self):
         self.get_data()
-        self.expression_matrix = self.expression_matrix.transpose()
         self.filter_expression_and_priors()
         self.single_cell_normalize()
         self.compute_activity()
@@ -33,22 +33,22 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         self.expression_matrix = self.expression_matrix.drop(self.expression_matrix_metadata, axis=1)
 
     def filter_expression_and_priors(self):
+        if self.expression_matrix_transpose:
+            self.expression_matrix = self.expression_matrix.transpose()
 
         if self.gene_list_file is not None:
             self.read_genes()
-            self.expression_matrix = self.expression_matrix.loc[self.expression_matrix.index.intersection(self.gene_list)]
+            self.expression_matrix = self.expression_matrix.loc[
+                self.expression_matrix.index.intersection(self.gene_list)]
             self.priors_data = self.priors_data.loc[self.priors_data.index.intersection(self.gene_list)]
         self.expression_matrix = self.expression_matrix.loc[~(self.expression_matrix.sum(axis=1) == 0)]
-        self.priors_data = self.priors_data.reindex(index = self.expression_matrix.index).fillna(value=0)
-        print(self.expression_matrix.shape)
-        print(self.priors_data.shape)
+        self.priors_data = self.priors_data.reindex(index=self.expression_matrix.index).fillna(value=0)
 
     def single_cell_normalize(self):
 
         if self.library_normalization:
             utils.Debug.vprint('Normalizing UMI counts per cell ... ')
             self.normalize_expression()
-
 
     def read_expression(self):
         """
