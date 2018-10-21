@@ -17,6 +17,7 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
     gene_list = None
 
     expression_matrix_metadata = EXPRESSION_MATRIX_METADATA
+    expression_matrix_gzipped = True
 
     # Normalization method flags
     library_normalization = True
@@ -54,7 +55,12 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         """
         Read expression file in from a gzipped file
         """
-        with gzip.open(self.input_path(self.expression_matrix_file), mode='r') as matfh:
+        if self.expression_matrix_gzipped:
+            opener = gzip.open
+        else:
+            opener = open
+
+        with opener(self.input_path(self.expression_matrix_file), mode='r') as matfh:
             self.expression_matrix = pd.read_table(matfh, index_col=0, **self.file_format_settings)
 
     def read_genes(self):
