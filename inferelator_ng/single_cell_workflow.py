@@ -3,6 +3,7 @@ Run Single Cell Network Inference with TFA BBSR
 """
 import pandas as pd
 import gzip
+import types
 
 from inferelator_ng import bbsr_tfa_workflow
 from inferelator_ng.tfa import TFA
@@ -18,20 +19,24 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
 
     expression_matrix_metadata = EXPRESSION_MATRIX_METADATA
     expression_matrix_gzipped = True
+    expression_matrix_transpose = True
+    extract_metadata_from_expression_matrix = True
 
     # Normalization method flags
     library_normalization = True
-    expression_matrix_transpose = True
 
     def startup_run(self):
+
+        if self.extract_metadata_from_expression_matrix:
+            def read_metadata(self):
+                self.meta_data = self.expression_matrix.loc[:, self.expression_matrix_metadata].copy()
+                self.expression_matrix = self.expression_matrix.drop(self.expression_matrix_metadata, axis=1)
+            self.read_metadata = types.MethodType(read_metadata, self)
+
         self.get_data()
         self.filter_expression_and_priors()
         self.single_cell_normalize()
         self.compute_activity()
-
-    def read_metadata(self, file=None):
-        self.meta_data = self.expression_matrix.loc[:, self.expression_matrix_metadata].copy()
-        self.expression_matrix = self.expression_matrix.drop(self.expression_matrix_metadata, axis=1)
 
     def filter_expression_and_priors(self):
         if self.expression_matrix_transpose:
