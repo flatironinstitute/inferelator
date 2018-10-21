@@ -15,6 +15,7 @@ PD_INPUT_SETTINGS = dict(sep="\t", header=0)
 class WorkflowBase(object):
     # Common configuration parameters
     input_dir = None
+    file_format_settings = PD_INPUT_SETTINGS
     expression_matrix_file = "expression.tsv"
     tf_names_file = "tf_names.tsv"
     meta_data_file = "meta_data.tsv"
@@ -153,7 +154,7 @@ class WorkflowBase(object):
         """
         Read a file in as a pandas dataframe
         """
-        return pd.read_table(self.input_path(filename), index_col=index_col, **PD_INPUT_SETTINGS)
+        return pd.read_table(self.input_path(filename), index_col=index_col, **self.file_format_settings)
 
     def append_to_path(self, var_name, to_append):
         """
