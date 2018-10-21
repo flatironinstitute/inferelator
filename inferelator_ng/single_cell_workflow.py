@@ -14,11 +14,14 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
 
     expression_matrix_metadata = EXPRESSION_MATRIX_METADATA
 
+    # Normalization method flags
+    library_normalization = True
+
     def startup_run(self):
         self.get_data()
         self.expression_matrix = self.expression_matrix.transpose()
         self.filter_expression_and_priors()
-        self.normalize_expression()
+        self.single_cell_normalize()
         self.compute_activity()
 
     def read_metadata(self, file=None):
@@ -28,6 +31,13 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
     def filter_expression_and_priors(self):
         self.expression_matrix = self.expression_matrix.loc[~(self.expression_matrix.sum(axis=1) == 0)]
         self.priors_data = self.priors_data.reindex(index = self.expression_matrix.index).fillna(value=0)
+
+    def single_cell_normalize(self):
+
+        if self.library_normalization:
+            utils.Debug.vprint('Normalizing UMI counts per cell ... ')
+            self.normalize_expression()
+
 
     def read_expression(self):
         """
