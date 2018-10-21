@@ -12,6 +12,10 @@ EXPRESSION_MATRIX_METADATA = ['Genotype', 'Genotype_Group', 'Replicate', 'Condit
 
 class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
 
+    # Gene list
+    gene_list_file = None
+    gene_list = None
+
     expression_matrix_metadata = EXPRESSION_MATRIX_METADATA
 
     # Normalization method flags
@@ -29,8 +33,15 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         self.expression_matrix = self.expression_matrix.drop(self.expression_matrix_metadata, axis=1)
 
     def filter_expression_and_priors(self):
+
+        if self.gene_list_file is not None:
+            self.read_genes()
+            self.expression_matrix = self.expression_matrix.loc[self.expression_matrix.index.intersection(self.gene_list)]
+            self.priors_data = self.priors_data.loc[self.priors_data.index.intersection(self.gene_list)]
         self.expression_matrix = self.expression_matrix.loc[~(self.expression_matrix.sum(axis=1) == 0)]
         self.priors_data = self.priors_data.reindex(index = self.expression_matrix.index).fillna(value=0)
+        print(self.expression_matrix.shape)
+        print(self.priors_data.shape)
 
     def single_cell_normalize(self):
 
@@ -44,7 +55,12 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         Read expression file in from a gzipped file
         """
         with gzip.open(self.input_path(self.expression_matrix_file), mode='r') as matfh:
-            self.expression_matrix = pd.read_table(matfh, index_col=0, header=0, sep="\t")
+            self.expression_matrix = pd.read_table(matfh, index_col=0, **self.file_format_settings)
+
+    def read_genes(self):
+
+        with open(self.input_path(self.gene_list_file)) as genefh:
+            self.gene_list = pd.read_table(genefh, **self.file_format_settings).iloc[:, 0].tolist()
 
     def normalize_expression(self):
         umi = self.expression_matrix.sum(axis=0)
