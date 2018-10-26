@@ -128,8 +128,8 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         Rescale activity to between 0 and 1
         :return:
         """
-        self.activity = self.activity - self.activity.min(axis=0)
-        self.activity = self.activity / self.activity.max(axis=0)
+        self.design = self.design - self.design.min(axis=0)
+        self.design = self.design / self.design.max(axis=0)
 
 
     def apply_metadata_to_activity(self):
