@@ -26,6 +26,7 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
     expression_matrix_transpose = True
     extract_metadata_from_expression_matrix = True
     expression_matrix_metadata = EXPRESSION_MATRIX_METADATA
+    minimum_reads_per_thousand_cells = 1
 
     # Normalization method flags
     library_normalization = True
@@ -69,8 +70,14 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
             self.expression_matrix = self.expression_matrix.loc[self.expression_matrix.index.intersection(genes)]
             self.priors_data = self.priors_data.loc[self.priors_data.index.intersection(genes)]
 
-        # Make sure that gene expression has data and that the priors align to the expression matrix
-        self.expression_matrix = self.expression_matrix.loc[~(self.expression_matrix.sum(axis=1) == 0)]
+        # Make sure that there's either a threshold of counts for each gene, or just that it's not all 0s
+        if self.minimum_reads_per_thousand_cells is not None:
+            threshold = int(self.expression_matrix.shape[1] / (self.minimum_reads_per_thousand_cells * 1000))
+            self.expression_matrix = self.expression_matrix.loc[self.expression_matrix.sum(axis=1) >= threshold]
+        else:
+            self.expression_matrix = self.expression_matrix.loc[~(self.expression_matrix.sum(axis=1) == 0)]
+
+        # Make sure that the priors align to the expression matrix
         self.priors_data = self.priors_data.reindex(index=self.expression_matrix.index).fillna(value=0)
 
     def single_cell_normalize(self):
@@ -111,8 +118,19 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         self.response = self.expression_matrix
         self.expression_matrix = None
 
+        self.scale_activity()
+
         if self.modify_activity_from_metadata:
             self.apply_metadata_to_activity()
+
+    def scale_activity(self):
+        """
+        Rescale activity to between 0 and 1
+        :return:
+        """
+        self.activity = self.activity - self.activity.min(axis=0)
+        self.activity = self.activity / self.activity.max(axis=0)
+
 
     def apply_metadata_to_activity(self):
 
