@@ -70,13 +70,7 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
             self.expression_matrix = self.expression_matrix.loc[self.expression_matrix.index.intersection(genes)]
             self.priors_data = self.priors_data.loc[self.priors_data.index.intersection(genes)]
 
-        # Make sure that there's either a threshold of counts for each gene, or just that it's not all 0s
-        if self.minimum_reads_per_thousand_cells is not None:
-            threshold = int(self.expression_matrix.shape[1] / (self.minimum_reads_per_thousand_cells * 1000))
-            self.expression_matrix = self.expression_matrix.loc[self.expression_matrix.sum(axis=1) >= threshold]
-        else:
-            self.expression_matrix = self.expression_matrix.loc[~(self.expression_matrix.sum(axis=1) == 0)]
-
+        self.expression_matrix = self.expression_matrix.loc[~(self.expression_matrix.sum(axis=1) == 0)]
         # Make sure that the priors align to the expression matrix
         self.priors_data = self.priors_data.reindex(index=self.expression_matrix.index).fillna(value=0)
 
@@ -133,6 +127,10 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
 
 
     def apply_metadata_to_activity(self):
+        """
+        Set design values according to metadata
+        :return:
+        """
 
         utils.Debug.vprint('Modifying Transcription Factor Activity ... ')
         # Get the genotypes from the metadata and map them to expression data names
