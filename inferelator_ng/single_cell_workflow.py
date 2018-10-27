@@ -108,8 +108,6 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         self.response = self.expression_matrix
         self.expression_matrix = None
 
-        self.scale_activity()
-
         if self.modify_activity_from_metadata:
             self.apply_metadata_to_activity()
 
