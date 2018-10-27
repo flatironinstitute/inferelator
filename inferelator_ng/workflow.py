@@ -42,9 +42,10 @@ class WorkflowBase(object):
     async_start = False
     async_chunk = 2
 
-    def __init__(self):
+    def __init__(self, initalize_mp=True):
         # Connect to KVS and get environment variables
-        self.initialize_multiprocessing()
+        if initalize_mp:
+            self.initialize_multiprocessing()
         self.get_environmentals()
 
     def initialize_multiprocessing(self):

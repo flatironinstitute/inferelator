@@ -13,7 +13,6 @@ EXPRESSION_MATRIX_METADATA = ['Genotype', 'Genotype_Group', 'Replicate', 'Condit
 GENE_LIST_INDEX_COLUMN = 'SystematicName'
 GENE_LIST_LOOKUP_COLUMN = 'Name'
 METADATA_FOR_TFA_ADJUSTMENT = 'Genotype_Group'
-TFA_ADJUSTMENT = lambda *x: 0
 
 class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
     # Gene list
@@ -35,9 +34,6 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
     modify_activity_from_metadata = True
     metadata_expression_lookup = METADATA_FOR_TFA_ADJUSTMENT
     gene_list_lookup = GENE_LIST_LOOKUP_COLUMN
-    tfa_adj_func = TFA_ADJUSTMENT
-
-
 
     def startup_run(self):
 
@@ -133,9 +129,9 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         """
 
         utils.Debug.vprint('Modifying Transcription Factor Activity ... ')
+
         # Get the genotypes from the metadata and map them to expression data names
         self.meta_data[self.metadata_expression_lookup] = self.meta_data[self.metadata_expression_lookup].str.upper()
-
         genotypes = self.meta_data[self.metadata_expression_lookup].unique().tolist()
         genes = self.gene_list.loc[self.gene_list[self.gene_list_lookup].isin(genotypes), :]
 
@@ -149,10 +145,11 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         for idx, row in self.meta_data.iterrows():
             if pd.isnull(row[self.metadata_expression_lookup]):
                 continue
-            new_value = self.tfa_adj_func(self.design.loc[row[self.metadata_expression_lookup], idx])
+            new_value = self.tfa_adj_func(row[self.metadata_expression_lookup])
             self.design.loc[row[self.metadata_expression_lookup], idx] = new_value
 
-
+    def tfa_adj_func(self, gene):
+        return self.design.loc[gene, :].min()
 
 
 
