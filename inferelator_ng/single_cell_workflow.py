@@ -21,7 +21,6 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
     gene_list_index = GENE_LIST_INDEX_COLUMN
 
     # Single-cell expression data manipulations
-    expression_matrix_gzipped = True
     expression_matrix_transpose = True
     extract_metadata_from_expression_matrix = True
     expression_matrix_metadata = EXPRESSION_MATRIX_METADATA

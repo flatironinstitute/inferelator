@@ -156,7 +156,7 @@ class WorkflowBase(object):
         if filename.endswith(".gz"):
             opener = gzip.open
         elif filename.endswith(".bz2"):
-            opener = bz2.open
+            opener = bz2.BZ2File
         else:
             opener = open
 
