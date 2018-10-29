@@ -10,6 +10,9 @@ import numpy as np
 import os
 import pandas as pd
 
+import gzip
+import bz2
+
 PD_INPUT_SETTINGS = dict(sep="\t", header=0)
 
 class WorkflowBase(object):
@@ -145,17 +148,27 @@ class WorkflowBase(object):
         self.priors_data = self.input_dataframe(self.priors_file)
         self.gold_standard = self.input_dataframe(self.gold_standard_file)
 
-    def input_path(self, filename):
+    def input_path(self, filename, mode='r'):
         """
         Join filename to input_dir
         """
-        return os.path.abspath(os.path.join(self.input_dir, filename))
+
+        if filename.endswith(".gz"):
+            opener = gzip.open
+        elif filename.endswith(".bz2"):
+            opener = bz2.open
+        else:
+            opener = open
+
+        return opener(os.path.abspath(os.path.join(self.input_dir, filename)), mode=mode)
 
     def input_dataframe(self, filename, index_col=0):
         """
         Read a file in as a pandas dataframe
         """
-        return pd.read_table(self.input_path(filename), index_col=index_col, **self.file_format_settings)
+
+        with self.input_path(filename) as fh:
+            return pd.read_table(fh, index_col=index_col, **self.file_format_settings)
 
     def append_to_path(self, var_name, to_append):
         """

@@ -81,17 +81,13 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         """
         Read expression file in from a gzipped file
         """
-        if self.expression_matrix_gzipped:
-            opener = gzip.open
-        else:
-            opener = open
 
-        with opener(self.input_path(self.expression_matrix_file), mode='r') as matfh:
+        with self.input_path(self.expression_matrix_file) as matfh:
             self.expression_matrix = pd.read_table(matfh, index_col=0, **self.file_format_settings)
 
     def read_genes(self):
 
-        with open(self.input_path(self.gene_list_file)) as genefh:
+        with self.input_path(self.gene_list_file) as genefh:
             self.gene_list = pd.read_table(genefh, **self.file_format_settings)
 
     def normalize_expression(self):
