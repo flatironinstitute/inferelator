@@ -19,6 +19,7 @@ class WorkflowBase(object):
     # Common configuration parameters
     input_dir = None
     file_format_settings = PD_INPUT_SETTINGS
+    file_format_overrides = dict()
     expression_matrix_file = "expression.tsv"
     tf_names_file = "tf_names.tsv"
     meta_data_file = "meta_data.tsv"
@@ -167,8 +168,12 @@ class WorkflowBase(object):
         Read a file in as a pandas dataframe
         """
 
+        file_settings = self.file_format_settings.copy()
+        if filename in self.file_format_overrides:
+            file_settings.update(self.file_format_overrides[filename])
+
         with self.input_path(filename) as fh:
-            return pd.read_table(fh, index_col=index_col, **self.file_format_settings)
+            return pd.read_table(fh, index_col=index_col, **file_settings)
 
     def append_to_path(self, var_name, to_append):
         """
