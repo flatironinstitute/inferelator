@@ -15,6 +15,7 @@ import bz2
 
 PD_INPUT_SETTINGS = dict(sep="\t", header=0)
 
+
 class WorkflowBase(object):
     # Common configuration parameters
     input_dir = None
@@ -27,7 +28,6 @@ class WorkflowBase(object):
     gold_standard_file = "gold_standard.tsv"
     output_dir = None
     random_seed = 42
-    expression_matrix_transpose = False
 
     # Computed data structures
     expression_matrix = None  # expression_matrix dataframe
@@ -46,9 +46,9 @@ class WorkflowBase(object):
     async_start = False
     async_chunk = 2
 
-    def __init__(self, initalize_mp=True):
+    def __init__(self, initialize_mp=True):
         # Connect to KVS and get environment variables
-        if initalize_mp:
+        if initialize_mp:
             self.initialize_multiprocessing()
         self.get_environmentals()
 
@@ -106,18 +106,13 @@ class WorkflowBase(object):
         self.read_metadata()
         self.set_gold_standard_and_priors()
 
-    def read_expression(self, file=None, transpose=None):
+    def read_expression(self, file=None):
         """
         Read expression matrix file into expression_matrix
         """
         if file is None:
             file = self.expression_matrix_file
         self.expression_matrix = self.input_dataframe(file)
-
-        if transpose is None:
-            transpose = self.expression_matrix_transpose
-        if transpose:
-            self.expression_matrix = self.expression_matrix.T
 
     def read_tfs(self, file=None):
         """

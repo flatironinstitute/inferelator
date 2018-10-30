@@ -14,6 +14,7 @@ GENE_LIST_INDEX_COLUMN = 'SystematicName'
 GENE_LIST_LOOKUP_COLUMN = 'Name'
 METADATA_FOR_TFA_ADJUSTMENT = 'Genotype_Group'
 
+
 class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
     # Gene list
     gene_list_file = None
@@ -28,8 +29,9 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
 
     # Normalization method flags
     library_normalization = True
+    magic_imputation = True
 
-    #TFA modification flags
+    # TFA modification flags
     modify_activity_from_metadata = True
     metadata_expression_lookup = METADATA_FOR_TFA_ADJUSTMENT
     gene_list_lookup = GENE_LIST_LOOKUP_COLUMN
@@ -42,6 +44,7 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
             def read_metadata(self):
                 self.meta_data = self.expression_matrix.loc[:, self.expression_matrix_metadata].copy()
                 self.expression_matrix = self.expression_matrix.drop(self.expression_matrix_metadata, axis=1)
+
             self.read_metadata = types.MethodType(read_metadata, self)
 
         # Load the usual data files for inferelator regression
@@ -75,6 +78,9 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         if self.library_normalization:
             utils.Debug.vprint('Normalizing UMI counts per cell ... ')
             self.normalize_expression()
+        if self.magic_imputation:
+            utils.Debug.vprint('Imputing data with MAGIC ... ')
+            self.magic_expression()
 
     def read_genes(self):
 
@@ -84,6 +90,10 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
     def normalize_expression(self):
         umi = self.expression_matrix.sum(axis=0)
         self.expression_matrix = self.expression_matrix.divide(umi, axis=1)
+
+    def magic_expression(self):
+        import magic
+        self.expression_matrix = magic.MAGIC().fit_transform(self.expression_matrix)
 
     def compute_activity(self):
         """
@@ -105,7 +115,6 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
         """
         self.design = self.design - self.design.min(axis=0)
         self.design = self.design / self.design.max(axis=0)
-
 
     def apply_metadata_to_activity(self):
         """
@@ -135,7 +144,3 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
 
     def tfa_adj_func(self, gene):
         return self.design.loc[gene, :].min()
-
-
-
-
