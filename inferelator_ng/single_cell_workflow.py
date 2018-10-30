@@ -28,8 +28,8 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
     minimum_reads_per_thousand_cells = 1
 
     # Normalization method flags
-    library_normalization = True
-    magic_imputation = True
+    library_normalization = False
+    magic_imputation = False
 
     # TFA modification flags
     modify_activity_from_metadata = True
@@ -93,6 +93,8 @@ class SingleCellWorkflow(bbsr_tfa_workflow.BBSR_TFA_Workflow):
 
     def magic_expression(self):
         import magic
+        import numpy as np
+        np.random.seed(self.random_seed)
         self.expression_matrix = magic.MAGIC().fit_transform(self.expression_matrix)
 
     def compute_activity(self):
