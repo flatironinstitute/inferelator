@@ -10,11 +10,12 @@ from inferelator_ng.tfa import TFA
 from inferelator_ng.results_processor import ResultsProcessor
 from inferelator_ng import mi
 from inferelator_ng import bbsr_python
+from inferelator_ng import elasticnet_python
 import datetime
 from inferelator_ng import utils
 
 
-class BBSR_TFA_Workflow(workflow.WorkflowBase):
+class TFAWorkFlow(workflow.WorkflowBase):
     # Design/response parameters
     delTmin = 0
     delTmax = 120
@@ -54,6 +55,7 @@ class BBSR_TFA_Workflow(workflow.WorkflowBase):
 
         for idx, bootstrap in enumerate(self.get_bootstraps()):
             utils.Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps), level=0)
+            np.random.seed(self.random_seed + idx)
             current_betas, current_rescaled_betas = self.run_bootstrap(bootstrap)
             if self.is_master():
                 betas.append(current_betas)
@@ -62,13 +64,7 @@ class BBSR_TFA_Workflow(workflow.WorkflowBase):
         return betas, rescaled_betas
 
     def run_bootstrap(self, bootstrap):
-        X = self.design.iloc[:, bootstrap]
-        Y = self.response.iloc[:, bootstrap]
-        utils.Debug.vprint('Calculating MI, Background MI, and CLR Matrix', level=0)
-        clr_matrix, mi_matrix = mi.MIDriver(kvs=self.kvs).run(X, Y)
-        mi_matrix = None
-        utils.Debug.vprint('Calculating betas using BBSR', level=0)
-        return bbsr_python.BBSR_runner().run(X, Y, clr_matrix, self.priors_data, self.kvs)
+        raise NotImplementedError
 
     def compute_activity(self):
         """
@@ -103,3 +99,30 @@ class BBSR_TFA_Workflow(workflow.WorkflowBase):
         drd.delTmin, drd.delTmax, drd.tau = self.delTmin, self.delTmax, self.tau
         self.design, self.response, self.half_tau_response = drd.run(self.expression_matrix, self.meta_data)
         self.expression_matrix = None
+
+
+class BBSR_TFA_Workflow(TFAWorkFlow):
+    # Drivers
+    mi_driver = mi.MIDriver
+    regression_driver = bbsr_python.BBSR_runner
+
+    def run_bootstrap(self, bootstrap):
+        X = self.design.iloc[:, bootstrap]
+        Y = self.response.iloc[:, bootstrap]
+        utils.Debug.vprint('Calculating MI, Background MI, and CLR Matrix', level=0)
+        clr_matrix, mi_matrix = self.mi_driver(kvs=self.kvs).run(X, Y)
+        mi_matrix = None
+        utils.Debug.vprint('Calculating betas using BBSR', level=0)
+        return self.regression_driver().run(X, Y, clr_matrix, self.priors_data, self.kvs)
+
+
+class MEN_Workflow(TFAWorkFlow):
+    # Drivers
+    regression_driver = elasticnet_python.ElasticNetRunner
+
+    def run_bootstrap(self, bootstrap):
+        X = self.design.iloc[:, bootstrap]
+        Y = self.response.iloc[:, bootstrap]
+        utils.Debug.vprint('Calculating betas using MEN', level=0)
+        self.kvs.sync_processes("pre-bootstrap")
+        return self.regression_driver().run(X, Y, self.kvs)
