@@ -36,11 +36,6 @@ class WorkflowBase(object):
     kvs = None
     tasks = None
 
-    # Startup configuration parameters. Set async_start to true to enable a staggered startup. startup_run will be
-    # executed asynchronously and then startup_finish will be run together.
-    async_start = False
-    async_chunk = 2
-
     def __init__(self):
         # Connect to KVS and get environment variables
         self.initialize_multiprocessing()
@@ -64,10 +59,7 @@ class WorkflowBase(object):
         """
         Startup by preprocessing all data into a ready format for regression.
         """
-        if self.async_start:
-            self.kvs.async_settings(chunk=self.async_chunk).execute_async(self.startup_run)
-        else:
-            self.startup_run()
+        self.startup_run()
         self.startup_finish()
 
     def startup_run(self):
