@@ -10,11 +10,17 @@ import numpy as np
 import os
 import pandas as pd
 
+import gzip
+import bz2
+
 PD_INPUT_SETTINGS = dict(sep="\t", header=0)
+
 
 class WorkflowBase(object):
     # Common configuration parameters
     input_dir = None
+    file_format_settings = PD_INPUT_SETTINGS
+    file_format_overrides = dict()
     expression_matrix_file = "expression.tsv"
     tf_names_file = "tf_names.tsv"
     meta_data_file = "meta_data.tsv"
@@ -22,7 +28,6 @@ class WorkflowBase(object):
     gold_standard_file = "gold_standard.tsv"
     output_dir = None
     random_seed = 42
-    expression_matrix_transpose = False
 
     # Computed data structures
     expression_matrix = None  # expression_matrix dataframe
@@ -35,10 +40,11 @@ class WorkflowBase(object):
     rank = 0
     kvs = None
     tasks = None
-
-    def __init__(self):
+    
+    def __init__(self, initialize_mp=True):
         # Connect to KVS and get environment variables
-        self.initialize_multiprocessing()
+        if initialize_mp:
+            self.initialize_multiprocessing()
         self.get_environmentals()
 
     def initialize_multiprocessing(self):
@@ -92,18 +98,13 @@ class WorkflowBase(object):
         self.read_metadata()
         self.set_gold_standard_and_priors()
 
-    def read_expression(self, file=None, transpose=None):
+    def read_expression(self, file=None):
         """
         Read expression matrix file into expression_matrix
         """
         if file is None:
             file = self.expression_matrix_file
         self.expression_matrix = self.input_dataframe(file)
-
-        if transpose is None:
-            transpose = self.expression_matrix_transpose
-        if transpose:
-            self.expression_matrix = self.expression_matrix.T
 
     def read_tfs(self, file=None):
         """
@@ -135,17 +136,31 @@ class WorkflowBase(object):
         self.priors_data = self.input_dataframe(self.priors_file)
         self.gold_standard = self.input_dataframe(self.gold_standard_file)
 
-    def input_path(self, filename):
+    def input_path(self, filename, mode='r'):
         """
         Join filename to input_dir
         """
-        return os.path.abspath(os.path.join(self.input_dir, filename))
+
+        if filename.endswith(".gz"):
+            opener = gzip.open
+        elif filename.endswith(".bz2"):
+            opener = bz2.BZ2File
+        else:
+            opener = open
+
+        return opener(os.path.abspath(os.path.join(self.input_dir, filename)), mode=mode)
 
     def input_dataframe(self, filename, index_col=0):
         """
         Read a file in as a pandas dataframe
         """
-        return pd.read_table(self.input_path(filename), index_col=index_col, **PD_INPUT_SETTINGS)
+
+        file_settings = self.file_format_settings.copy()
+        if filename in self.file_format_overrides:
+            file_settings.update(self.file_format_overrides[filename])
+
+        with self.input_path(filename) as fh:
+            return pd.read_table(fh, index_col=index_col, **file_settings)
 
     def append_to_path(self, var_name, to_append):
         """

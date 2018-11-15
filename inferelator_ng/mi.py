@@ -48,8 +48,8 @@ class MIDriver:
         if bins is not None:
             self.bins = bins
 
-        mi = mutual_information(y_df, x_df, self.bins, logtype=logtype, kvs=self.kvs)
-        mi_bg = mutual_information(x_df, x_df, self.bins, logtype=logtype, kvs=self.kvs)
+        mi = mutual_information(y_df, x_df, self.bins, logtype=logtype)
+        mi_bg = mutual_information(x_df, x_df, self.bins, logtype=logtype)
         clr = calc_mixed_clr(utils.df_set_diag(mi, 0), utils.df_set_diag(mi_bg, 0))
 
         if self.kvs is not None:
@@ -57,8 +57,9 @@ class MIDriver:
 
         return clr, mi
 
-
+      
 def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, chunk=DEFAULT_CHUNK):
+
     """
     Calculate the mutual information matrix between two data matrices, where the columns are equivalent conditions
 
@@ -70,8 +71,6 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, chunk=DEF
         Number of bins to discretize continuous data into for the generation of a contingency table
     :param logtype: np.log func
         Which type of log function should be used (log2 results in MI bits, log results in MI nats, log10... is weird)
-    :param kvs: KVSClient
-        KVS client object (for SLURM)
 
     :return mi: pd.DataFrame (m1 x m2)
         The mutual information between variables m1 and m2
@@ -113,7 +112,7 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, chunk=DEF
     return pd.DataFrame(mi, index=mi_r, columns=mi_c)
 
 
-def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, oc=None):
+def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE):
     """
         Calculate MI into an array initialized with NaNs
 
