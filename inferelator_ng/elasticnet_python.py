@@ -26,7 +26,7 @@ MIN_COEF = 0.1
 
 
 def elastic_net(X, Y, params):
-    (n, k) = X.shape
+    (k, n) = X.shape
     X = X.T
     # Fit the linear model using the elastic net
     model = ElasticNetCV(**params).fit(X, Y.ravel())
@@ -38,12 +38,9 @@ def elastic_net(X, Y, params):
     if coef_nonzero.sum() > 0:
         idx = utils.bool_to_index(coef_nonzero)
         x = X[:, idx]
-        best_betas = np.zeros(x.shape[1], dtype=np.dtype(float))
-        beta_hat = np.linalg.solve(np.dot(x.T, x), np.dot(x.T, Y))
-        for i, j in enumerate(idx):
-            best_betas[j] = beta_hat[i]
+        best_betas = np.linalg.solve(np.dot(x.T, x), np.dot(x.T, Y))
         betas_resc = predict_error_reduction(x, Y, best_betas)
-        return dict(pp=idx,
+        return dict(pp=coef_nonzero,
                     betas=best_betas,
                     betas_resc=betas_resc)
     else:
@@ -55,7 +52,10 @@ def elastic_net(X, Y, params):
 class ElasticNet(regression.BaseRegression):
     params = ELASTICNET_PARAMETERS
 
-    def __init__(self, X, Y, kvs):
+    def __init__(self, X, Y, kvs, chunk=25):
+        self.kvs = kvs
+        self.chunk = chunk
+
         # Get the IDs and total count for the genes and predictors
         self.K = X.shape[0]
         self.tfs = X.index.values.tolist()
@@ -104,5 +104,5 @@ class ElasticNet(regression.BaseRegression):
 
 
 class ElasticNetRunner:
-    def run(self, X, Y, kvs=None):
+    def run(self, X, Y, kvs):
         return ElasticNet(X, Y, kvs).run()
