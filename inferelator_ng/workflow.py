@@ -47,6 +47,7 @@ class WorkflowBase(object):
         """
         from inferelator_ng.kvs_controller import KVSController
         self.kvs = KVSController()
+        print("Process {i} initialized".format(i=self.kvs.rank))
 
     def get_environmentals(self):
         """
