@@ -146,7 +146,6 @@ def ownCheck(kvs, chunk=1, kvs_key='count'):
             lower = kvs.get(kvs_key)
             upper = lower + chunk
             kvs.put(kvs_key, upper)
-            print("Process {i} claiming {l}-{u} in {k}".format(i=kvs.rank, l=lower, u=upper, k=kvs_key))
 
         # Yield TRUE if this row belongs to this process and FALSE if it doesn't
         yield lower <= checks < upper

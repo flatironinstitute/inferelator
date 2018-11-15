@@ -124,6 +124,7 @@ class BBSR(regression.BaseRegression):
 
         # Put the regression results that this thread has calculated into KVS
         self.kvs.put('plist', (self.kvs.rank, regression_data))
+        self.kvs.sync_processes("bootstrap")
 
         # If this is the master thread, pile the regression betas into dataframes and return them
         if self.kvs.is_master:

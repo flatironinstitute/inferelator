@@ -114,8 +114,8 @@ class ElasticNet(regression.BaseRegression):
                 regression_data.append(data)
 
         # Put the regression results that this thread has calculated into KVS
-        print("Process {i} loading {m} models".format(i=self.kvs.rank, m=len(regression_data)))
         self.kvs.put('plist', (self.kvs.rank, regression_data))
+        self.kvs.sync_processes("bootstrap")
 
         # If this is the master thread, pile the regression betas into dataframes and return them
         if self.kvs.is_master:

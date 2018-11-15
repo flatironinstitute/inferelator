@@ -58,7 +58,7 @@ class MIDriver:
         return clr, mi
 
 
-def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, chunk=25):
+def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, chunk=DEFAULT_CHUNK):
     """
     Calculate the mutual information matrix between two data matrices, where the columns are equivalent conditions
 
@@ -98,7 +98,6 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, chunk=25)
         # Run MI calculations on everything that an ownCheck gives to this process and stash it in KVS
         oc = kvs.own_check(chunk=chunk, kvs_key=COUNT_KEY)
         kvs.put(PILEUP_DATA_KEY, build_mi_array(X, Y, bins, logtype=logtype, oc=oc))
-        kvs.finish_own_check(kvs_key=COUNT_KEY)
 
         # Block here until mi_pileup is complete and then get the final mi matrix from mi_final
         if kvs.is_master:
@@ -108,7 +107,8 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, chunk=25)
 
         # Block here until all the processes have mi_final and then tear down the KVS data
         kvs.sync_processes()
-        kvs.get_persistant_key(FINAL_MI_DATA_KEY)
+        kvs.finish_own_check(kvs_key=COUNT_KEY)
+        kvs.finish_own_check(kvs_key=FINAL_MI_DATA_KEY)
 
     return pd.DataFrame(mi, index=mi_r, columns=mi_c)
 
@@ -144,7 +144,7 @@ def mi_pileup(mi_shape, kvs):
         mi_two = kvs.get(PILEUP_DATA_KEY)
         update = ~np.isnan(mi_two)
         mi[update] = mi_two[update]
-    kvs.put_persistant_key(FINAL_MI_DATA_KEY, mi)
+    kvs.put(FINAL_MI_DATA_KEY, mi)
     return mi
 
 
