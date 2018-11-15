@@ -1,7 +1,9 @@
 import pandas as pd
 import numpy as np
-from . import utils
-from . import bayes_stats
+
+from inferelator_ng import utils
+from inferelator_ng import bayes_stats
+from inferelator_ng import regression
 
 # Default number of predictors to include in the model
 DEFAULT_nS = 10
@@ -17,20 +19,10 @@ DEFAULT_no_prior_weight = 1
 DEFAULT_filter_priors_for_clr = False
 
 
-class BBSR:
+class BBSR(regression.BaseRegression):
     # These are all the things that have to be set in a new BBSR class
 
-    # Variables that handle multiprocessing via SLURM / KVS
-    # The defaults here are placeholders for troubleshooting
-    # All three of these should always be provided when instantiating
-    kvs = None  # KVSClient
-    chunk = None  # int
-
-    # Raw Data
-    X = None  # [K x N] float
-    Y = None  # [G x N] float
-    G = None  # int G
-    K = None  # int K
+    # Bayseian correlation measurements
     clr_mat = None  # [G x K] float
 
     # Priors Data
@@ -86,9 +78,9 @@ class BBSR:
         self.genes = Y.index.values.tolist()
 
         # Rescale input data
-        self.X = self._scale_and_permute(X)
+        self.X = self._scale(X)
         utils.Debug.vprint("Predictor matrix {} ready".format(X.shape))
-        self.Y = self._scale_and_permute(Y)
+        self.Y = self._scale(Y)
         utils.Debug.vprint("Response matrix {} ready".format(Y.shape))
 
         # Rebuild weights, priors, and the CLR matrix for the features that are in this bootstrap
@@ -132,6 +124,7 @@ class BBSR:
 
         # Put the regression results that this thread has calculated into KVS
         self.kvs.put('plist', (self.kvs.rank, regression_data))
+        self.kvs.sync_processes("bootstrap")
 
         # If this is the master thread, pile the regression betas into dataframes and return them
         if self.kvs.is_master:
@@ -189,61 +182,6 @@ class BBSR:
         """
         weights_mat = p_matrix * 0 + no_p_weight
         return weights_mat.mask(p_matrix != 0, other=p_weight)
-
-    @staticmethod
-    def _scale_and_permute(df):
-        """
-        Center and normalize a DataFrame
-        :param df: pd.DataFrame
-        :return df: pd.DataFrame
-        """
-        df = df.T
-        return ((df - df.mean()) / df.std(ddof=1)).T
-
-    def pileup_data(self):
-        """
-        Take the completed run data and pack it up into a DataFrame of betas
-        :return: (pd.DataFrame [G x K], pd.DataFrame [G x K])
-        """
-        run_data = []
-
-        # Reach into KVS to get the model data
-        for p in range(utils.slurm_envs()['tasks']):
-            pid, ps = self.kvs.get('plist')
-            run_data.extend(ps)
-            utils.Debug.vprint("Collected {l} models from proc {id}".format(l=len(ps), id=pid), level=2)
-        self.kvs.finish_own_check()
-
-        # Create G x K arrays of 0s to populate with the regression data
-        betas = np.zeros((self.G, self.K), dtype=np.dtype(float))
-        betas_rescale = np.zeros((self.G, self.K), dtype=np.dtype(float))
-
-        # Populate the zero arrays with the BBSR betas
-        for data in run_data:
-            xidx = data['ind']  # Int
-            yidx = data['pp']  # Boolean array of size K
-
-            betas[xidx, yidx] = data['betas']
-            betas_rescale[xidx, yidx] = data['betas_resc']
-
-        d_len, b_avg, null_m = self._summary_stats(betas)
-        utils.Debug.vprint("Regression complete:", end=" ", level=0)
-        utils.Debug.vprint("{d_len} Models, {b_avg} Preds per Model, {nom} Null Models".format(d_len=d_len,
-                                                                                               b_avg=round(b_avg, 4),
-                                                                                               nom=null_m), level=0)
-
-        # Convert arrays into pd.DataFrames to return results
-        betas = pd.DataFrame(betas, index=self.Y.index, columns=self.X.index)
-        betas_rescale = pd.DataFrame(betas_rescale, index=self.Y.index, columns=self.X.index)
-
-        return betas, betas_rescale
-
-    @staticmethod
-    def _summary_stats(arr):
-        d_len = arr.shape[0]
-        b_avg = np.mean(np.sum(arr != 0, axis=1))
-        null_m = np.sum(np.sum(arr != 0, axis=1) == 0)
-        return d_len, b_avg, null_m
 
 
 class BBSR_runner:
