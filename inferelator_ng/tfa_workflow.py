@@ -55,6 +55,7 @@ class TFAWorkFlow(workflow.WorkflowBase):
 
         for idx, bootstrap in enumerate(self.get_bootstraps()):
             utils.Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps), level=0)
+            np.random.seed(self.random_seed + idx)
             current_betas, current_rescaled_betas = self.run_bootstrap(bootstrap)
             if self.is_master():
                 betas.append(current_betas)
@@ -123,4 +124,5 @@ class MEN_Workflow(TFAWorkFlow):
         X = self.design.iloc[:, bootstrap]
         Y = self.response.iloc[:, bootstrap]
         utils.Debug.vprint('Calculating betas using MEN', level=0)
+        self.kvs.sync_processes("pre-bootstrap")
         return self.regression_driver().run(X, Y, self.kvs)

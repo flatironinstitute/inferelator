@@ -3,6 +3,7 @@ import numpy as np
 from inferelator_ng import utils
 from inferelator_ng import regression
 from inferelator_ng.bayes_stats import predict_error_reduction
+from inferelator_ng.kvs_controller import ownCheck
 from sklearn.linear_model import ElasticNetCV
 
 ELASTICNET_PARAMETERS = dict(l1_ratio=[0.5, 0.7, 0.9],
@@ -102,7 +103,7 @@ class ElasticNet(regression.BaseRegression):
         # If it should (ownCheck is TRUE), slice the data for that response variable
         # And send the values (as an ndarray because pd.df indexing is glacially slow) to bayes_stats.bbsr
         # Keep a list of the resulting regression results
-        oc = self.kvs.own_check(chunk=self.chunk)
+        oc = ownCheck(self.kvs, self.kvs.rank, chunk=25)
         for j in range(self.G):
             if next(oc):
                 level = 0 if j % 100 == 0 else 2

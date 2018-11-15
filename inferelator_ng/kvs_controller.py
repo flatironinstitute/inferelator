@@ -82,12 +82,7 @@ class KVSController(KVSClient):
                 self.proc_nodes[n].append(r)
 
     def own_check(self, chunk=1, kvs_key='count'):
-        # Create the persistant key for ownCheck
-        if self.is_master:
-            self.put(kvs_key, 0)
-
-        # Create an ownCheck generator and return it
-        return ownCheck(self, chunk, kvs_key)
+        return ownCheck(self, self.rank, chunk=chunk, kvs_key=kvs_key)
 
     def finish_own_check(self, kvs_key='count'):
         if self.is_master:
@@ -117,7 +112,7 @@ class KVSController(KVSClient):
         self.get(ckey)
 
 
-def ownCheck(kvs, chunk=1, kvs_key='count'):
+def ownCheck(kvs, rank, chunk=1, kvs_key='count'):
     """
     Generator
 
@@ -131,6 +126,8 @@ def ownCheck(kvs, chunk=1, kvs_key='count'):
     :yield: bool
         True if this process has dibs on whatever. False if some other process has claimed it first.
     """
+    if rank == 0:
+        kvs.put(kvs_key, 0)
 
     # Start at the baseline
     checks, lower, upper = 0, -1, -1
