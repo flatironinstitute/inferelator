@@ -112,7 +112,7 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, chunk=DEF
     return pd.DataFrame(mi, index=mi_r, columns=mi_c)
 
 
-def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE):
+def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, oc=None):
     """
         Calculate MI into an array initialized with NaNs
 
