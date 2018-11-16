@@ -87,7 +87,10 @@ class SingleCellWorkflow:
 
     def normalize_expression(self):
         umi = self.expression_matrix.sum(axis=0)
+        assert not (umi == 0).values.any()
+        self.expression_matrix = self.expression_matrix.astype(float)
         self.expression_matrix = self.expression_matrix.divide(umi, axis=1)
+        assert not self.expression_matrix.isnull().values.any()
 
     def magic_expression(self):
         import magic
