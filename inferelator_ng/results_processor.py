@@ -7,7 +7,6 @@ matplotlib.use('pdf')
 import matplotlib.pyplot as plt
 
 
-
 class ResultsProcessor:
 
     def __init__(self, betas, rescaled_betas, threshold=0.5):
@@ -19,7 +18,7 @@ class ResultsProcessor:
         combined_confidences = pd.DataFrame(np.zeros((self.betas[0].shape)), index = self.betas[0].index, columns = self.betas[0].columns )
         for beta_resc in self.rescaled_betas:
             # this ranking code is especially wordy because the rank function only works in one dimension (col or row), so I had to flatten the matrix
-            ranked_df =np.reshape(pd.DataFrame(np.ndarray.flatten(beta_resc.values)).rank( method = "average").values, self.rescaled_betas[0].shape)
+            ranked_df =np.reshape(pd.DataFrame(np.ndarray.flatten(beta_resc.values)).rank( method = "min").values, self.rescaled_betas[0].shape)
             combined_confidences = combined_confidences + ranked_df
 
         min_element = min(combined_confidences.min())
