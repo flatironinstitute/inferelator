@@ -66,9 +66,15 @@ class SingleCellWorkflow:
             self.expression_matrix = self.expression_matrix.loc[self.expression_matrix.index.intersection(genes)]
             self.priors_data = self.priors_data.loc[self.priors_data.index.intersection(genes)]
 
+        # Only keep stuff from the expression matrix that's got counts
         self.expression_matrix = self.expression_matrix.loc[~(self.expression_matrix.sum(axis=1) == 0)]
+
         # Make sure that the priors align to the expression matrix
         self.priors_data = self.priors_data.reindex(index=self.expression_matrix.index).fillna(value=0)
+
+        # Trim to the tf_names list
+        tf_keepers = list(set(self.tf_names).intersection(set(self.priors_data.columns.tolist())))
+        self.priors_data = self.priors_data.loc[:, tf_keepers]
 
     def single_cell_normalize(self):
 
