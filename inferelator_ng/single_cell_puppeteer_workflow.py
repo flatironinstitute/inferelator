@@ -20,7 +20,7 @@ class NoOutputRP(results_processor.ResultsProcessor):
 def make_puppet_workflow(workflow_type):
     class SingleCellPuppetWorkflow(single_cell_workflow.SingleCellWorkflow, workflow_type):
         """
-        Standard BBSR TFA Workflow except it takes all the data as references to __init__ instead of as filenames on disk or
+        Standard workflow except it takes all the data as references to __init__ instead of as filenames on disk or
         as environment variables, and saves the model AUPR without outputting anything
         """
 

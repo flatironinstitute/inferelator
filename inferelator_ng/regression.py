@@ -1,7 +1,9 @@
 import numpy as np
 import pandas as pd
+import copy
 
 from inferelator_ng import utils
+
 
 class BaseRegression:
     # These are all the things that have to be set in a new regression class
@@ -42,8 +44,7 @@ class BaseRegression:
         for p in range(utils.slurm_envs()['tasks']):
             pid, ps = self.kvs.get('plist')
             run_data.extend(ps)
-            utils.Debug.vprint("Collected {l} models from proc {id}".format(l=len(ps), id=pid), level=2)
-        self.kvs.finish_own_check()
+        self.kvs.master_remove_key()
 
         # Create G x K arrays of 0s to populate with the regression data
         betas = np.zeros((self.G, self.K), dtype=np.dtype(float))
@@ -59,9 +60,9 @@ class BaseRegression:
 
         d_len, b_avg, null_m = self._summary_stats(betas)
         utils.Debug.vprint("Regression complete:", end=" ", level=0)
-        utils.Debug.vprint("{d_len} Models, {b_avg} Preds per Model, {nom} Null Models".format(d_len=d_len,
-                                                                                               b_avg=round(b_avg, 4),
-                                                                                               nom=null_m), level=0)
+        utils.Debug.vprint("{d_len} Models, {b_avg} Preds per Model ({nom} Null)".format(d_len=d_len,
+                                                                                         b_avg=round(b_avg, 4),
+                                                                                         nom=null_m), level=0)
 
         # Convert arrays into pd.DataFrames to return results
         betas = pd.DataFrame(betas, index=self.Y.index, columns=self.X.index)
@@ -75,3 +76,73 @@ class BaseRegression:
         b_avg = np.mean(np.sum(arr != 0, axis=1))
         null_m = np.sum(np.sum(arr != 0, axis=1) == 0)
         return d_len, b_avg, null_m
+
+
+def recalculate_betas_from_selected(x, y, idx):
+    """
+    Estimate betas from a selected subset of predictors
+    :param x: np.ndarray [n x k]
+    :param y: np.ndarray [n x 1]
+    :param idx: np.ndarray [k x 1]
+    :return: np.ndarray [k,]
+    """
+    best_betas = np.zeros(x.shape[1], dtype=np.dtype(float))
+    idx = bool_to_index(idx)
+    x = x[:, idx]
+    beta_hat = np.linalg.solve(np.dot(x.T, x), np.dot(x.T, y))
+    for i, j in enumerate(idx):
+        best_betas[j] = beta_hat[i]
+    return best_betas
+
+
+def predict_error_reduction(x, y, betas):
+    """
+    Predict the error reduction from each predictor
+    :param x: np.ndarray [n x k]
+    :param y: np.ndarray [n x 1]
+    :param betas: list [k]
+    :return: np.ndarray [k,]
+    """
+    (n, k) = x.shape
+    pp_idx = index_of_nonzeros(betas).tolist()
+
+    ss_all = sigma_squared(x, y, betas)
+    error_reduction = np.zeros(k, dtype=np.dtype(float))
+
+    if len(pp_idx) == 1:
+        error_reduction[pp_idx] = 1 - (ss_all / np.var(y, ddof=1))
+        return error_reduction
+
+    for pp_i in range(len(pp_idx)):
+        leave_out = copy.copy(pp_idx)
+        lost = leave_out.pop(pp_i)
+
+        x_leaveout = x[:, leave_out]
+        beta_hat = np.linalg.solve(np.dot(x_leaveout.T, x_leaveout), np.dot(x_leaveout.T, y))
+
+        ss_leaveout = sigma_squared(x_leaveout, y, beta_hat)
+        error_reduction[lost] = 1 - (ss_all / ss_leaveout)
+
+    return error_reduction
+
+
+def sigma_squared(x, y, betas):
+    return np.var(np.subtract(y, np.dot(x, betas).reshape(-1, 1)), ddof=1)
+
+
+def index_of_nonzeros(arr):
+    """
+    Returns an array that indexes all the non-zero elements of an array
+    :param arr: np.ndarray
+    :return: np.ndarray
+    """
+    return np.where(arr != 0)[0]
+
+
+def bool_to_index(arr):
+    """
+    Returns an array that indexes all the True elements of a boolean array
+    :param arr: np.ndarray
+    :return: np.ndarray
+    """
+    return np.where(arr)[0]

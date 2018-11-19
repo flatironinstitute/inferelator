@@ -1,11 +1,11 @@
 import numpy as np
 import itertools
 import math
-import copy
 import scipy.special
 
-from inferelator_ng.utils import bool_to_index, index_of_nonzeros, make_array_2d
 from inferelator_ng import utils
+from inferelator_ng import regression
+
 
 def bbsr(X, y, pp, weights, max_k):
     """
@@ -34,30 +34,30 @@ def bbsr(X, y, pp, weights, max_k):
                     betas_resc=np.zeros(pp.shape[0]))
 
     # Subset data to desired predictors
-    pp_idx = bool_to_index(pp)
+    pp_idx = regression.bool_to_index(pp)
     utils.Debug.vprint("Beginning regression with {pp_len} predictors".format(pp_len=len(pp_idx)), level=2)
 
     x = X[pp_idx, :].T
     gprior = weights[pp_idx].astype(np.dtype(float))
 
     # Make sure arrays are 2d
-    make_array_2d(x)
-    make_array_2d(y)
-    make_array_2d(gprior)
+    utils.make_array_2d(x)
+    utils.make_array_2d(y)
+    utils.make_array_2d(gprior)
 
     # Reduce predictors to max_k
     pp[pp_idx] = reduce_predictors(x, y, gprior, max_k)
-    pp_idx = bool_to_index(pp)
+    pp_idx = regression.bool_to_index(pp)
 
     utils.Debug.vprint("Reduced to {pp_len} predictors".format(pp_len=len(pp_idx)), level=2)
 
     # Resubset with the newly reduced predictors
     x = X[pp_idx, :].T
     gprior = weights[pp_idx].astype(np.dtype(float))
-    make_array_2d(gprior)
+    utils.make_array_2d(gprior)
 
     betas = best_subset_regression(x, y, gprior)
-    betas_resc = predict_error_reduction(x, y, betas)
+    betas_resc = regression.predict_error_reduction(x, y, betas)
 
     return dict(pp=pp,
                 betas=betas,
@@ -88,11 +88,7 @@ def best_subset_regression(x, y, gprior):
         return best_betas
 
     if best_combo.sum() > 0:
-        idx = bool_to_index(best_combo)
-        x = x[:, idx]
-        beta_hat = np.linalg.solve(np.dot(x.T, x), np.dot(x.T, y))
-        for i, j in enumerate(idx):
-            best_betas[j] = beta_hat[i]
+        best_betas = regression.recalculate_betas_from_selected(x, y, best_combo)
 
     return best_betas
 
@@ -124,37 +120,6 @@ def reduce_predictors(x, y, gprior, max_k):
 
         np.seterr(**reset)
         return predictors
-
-
-def predict_error_reduction(x, y, betas):
-    """
-
-    :param x: np.ndarray [n x k]
-    :param y: np.ndarray [n x 1]
-    :param betas: list [k]
-    :return:
-    """
-    (n, k) = x.shape
-    pp_idx = index_of_nonzeros(betas).tolist()
-
-    ss_all = sigma_squared(x, y, betas)
-    error_reduction = np.zeros(k, dtype=np.dtype(float))
-
-    if len(pp_idx) == 1:
-        error_reduction[pp_idx] = 1 - (ss_all / np.var(y, ddof=1))
-        return error_reduction
-
-    for pp_i in range(len(pp_idx)):
-        leave_out = copy.copy(pp_idx)
-        lost = leave_out.pop(pp_i)
-
-        x_leaveout = x[:, leave_out]
-        beta_hat = np.linalg.solve(np.dot(x_leaveout.T, x_leaveout), np.dot(x_leaveout.T, y))
-
-        ss_leaveout = sigma_squared(x_leaveout, y, beta_hat)
-        error_reduction[lost] = 1 - (ss_all / ss_leaveout)
-
-    return error_reduction
 
 
 def calc_all_expected_BIC(x, y, g, combinations, check_rank=True):
@@ -197,7 +162,7 @@ def calc_all_expected_BIC(x, y, g, combinations, check_rank=True):
     for i in range(c):
 
         # Convert the boolean slice into an index
-        c_idx = utils.bool_to_index(combinations[:, i])
+        c_idx = regression.bool_to_index(combinations[:, i])
         k_included = len(c_idx)
 
         # Check for a null model
@@ -252,7 +217,7 @@ def _best_combo_idx(x, bic, combo):
     """
 
     for i in range(combo.shape[1]):
-        bic_idx = np.argmin(bic) # In case of a tie, np.argmin returns the leftmost index
+        bic_idx = np.argmin(bic)  # In case of a tie, np.argmin returns the leftmost index
         c = combo[:, bic_idx]
 
         if c.sum() == 0:
@@ -282,10 +247,6 @@ def ssr(x, y, beta):
 
     resid = y - np.dot(x, beta)
     return (resid * resid).sum()
-
-
-def sigma_squared(x, y, betas):
-    return np.var(np.subtract(y, np.dot(x, betas).reshape(-1, 1)), ddof=1)
 
 
 def combo_index(n):

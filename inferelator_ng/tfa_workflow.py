@@ -10,7 +10,6 @@ from inferelator_ng.tfa import TFA
 from inferelator_ng.results_processor import ResultsProcessor
 from inferelator_ng import mi
 from inferelator_ng import bbsr_python
-from inferelator_ng import elasticnet_python
 import datetime
 from inferelator_ng import utils
 
@@ -114,15 +113,3 @@ class BBSR_TFA_Workflow(TFAWorkFlow):
         mi_matrix = None
         utils.Debug.vprint('Calculating betas using BBSR', level=0)
         return self.regression_driver().run(X, Y, clr_matrix, self.priors_data, self.kvs)
-
-
-class MEN_Workflow(TFAWorkFlow):
-    # Drivers
-    regression_driver = elasticnet_python.ElasticNetRunner
-
-    def run_bootstrap(self, bootstrap):
-        X = self.design.iloc[:, bootstrap]
-        Y = self.response.iloc[:, bootstrap]
-        utils.Debug.vprint('Calculating betas using MEN', level=0)
-        self.kvs.sync_processes("pre-bootstrap")
-        return self.regression_driver().run(X, Y, self.kvs)

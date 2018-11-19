@@ -13,25 +13,24 @@ CLR_DDOF = 1
 DEFAULT_LOG_TYPE = np.log
 
 # Multiprocessing chunk size
-DEFAULT_CHUNK = 1000
+DEFAULT_CHUNK = 2000
 
 # KVS keys for multiprocessing
 COUNT_KEY = 'micount'
-PILEUP_DATA_KEY = 'mi'
+PILEUP_DATA_KEY = 'mi_pileup'
 FINAL_MI_DATA_KEY = 'mi_final'
+SYNC_CLR_KEY = 'post_clr'
+SYNC_MI_KEY = 'post_mi'
 
 
 class MIDriver:
     bins = DEFAULT_NUM_BINS
     kvs = None
-    rank = None
 
-    def __init__(self, bins=None, kvs=None):
+    def __init__(self, bins=DEFAULT_NUM_BINS, kvs=None):
 
-        if bins is not None:
-            self.bins = bins
-        if kvs is not None:
-            self.kvs = kvs
+        self.bins = bins
+        self.kvs = kvs
 
     def run(self, x_df, y_df, bins=None, logtype=DEFAULT_LOG_TYPE):
         """
@@ -53,13 +52,12 @@ class MIDriver:
         clr = calc_mixed_clr(utils.df_set_diag(mi, 0), utils.df_set_diag(mi_bg, 0))
 
         if self.kvs is not None:
-            self.kvs.sync_processes()
+            self.kvs.sync_processes(pref=SYNC_CLR_KEY)
 
         return clr, mi
 
-      
-def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, chunk=DEFAULT_CHUNK):
 
+def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, chunk=DEFAULT_CHUNK):
     """
     Calculate the mutual information matrix between two data matrices, where the columns are equivalent conditions
 
@@ -105,23 +103,32 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, chunk=DEF
             mi = kvs.view(FINAL_MI_DATA_KEY)
 
         # Block here until all the processes have mi_final and then tear down the KVS data
-        kvs.sync_processes()
-        kvs.finish_own_check(kvs_key=COUNT_KEY)
-        kvs.finish_own_check(kvs_key=FINAL_MI_DATA_KEY)
+        kvs.sync_processes(pref=SYNC_MI_KEY)
+        kvs.master_remove_key(kvs_key=COUNT_KEY)
+        kvs.master_remove_key(kvs_key=FINAL_MI_DATA_KEY)
 
     return pd.DataFrame(mi, index=mi_r, columns=mi_c)
 
 
 def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, oc=None):
     """
-        Calculate MI into an array initialized with NaNs
+    Calculate MI into an array initialized with NaNs
 
-        :param X: np.ndarray (n x m1)
-        :param Y: np.ndarray (n x m2)
-        :param bins: int
-        :param logtype: np.log func
-        :return mi: np.ndarray (m1 x m2)
-        """
+    :param X: np.ndarray (n x m1)
+        Discrete array of bins
+    :param Y: np.ndarray (n x m2)
+        Discrete array of bins
+    :param bins: int
+        The total number of bins that were used to make the arrays discrete
+    :param logtype: np.log func
+        Which log function to use (log2 gives bits, ln gives nats)
+    :param oc: ownCheck generator
+        The multiprocessing controller from KVS. Tells this process what to calculate.
+        If None, calculate the entire array
+    :return mi: np.ndarray (m1 x m2)
+        Returns the mutual information calculated by this process.
+        If oc isn't None, this array will be np.NaNs for all values not calculated
+    """
     m1, m2 = X.shape[1], Y.shape[1]
     mi = np.full((m1, m2), np.nan, dtype=np.dtype(float))
     for i, j in itertools.product(range(m1), range(m2)):
@@ -223,7 +230,9 @@ def _make_table(x, y, num_bins):
         Contingency table of variables X and Y
     """
 
+    # The only fast way to do this is by reindexing the table as an index array
     reindex = x * num_bins + y
+    # Then piling everything up with bincount and reshaping it back into the table
     return np.bincount(reindex, minlength=num_bins ** 2).reshape(num_bins, num_bins).astype(np.dtype(float))
 
 

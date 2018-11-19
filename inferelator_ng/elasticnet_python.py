@@ -2,7 +2,7 @@ import numpy as np
 
 from inferelator_ng import utils
 from inferelator_ng import regression
-from inferelator_ng.bayes_stats import predict_error_reduction
+from inferelator_ng import tfa_workflow
 from inferelator_ng.kvs_controller import ownCheck
 from sklearn.linear_model import ElasticNetCV
 
@@ -35,27 +35,22 @@ def elastic_net(X, Y, params):
     :return:
     """
     (K, N) = X.shape
-    X = X.T             # Make X into [N, K]
-    Y = Y.flatten()     # Make Y into [N, ]
+    X = X.T  # Make X into [N, K]
+    Y = Y.flatten()  # Make Y into [N, ]
 
     # Fit the linear model using the elastic net
     model = ElasticNetCV(**params).fit(X, Y)
 
     # Set coefficients below threshold to 0
-    coefs = model.coef_                     # Get all model coefficients [K, ]
-    coefs[np.abs(coefs) < MIN_COEF] = 0.    # Threshold coefficients
-    coef_nonzero = coefs != 0               # Create a boolean array where coefficients are nonzero [K, ]
+    coefs = model.coef_  # Get all model coefficients [K, ]
+    coefs[np.abs(coefs) < MIN_COEF] = 0.  # Threshold coefficients
+    coef_nonzero = coefs != 0  # Create a boolean array where coefficients are nonzero [K, ]
 
     # If there are non-zero coefficients, redo the linear regression with them alone
     # And calculate beta_resc
     if coef_nonzero.sum() > 0:
-        x = X[:, coef_nonzero] # Get only the predictors (k) which elasticnet likes [N, k]
-        utils.make_array_2d(Y) # Make the output 2d [N, 1]
-        best_betas = np.linalg.solve(np.dot(x.T, x), np.dot(x.T, Y)).flatten()   # Get betas from regression [k, ]
-        betas_resc = predict_error_reduction(x, Y, best_betas)                   # Calculate beta_resc [k, ]
-        return dict(pp=coef_nonzero,
-                    betas=best_betas,
-                    betas_resc=betas_resc)
+        utils.make_array_2d(Y)
+        return regression.recalculate_betas_from_selected(X, Y, coef_nonzero)
     else:
         return dict(pp=np.repeat(True, K).tolist(),
                     betas=np.zeros(K),
@@ -128,3 +123,15 @@ class ElasticNet(regression.BaseRegression):
 class ElasticNetRunner:
     def run(self, X, Y, kvs):
         return ElasticNet(X, Y, kvs).run()
+
+
+class MEN_Workflow(tfa_workflow.TFAWorkFlow):
+    # Drivers
+    regression_driver = ElasticNetRunner
+
+    def run_bootstrap(self, bootstrap):
+        X = self.design.iloc[:, bootstrap]
+        Y = self.response.iloc[:, bootstrap]
+        utils.Debug.vprint('Calculating betas using MEN', level=0)
+        self.kvs.sync_processes("pre-bootstrap")
+        return self.regression_driver().run(X, Y, self.kvs)
