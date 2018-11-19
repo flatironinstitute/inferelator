@@ -7,6 +7,7 @@ import types
 from inferelator_ng.tfa import TFA
 from inferelator_ng import utils
 from inferelator_ng import tfa_workflow
+from inferelator_ng import elasticnet_python
 
 EXPRESSION_MATRIX_METADATA = ['Genotype', 'Genotype_Group', 'Replicate', 'Condition', 'tenXBarcode']
 GENE_LIST_INDEX_COLUMN = 'SystematicName'
@@ -161,5 +162,5 @@ class SingleCellWorkflow:
 class SingleCellBBSRWorkflow(SingleCellWorkflow, tfa_workflow.BBSR_TFA_Workflow):
     pass
 
-class SingleCellMENWorkflow(SingleCellWorkflow, tfa_workflow.MEN_Workflow):
+class SingleCellMENWorkflow(SingleCellWorkflow, elasticnet_python.MEN_Workflow):
     pass
