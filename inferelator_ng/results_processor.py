@@ -45,6 +45,9 @@ class ResultsProcessor:
         intersect_index = combined_confidences.index.intersection(gold_standard_nozero.index)
         intersect_cols = combined_confidences.columns.intersection(gold_standard_nozero.columns)
         gold_standard_filtered = gold_standard_nozero.loc[intersect_index, intersect_cols]
+        print("GS filtered from {s1} to {s2} with {n} entries".format(s1=gold_standard_nozero.shape,
+                                                                      s2=gold_standard_filtered.shape,
+                                                                      n=gold_standard_filtered.sum().sum()))
         combined_confidences_filtered = combined_confidences.loc[intersect_index, intersect_cols]
         # rank from highest to lowest confidence
         sorted_candidates = np.argsort(combined_confidences_filtered.values, axis = None)[::-1]
