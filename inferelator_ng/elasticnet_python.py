@@ -50,7 +50,11 @@ def elastic_net(X, Y, params):
     # And calculate beta_resc
     if coef_nonzero.sum() > 0:
         utils.make_array_2d(Y)
-        return regression.recalculate_betas_from_selected(X, Y, coef_nonzero)
+        betas = regression.recalculate_betas_from_selected(X, Y, coef_nonzero)
+        betas_resc = regression.predict_error_reduction(X, Y, betas)
+        return dict(pp=coef_nonzero,
+                    betas=betas,
+                    betas_resc=betas_resc)
     else:
         return dict(pp=np.repeat(True, K).tolist(),
                     betas=np.zeros(K),
