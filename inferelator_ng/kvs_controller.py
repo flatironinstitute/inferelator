@@ -39,13 +39,13 @@ class KVSController(KVSClient):
         """
 
         # Get local environment variables
-        self._get_env()
+        self._get_env(suppress_warnings=kwargs.pop("suppress_warnings", False))
 
         # Connect to the host server by calling to KVSClient.__init__
         super(KVSController, self).__init__(*args, **kwargs)
 
 
-    def _get_env(self, slurm_variables=SBATCH_VARS):
+    def _get_env(self, slurm_variables=SBATCH_VARS, suppress_warnings=False):
         """
         Get the SLURM environment variables that are set by sbatch at runtime.
         The default values mean multiprocessing won't work at all.
@@ -55,7 +55,8 @@ class KVSController(KVSClient):
                 val = func(os.environ[env_var])
             except (KeyError, TypeError):
                 val = default
-                print(DEFAULT_WARNING.format(var=env_var, defa=default))
+                if not suppress_warnings:
+                    print(DEFAULT_WARNING.format(var=env_var, defa=default))
             setattr(self, class_var, val)
         if self.rank == 0:
             self.is_master = True

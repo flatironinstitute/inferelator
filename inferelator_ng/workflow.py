@@ -29,12 +29,12 @@ class WorkflowBase(object):
     output_dir = None
     random_seed = 42
 
-    # Computed data structures
-    expression_matrix = None  # expression_matrix dataframe
-    tf_names = None  # tf_names list
-    meta_data = None  # meta data dataframe
-    priors_data = None  # priors data dataframe
-    gold_standard = None  # gold standard dataframe
+    # Computed data structures [G: Genes, K: Predictors, N: Conditions
+    expression_matrix = None  # expression_matrix dataframe [G x N]
+    tf_names = None  # tf_names list [k,]
+    meta_data = None  # meta data dataframe [G x ?]
+    priors_data = None  # priors data dataframe [G x K]
+    gold_standard = None  # gold standard dataframe [G x K]
 
     # Hold the KVS information
     rank = 0

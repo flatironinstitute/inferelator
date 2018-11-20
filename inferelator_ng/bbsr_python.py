@@ -20,8 +20,6 @@ DEFAULT_filter_priors_for_clr = False
 
 
 class BBSR(regression.BaseRegression):
-    # These are all the things that have to be set in a new BBSR class
-
     # Bayseian correlation measurements
     clr_mat = None  # [G x K] float
 
@@ -39,9 +37,9 @@ class BBSR(regression.BaseRegression):
     nS = DEFAULT_nS  # int
 
     def __init__(self, X, Y, clr_mat, prior_mat, kvs, nS=DEFAULT_nS, prior_weight=DEFAULT_prior_weight,
-                 no_prior_weight=DEFAULT_no_prior_weight, chunk=25):
+                 no_prior_weight=DEFAULT_no_prior_weight, chunk=regression.DEFAULT_CHUNK):
         """
-        Create a BBSR object for Bayes Best Subset Regression
+        Create a Regression object for Bayes Best Subset Regression
 
         :param X: pd.DataFrame [K x N]
             Expression / Activity data
@@ -61,9 +59,9 @@ class BBSR(regression.BaseRegression):
             KVS client object (for SLURM)
         """
 
+        super(BBSR, self).__init__(X, Y, kvs, chunk=chunk)
+
         self.nS = nS
-        self.kvs = kvs
-        self.chunk = chunk
 
         # Calculate the weight matrix
         self.prior_weight = prior_weight
@@ -71,66 +69,25 @@ class BBSR(regression.BaseRegression):
         weights_mat = self._calculate_weight_matrix(prior_mat, p_weight=prior_weight, no_p_weight=no_prior_weight)
         utils.Debug.vprint("Weight matrix {} construction complete".format(weights_mat.shape))
 
-        # Get the IDs and total count for the genes and predictors
-        self.K = X.shape[0]
-        self.tfs = X.index.values.tolist()
-        self.G = Y.shape[0]
-        self.genes = Y.index.values.tolist()
-
-        # Rescale input data
-        self.X = self._scale(X)
-        utils.Debug.vprint("Predictor matrix {} ready".format(X.shape))
-        self.Y = self._scale(Y)
-        utils.Debug.vprint("Response matrix {} ready".format(Y.shape))
-
         # Rebuild weights, priors, and the CLR matrix for the features that are in this bootstrap
         self.weights_mat = weights_mat.loc[self.genes, self.tfs]
         self.prior_mat = prior_mat.loc[self.genes, self.tfs]
         self.clr_mat = clr_mat.loc[self.genes, self.tfs]
-        utils.Debug.vprint("Selection of weights and priors {} complete".format(self.prior_mat.shape))
 
         # Build a boolean matrix indicating which tfs should be used as predictors for regression for each gene
         self.pp = self._build_pp_matrix()
-        utils.Debug.vprint("Selection of predictors {} complete".format(self.pp.shape))
 
-    def run(self):
+    def regress(self, idx):
         """
-        Execute BBSR separately on each response variable in the data
+        Execute BBSR on a specific index
 
-        :return: pd.DataFrame [G x K], pd.DataFrame [G x K]
-            Returns the regression betas and beta error reductions for all threads if this is the master thread (rank 0)
-            Returns None, None if it's a subordinate thread
+        :return: Passes return from bayes_stats.bbsr to the base regression class
         """
-        regression_data = []
-
-        # For every response variable G, check to see if this thread should run BBSR for that variable
-        # If it should (ownCheck is TRUE), slice the data for that response variable
-        # And send the values (as an ndarray because pd.df indexing is glacially slow) to bayes_stats.bbsr
-        # Keep a list of the resulting regression results
-        oc = self.kvs.own_check(chunk=self.chunk)
-        for j in range(self.G):
-            if next(oc):
-                level = 0 if j % 100 == 0 else 2
-                utils.Debug.vprint("Regression on {gn} [{i} / {total}]".format(gn=self.Y.index[j],
-                                                                               i=j,
-                                                                               total=self.G), level=level)
-                data = bayes_stats.bbsr(self.X.values,
-                                        self.Y.ix[j, :].values,
-                                        self.pp.ix[j, :].values,
-                                        self.weights_mat.ix[j, :].values,
-                                        self.nS)
-                data['ind'] = j
-                regression_data.append(data)
-
-        # Put the regression results that this thread has calculated into KVS
-        self.kvs.put('plist', (self.kvs.rank, regression_data))
-        self.kvs.sync_processes("bootstrap")
-
-        # If this is the master thread, pile the regression betas into dataframes and return them
-        if self.kvs.is_master:
-            return self.pileup_data()
-        else:
-            return None, None
+        return bayes_stats.bbsr(self.X.values,
+                                self.Y.ix[idx, :].values,
+                                self.pp.ix[idx, :].values,
+                                self.weights_mat.ix[idx, :].values,
+                                self.nS)
 
     def _build_pp_matrix(self):
         """
