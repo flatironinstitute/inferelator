@@ -2,9 +2,10 @@ import unittest, os
 import pandas as pd
 import pandas.util.testing as pdt
 import numpy as np
-from .. import kvs_controller
-from .. import bbsr_python, bayes_stats
-from .. import utils
+from inferelator_ng import kvs_controller
+from inferelator_ng import bbsr_python
+from inferelator_ng import bayes_stats
+from inferelator_ng import regression
 
 my_dir = os.path.dirname(__file__)
 
@@ -190,7 +191,7 @@ class TestBBSRrunnerPython(unittest.TestCase):
         self.X = np.array([[0, 0], [0, 0]])
         self.Y = np.array([1, 2])
         betas = np.array([ 0.,  0.])
-        result = bayes_stats.predict_error_reduction(self.X, self.Y, betas)
+        result = regression.predict_error_reduction(self.X, self.Y, betas)
         self.assertTrue((result == [ 0.,  0.]).all())
 
     @unittest.skipIf(should_skip(), "Skipping this test on Travis CI.")

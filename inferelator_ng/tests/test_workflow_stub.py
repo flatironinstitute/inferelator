@@ -89,5 +89,6 @@ class TestWorkflowStub(unittest.TestCase):
         # run the workflow (validation tests in emit_results)
         work.run()
         self.assertEqual(work.meta_data.shape, (421, 5))
-        self.assertEqual(work.meta_data.columns.tolist(), ['condName', 'del.t', 'is1stLast', 'isTs', 'prevCol'])
+        self.assertEqual(set(work.meta_data.columns.tolist()),
+                         set(['condName', 'del.t', 'is1stLast', 'isTs', 'prevCol']))
 

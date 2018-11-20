@@ -16,6 +16,8 @@ SBATCH_VARS = dict(SLURM_PROCID=('rank', int, 0),
                    SLURM_NODEID=('node', int, 0),
                    SLURM_JOB_NUM_NODES=('num_nodes', int, 1))
 
+DEFAULT_WARNING = "SBATCH has not set ENV {var}. Setting {var} to {defa}."
+
 NODE_MAP_KEY = "kvs_node_map"
 
 
@@ -31,60 +33,40 @@ class KVSController(KVSClient):
     # Poll workers for location
     proc_nodes = list()  # list
 
-    def __init__(self, slurm=True, **kwargs):
+    def __init__(self, *args, **kwargs):
+        """
+        Create a new KVS object with some object variables set to reflect the slurm environment
+        """
 
         # Get local environment variables
-        self._get_env(allow_defaults=not slurm)
+        self._get_env(suppress_warnings=kwargs.pop("suppress_warnings", False))
 
         # Connect to the host server by calling to KVSClient.__init__
-        super(KVSController, self).__init__(**kwargs)
+        super(KVSController, self).__init__(*args, **kwargs)
 
-        # Map the process to nodes
-        if slurm:
-            self._create_node_map()
 
-    """
-    The following code polls environment variables and other nodes to get information needed to manage
-    processes through KVS
-    """
-
-    def _get_env(self, allow_defaults=False):
+    def _get_env(self, slurm_variables=SBATCH_VARS, suppress_warnings=False):
         """
-
-        :param allow_defaults: bool
-            Use the default values for environment variables. Otherwise throw an error if not set
-        :return:
+        Get the SLURM environment variables that are set by sbatch at runtime.
+        The default values mean multiprocessing won't work at all.
         """
-        for env_var, (class_var, func, default) in SBATCH_VARS.items():
+        for env_var, (class_var, func, default) in slurm_variables.items():
             try:
                 val = func(os.environ[env_var])
             except (KeyError, TypeError):
                 val = default
-                if not allow_defaults:
-                    print("ENV {var} is not set. Using default {defa}".format(var=env_var, defa=default))
+                if not suppress_warnings:
+                    print(DEFAULT_WARNING.format(var=env_var, defa=default))
             setattr(self, class_var, val)
         if self.rank == 0:
             self.is_master = True
         else:
             self.is_master = False
 
-    def _create_node_map(self):
-        """
-        Get the node keys off KVS to build a map of which processes are on which nodes
-        """
-
-        self.put(NODE_MAP_KEY, (self.rank, self.node))
-
-        if self.is_master:
-            self.proc_nodes = [[]] * self.num_nodes
-            for i in range(self.tasks):
-                r, n = self.get(NODE_MAP_KEY)
-                self.proc_nodes[n].append(r)
-
     def own_check(self, chunk=1, kvs_key='count'):
         return ownCheck(self, self.rank, chunk=chunk, kvs_key=kvs_key)
 
-    def finish_own_check(self, kvs_key='count'):
+    def master_remove_key(self, kvs_key='count'):
         if self.is_master:
             self.get(kvs_key)
 
