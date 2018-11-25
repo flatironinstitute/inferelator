@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 from . import workflow
 
-class PriorGoldStandardSplitWorkflowBase(workflow.WorkflowBase):
+class PriorGoldStandardSplitWorkflowBase(object):
 
     def set_gold_standard_and_priors(self, gold_standard_split=0.5):
         """

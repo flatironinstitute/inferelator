@@ -54,32 +54,14 @@ def make_puppet_workflow(workflow_type):
 
 class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_workflow.TFAWorkFlow):
     seeds = range(42, 45)
-    sizes = [1]
-    drop_column = None
     regression_type = tfa_workflow.BBSR_TFA_Workflow
+    header = ["Seed", "AUPR"]
 
     def compute_activity(self):
         pass
 
     def single_cell_normalize(self):
         pass
-
-    def run(self):
-        self.startup()
-
-        aupr_data = dict()
-        if self.drop_column is not None:
-            idx = self.condition_dropouts()
-            for r_name, r_idx in idx.items():
-                aupr_data[r_name] = self.auprs_for_index(r_idx)
-
-        aupr_data["ALL"] = self.auprs(self.expression_matrix, self.meta_data, self.regression_type)
-        self.emit_results(aupr_data)
-
-    def auprs_for_index(self, idx):
-        local_expr_data = self.expression_matrix.iloc[:, idx]
-        local_meta_data = self.meta_data.iloc[idx, :]
-        return self.auprs(local_expr_data, local_meta_data, self.regression_type)
 
     def emit_results(self, auprs, file_name="aupr.tsv"):
 
@@ -91,20 +73,61 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
             except OSError:
                 pass
             with open(os.path.join(self.output_dir, file_name), mode="w") as out_fh:
-                for conds, size_seed in auprs:
-                    for line in size_seed:
-                        print(conds + "\t" + "\t".join(line), file=out_fh)
+                print("\t".join(self.header), file=out_fh)
+                for tup in auprs:
+                    print("\t".join(tup), file=out_fh)
 
-    def auprs(self, expr_data, meta_data, regression_type):
-        aupr_data = list()
+    def get_aupr_for_seeds(self, expr_data, meta_data, regression_type, priors_data=None, gold_standard=None):
+        if gold_standard is None:
+            gold_standard = self.gold_standard
+        if priors_data is None:
+            priors_data = self.priors_data
+
+        aupr_data = []
+        for seed in self.seeds:
+            puppet = make_puppet_workflow(regression_type)(self.kvs, self.rank, expr_data, meta_data,
+                                                           priors_data, gold_standard, self.tf_names)
+            puppet.random_seed = seed
+            puppet.run()
+            aupr_data.append((seed, puppet.aupr))
+        return aupr_data
+
+
+class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
+    sizes = [1]
+    header = ["Size", "Seed", "AUPR"]
+
+    def run(self):
+        self.startup()
+        aupr_data = self.get_aupr_for_seeds(self.expression_matrix, self.meta_data, self.regression_type)
+        self.emit_results(aupr_data)
+
+    def get_aupr_for_resized_data(self, expr_data, meta_data, regression_type):
+        aupr_data = []
         for s_ratio in self.sizes:
-            new_size = self.calc_size(s_ratio)
-            for seed in self.seeds:
-                puppet = make_puppet_workflow(regression_type)(self.kvs, self.rank, expr_data, meta_data,
-                                                               self.priors_data, self.gold_standard, self.tf_names)
-                puppet.random_seed = seed
-                puppet.run()
-                aupr_data.append((new_size, seed, puppet.aupr))
+            new_size = int(s_ratio * self.expression_matrix.shape[1])
+            new_idx = np.random.choice(expr_data.shape[1], size=new_size)
+            auprs = self.get_aupr_for_seeds(expr_data.loc[:, new_idx],
+                                            meta_data.loc[new_idx, :],
+                                            regression_type=regression_type)
+            aupr_data.extend([(new_size, se, au) for (se, au) in auprs])
+        return aupr_data
+
+
+class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
+    drop_column = None
+
+    def run(self):
+        self.startup()
+        aupr_data = self.auprs_for_condition_dropout()
+        self.emit_results(aupr_data)
+
+    def auprs_for_condition_dropout(self):
+        aupr_data = []
+        idx = self.condition_dropouts()
+        for r_name, r_idx in idx.items():
+            auprs = self.auprs_for_index(r_idx)
+            aupr_data.extend([(r_name, se, au) for (se, au) in auprs])
         return aupr_data
 
     def condition_dropouts(self):
@@ -113,5 +136,12 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
             condition_indexes[cond] = self.meta_data[self.drop_column] == cond
         return condition_indexes
 
-    def calc_size(self, size):
-        return int(size * self.expression_matrix.shape[1])
+    def auprs_for_index(self, idx):
+        local_expr_data = self.expression_matrix.iloc[:, idx]
+        local_meta_data = self.meta_data.iloc[idx, :]
+        return self.get_aupr_for_seeds(local_expr_data, local_meta_data, self.regression_type)
+
+class SingleCellGSPriorMux(SingleCellPuppeteerWorkflow):
+
+    def run(self):
+        pass
