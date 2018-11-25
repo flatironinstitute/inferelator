@@ -16,9 +16,8 @@ SBATCH_VARS = dict(SLURM_PROCID=('rank', int, 0),
                    SLURM_NODEID=('node', int, 0),
                    SLURM_JOB_NUM_NODES=('num_nodes', int, 1))
 
+DEFAULT_MASTER = 0
 DEFAULT_WARNING = "SBATCH has not set ENV {var}. Setting {var} to {defa}."
-
-NODE_MAP_KEY = "kvs_node_map"
 
 
 class KVSController(KVSClient):
@@ -30,22 +29,19 @@ class KVSController(KVSClient):
     num_nodes = None  # int
     is_master = False  # bool
 
-    # Poll workers for location
-    proc_nodes = list()  # list
-
     def __init__(self, *args, **kwargs):
         """
         Create a new KVS object with some object variables set to reflect the slurm environment
         """
 
         # Get local environment variables
-        self._get_env(suppress_warnings=kwargs.pop("suppress_warnings", False))
+        self._get_env(suppress_warnings=kwargs.pop("suppress_warnings", False),
+                      master_rank=kwargs.pop("master_rank", 0))
 
         # Connect to the host server by calling to KVSClient.__init__
         super(KVSController, self).__init__(*args, **kwargs)
 
-
-    def _get_env(self, slurm_variables=SBATCH_VARS, suppress_warnings=False):
+    def _get_env(self, slurm_variables=SBATCH_VARS, suppress_warnings=False, master_rank=DEFAULT_MASTER):
         """
         Get the SLURM environment variables that are set by sbatch at runtime.
         The default values mean multiprocessing won't work at all.
@@ -58,13 +54,16 @@ class KVSController(KVSClient):
                 if not suppress_warnings:
                     print(DEFAULT_WARNING.format(var=env_var, defa=default))
             setattr(self, class_var, val)
-        if self.rank == 0:
+        if self.rank == master_rank:
             self.is_master = True
         else:
             self.is_master = False
 
     def own_check(self, chunk=1, kvs_key='count'):
-        return ownCheck(self, self.rank, chunk=chunk, kvs_key=kvs_key)
+        if self.is_master:
+            return ownCheck(self, 0, chunk=chunk, kvs_key=kvs_key)
+        else:
+            return ownCheck(self, 1, chunk=chunk, kvs_key=kvs_key)
 
     def master_remove_key(self, kvs_key='count'):
         if self.is_master:
