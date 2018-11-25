@@ -1,4 +1,6 @@
 import itertools
+import tempfile
+import os
 import numpy as np
 import pandas as pd
 from inferelator_ng import utils
@@ -27,10 +29,24 @@ class MIDriver:
     bins = DEFAULT_NUM_BINS
     kvs = None
 
-    def __init__(self, bins=DEFAULT_NUM_BINS, kvs=None):
+    def __init__(self, bins=DEFAULT_NUM_BINS, kvs=None, sync_in_tmp_path=None):
+        """
+        :param bins: int
+            Number of bins for discretizing continuous variables
+        :param kvs: KVSController
+            KVSController object for interprocess communication
+        :param sync_in_tmp_path: path
+            Path to a temp file directory to use for synchronizing processes
+            This uses the temp directory for DATA only. Process communication is still done with KVS.
+            If KVS is None, this does nothing.
+        """
+
+        if sync_in_tmp_path is not None:
+            assert os.access(sync_in_tmp_path, os.W_OK), "Directory {di} not writable".format(di=sync_in_tmp_path)
 
         self.bins = bins
         self.kvs = kvs
+        self.temp_dir = sync_in_tmp_path
 
     def run(self, x_df, y_df, bins=None, logtype=DEFAULT_LOG_TYPE):
         """
@@ -47,8 +63,8 @@ class MIDriver:
         if bins is not None:
             self.bins = bins
 
-        mi = mutual_information(y_df, x_df, self.bins, logtype=logtype)
-        mi_bg = mutual_information(x_df, x_df, self.bins, logtype=logtype)
+        mi = mutual_information(y_df, x_df, self.bins, kvs=self.kvs, temp_dir=self.temp_dir, logtype=logtype)
+        mi_bg = mutual_information(x_df, x_df, self.bins, kvs=self.kvs, temp_dir=self.temp_dir, logtype=logtype)
         clr = calc_mixed_clr(utils.df_set_diag(mi, 0), utils.df_set_diag(mi_bg, 0))
 
         if self.kvs is not None:
@@ -57,7 +73,7 @@ class MIDriver:
         return clr, mi
 
 
-def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, chunk=DEFAULT_CHUNK):
+def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, temp_dir=None, chunk=DEFAULT_CHUNK):
     """
     Calculate the mutual information matrix between two data matrices, where the columns are equivalent conditions
 
@@ -91,23 +107,81 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, chunk=DEF
     if kvs is None:
         mi = build_mi_array(X, Y, bins, logtype=logtype)
     # If there is a KVS object, run distributed and give the results to everyone
+    elif temp_dir is None:
+        mi = mi_through_kvs(X, Y, bins, kvs, logtype=logtype, chunk=chunk)
     else:
-        # Run MI calculations on everything that an ownCheck gives to this process and stash it in KVS
-        oc = kvs.own_check(chunk=chunk, kvs_key=COUNT_KEY)
-        kvs.put(PILEUP_DATA_KEY, build_mi_array(X, Y, bins, logtype=logtype, oc=oc))
-
-        # Block here until mi_pileup is complete and then get the final mi matrix from mi_final
-        if kvs.is_master:
-            mi = mi_pileup((X.shape[1], Y.shape[1]), kvs)
-        else:
-            mi = kvs.view(FINAL_MI_DATA_KEY)
-
-        # Block here until all the processes have mi_final and then tear down the KVS data
-        kvs.sync_processes(pref=SYNC_MI_KEY)
-        kvs.master_remove_key(kvs_key=COUNT_KEY)
-        kvs.master_remove_key(kvs_key=FINAL_MI_DATA_KEY)
+        mi = mi_through_dir(X, Y, bins, kvs, temp_dir, logtype=logtype, chunk=chunk)
 
     return pd.DataFrame(mi, index=mi_r, columns=mi_c)
+
+
+def mi_through_kvs(X, Y, bins, kvs, logtype=DEFAULT_LOG_TYPE, chunk=DEFAULT_CHUNK):
+    # Run MI calculations on everything that an ownCheck gives to this process and stash it in KVS
+    oc = kvs.own_check(chunk=chunk, kvs_key=COUNT_KEY)
+    kvs.put(PILEUP_DATA_KEY, build_mi_array(X, Y, bins, logtype=logtype, oc=oc))
+
+    # Block here until mi pileup is complete and then get the final mi matrix from mi_final
+    if kvs.is_master:
+        mi = np.full((X.shape[1], Y.shape[1]), np.nan, dtype=np.dtype(float))
+        for _ in range(kvs.tasks):
+            mi_two = kvs.get(PILEUP_DATA_KEY)
+            update = ~np.isnan(mi_two)
+            mi[update] = mi_two[update]
+        kvs.put(FINAL_MI_DATA_KEY, mi)
+    else:
+        mi = kvs.view(FINAL_MI_DATA_KEY)
+
+    # Block here until all the processes have mi_final and then tear down the KVS data
+    kvs.sync_processes(pref=SYNC_MI_KEY)
+    kvs.master_remove_key(kvs_key=COUNT_KEY)
+    kvs.master_remove_key(kvs_key=FINAL_MI_DATA_KEY)
+
+    return mi
+
+
+def mi_through_dir(X, Y, bins, kvs, temp_dir, logtype=DEFAULT_LOG_TYPE, chunk=DEFAULT_CHUNK):
+    # Do MI calculations locally
+    local_mi = build_mi_array(X, Y, bins, logtype=logtype, oc=kvs.own_check(chunk=chunk, kvs_key=COUNT_KEY))
+
+    # Write these MI calculations to a temp file and put that filename on KVS
+    temp_fd, temp_name = tempfile.mkstemp(prefix="mi", dir=temp_dir)
+    with os.fdopen(temp_fd, "wb") as temp:
+        np.savetxt(temp, local_mi, delimiter="\t")
+    kvs.put(PILEUP_DATA_KEY, temp_name)
+
+    # Pile up the resulting data
+    if kvs.is_master:
+        # Read in each temp file, put it into a master MI array, and then delete the temp file
+        mi = np.full((X.shape[1], Y.shape[1]), np.nan, dtype=np.dtype(float))
+        for _ in range(kvs.tasks):
+            mi_tmp_path = kvs.get(PILEUP_DATA_KEY)
+            with open(mi_tmp_path, mode="r") as temp:
+                mi_two = np.loadtxt(temp, delimiter="\t")
+            os.remove(mi_tmp_path)
+            update = ~np.isnan(mi_two)
+            mi[update] = mi_two[update]
+
+        # Write the complete MI array to a temp file and put that filename on KVS
+        final_fd, final_name = tempfile.mkstemp(prefix="mi", dir=temp_dir)
+        with os.fdopen(final_fd, "wb") as temp:
+            np.savetxt(temp, mi, delimiter="\t")
+        kvs.put(FINAL_MI_DATA_KEY, final_name)
+    # Get the complete MI array filename from KVS and read it in
+    else:
+        mi_tmp_path = kvs.view(FINAL_MI_DATA_KEY)
+        with open(mi_tmp_path, mode="r") as temp:
+            mi = np.loadtxt(temp, delimiter="\t")
+
+    # Block here until all the processes have mi_final and then tear down the KVS data
+    kvs.sync_processes(pref=SYNC_MI_KEY)
+    kvs.master_remove_key(kvs_key=COUNT_KEY)
+    kvs.master_remove_key(kvs_key=FINAL_MI_DATA_KEY)
+
+    # Delete the complete MI array temp file
+    if kvs.is_master:
+        os.remove(final_name)
+
+    return mi
 
 
 def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, oc=None):
@@ -135,22 +209,6 @@ def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, oc=None):
         if oc is None or next(oc):
             ctable = _make_table(X[:, i], Y[:, j], bins)
             mi[i, j] = _calc_mi(ctable, logtype=logtype)
-    return mi
-
-
-def mi_pileup(mi_shape, kvs):
-    """
-    Pile up the partial data generated by each process and push the final matrix into mi_final on the KVS server
-
-    :param mi_shape: Tuple (int, int)
-    :param kvs: KVSClient
-    """
-    mi = np.full(mi_shape, np.nan, dtype=np.dtype(float))
-    for _ in range(kvs.tasks):
-        mi_two = kvs.get(PILEUP_DATA_KEY)
-        update = ~np.isnan(mi_two)
-        mi[update] = mi_two[update]
-    kvs.put(FINAL_MI_DATA_KEY, mi)
     return mi
 
 
