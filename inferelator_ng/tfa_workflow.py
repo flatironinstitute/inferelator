@@ -104,12 +104,13 @@ class BBSR_TFA_Workflow(TFAWorkFlow):
     # Drivers
     mi_driver = mi.MIDriver
     regression_driver = bbsr_python.BBSR_runner
+    mi_sync_path = None
 
     def run_bootstrap(self, bootstrap):
         X = self.design.iloc[:, bootstrap]
         Y = self.response.iloc[:, bootstrap]
         utils.Debug.vprint('Calculating MI, Background MI, and CLR Matrix', level=0)
-        clr_matrix, mi_matrix = self.mi_driver(kvs=self.kvs).run(X, Y)
+        clr_matrix, mi_matrix = self.mi_driver(kvs=self.kvs, sync_in_tmp_path=self.mi_sync_path).run(X, Y)
         mi_matrix = None
         utils.Debug.vprint('Calculating betas using BBSR', level=0)
         return self.regression_driver().run(X, Y, clr_matrix, self.priors_data, self.kvs)
