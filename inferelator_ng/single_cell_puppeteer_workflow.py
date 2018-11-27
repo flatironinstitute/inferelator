@@ -8,6 +8,7 @@ from inferelator_ng import tfa_workflow
 from inferelator_ng import workflow
 from inferelator_ng import results_processor
 
+DEFAULT_GOLD_STANDARD_CUTOFF = [5]
 
 class NoOutputRP(results_processor.ResultsProcessor):
 
@@ -57,11 +58,19 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
     regression_type = tfa_workflow.BBSR_TFA_Workflow
     header = ["Seed", "AUPR"]
 
+    def run(self):
+        self.startup()
+        aupr_data = self.modeling_method()
+        self.emit_results(aupr_data)
+
     def compute_activity(self):
         pass
 
     def single_cell_normalize(self):
         pass
+
+    def modeling_method(self):
+        raise NotImplementedError("No method to create models was provided")
 
     def emit_results(self, auprs, file_name="aupr.tsv"):
 
@@ -97,12 +106,17 @@ class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
     sizes = [1]
     header = ["Size", "Seed", "AUPR"]
 
-    def run(self):
-        self.startup()
-        aupr_data = self.get_aupr_for_seeds(self.expression_matrix, self.meta_data, self.regression_type)
-        self.emit_results(aupr_data)
+    def modeling_method(self, *args, **kwargs):
+        return self.get_aupr_for_seeds(*args, **kwargs)
 
-    def get_aupr_for_resized_data(self, expr_data, meta_data, regression_type):
+    def get_aupr_for_resized_data(self, expr_data=None, meta_data=None, regression_type=None):
+        if expr_data is None:
+            expr_data = self.expression_matrix
+        if meta_data is None:
+            meta_data = self.meta_data
+        if regression_type is None:
+            regression_type = self.regression_type
+
         aupr_data = []
         for s_ratio in self.sizes:
             new_size = int(s_ratio * self.expression_matrix.shape[1])
@@ -117,10 +131,8 @@ class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
 class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
     drop_column = None
 
-    def run(self):
-        self.startup()
-        aupr_data = self.auprs_for_condition_dropout()
-        self.emit_results(aupr_data)
+    def modeling_method(self, *args, **kwargs):
+        return self.auprs_for_condition_dropout(*args, **kwargs)
 
     def auprs_for_condition_dropout(self):
         aupr_data = []
@@ -140,8 +152,3 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
         local_expr_data = self.expression_matrix.iloc[:, idx]
         local_meta_data = self.meta_data.iloc[idx, :]
         return self.get_aupr_for_seeds(local_expr_data, local_meta_data, self.regression_type)
-
-class SingleCellGSPriorMux(SingleCellPuppeteerWorkflow):
-
-    def run(self):
-        pass
