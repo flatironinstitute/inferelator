@@ -17,6 +17,7 @@ GENE_LIST_LOOKUP_COLUMN = 'Name'
 METADATA_FOR_TFA_ADJUSTMENT = 'Genotype_Group'
 METADATA_FOR_BATCH_CORRECTION = 'Condition'
 
+
 class SingleCellWorkflow:
     # Gene list
     gene_list_file = None
@@ -25,9 +26,8 @@ class SingleCellWorkflow:
 
     # Single-cell expression data manipulations
     expression_matrix_transpose = True
-    extract_metadata_from_expression_matrix = True
+    extract_metadata_from_expression_matrix = False
     expression_matrix_metadata = EXPRESSION_MATRIX_METADATA
-    minimum_reads_per_thousand_cells = 1
 
     # Normalization method flags
     normalize_counts_to_one = False
@@ -132,7 +132,7 @@ class SingleCellWorkflow:
             new_meta_data = pd.concat([new_meta_data, self.meta_data.loc[rows, :]])
         self.expression_matrix = pd.DataFrame(new_expression_data,
                                               index=new_meta_data.index,
-                                              columns = self.expression_matrix.columns)
+                                              columns=self.expression_matrix.columns)
         self.meta_data = new_meta_data
 
     def magic_expression(self):
@@ -196,6 +196,7 @@ class SingleCellWorkflow:
 
 class SingleCellBBSRWorkflow(SingleCellWorkflow, tfa_workflow.BBSR_TFA_Workflow):
     pass
+
 
 class SingleCellMENWorkflow(SingleCellWorkflow, elasticnet_python.MEN_Workflow):
     pass

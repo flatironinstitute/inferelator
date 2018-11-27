@@ -14,6 +14,8 @@ import gzip
 import bz2
 
 PD_INPUT_SETTINGS = dict(sep="\t", header=0)
+DEFAULT_RANDOM_SEED = 42
+DEFAULT_NUM_BOOTSTRAPS = 2
 
 
 class WorkflowBase(object):
@@ -28,6 +30,7 @@ class WorkflowBase(object):
     gold_standard_file = "gold_standard.tsv"
     output_dir = None
     random_seed = 42
+    num_bootstraps = DEFAULT_NUM_BOOTSTRAPS
 
     # Computed data structures [G: Genes, K: Predictors, N: Conditions
     expression_matrix = None  # expression_matrix dataframe [G x N]
@@ -40,7 +43,7 @@ class WorkflowBase(object):
     rank = 0
     kvs = None
     tasks = None
-    
+
     def __init__(self, initialize_mp=True):
         # Connect to KVS and get environment variables
         if initialize_mp:
