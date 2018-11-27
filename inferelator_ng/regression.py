@@ -5,6 +5,7 @@ import copy
 from inferelator_ng import utils
 
 DEFAULT_CHUNK = 25
+PROGRESS_STR = "Regression on {gn} [{i} / {total}]"
 
 class BaseRegression(object):
     # These are all the things that have to be set in a new regression class
@@ -61,11 +62,9 @@ class BaseRegression(object):
 
         oc = self.kvs.own_check(chunk=self.chunk)
         for j in range(self.G):
+            level = 0 if j % 100 == 0 else 2
+            utils.Debug.vprint(PROGRESS_STR.format(gn=self.Y.index[j], i=j, total=self.G), level=level)
             if next(oc):
-                level = 0 if j % 100 == 0 else 2
-                utils.Debug.vprint("Regression on {gn} [{i} / {total}]".format(gn=self.Y.index[j],
-                                                                               i=j,
-                                                                               total=self.G), level=level)
                 data = self.regress(j)
                 data['ind'] = j
                 regression_data.append(data)
