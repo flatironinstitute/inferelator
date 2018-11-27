@@ -8,11 +8,13 @@ from inferelator_ng.tfa import TFA
 from inferelator_ng import utils
 from inferelator_ng import tfa_workflow
 from inferelator_ng import elasticnet_python
+from inferelator_ng import single_cell
 
 EXPRESSION_MATRIX_METADATA = ['Genotype', 'Genotype_Group', 'Replicate', 'Condition', 'tenXBarcode']
 GENE_LIST_INDEX_COLUMN = 'SystematicName'
 GENE_LIST_LOOKUP_COLUMN = 'Name'
 METADATA_FOR_TFA_ADJUSTMENT = 'Genotype_Group'
+METADATA_FOR_BATCH_CORRECTION = 'Condition'
 
 class SingleCellWorkflow:
     # Gene list
@@ -27,8 +29,10 @@ class SingleCellWorkflow:
     minimum_reads_per_thousand_cells = 1
 
     # Normalization method flags
-    library_normalization = False
+    normalize_counts_to_one = False
+    normalize_batch_medians = False
     magic_imputation = False
+    batch_correction_lookup = METADATA_FOR_BATCH_CORRECTION
 
     # TFA modification flags
     modify_activity_from_metadata = True
@@ -50,8 +54,8 @@ class SingleCellWorkflow:
         self.get_data()
 
         # Filter expression and priors to align
-        self.filter_expression_and_priors()
         self.single_cell_normalize()
+        self.filter_expression_and_priors()
         self.compute_activity()
 
     def filter_expression_and_priors(self):
@@ -79,10 +83,15 @@ class SingleCellWorkflow:
 
     def single_cell_normalize(self):
 
+        assert not (self.normalize_counts_to_one and self.normalize_batch_medians), "One normalization method at a time"
+
         # Normalize UMI counts per cell (0-1 so that sum(counts) = 1 for each cell)
-        if self.library_normalization:
+        if self.normalize_counts_to_one:
             utils.Debug.vprint('Normalizing UMI counts per cell ... ')
-            self.normalize_expression()
+            self.expression_normalize_to_one()
+        if self.normalize_batch_medians:
+            utils.Debug.vprint('Normalizing multiple batches ... ')
+            self.batch_normalize_medians()
         if self.magic_imputation:
             utils.Debug.vprint('Imputing data with MAGIC ... ')
             self.magic_expression()
@@ -92,12 +101,30 @@ class SingleCellWorkflow:
         with self.input_path(self.gene_list_file) as genefh:
             self.gene_list = pd.read_table(genefh, **self.file_format_settings)
 
-    def normalize_expression(self):
-        umi = self.expression_matrix.sum(axis=0)
+    def expression_normalize_to_one(self):
+        umi = single_cell.umi(self.expression_matrix)
         assert not (umi == 0).values.any()
         self.expression_matrix = self.expression_matrix.astype(float)
         self.expression_matrix = self.expression_matrix.divide(umi, axis=1)
         assert not self.expression_matrix.isnull().values.any()
+
+    def batch_normalize_medians(self, batch_factor_column=METADATA_FOR_BATCH_CORRECTION):
+        # Get UMI counts for each cell
+        umi = single_cell.umi(self.expression_matrix)
+
+        # Create a new dataframe with the UMI counts and the factor to batch correct on
+        median_umi = pd.DataFrame({'umi': umi, batch_factor_column: self.meta_data[batch_factor_column]})
+
+        # Group and take the median UMI count for each batch
+        median_umi = median_umi.groupby(batch_factor_column).agg('median')
+
+        # Convert to a correction factor
+        median_umi['umi'] = median_umi['umi'] / median_umi['umi'].median()
+
+        # Apply the correction factor to all the data batch-wise
+        for batch, corr_factor in median_umi.iterrows():
+            rows = self.meta_data[batch_factor_column] == batch
+            self.expression_matrix.loc[rows, :] = self.expression_matrix.loc[rows, :].divide(corr_factor['umi'])
 
     def magic_expression(self):
         import magic
