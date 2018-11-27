@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import os
 import datetime
 
@@ -5,10 +7,15 @@ import numpy as np
 
 from inferelator_ng import single_cell_workflow
 from inferelator_ng import tfa_workflow
-from inferelator_ng import workflow
 from inferelator_ng import results_processor
+from inferelator_ng import utils
+
+SHARED_CLASS_VARIABLES = ['tf_names', 'gene_list', 'num_bootstraps', 'normalize_counts_to_one',
+                          'normalize_batch_medians', 'magic_imputation', 'batch_correction_lookup',
+                          'modify_activity_from_metadata', 'metadata_expression_lookup', 'gene_list_lookup']
 
 DEFAULT_GOLD_STANDARD_CUTOFF = [5]
+
 
 class NoOutputRP(results_processor.ResultsProcessor):
 
@@ -25,15 +32,13 @@ def make_puppet_workflow(workflow_type):
         as environment variables, and saves the model AUPR without outputting anything
         """
 
-        def __init__(self, kvs, rank, expr_data, meta_data, prior_data, gs_data, tf_names, size=None):
+        def __init__(self, kvs, rank, expr_data, meta_data, prior_data, gs_data):
             self.kvs = kvs
             self.rank = rank
             self.expression_matrix = expr_data
             self.meta_data = meta_data
             self.priors_data = prior_data
             self.gold_standard = gs_data
-            self.tf_names = tf_names
-            self.size = size
 
         def startup_run(self):
             self.compute_activity()
@@ -43,12 +48,6 @@ def make_puppet_workflow(workflow_type):
                 self.aupr = NoOutputRP(betas, rescaled_betas).summarize_network(None, gold_standard, priors)
             else:
                 self.aupr = None
-
-        def get_bootstraps(self):
-            if self.size is not None:
-                return np.random.choice(self.response.shape[1], size=(self.num_bootstraps, self.size)).tolist()
-            else:
-                return workflow.WorkflowBase.get_bootstraps(self)
 
     return SingleCellPuppetWorkflow
 
@@ -95,11 +94,22 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
         aupr_data = []
         for seed in self.seeds:
             puppet = make_puppet_workflow(regression_type)(self.kvs, self.rank, expr_data, meta_data,
-                                                           priors_data, gold_standard, self.tf_names)
+                                                           priors_data, gold_standard)
+            self.assign_class_vars(puppet)
             puppet.random_seed = seed
             puppet.run()
             aupr_data.append((seed, puppet.aupr))
         return aupr_data
+
+    def assign_class_vars(self, obj):
+        """
+        Transfer class variables from this object to a target object
+        """
+        for varname in SHARED_CLASS_VARIABLES:
+            try:
+                setattr(obj, varname, getattr(self, varname))
+            except AttributeError:
+                utils.Debug.vprint("Variable {var} not assigned to parent".format(var=varname))
 
 
 class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
@@ -107,7 +117,7 @@ class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
     header = ["Size", "Seed", "AUPR"]
 
     def modeling_method(self, *args, **kwargs):
-        return self.get_aupr_for_seeds(*args, **kwargs)
+        return self.get_aupr_for_resized_data(*args, **kwargs)
 
     def get_aupr_for_resized_data(self, expr_data=None, meta_data=None, regression_type=None):
         if expr_data is None:
