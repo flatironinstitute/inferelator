@@ -2,6 +2,7 @@
 Run Single Cell Network Inference
 """
 import pandas as pd
+import numpy as np
 import types
 
 from inferelator_ng.tfa import TFA
@@ -121,14 +122,21 @@ class SingleCellWorkflow:
         # Convert to a correction factor
         median_umi['umi'] = median_umi['umi'] / median_umi['umi'].median()
 
-        # Apply the correction factor to all the data batch-wise
+        # Apply the correction factor to all the data batch-wise. Do this with numpy because pandas is a glacier.
+        new_expression_data = np.ndarray((0, self.expression_matrix.shape[1]), dtype=np.dtype(float))
+        new_meta_data = pd.DataFrame(columns=self.meta_data.columns)
         for batch, corr_factor in median_umi.iterrows():
             rows = self.meta_data[batch_factor_column] == batch
-            self.expression_matrix.loc[rows, :] = self.expression_matrix.loc[rows, :].divide(corr_factor['umi'])
+            new_expression_data = np.vstack((new_expression_data,
+                                             self.expression_matrix.loc[rows, :].values / corr_factor['umi']))
+            new_meta_data = pd.concat([new_meta_data, self.meta_data.loc[rows, :]])
+        self.expression_matrix = pd.DataFrame(new_expression_data,
+                                              index=new_meta_data.index,
+                                              columns = self.expression_matrix.columns)
+        self.meta_data = new_meta_data
 
     def magic_expression(self):
         import magic
-        import numpy as np
         np.random.seed(self.random_seed)
         self.expression_matrix = magic.MAGIC().fit_transform(self.expression_matrix)
 
