@@ -10,11 +10,15 @@ from inferelator_ng import tfa_workflow
 from inferelator_ng import results_processor
 from inferelator_ng import utils
 
+# The variable names that get set in the main workflow, but need to get copied to the puppets
 SHARED_CLASS_VARIABLES = ['tf_names', 'gene_list', 'num_bootstraps', 'normalize_counts_to_one',
                           'normalize_batch_medians', 'magic_imputation', 'batch_correction_lookup',
                           'modify_activity_from_metadata', 'metadata_expression_lookup', 'gene_list_lookup']
 
+DEFAULT_SIZE_SAMPLING = [1]
 DEFAULT_GOLD_STANDARD_CUTOFF = [5]
+DEFAULT_SEED_RANGE = range(42,45)
+
 
 
 class NoOutputRP(results_processor.ResultsProcessor):
@@ -53,7 +57,7 @@ def make_puppet_workflow(workflow_type):
 
 
 class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_workflow.TFAWorkFlow):
-    seeds = range(42, 45)
+    seeds = DEFAULT_SEED_RANGE
     regression_type = tfa_workflow.BBSR_TFA_Workflow
     header = ["Seed", "AUPR"]
 
@@ -113,7 +117,7 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
 
 
 class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
-    sizes = [1]
+    sizes = DEFAULT_SIZE_SAMPLING
     header = ["Size", "Seed", "AUPR"]
 
     def modeling_method(self, *args, **kwargs):
@@ -131,8 +135,8 @@ class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
         for s_ratio in self.sizes:
             new_size = int(s_ratio * self.expression_matrix.shape[1])
             new_idx = np.random.choice(expr_data.shape[1], size=new_size)
-            auprs = self.get_aupr_for_seeds(expr_data.loc[:, new_idx],
-                                            meta_data.loc[new_idx, :],
+            auprs = self.get_aupr_for_seeds(expr_data.iloc[:, new_idx],
+                                            meta_data.iloc[new_idx, :],
                                             regression_type=regression_type)
             aupr_data.extend([(new_size, se, au) for (se, au) in auprs])
         return aupr_data
