@@ -146,7 +146,7 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
     drop_column = None
 
     def modeling_method(self, *args, **kwargs):
-        return self.auprs_for_condition_dropout(*args, **kwargs)
+        return self.auprs_for_condition_dropout()
 
     def auprs_for_condition_dropout(self):
         aupr_data = []
@@ -163,6 +163,6 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
         return condition_indexes
 
     def auprs_for_index(self, idx):
-        local_expr_data = self.expression_matrix.iloc[:, idx]
-        local_meta_data = self.meta_data.iloc[idx, :]
+        local_expr_data = self.expression_matrix.loc[:, idx]
+        local_meta_data = self.meta_data.loc[idx, :]
         return self.get_aupr_for_seeds(local_expr_data, local_meta_data, self.regression_type)
