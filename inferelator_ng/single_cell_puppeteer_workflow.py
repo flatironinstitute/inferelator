@@ -30,7 +30,9 @@ class NoOutputRP(results_processor.ResultsProcessor):
         aupr = self.calculate_aupr(recall, precision)
         interactions = (combined_confidences > threshold).sum().sum()
         if output_file_name is not None:
-            self.save_network_to_tsv(combined_confidences, self.rescaled_betas, priors, output_dir=output_dir,
+            self.threshold_and_summarize()
+            resc_betas_mean, resc_betas_median = self.mean_and_median(self.rescaled_betas)
+            self.save_network_to_tsv(combined_confidences, resc_betas_median, priors, output_dir=output_dir,
                                      output_file_name=output_file_name)
         return aupr, interactions
 
