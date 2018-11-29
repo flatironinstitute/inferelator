@@ -31,7 +31,7 @@ class NoOutputRP(results_processor.ResultsProcessor):
         interactions = (combined_confidences > threshold).sum().sum()
         if output_file_name is not None:
             self.save_network_to_tsv(combined_confidences, self.rescaled_betas, priors, output_dir=output_dir,
-                                     output_file_name=self.output_file_name)
+                                     output_file_name=output_file_name)
         return aupr, interactions
 
 
@@ -95,7 +95,7 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
         if self.is_master():
             self.create_output_dir()
             self.writer = csv.writer(open(os.path.join(self.output_dir, self.output_file_name), mode="wb"),
-                                     delimiter="\t", quoting=csv.QUOTE_NONE, lineterminator="\n")
+                                     delimiter="\t", quoting=csv.QUOTE_NONE)
             self.writer.writerow(self.header)
 
     def create_output_dir(self):
@@ -174,7 +174,6 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
         for r_name, r_idx in idx.items():
             drop_aupr = self.auprs_for_index(r_name, r_idx)
             aupr_data.extend(drop_aupr)
-            self.writer.writerow(drop_aupr)
         return aupr_data
 
     def condition_dropouts(self):
