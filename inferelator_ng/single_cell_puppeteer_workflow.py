@@ -87,7 +87,7 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
             with open(os.path.join(self.output_dir, file_name), mode="w") as out_fh:
                 print("\t".join(self.header), file=out_fh)
                 for tup in auprs:
-                    print("\t".join(tup), file=out_fh)
+                    print("\t".join(map(str, tup)), file=out_fh)
 
     def get_aupr_for_seeds(self, expr_data, meta_data, regression_type, priors_data=None, gold_standard=None):
         if gold_standard is None:
