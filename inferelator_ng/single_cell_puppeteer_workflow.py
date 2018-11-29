@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import os
+import csv
 import datetime
 
 import numpy as np
@@ -23,10 +24,15 @@ DEFAULT_BASE_SEED = 42
 
 class NoOutputRP(results_processor.ResultsProcessor):
 
-    def summarize_network(self, output_dir, gold_standard, priors):
+    def summarize_network(self, output_dir, gold_standard, priors, threshold=0.95, output_file_name=None):
         combined_confidences = self.compute_combined_confidences()
         (recall, precision) = self.calculate_precision_recall(combined_confidences, gold_standard)
-        return self.calculate_aupr(recall, precision)
+        aupr = self.calculate_aupr(recall, precision)
+        interactions = (combined_confidences > threshold).sum().sum()
+        if output_file_name is not None:
+            self.save_network_to_tsv(combined_confidences, self.rescaled_betas, priors, output_dir=output_dir,
+                                     output_file_name=self.output_file_name)
+        return aupr, interactions
 
 
 def make_puppet_workflow(workflow_type):
@@ -35,6 +41,9 @@ def make_puppet_workflow(workflow_type):
         Standard workflow except it takes all the data as references to __init__ instead of as filenames on disk or
         as environment variables, and saves the model AUPR without outputting anything
         """
+
+        network_file_path = None
+        network_file_name = None
 
         def __init__(self, kvs, rank, expr_data, meta_data, prior_data, gs_data):
             self.kvs = kvs
@@ -49,9 +58,11 @@ def make_puppet_workflow(workflow_type):
 
         def emit_results(self, betas, rescaled_betas, gold_standard, priors):
             if self.is_master():
-                self.aupr = NoOutputRP(betas, rescaled_betas).summarize_network(None, gold_standard, priors)
+                results = NoOutputRP(betas, rescaled_betas)
+                self.aupr, self.n_interact = results.summarize_network(self.network_file_path, gold_standard, priors,
+                                                                       output_file_name=self.network_file_name)
             else:
-                self.aupr = None
+                self.aupr, self.n_interact = None, None
 
     return SingleCellPuppetWorkflow
 
@@ -59,12 +70,17 @@ def make_puppet_workflow(workflow_type):
 class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_workflow.TFAWorkFlow):
     seeds = DEFAULT_SEED_RANGE
     regression_type = tfa_workflow.BBSR_TFA_Workflow
-    header = ["Seed", "AUPR"]
+
+    # Output TSV controllers
+    write_network = True  # bool
+    writer = None  # csv.csvwriter
+    header = ["Seed", "AUPR", "Num_Interacting"]  # list[]
+    output_file_name = "aupr.tsv"  # str
 
     def run(self):
         self.startup()
-        aupr_data = self.modeling_method()
-        self.emit_results(aupr_data)
+        self.create_writer()
+        auprs = self.modeling_method()
 
     def compute_activity(self):
         pass
@@ -75,8 +91,14 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
     def modeling_method(self):
         raise NotImplementedError("No method to create models was provided")
 
-    def emit_results(self, auprs, file_name="aupr.tsv"):
+    def create_writer(self):
+        if self.is_master():
+            self.create_output_dir()
+            self.writer = csv.writer(open(os.path.join(self.output_dir, self.output_file_name), mode="wb"),
+                                     delimiter="\t", quoting=csv.QUOTE_NONE, lineterminator="\n")
+            self.writer.writerow(self.header)
 
+    def create_output_dir(self):
         if self.is_master():
             if self.output_dir is None:
                 self.output_dir = os.path.join(self.input_dir, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
@@ -84,20 +106,8 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
                 os.makedirs(self.output_dir)
             except OSError:
                 pass
-            with open(os.path.join(self.output_dir, file_name), mode="w") as out_fh:
-                print("\t".join(self.header), file=out_fh)
-                for tup in auprs:
-                    print("\t".join(map(str, tup)), file=out_fh)
 
-    def get_aupr_for_seeds(self, expr_data, meta_data, priors_data=None, gold_standard=None):
-        aupr_data = []
-        for seed in self.seeds:
-            aupr = self.get_aupr_from_puppet(expr_data, meta_data, seed, priors_data=priors_data,
-                                             gold_standard=gold_standard)
-            aupr_data.append((seed, aupr))
-        return aupr_data
-
-    def get_aupr_from_puppet(self, expr_data, meta_data, seed=DEFAULT_BASE_SEED, priors_data=None, gold_standard=None):
+    def new_puppet(self, expr_data, meta_data, seed=DEFAULT_BASE_SEED, priors_data=None, gold_standard=None):
         if gold_standard is None:
             gold_standard = self.gold_standard
         if priors_data is None:
@@ -106,8 +116,10 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
                                                             priors_data, gold_standard)
         self.assign_class_vars(puppet)
         puppet.random_seed = seed
-        puppet.run()
-        return puppet.aupr
+        if self.write_network:
+            puppet.network_file_path = self.output_dir
+            puppet.network_file_name = "network_s{seed}.tsv".format(seed=seed)
+        return puppet
 
     def assign_class_vars(self, obj):
         """
@@ -122,12 +134,12 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
 
 class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
     sizes = DEFAULT_SIZE_SAMPLING
-    header = ["Size", "Num_Sampled", "Seed", "AUPR"]
+    header = ["Size", "Num_Sampled", "Seed", "AUPR", "Num_Interacting"]
 
     def modeling_method(self, *args, **kwargs):
-        return self.get_aupr_for_resized_data(*args, **kwargs)
+        return self.get_aupr_for_subsampled_data(*args, **kwargs)
 
-    def get_aupr_for_resized_data(self, expr_data=None, meta_data=None):
+    def get_aupr_for_subsampled_data(self, expr_data=None, meta_data=None):
         if expr_data is None:
             expr_data = self.expression_matrix
         if meta_data is None:
@@ -139,14 +151,19 @@ class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
             for seed in self.seeds:
                 np.random.seed(seed)
                 new_idx = np.random.choice(expr_data.shape[1], size=new_size)
-                aupr = self.get_aupr_from_puppet(expr_data.iloc[:, new_idx], meta_data.iloc[new_idx, :], seed=seed)
-                aupr_data.append((s_ratio, new_size, seed, aupr))
+                puppet = self.new_puppet(expr_data.iloc[:, new_idx], meta_data.iloc[new_idx, :], seed=seed)
+                if self.write_network:
+                    puppet.network_file_name = "network_{size}_s{seed}.tsv".format(size=s_ratio, seed=seed)
+                puppet.run()
+                size_aupr = (s_ratio, new_size, seed, puppet.aupr, puppet.n_interact)
+                aupr_data.extend(size_aupr)
+                self.writer.writerow(size_aupr)
         return aupr_data
 
 
 class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
     drop_column = None
-    header = ["Dropout", "Seed", "AUPR"]
+    header = ["Dropout", "Seed", "AUPR", "Num_Interacting"]
 
     def modeling_method(self, *args, **kwargs):
         return self.auprs_for_condition_dropout()
@@ -155,8 +172,9 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
         aupr_data = []
         idx = self.condition_dropouts()
         for r_name, r_idx in idx.items():
-            auprs = self.auprs_for_index(r_idx)
-            aupr_data.extend([(r_name, se, au) for (se, au) in auprs])
+            drop_aupr = self.auprs_for_index(r_name, r_idx)
+            aupr_data.extend(drop_aupr)
+            self.writer.writerow(drop_aupr)
         return aupr_data
 
     def condition_dropouts(self):
@@ -165,7 +183,15 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
             condition_indexes[cond] = self.meta_data[self.drop_column] == cond
         return condition_indexes
 
-    def auprs_for_index(self, idx):
-        local_expr_data = self.expression_matrix.loc[:, idx]
-        local_meta_data = self.meta_data.loc[idx, :]
-        return self.get_aupr_for_seeds(local_expr_data, local_meta_data)
+    def auprs_for_index(self, r_name, r_idx):
+        local_expr_data = self.expression_matrix.loc[:, r_idx]
+        local_meta_data = self.meta_data.loc[r_idx, :]
+
+        aupr_data = []
+        for seed in self.seeds:
+            puppet = self.new_puppet(local_expr_data, local_meta_data, seed)
+            if self.write_network:
+                puppet.network_file_name = "network_{drop}_s{seed}.tsv".format(drop=r_name, seed=seed)
+            puppet.run()
+            aupr_data.append((r_name, seed, puppet.aupr, puppet.n_interact))
+        return aupr_data

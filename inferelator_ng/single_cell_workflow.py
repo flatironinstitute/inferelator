@@ -18,7 +18,7 @@ METADATA_FOR_TFA_ADJUSTMENT = 'Genotype_Group'
 METADATA_FOR_BATCH_CORRECTION = 'Condition'
 
 
-class SingleCellWorkflow:
+class SingleCellWorkflow(object):
     # Gene list
     gene_list_file = None
     gene_list = None
