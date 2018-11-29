@@ -78,7 +78,7 @@ class ResultsProcessor:
         median = np.median(matrix_stack, axis = 0)
         return (mean, median)
 
-    def save_network_to_tsv(self,combined_confidences, resc_betas_median, priors, output_dir):
+    def save_network_to_tsv(self,combined_confidences, resc_betas_median, priors, output_dir, output_file_name="network.tsv"):
         output_list = [['regulator', 'target', 'beta.sign.sum', 'beta.non.zero', 'var.exp.median', 'combined_confidences', 'prior']]
         sorted_by_confidence = np.argsort(combined_confidences.values, axis = None)[::-1]
         num_cols = len(combined_confidences.columns)
@@ -96,7 +96,7 @@ class ResultsProcessor:
                 output_list.append([column_name, row_name, self.betas_sign.ix[row_name, column_name],
                     self.betas_non_zero.ix[row_name, column_name], resc_betas_median[index_idx, column_idx],
                     combined_confidences.ix[row_name, column_name],prior_value])
-        with open(os.path.join(output_dir, 'network.tsv'), 'w') as myfile:
+        with open(os.path.join(output_dir, output_file_name), 'w') as myfile:
             wr = csv.writer(myfile,  delimiter = '\t')
             for row in output_list:
                 wr.writerow(row)
