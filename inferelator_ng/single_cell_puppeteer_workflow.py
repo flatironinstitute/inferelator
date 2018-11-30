@@ -5,6 +5,7 @@ import csv
 import datetime
 
 import numpy as np
+import pandas as pd
 
 from inferelator_ng import single_cell_workflow
 from inferelator_ng import tfa_workflow
@@ -172,11 +173,9 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
         return self.auprs_for_condition_dropout()
 
     def auprs_for_condition_dropout(self):
-        aupr_data = []
-        idx = self.condition_dropouts()
-        for r_name, r_idx in idx.items():
-            drop_aupr = self.auprs_for_index(r_name, r_idx)
-            aupr_data.extend(drop_aupr)
+        aupr_data = [self.auprs_for_index("all", pd.Series(True, index=self.meta_data.index))]
+        for r_name, r_idx in self.condition_dropouts().items():
+            aupr_data.extend(self.auprs_for_index(r_name, r_idx))
         return aupr_data
 
     def condition_dropouts(self):
