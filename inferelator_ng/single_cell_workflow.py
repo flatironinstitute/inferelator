@@ -25,17 +25,18 @@ class SingleCellWorkflow(object):
     gene_list_index = GENE_LIST_INDEX_COLUMN
 
     # Single-cell expression data manipulations
-    expression_matrix_transpose = True
-    extract_metadata_from_expression_matrix = False
-    expression_matrix_metadata = EXPRESSION_MATRIX_METADATA
+    count_minimum = None                                    # float
+    expression_matrix_transpose = True                      # bool
+    extract_metadata_from_expression_matrix = False         # bool
+    expression_matrix_metadata = EXPRESSION_MATRIX_METADATA # str
 
     # Normalization method flags
-    normalize_counts_to_one = False
-    normalize_batch_medians = False
-    log_two_plus_one = False
-    ln_plus_one = False
-    magic_imputation = False
-    batch_correction_lookup = METADATA_FOR_BATCH_CORRECTION
+    normalize_counts_to_one = False                         # bool
+    normalize_batch_medians = False                         # bool
+    log_two_plus_one = False                                # bool
+    ln_plus_one = False                                     # bool
+    magic_imputation = False                                # bool
+    batch_correction_lookup = METADATA_FOR_BATCH_CORRECTION # str
 
     # TFA modification flags
     modify_activity_from_metadata = True
@@ -66,6 +67,10 @@ class SingleCellWorkflow(object):
         # Transpose the expression matrix (if it's N x G instead of G x N)
         if self.expression_matrix_transpose:
             self.expression_matrix = self.expression_matrix.transpose()
+
+        if self.count_minimum is not None:
+            keep_genes = self.expression_matrix.sum(axis=1) >= (self.count_minimum * self.expression_matrix.shape[0])
+            self.expression_matrix = self.expression_matrix.loc[keep_genes, :]
 
         # If gene_list_file is set, read a list of genes in and then filter the expression and priors to this list
         if self.gene_list_file is not None:
