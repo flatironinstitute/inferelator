@@ -4,14 +4,15 @@ artificial stubs for dependancies.
 """
 
 import unittest
-from .. import prior_gs_split_workflow
+from inferelator_ng import prior_gs_split_workflow
+from inferelator_ng import workflow
 
 import os
 import numpy as np
 
 my_dir = os.path.dirname(__file__)
 
-class StubWorkflow(prior_gs_split_workflow.PriorGoldStandardSplitWorkflowBase):
+class StubWorkflow(prior_gs_split_workflow.PriorGoldStandardSplitWorkflowBase, workflow.WorkflowBase):
 
     """
     Artificial work flow for logic testing.
