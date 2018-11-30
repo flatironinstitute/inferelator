@@ -47,8 +47,8 @@ class NoOutputRP(results_processor.ResultsProcessor):
         missing_col = cc.columns.difference(gs_filtered.columns)
 
         # Fill out the confidence dataframe with 0s
-        cc_filtered = cc.concat(pd.DataFrame(0.0, index=missing_idx, columns=cc.columns), axis=0)
-        cc_filtered = cc_filtered.concat(pd.DataFrame(0.0, index=cc_filtered.index, columns=missing_col), axis=1)
+        cc_filtered = pd.concat((cc, pd.DataFrame(0.0, index=missing_idx, columns=cc.columns)), axis=0)
+        cc_filtered = pd.concat((cc_filtered, pd.DataFrame(0.0, index=cc_filtered.index, columns=missing_col)), axis=1)
 
         # Align to the gold standard
         cc_filtered = cc_filtered.loc[gs_filtered.index, gs_filtered.columns]
