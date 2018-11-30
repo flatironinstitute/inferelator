@@ -96,7 +96,7 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
     def create_writer(self):
         if self.is_master():
             self.create_output_dir()
-            self.writer = csv.writer(open(os.path.join(self.output_dir, self.output_file_name), mode="wb"),
+            self.writer = csv.writer(open(os.path.join(self.output_dir, self.output_file_name), mode="wb", buffering=0),
                                      delimiter="\t", quoting=csv.QUOTE_NONE)
             self.writer.writerow(self.header)
 
