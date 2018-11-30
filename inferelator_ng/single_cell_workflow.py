@@ -32,6 +32,8 @@ class SingleCellWorkflow(object):
     # Normalization method flags
     normalize_counts_to_one = False
     normalize_batch_medians = False
+    log_two_plus_one = False
+    ln_plus_one = False
     magic_imputation = False
     batch_correction_lookup = METADATA_FOR_BATCH_CORRECTION
 
@@ -85,6 +87,7 @@ class SingleCellWorkflow(object):
     def single_cell_normalize(self):
 
         assert not (self.normalize_counts_to_one and self.normalize_batch_medians), "One normalization method at a time"
+        assert not (self.log_two_plus_one and self.ln_plus_one), "One logging method at a time"
 
         # Normalize UMI counts per cell (0-1 so that sum(counts) = 1 for each cell)
         if self.normalize_counts_to_one:
@@ -93,6 +96,12 @@ class SingleCellWorkflow(object):
         if self.normalize_batch_medians:
             utils.Debug.vprint('Normalizing multiple batches ... ')
             self.batch_normalize_medians()
+        if self.log_two_plus_one:
+            utils.Debug.vprint('Logging data ... ')
+            self.log2_data()
+        if self.ln_plus_one:
+            utils.Debug.vprint('Logging data ... ')
+            self.ln_data()
         if self.magic_imputation:
             utils.Debug.vprint('Imputing data with MAGIC ... ')
             self.magic_expression()
@@ -103,8 +112,11 @@ class SingleCellWorkflow(object):
             self.gene_list = pd.read_table(genefh, **self.file_format_settings)
 
     def expression_normalize_to_one(self):
+        # Get UMI counts for each cell
         umi = single_cell.umi(self.expression_matrix)
         assert not (umi == 0).values.any()
+
+        # Divide each cell's raw count data by the total number of UMI counts for that cell
         self.expression_matrix = self.expression_matrix.astype(float)
         self.expression_matrix = self.expression_matrix.divide(umi, axis=1)
         assert not self.expression_matrix.isnull().values.any()
@@ -134,6 +146,12 @@ class SingleCellWorkflow(object):
                                               index=new_meta_data.index,
                                               columns=self.expression_matrix.columns)
         self.meta_data = new_meta_data
+
+    def log2_data(self):
+        self.expression_matrix = np.log2(self.expression_matrix + 1)
+
+    def ln_data(self):
+        self.expression_matrix = np.log1p(self.expression_matrix)
 
     def magic_expression(self):
         import magic
