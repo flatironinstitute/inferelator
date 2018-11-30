@@ -15,7 +15,8 @@ from inferelator_ng import utils
 # The variable names that get set in the main workflow, but need to get copied to the puppets
 SHARED_CLASS_VARIABLES = ['tf_names', 'gene_list', 'num_bootstraps', 'normalize_counts_to_one',
                           'normalize_batch_medians', 'magic_imputation', 'batch_correction_lookup',
-                          'modify_activity_from_metadata', 'metadata_expression_lookup', 'gene_list_lookup']
+                          'modify_activity_from_metadata', 'metadata_expression_lookup', 'gene_list_lookup',
+                          'mi_sync_path']
 
 DEFAULT_SIZE_SAMPLING = [1]
 DEFAULT_GOLD_STANDARD_CUTOFF = [5]
