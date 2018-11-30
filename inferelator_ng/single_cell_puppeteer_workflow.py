@@ -159,7 +159,8 @@ class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
                 puppet.run()
                 size_aupr = (s_ratio, new_size, seed, puppet.aupr, puppet.n_interact)
                 aupr_data.extend(size_aupr)
-                self.writer.writerow(size_aupr)
+                if self.is_master():
+                    self.writer.writerow(size_aupr)
         return aupr_data
 
 
@@ -194,5 +195,8 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
             if self.write_network:
                 puppet.network_file_name = "network_{drop}_s{seed}.tsv".format(drop=r_name, seed=seed)
             puppet.run()
-            aupr_data.append((r_name, seed, puppet.aupr, puppet.n_interact))
+            drop_data = (r_name, seed, puppet.aupr, puppet.n_interact)
+            aupr_data.append(drop_data)
+            if self.is_master():
+                self.writer.writerow(drop_data)
         return aupr_data
