@@ -37,6 +37,32 @@ class NoOutputRP(results_processor.ResultsProcessor):
                                      output_file_name=output_file_name)
         return aupr, interactions
 
+    def calculate_precision_recall(self, cc, gold_standard):
+        # Get the usable parts of the gold standard (drop any columns or rows that are all 0)
+        gs_filtered = np.abs(gold_standard.loc[(gold_standard!=0).any(axis=1), (gold_standard!=0).any(axis=0)])
+
+        # Find out if there are any rows or columns NOT in the confidence data frame
+        missing_idx = cc.index.difference(gs_filtered.index)
+        missing_col = cc.columns.difference(gs_filtered.columns)
+
+        # Fill out the confidence dataframe with 0s
+        cc_filtered = cc.concat(pd.DataFrame(0.0, index=missing_idx, columns=cc.columns), axis=0)
+        cc_filtered = cc_filtered.concat(pd.DataFrame(0.0, index=cc_filtered.index, columns=missing_col), axis=1)
+
+        # Align to the gold standard
+        cc_filtered = cc_filtered.loc[gs_filtered.index, gs_filtered.columns]
+
+        # rank from highest to lowest confidence
+        sorted_candidates = np.argsort(cc_filtered.values, axis = None)[::-1]
+        gs_values = gs_filtered.values.flatten()[sorted_candidates]
+
+        #the following mimicks the R function ChristophsPR
+        precision = np.cumsum(gs_values).astype(float) / np.cumsum([1] * len(gs_values))
+        recall = np.cumsum(gs_values).astype(float) / sum(gs_values)
+        precision = np.insert(precision,0,precision[0])
+        recall = np.insert(recall,0,0)
+        return recall, precision
+
 
 def make_puppet_workflow(workflow_type):
     class SingleCellPuppetWorkflow(single_cell_workflow.SingleCellWorkflow, workflow_type):
@@ -173,16 +199,31 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
         return self.auprs_for_condition_dropout()
 
     def auprs_for_condition_dropout(self):
+        """
+        Run modeling on all data, and then on data where each factor from `drop_column` has been removed one
+        :return:
+        """
+        # Run the modeling on all data
         aupr_data = [self.auprs_for_index("all", pd.Series(True, index=self.meta_data.index))]
-        for r_name, r_idx in self.condition_dropouts().items():
+
+        if self.drop_column is None:
+            return aupr_data
+
+        # For all of the factors in `drop_column`, iterate through and remove them one by one, modeling on the rest
+        for r_name, r_idx in self.factor_dropouts().items():
             aupr_data.extend(self.auprs_for_index(r_name, r_idx))
         return aupr_data
 
-    def condition_dropouts(self):
-        condition_indexes = dict()
-        for cond in self.meta_data[self.drop_column].unique().tolist():
-            condition_indexes[cond] = self.meta_data[self.drop_column] == cond
-        return condition_indexes
+    def factor_dropouts(self):
+        """
+        Create a dict of boolean Series, keyed by factor name, with an index boolean pd.Series that removes that factor
+
+        :return factor_indexes: dict{pd.Series}
+        """
+        factor_indexes = dict()
+        for fact in self.meta_data[self.drop_column].unique().tolist():
+            factor_indexes[fact] = self.meta_data[self.drop_column] != fact
+        return factor_indexes
 
     def auprs_for_index(self, r_name, r_idx):
         local_expr_data = self.expression_matrix.loc[:, r_idx]
