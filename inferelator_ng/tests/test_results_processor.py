@@ -119,6 +119,22 @@ class TestResultsProcessor(unittest.TestCase):
         np.testing.assert_equal(recall, [ 0.,   0.5,  1. ])
         np.testing.assert_equal(precision, [ 1.,  1.,  1.])
 
+    def test_precision_recall_perfect_prediction_method_two(self):
+        gs = pd.DataFrame(np.array([[1, 0], [1, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        confidences = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        rp = results_processor.ResultsProcessor([], [], filter_method='overlap')
+        recall, precision = rp.calculate_precision_recall(confidences, gs)
+        np.testing.assert_equal(recall, [0., 0.5, 1.])
+        np.testing.assert_equal(precision, [1., 1., 1.])
+
+    def test_precision_recall_perfect_prediction_method_three(self):
+        gs = pd.DataFrame(np.array([[1, 0], [1, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        confidences = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        rp = results_processor.ResultsProcessor([], [], filter_method='keep_all_gold_standard')
+        recall, precision = rp.calculate_precision_recall(confidences, gs)
+        np.testing.assert_equal(recall, [0., 0.5, 1.])
+        np.testing.assert_equal(precision, [1., 1., 1.])
+
     def test_precision_recall_prediction_off(self):
         gs = pd.DataFrame(np.array([[1, 0], [0, 1]]), ['gene1', 'gene2'], ['tf1','tf2'])
         confidences = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1','tf2'])
