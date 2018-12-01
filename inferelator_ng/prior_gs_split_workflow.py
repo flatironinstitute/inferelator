@@ -4,6 +4,7 @@ Workflow class that splits the prior into a gold standard and new prior
 
 import pandas as pd
 import numpy as np
+from inferelator_ng import workflow
 from inferelator_ng import utils
 
 DEFAULT_SPLIT = 0.5
@@ -41,8 +42,9 @@ class PriorGoldStandardSplitWorkflowBase(object):
         else:
             self._split_axis(all_priors, axis=self.prior_gold_split_axis)
 
-        utils.Debug.vprint("Prior split into a prior (pr) and a gold standard {gs}".format(pr=self.priors_data.shape,
-                                                                                           gs=self.gold_standard.shape))
+        utils.Debug.vprint("Prior split into a prior {pr} and a gold standard {gs}".format(pr=self.priors_data.shape,
+                                                                                           gs=self.gold_standard.shape),
+                           level=0)
 
     def _split_flattened(self, priors):
         pc = np.sum(priors.values != 0)
