@@ -2,36 +2,51 @@
 Workflow class that splits the prior into a gold standard and new prior
 """
 
-import random
 import pandas as pd
 import numpy as np
-from . import workflow
+from inferelator_ng import utils
 
 DEFAULT_SPLIT = 0.5
+DEFAULT_AXIS = 0
 
 
 class PriorGoldStandardSplitWorkflowBase(object):
-    prior_gold_split = None
+    prior_gold_split_ratio = DEFAULT_SPLIT
+    prior_gold_split_axis = DEFAULT_AXIS
 
-    def set_gold_standard_and_priors(self, gold_standard_split=DEFAULT_SPLIT, axis=0):
+    def set_gold_standard_and_priors(self):
         """
         Ignore the gold standard file. Instead, create a gold standard
-        from a 50/50 split of the prior. Half of original prior becomes the new prior, 
+        from a 50/50 split of the prior. Half of original prior becomes the new prior,
         the other half becomes the gold standard
+
+        :param gold_standard_split: float
+            The proportion of the priors that should go into the gold standard
+        :param axis: int
+            Splits on rows (when 0), columns (when 1), or on flattened individual data points (when None)
+        :return:
+            Resets the self.prior_data and self.gold_standard class variables
         """
 
         # Get the priors
         all_priors = self.input_dataframe(self.priors_file) if self.priors_data is None else self.priors_data.copy()
 
-        # Set the split ratio
-        self.prior_gold_split = self.prior_gold_split if self.prior_gold_split is not None else gold_standard_split
+        # Make sure that the class variables are valid
+        assert 1 >= self.prior_gold_split_ratio >= 0, "prior_gold_split_ratio is a ratio between 0 and 1"
+        assert self.prior_gold_split_axis in [0, 1, None], "prior_gold_split_axis takes either 0, 1 or None"
 
         # Split the priors into gold standard based on axis (flatten if axis=None)
-        self._split_flattened(all_priors) if axis is None else self._split_axis(all_priors, axis=axis)
+        if self.prior_gold_split_axis is None:
+            self._split_flattened(all_priors)
+        else:
+            self._split_axis(all_priors, axis=self.prior_gold_split_axis)
+
+        utils.Debug.vprint("Prior split into a prior (pr) and a gold standard {gs}".format(pr=self.priors_data.shape,
+                                                                                           gs=self.gold_standard.shape))
 
     def _split_flattened(self, priors):
         pc = np.sum(priors.values != 0)
-        gs_count = int(self.prior_gold_split * pc)
+        gs_count = int(self.prior_gold_split_ratio * pc)
         idx = self._make_shuffled_index(pc)
 
         pr_idx = priors.values[priors.values != 0].copy()
@@ -51,7 +66,7 @@ class PriorGoldStandardSplitWorkflowBase(object):
 
     def _split_axis(self, priors, axis=0):
         pc = priors.shape[axis]
-        gs_count = int(self.prior_gold_split * pc)
+        gs_count = int(self.prior_gold_split_ratio * pc)
         idx = self._make_shuffled_index(pc)
 
         if axis == 0:

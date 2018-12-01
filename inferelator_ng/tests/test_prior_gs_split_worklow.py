@@ -26,11 +26,6 @@ class StubWorkflow(prior_gs_split_workflow.PriorGoldStandardSplitWorkflowBase, w
     def run(self):
         self.get_data()
 
-    def set_gold_standard_and_priors(self, gold_standard_split=prior_gs_split_workflow.DEFAULT_SPLIT):
-        super(StubWorkflow, self).set_gold_standard_and_priors(gold_standard_split, self.axis)
-        print(self.priors_data.shape)
-        print(self.gold_standard.shape)
-
     def emit_results(self, priors):
         # check that everything got initialized properly
         assert self.exp_mat is not None
@@ -52,6 +47,7 @@ class TestPriorGoldStandardSplitWorkflowBaseStub(unittest.TestCase):
         work = StubWorkflow()
         work.input_dir = os.path.join(my_dir, "../../data/dream4")
         work.test_case = self
+        work.prior_gold_split_axis = None
         # run the workflow (validation tests in emit_results)
         work.run()
         self.assertEqual(np.sum(work.priors_data.sum()), np.sum(work.gold_standard.sum()))
@@ -61,6 +57,7 @@ class TestPriorGoldStandardSplitWorkflowBaseStub(unittest.TestCase):
         work = StubWorkflow()
         work.input_dir = os.path.join(my_dir, "../../data/dream4_no_metadata_for_test_purposes")
         work.test_case = self
+        work.prior_gold_split_axis = None
         # run the workflow (validation tests in emit_results)
         work.run()
         original_priors = work.input_dataframe(work.priors_file)
@@ -71,6 +68,7 @@ class TestPriorGoldStandardSplitWorkflowBaseStub(unittest.TestCase):
         work = StubWorkflow(axis=0)
         work.input_dir = os.path.join(my_dir, "../../data/dream4")
         work.test_case = self
+        work.prior_gold_split_axis = 0
         # run the workflow (validation tests in emit_results)
         work.run()
         self.assertEqual(work.priors_data.shape, work.gold_standard.shape)
