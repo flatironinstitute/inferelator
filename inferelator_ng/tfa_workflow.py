@@ -23,6 +23,9 @@ class TFAWorkFlow(workflow.WorkflowBase):
     # Regression parameters
     num_bootstraps = 2
 
+    # Result processing parameters
+    gold_standard_filter_method = 'overlap'
+
     def run(self):
         """
         Execute workflow, after all configuration.
@@ -85,7 +88,8 @@ class TFAWorkFlow(workflow.WorkflowBase):
                 os.makedirs(self.output_dir)
             except OSError:
                 pass
-            self.results_processor = ResultsProcessor(betas, rescaled_betas)
+            self.results_processor = ResultsProcessor(betas, rescaled_betas,
+                                                      filter_method=self.gold_standard_filter_method)
             self.results_processor.summarize_network(self.output_dir, gold_standard, priors)
 
     def compute_common_data(self):
