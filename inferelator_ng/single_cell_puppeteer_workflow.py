@@ -39,32 +39,6 @@ class NoOutputRP(results_processor.ResultsProcessor):
                                      output_file_name=output_file_name)
         return aupr, interactions
 
-    def calculate_precision_recall(self, cc, gold_standard):
-        # Get the usable parts of the gold standard (drop any columns or rows that are all 0)
-        gs_filtered = np.abs(gold_standard.loc[(gold_standard!=0).any(axis=1), (gold_standard!=0).any(axis=0)])
-
-        # Find out if there are any rows or columns NOT in the confidence data frame
-        missing_idx = cc.index.difference(gs_filtered.index)
-        missing_col = cc.columns.difference(gs_filtered.columns)
-
-        # Fill out the confidence dataframe with 0s
-        cc_filtered = pd.concat((cc, pd.DataFrame(0.0, index=missing_idx, columns=cc.columns)), axis=0)
-        cc_filtered = pd.concat((cc_filtered, pd.DataFrame(0.0, index=cc_filtered.index, columns=missing_col)), axis=1)
-
-        # Align to the gold standard
-        cc_filtered = cc_filtered.loc[gs_filtered.index, gs_filtered.columns]
-
-        # rank from highest to lowest confidence
-        sorted_candidates = np.argsort(cc_filtered.values, axis = None)[::-1]
-        gs_values = gs_filtered.values.flatten()[sorted_candidates]
-
-        #the following mimicks the R function ChristophsPR
-        precision = np.cumsum(gs_values).astype(float) / np.cumsum([1] * len(gs_values))
-        recall = np.cumsum(gs_values).astype(float) / sum(gs_values)
-        precision = np.insert(precision,0,precision[0])
-        recall = np.insert(recall,0,0)
-        return recall, precision
-
 
 def make_puppet_workflow(workflow_type):
     class SingleCellPuppetWorkflow(single_cell_workflow.SingleCellWorkflow, workflow_type):
