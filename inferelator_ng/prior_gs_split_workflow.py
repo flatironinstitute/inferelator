@@ -4,7 +4,6 @@ Workflow class that splits the prior into a gold standard and new prior
 
 import pandas as pd
 import numpy as np
-from inferelator_ng import workflow
 from inferelator_ng import utils
 
 DEFAULT_SPLIT = 0.5
