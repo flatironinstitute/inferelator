@@ -7,44 +7,19 @@ import matplotlib
 matplotlib.use('pdf')
 import matplotlib.pyplot as plt
 
-
-def filter_to_left_size(left, right):
-    # Find out if there are any rows or columns NOT in the left data frame
-    missing_idx = left.index.difference(right.index)
-    missing_col = left.columns.difference(right.columns)
-
-    # Fill out the right dataframe with 0s
-    right_filtered = pd.concat((right, pd.DataFrame(0.0, index=missing_idx, columns=right.columns)), axis=0)
-    right_filtered = pd.concat((right_filtered, pd.DataFrame(0.0, index=right_filtered.index, columns=missing_col)),
-                               axis=1)
-
-    # Return the right dataframe sized to the left
-    return left, right_filtered.loc[left.index, left.columns]
-
-
-def filter_to_overlap(left, right):
-    # Find out of there are any rows or columns in both data frames
-    intersect_idx = right.index.intersection(left.index)
-    intersect_col = right.columns.intersection(left.columns)
-
-    # Return both dataframes sized to the overlap
-    return left.loc[intersect_idx, intersect_col], right.loc[intersect_idx, intersect_col]
-
-
 class ResultsProcessor:
-    filter_method_lookup = {'overlap': filter_to_overlap,
-                            'keep_all_gold_standard': filter_to_left_size}
-    filter_method = staticmethod(filter_to_overlap)
+    filter_method_lookup = {'overlap': 'filter_to_overlap',
+                            'keep_all_gold_standard': 'filter_to_left_size'}
+    filter_method = None
 
-    def __init__(self, betas, rescaled_betas, threshold=0.5, filter_method=None):
+    def __init__(self, betas, rescaled_betas, threshold=0.5, filter_method='overlap'):
         self.betas = betas
         self.rescaled_betas = rescaled_betas
         self.threshold = threshold
-        if filter_method is not None:
-            try:
-                self.filter_method = self.filter_method_lookup[filter_method]
-            except KeyError:
-                raise ValueError("{val} is not an allowed filter_method option".format(val=filter_method))
+        try:
+            self.filter_method = getattr(self, self.filter_method_lookup[filter_method])
+        except KeyError:
+            raise ValueError("{val} is not an allowed filter_method option".format(val=filter_method))
 
     def compute_combined_confidences(self):
         combined_confidences = pd.DataFrame(np.zeros((self.betas[0].shape)), index=self.betas[0].index,
@@ -153,3 +128,26 @@ class ResultsProcessor:
     def mean_and_median(stack):
         matrix_stack = [x.values for x in stack]
         return np.mean(matrix_stack, axis=0), np.median(matrix_stack, axis=0)
+
+    @staticmethod
+    def filter_to_left_size(left, right):
+        # Find out if there are any rows or columns NOT in the left data frame
+        missing_idx = left.index.difference(right.index)
+        missing_col = left.columns.difference(right.columns)
+
+        # Fill out the right dataframe with 0s
+        right_filtered = pd.concat((right, pd.DataFrame(0.0, index=missing_idx, columns=right.columns)), axis=0)
+        right_filtered = pd.concat((right_filtered, pd.DataFrame(0.0, index=right_filtered.index, columns=missing_col)),
+                                   axis=1)
+
+        # Return the right dataframe sized to the left
+        return left, right_filtered.loc[left.index, left.columns]
+
+    @staticmethod
+    def filter_to_overlap(left, right):
+        # Find out of there are any rows or columns in both data frames
+        intersect_idx = right.index.intersection(left.index)
+        intersect_col = right.columns.intersection(left.columns)
+
+        # Return both dataframes sized to the overlap
+        return left.loc[intersect_idx, intersect_col], right.loc[intersect_idx, intersect_col]
