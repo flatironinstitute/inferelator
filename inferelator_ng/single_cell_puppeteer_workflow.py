@@ -17,7 +17,7 @@ SHARED_CLASS_VARIABLES = ['tf_names', 'gene_list', 'num_bootstraps', 'normalize_
                           'normalize_batch_medians', 'magic_imputation', 'batch_correction_lookup',
                           'modify_activity_from_metadata', 'metadata_expression_lookup', 'gene_list_lookup',
                           'mi_sync_path', 'log_two_plus_one', 'ln_plus_one', 'count_minimum',
-                          'gold_standard_filter_method']
+                          'gold_standard_filter_method', 'expression_matrix_transpose']
 
 DEFAULT_SIZE_SAMPLING = [1]
 DEFAULT_GOLD_STANDARD_CUTOFF = [5]
@@ -59,7 +59,8 @@ def make_puppet_workflow(workflow_type):
             self.gold_standard = gs_data
 
         def startup_run(self):
-            self.compute_activity()
+            if self.expression_matrix_transpose:
+                self.expression_matrix = self.expression_matrix.transpose()
 
         def emit_results(self, betas, rescaled_betas, gold_standard, priors):
             if self.is_master():
@@ -133,6 +134,7 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
         for varname in SHARED_CLASS_VARIABLES:
             try:
                 setattr(obj, varname, getattr(self, varname))
+                utils.Debug.vprint("Variable {var} set to child".format(var=varname))
             except AttributeError:
                 utils.Debug.vprint("Variable {var} not assigned to parent".format(var=varname))
 
