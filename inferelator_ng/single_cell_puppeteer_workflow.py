@@ -134,7 +134,7 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
         for varname in SHARED_CLASS_VARIABLES:
             try:
                 setattr(obj, varname, getattr(self, varname))
-                utils.Debug.vprint("Variable {var} set to child".format(var=varname))
+                utils.Debug.vprint("Variable {var} set to child".format(var=varname), level=2)
             except AttributeError:
                 utils.Debug.vprint("Variable {var} not assigned to parent".format(var=varname))
 
