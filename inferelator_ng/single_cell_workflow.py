@@ -9,7 +9,6 @@ from inferelator_ng.tfa import TFA
 from inferelator_ng import utils
 from inferelator_ng import tfa_workflow
 from inferelator_ng import elasticnet_python
-from inferelator_ng import single_cell
 
 EXPRESSION_MATRIX_METADATA = ['Genotype', 'Genotype_Group', 'Replicate', 'Condition', 'tenXBarcode']
 GENE_LIST_INDEX_COLUMN = 'SystematicName'
@@ -26,7 +25,7 @@ class SingleCellWorkflow(object):
 
     # Single-cell expression data manipulations
     count_minimum = None  # float
-    expression_matrix_transpose = True  # bool
+    expression_matrix_columns_are_genes = True  # bool
     extract_metadata_from_expression_matrix = False  # bool
     expression_matrix_metadata = EXPRESSION_MATRIX_METADATA  # str
 
@@ -58,6 +57,10 @@ class SingleCellWorkflow(object):
         self.get_data()
 
     def startup_finish(self):
+        # If the expression matrix is [G x N], transpose it for preprocessing
+        if not self.expression_matrix_columns_are_genes:
+            self.expression_matrix = self.expression_matrix.transpose()
+            
         # Filter expression and priors to align
         self.single_cell_normalize()
         self.filter_expression_and_priors()
@@ -65,13 +68,8 @@ class SingleCellWorkflow(object):
 
     def filter_expression_and_priors(self):
 
-        # Transpose the expression matrix (if it's N x G instead of G x N)
-        if self.expression_matrix_transpose:
-            self.expression_matrix = self.expression_matrix.transpose()
-
-        if self.count_minimum is not None:
-            keep_genes = self.expression_matrix.sum(axis=1) >= (self.count_minimum * self.expression_matrix.shape[0])
-            self.expression_matrix = self.expression_matrix.loc[keep_genes, :]
+        # Transpose the expression matrix to convert from [N x G] to [G x N]
+        self.expression_matrix = self.expression_matrix.transpose()
 
         # If gene_list_file is set, read a list of genes in and then filter the expression and priors to this list
         if self.gene_list_file is not None:
@@ -90,12 +88,25 @@ class SingleCellWorkflow(object):
         tf_keepers = list(set(self.tf_names).intersection(set(self.priors_data.columns.tolist())))
         self.priors_data = self.priors_data.loc[:, tf_keepers]
 
+    def filter_genes_for_count(self):
+        if self.count_minimum is None:
+            return None
+        else:
+            keep_genes = self.expression_matrix.sum(axis=0) >= (self.count_minimum * self.expression_matrix.shape[0])
+            self.expression_matrix = self.expression_matrix.loc[:, keep_genes]
+
     def single_cell_normalize(self):
+        """
+        Single cell normalization. Requires expression_matrix to be all numeric, and to be [N x G]
+        :return:
+        """
 
         if self.normalize_counts_to_one and self.normalize_batch_medians:
             raise ValueError("One normalization method at a time")
         if self.log_two_plus_one and self.ln_plus_one:
             raise ValueError("One logging method at a time")
+
+        self.filter_genes_for_count()
 
         if self.expression_matrix.isnull().values.any():
             raise ValueError("NaN values are present prior to normalization in the expression matrix")
@@ -135,17 +146,15 @@ class SingleCellWorkflow(object):
 
     def expression_normalize_to_one(self):
         # Get UMI counts for each cell
-        umi = single_cell.umi(self.expression_matrix)
-        if (umi == 0).values.any():
-            raise ValueError("There are cells with no counts in the expression matrix")
+        umi = self.expression_matrix.sum(axis=1)
 
         # Divide each cell's raw count data by the total number of UMI counts for that cell
         self.expression_matrix = self.expression_matrix.astype(float)
-        self.expression_matrix = self.expression_matrix.divide(umi, axis=1)
+        self.expression_matrix = self.expression_matrix.divide(umi, axis=0)
 
     def batch_normalize_medians(self, batch_factor_column=METADATA_FOR_BATCH_CORRECTION):
         # Get UMI counts for each cell
-        umi = single_cell.umi(self.expression_matrix)
+        umi = self.expression_matrix.sum(axis=1)
 
         # Create a new dataframe with the UMI counts and the factor to batch correct on
         median_umi = pd.DataFrame({'umi': umi, batch_factor_column: self.meta_data[batch_factor_column]})

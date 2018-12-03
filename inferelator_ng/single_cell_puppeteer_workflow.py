@@ -59,8 +59,7 @@ def make_puppet_workflow(workflow_type):
             self.gold_standard = gs_data
 
         def startup_run(self):
-            if self.expression_matrix_transpose:
-                self.expression_matrix = self.expression_matrix.transpose()
+            pass
 
         def emit_results(self, betas, rescaled_betas, gold_standard, priors):
             if self.is_master():
@@ -122,6 +121,7 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
                                                             priors_data, gold_standard)
         self.assign_class_vars(puppet)
         puppet.random_seed = seed
+        puppet.expression_matrix_columns_are_genes = False
         if self.write_network:
             puppet.network_file_path = self.output_dir
             puppet.network_file_name = "network_s{seed}.tsv".format(seed=seed)
