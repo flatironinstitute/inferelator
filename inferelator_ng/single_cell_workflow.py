@@ -25,18 +25,18 @@ class SingleCellWorkflow(object):
     gene_list_index = GENE_LIST_INDEX_COLUMN
 
     # Single-cell expression data manipulations
-    count_minimum = None                                    # float
-    expression_matrix_transpose = True                      # bool
-    extract_metadata_from_expression_matrix = False         # bool
-    expression_matrix_metadata = EXPRESSION_MATRIX_METADATA # str
+    count_minimum = None  # float
+    expression_matrix_transpose = True  # bool
+    extract_metadata_from_expression_matrix = False  # bool
+    expression_matrix_metadata = EXPRESSION_MATRIX_METADATA  # str
 
     # Normalization method flags
-    normalize_counts_to_one = False                         # bool
-    normalize_batch_medians = False                         # bool
-    log_two_plus_one = False                                # bool
-    ln_plus_one = False                                     # bool
-    magic_imputation = False                                # bool
-    batch_correction_lookup = METADATA_FOR_BATCH_CORRECTION # str
+    normalize_counts_to_one = False  # bool
+    normalize_batch_medians = False  # bool
+    log_two_plus_one = False  # bool
+    ln_plus_one = False  # bool
+    magic_imputation = False  # bool
+    batch_correction_lookup = METADATA_FOR_BATCH_CORRECTION  # str
 
     # TFA modification flags
     modify_activity_from_metadata = True
@@ -57,6 +57,7 @@ class SingleCellWorkflow(object):
         # Load the usual data files for inferelator regression
         self.get_data()
 
+    def startup_finish(self):
         # Filter expression and priors to align
         self.single_cell_normalize()
         self.filter_expression_and_priors()
@@ -91,25 +92,41 @@ class SingleCellWorkflow(object):
 
     def single_cell_normalize(self):
 
-        assert not (self.normalize_counts_to_one and self.normalize_batch_medians), "One normalization method at a time"
-        assert not (self.log_two_plus_one and self.ln_plus_one), "One logging method at a time"
+        if self.normalize_counts_to_one and self.normalize_batch_medians:
+            raise ValueError("One normalization method at a time")
+        if self.log_two_plus_one and self.ln_plus_one:
+            raise ValueError("One logging method at a time")
+
+        if self.expression_matrix.isnull().values.any():
+            raise ValueError("NaN values are present prior to normalization in the expression matrix")
 
         # Normalize UMI counts per cell (0-1 so that sum(counts) = 1 for each cell)
         if self.normalize_counts_to_one:
             utils.Debug.vprint('Normalizing UMI counts per cell ... ')
             self.expression_normalize_to_one()
+
+        # Batch normalize so that all batches have the same median UMI count
         if self.normalize_batch_medians:
             utils.Debug.vprint('Normalizing multiple batches ... ')
             self.batch_normalize_medians()
+
+        # log2(x+1) all data
         if self.log_two_plus_one:
             utils.Debug.vprint('Logging data ... ')
             self.log2_data()
+
+        # ln2(x+1) all data points
         if self.ln_plus_one:
             utils.Debug.vprint('Logging data ... ')
             self.ln_data()
+
+        # Use MAGIC (van Dijk et al Cell, 2018, 10.1016/j.cell.2018.05.061) to impute data
         if self.magic_imputation:
             utils.Debug.vprint('Imputing data with MAGIC ... ')
             self.magic_expression()
+
+        if self.expression_matrix.isnull().values.any():
+            raise ValueError("NaN values have been introduced into the expression matrix by normalization")
 
     def read_genes(self):
 
@@ -119,12 +136,12 @@ class SingleCellWorkflow(object):
     def expression_normalize_to_one(self):
         # Get UMI counts for each cell
         umi = single_cell.umi(self.expression_matrix)
-        assert not (umi == 0).values.any()
+        if (umi == 0).values.any():
+            raise ValueError("There are cells with no counts in the expression matrix")
 
         # Divide each cell's raw count data by the total number of UMI counts for that cell
         self.expression_matrix = self.expression_matrix.astype(float)
         self.expression_matrix = self.expression_matrix.divide(umi, axis=1)
-        assert not self.expression_matrix.isnull().values.any()
 
     def batch_normalize_medians(self, batch_factor_column=METADATA_FOR_BATCH_CORRECTION):
         # Get UMI counts for each cell
