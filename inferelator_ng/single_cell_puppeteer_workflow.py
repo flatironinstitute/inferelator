@@ -64,7 +64,7 @@ def make_puppet_workflow(workflow_type):
 
         def emit_results(self, betas, rescaled_betas, gold_standard, priors):
             if self.is_master():
-                results = NoOutputRP(betas, rescaled_betas)
+                results = NoOutputRP(betas, rescaled_betas, filter_method=self.gold_standard_filter_method)
                 self.aupr, self.n_interact = results.summarize_network(self.network_file_path, gold_standard, priors,
                                                                        output_file_name=self.network_file_name)
             else:
