@@ -27,17 +27,19 @@ DEFAULT_BASE_SEED = 42
 
 class NoOutputRP(results_processor.ResultsProcessor):
 
-    def summarize_network(self, output_dir, gold_standard, priors, threshold=0.95, output_file_name=None):
+    def summarize_network(self, output_dir, gold_standard, priors, confidence_threshold=0.95, precision_threshold=0.5,
+                          output_file_name=None):
         combined_confidences = self.compute_combined_confidences()
         (recall, precision) = self.calculate_precision_recall(combined_confidences, gold_standard)
         aupr = self.calculate_aupr(recall, precision)
-        interactions = (combined_confidences > threshold).sum().sum()
+        stable_interactions = (combined_confidences > confidence_threshold).sum().sum()
+        precision_interactions = np.sum(precision > precision_threshold)
         if output_file_name is not None:
             self.threshold_and_summarize()
             resc_betas_mean, resc_betas_median = self.mean_and_median(self.rescaled_betas)
             self.save_network_to_tsv(combined_confidences, resc_betas_median, priors, output_dir=output_dir,
                                      output_file_name=output_file_name)
-        return aupr, interactions
+        return aupr, stable_interactions, precision_interactions
 
 
 def make_puppet_workflow(workflow_type):
@@ -64,10 +66,11 @@ def make_puppet_workflow(workflow_type):
         def emit_results(self, betas, rescaled_betas, gold_standard, priors):
             if self.is_master():
                 results = NoOutputRP(betas, rescaled_betas, filter_method=self.gold_standard_filter_method)
-                self.aupr, self.n_interact = results.summarize_network(self.network_file_path, gold_standard, priors,
-                                                                       output_file_name=self.network_file_name)
+                results = results.summarize_network(self.network_file_path, gold_standard, priors,
+                                                    output_file_name=self.network_file_name)
+                self.aupr, self.n_interact, self.precision_interact = results
             else:
-                self.aupr, self.n_interact = None, None
+                self.aupr, self.n_interact, self.precision_interact = None, None, None
 
     return SingleCellPuppetWorkflow
 
@@ -141,7 +144,7 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
 
 class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
     sizes = DEFAULT_SIZE_SAMPLING
-    header = ["Size", "Num_Sampled", "Seed", "AUPR", "Num_Interacting"]
+    header = ["Size", "Num_Sampled", "Seed", "AUPR", "Num_Confident_Int", "Num_Precision_Int"]
 
     def modeling_method(self, *args, **kwargs):
         return self.get_aupr_for_subsampled_data(*args, **kwargs)
@@ -162,7 +165,7 @@ class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
                 if self.write_network:
                     puppet.network_file_name = "network_{size}_s{seed}.tsv".format(size=s_ratio, seed=seed)
                 puppet.run()
-                size_aupr = (s_ratio, new_size, seed, puppet.aupr, puppet.n_interact)
+                size_aupr = (s_ratio, new_size, seed, puppet.aupr, puppet.n_interact, puppet.precision_interact)
                 aupr_data.extend(size_aupr)
                 if self.is_master():
                     self.writer.writerow(size_aupr)
@@ -171,7 +174,7 @@ class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
 
 class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
     drop_column = None
-    header = ["Dropout", "Seed", "AUPR", "Num_Interacting"]
+    header = ["Dropout", "Seed", "AUPR", "Num_Confident_Int", "Num_Precision_Int"]
 
     def modeling_method(self, *args, **kwargs):
         return self.auprs_for_condition_dropout()
@@ -213,7 +216,7 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
             if self.write_network:
                 puppet.network_file_name = "network_{drop}_s{seed}.tsv".format(drop=r_name, seed=seed)
             puppet.run()
-            drop_data = (r_name, seed, puppet.aupr, puppet.n_interact)
+            drop_data = (r_name, seed, puppet.aupr, puppet.n_interact, puppet.precision_interact)
             aupr_data.append(drop_data)
             if self.is_master():
                 self.writer.writerow(drop_data)
