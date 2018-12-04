@@ -8,6 +8,7 @@ code among different variants of the Inferelator workflow.
 from inferelator_ng import utils
 import numpy as np
 import os
+import datetime
 import pandas as pd
 
 import gzip
@@ -213,3 +214,11 @@ class WorkflowBase(object):
             return True
         else:
             return False
+
+    def create_output_dir(self):
+        if self.output_dir is None:
+            self.output_dir = os.path.join(self.input_dir, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+        try:
+            os.makedirs(self.output_dir)
+        except OSError:
+            pass

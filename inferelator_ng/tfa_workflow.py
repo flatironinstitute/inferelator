@@ -3,14 +3,12 @@ Run BSubtilis Network Inference with TFA BBSR.
 """
 
 import numpy as np
-import os
 from inferelator_ng import workflow
 from inferelator_ng import design_response_translation  # added python design_response
 from inferelator_ng.tfa import TFA
 from inferelator_ng.results_processor import ResultsProcessor
 from inferelator_ng import mi
 from inferelator_ng import bbsr_python
-import datetime
 from inferelator_ng import utils
 
 
@@ -82,12 +80,7 @@ class TFAWorkFlow(workflow.WorkflowBase):
         Output result report(s) for workflow run.
         """
         if self.is_master():
-            if self.output_dir is None:
-                self.output_dir = os.path.join(self.input_dir, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
-            try:
-                os.makedirs(self.output_dir)
-            except OSError:
-                pass
+            self.create_output_dir()
             self.results_processor = ResultsProcessor(betas, rescaled_betas,
                                                       filter_method=self.gold_standard_filter_method)
             self.results_processor.summarize_network(self.output_dir, gold_standard, priors)
