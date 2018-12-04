@@ -4,6 +4,7 @@ Run Single Cell Network Inference
 import pandas as pd
 import numpy as np
 import types
+import itertools
 
 from inferelator_ng.tfa import TFA
 from inferelator_ng import utils
@@ -32,6 +33,7 @@ class SingleCellWorkflow(object):
     # Normalization method flags
     normalize_counts_to_one = False  # bool
     normalize_batch_medians = False  # bool
+    normalize_multi_batch = False    # bool
     log_two_plus_one = False  # bool
     ln_plus_one = False  # bool
     magic_imputation = False  # bool
@@ -60,7 +62,7 @@ class SingleCellWorkflow(object):
         # If the expression matrix is [G x N], transpose it for preprocessing
         if not self.expression_matrix_columns_are_genes:
             self.expression_matrix = self.expression_matrix.transpose()
-            
+
         # Filter expression and priors to align
         self.single_cell_normalize()
         self.filter_expression_and_priors()
@@ -118,8 +120,13 @@ class SingleCellWorkflow(object):
 
         # Batch normalize so that all batches have the same median UMI count
         if self.normalize_batch_medians:
-            utils.Debug.vprint('Normalizing multiple batches ... ')
+            utils.Debug.vprint('Normalizing median counts between batches ... ')
             self.batch_normalize_medians()
+
+        # Batch normalize so that all batches have the same median UMI count
+        if self.normalize_multi_batch:
+            utils.Debug.vprint('Normalizing by multiBatchNorm ... ')
+            self.multi_batch_norm()
 
         # log2(x+1) all data
         if self.log_two_plus_one:
@@ -153,6 +160,14 @@ class SingleCellWorkflow(object):
         self.expression_matrix = self.expression_matrix.divide(umi, axis=0)
 
     def batch_normalize_medians(self, batch_factor_column=METADATA_FOR_BATCH_CORRECTION):
+        """
+        Calculate the median UMI count per cell for each batch. Transform all batches by dividing by a size correction
+        factor, so that all batches have the same median UMI count (which is the median batch median UMI count)
+        :param batch_factor_column: str
+            Which meta data column should be used to determine batches
+        :return: None
+            Set self.expression_matrix and self.meta_data
+        """
         # Get UMI counts for each cell
         umi = self.expression_matrix.sum(axis=1)
 
@@ -174,6 +189,70 @@ class SingleCellWorkflow(object):
                                              self.expression_matrix.loc[rows, :].values / corr_factor['umi']))
             new_meta_data = pd.concat([new_meta_data, self.meta_data.loc[rows, :]])
         self.expression_matrix = pd.DataFrame(new_expression_data,
+                                              index=new_meta_data.index,
+                                              columns=self.expression_matrix.columns)
+        self.meta_data = new_meta_data
+
+    def multi_batch_norm(self, batch_factor_column=METADATA_FOR_BATCH_CORRECTION, minimum_mean=1):
+        """
+        Normalize as multiBatchNorm from the R package scran
+        :param batch_factor_column: str
+            Which meta data column should be used to determine batches
+        :param minimum_mean: int
+            Minimum mean expression of a gene when considering if it should be included in the correction factor calc
+        :return: None
+            Set self.expression_matrix and self.meta_data
+        """
+
+        # Calculate size-corrected average gene expression for each batch
+        size_corrected_avg = pd.DataFrame(columns=self.expression_matrix.columns)
+        for batch in self.meta_data[batch_factor_column].unique().tolist():
+            batch_df = self.expression_matrix.loc[self.meta_data[batch_factor_column] == batch, :]
+
+            # Get UMI counts for each cell
+            umi = batch_df.sum(axis=1)
+            size_correction_factor = umi / umi.mean()
+
+            # Get the mean size-corrected count values for this batch
+            batch_df = batch_df.divide(size_correction_factor, axis=0).mean(axis=0).to_frame().transpose()
+            batch_df.index = pd.Index([batch])
+
+            # Append to the dataframe
+            size_corrected_avg = size_corrected_avg.append(batch_df)
+
+        # Calculate median ratios
+        inter_batch_coefficients = []
+        for b1, b2 in itertools.combinations_with_replacement(size_corrected_avg.index.tolist(), r=2):
+            # Get the mean size-corrected count values for this batch pair
+            b1_series, b2_series = size_corrected_avg.loc[b1, :], size_corrected_avg.loc[b2, :]
+            b1_sum, b2_sum = b1_series.sum(), b2_series.sum()
+
+            # calcAverage
+            combined_keep_index = ((b1_series / b1_sum + b2_series / b2_sum) / 2 * (b1_sum + b2_sum) / 2) > minimum_mean
+            coeff = (b2_series.loc[combined_keep_index] / b1_series.loc[combined_keep_index]).median()
+
+            # Keep track of the median ratios
+            inter_batch_coefficients.append((b1, b2, coeff))
+            inter_batch_coefficients.append((b2, b1, 1 / coeff))
+
+        inter_batch_coefficients = pd.DataFrame(inter_batch_coefficients, columns=["batch1", "batch2", "coeff"])
+        inter_batch_minimum = inter_batch_coefficients.loc[inter_batch_coefficients["coeff"].idxmin(), :]
+
+        min_batch = inter_batch_minimum["batch2"]
+
+        # Apply the correction factor to all the data batch-wise. Do this with numpy because pandas is a glacier.
+        new_data = np.ndarray((0, self.expression_matrix.shape[1]), dtype=np.dtype(float))
+        new_meta_data = pd.DataFrame(columns=self.meta_data.columns)
+
+        for i, row in inter_batch_coefficients.loc[inter_batch_coefficients["batch2"] == min_batch, :].iterrows():
+            select_rows = self.meta_data[batch_factor_column] == row["batch1"]
+            umi = self.expression_matrix.loc[select_rows, :].sum(axis=1)
+            size_correction_factor = umi / umi.mean() / row["coeff"]
+            corrected_df = self.expression_matrix.loc[select_rows, :].divide(size_correction_factor, axis=0).values
+            new_data = np.vstack((new_data, corrected_df))
+            new_meta_data = pd.concat([new_meta_data, self.meta_data.loc[select_rows, :]])
+
+        self.expression_matrix = pd.DataFrame(new_data,
                                               index=new_meta_data.index,
                                               columns=self.expression_matrix.columns)
         self.meta_data = new_meta_data
