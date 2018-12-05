@@ -19,21 +19,39 @@ SHARED_CLASS_VARIABLES = ['tf_names', 'gene_list', 'num_bootstraps', 'normalize_
                           'mi_sync_path', 'log_two_plus_one', 'ln_plus_one', 'count_minimum',
                           'gold_standard_filter_method']
 
-DEFAULT_SIZE_SAMPLING = [1]
-DEFAULT_GOLD_STANDARD_CUTOFF = [5]
+# DEFAULTS FOR Puppeteer
 DEFAULT_SEED_RANGE = range(42, 45)
 DEFAULT_BASE_SEED = 42
 
+# DEFAULTS FOR SizeSelectPuppeteer
+DEFAULT_SIZE_SAMPLING = [1]
+
+# DEFAULTS FOR SingleCellDropoutConditionSampling
+DEFAULT_BATCH_SIZE = 500
+
+# DEFAULTS FOR NoOutputRP
+DEFAULT_CONF = 0.95
+DEFAULT_PREC = 0.5
 
 class NoOutputRP(results_processor.ResultsProcessor):
+    """
+    Overload the existing results processor to return summary information and to only output files if specifically
+    instructed to do so
+    """
 
-    def summarize_network(self, output_dir, gold_standard, priors, confidence_threshold=0.95, precision_threshold=0.5,
-                          output_file_name=None):
+    def summarize_network(self, output_dir, gold_standard, priors, confidence_threshold=DEFAULT_CONF,
+                          precision_threshold=DEFAULT_PREC, output_file_name=None):
+        # Calculate combined confidences
         combined_confidences = self.compute_combined_confidences()
-        (recall, precision) = self.calculate_precision_recall(combined_confidences, gold_standard)
+        # Calculate precision and recall
+        recall, precision = self.calculate_precision_recall(combined_confidences, gold_standard)
+        # Calculate AUPR
         aupr = self.calculate_aupr(recall, precision)
+        # Calculate how many interactions are stable (are above the combined confidence threshold)
         stable_interactions = (combined_confidences > confidence_threshold).sum().sum()
+        # Calculate how many interactions we should keep for our model (are above the precision threshold)
         precision_interactions = np.sum(precision > precision_threshold)
+        # Output the network as a tsv
         if output_file_name is not None:
             self.threshold_and_summarize()
             resc_betas_mean, resc_betas_median = self.mean_and_median(self.rescaled_betas)
@@ -41,7 +59,7 @@ class NoOutputRP(results_processor.ResultsProcessor):
                                      output_file_name=output_file_name)
         return aupr, stable_interactions, precision_interactions
 
-
+# Factory method to spit out a SingleCellPuppetWorkflow with the appropriate regression type
 def make_puppet_workflow(workflow_type):
     class SingleCellPuppetWorkflow(single_cell_workflow.SingleCellWorkflow, workflow_type):
         """
@@ -85,46 +103,69 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
     header = ["Seed", "AUPR", "Num_Interacting"]  # list[]
     output_file_name = "aupr.tsv"  # str
 
+    # How to sample
+    stratified_sampling = False
+    stratified_batch_lookup = single_cell_workflow.METADATA_FOR_BATCH_CORRECTION
+
     def run(self):
         self.startup()
         self.create_writer()
         auprs = self.modeling_method()
 
     def compute_activity(self):
+        # Compute activities in the puppet, not in the puppetmaster
         pass
 
     def single_cell_normalize(self):
+        # Normalize and impute in the puppet, not in the puppetmaster
         pass
 
     def modeling_method(self):
         raise NotImplementedError("No method to create models was provided")
 
     def create_writer(self):
+        """
+        Create a CSVWriter and stash it in self.writer
+        """
+
         if self.is_master():
             self.create_output_dir()
             self.writer = csv.writer(open(os.path.join(self.output_dir, self.output_file_name), mode="wb", buffering=0),
                                      delimiter="\t", quoting=csv.QUOTE_NONE)
             self.writer.writerow(self.header)
 
-    def create_output_dir(self):
-        if self.is_master():
-            if self.output_dir is None:
-                self.output_dir = os.path.join(self.input_dir, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
-            try:
-                os.makedirs(self.output_dir)
-            except OSError:
-                pass
 
     def new_puppet(self, expr_data, meta_data, seed=DEFAULT_BASE_SEED, priors_data=None, gold_standard=None):
+        """
+        Create a new puppet workflow to run the inferelator
+        :param expr_data: pd.DataFrame [G x N]
+        :param meta_data: pd.DataFrame [N x ?]
+        :param seed: int
+        :param priors_data: pd.DataFrame [G x K]
+        :param gold_standard: pd.DataFrame [G x K]
+        :return puppet:
+        """
+
+        # Unless told otherwise, use the master priors and master gold standard
         if gold_standard is None:
             gold_standard = self.gold_standard
         if priors_data is None:
             priors_data = self.priors_data
+
+        # Create a new puppet workflow with the factory method and pass in data on instantiation
         puppet = make_puppet_workflow(self.regression_type)(self.kvs, self.rank, expr_data, meta_data,
                                                             priors_data, gold_standard)
+
+        # Transfer the class variables necessary to get the puppet to dance (everything in SHARED_CLASS_VARIABLES)
         self.assign_class_vars(puppet)
+
+        # Set the random seed into the puppet
         puppet.random_seed = seed
+
+        # Make sure that the puppet knows the correct orientation of the expression matrix
         puppet.expression_matrix_columns_are_genes = False
+
+        # Tell the puppet to produce a network.tsv file (if write_network is true)
         if self.write_network:
             puppet.network_file_path = self.output_dir
             puppet.network_file_name = "network_s{seed}.tsv".format(seed=seed)
@@ -141,31 +182,72 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
             except AttributeError:
                 utils.Debug.vprint("Variable {var} not assigned to parent".format(var=varname))
 
+    def get_sample_index(self, meta_data=None, s_ratio=None, s_absolute_size=None, replace=True):
+        """
+        Produce an integer index to sample data using .iloc. If the self.stratified_sampling flag is True, sample
+        separately from each group, as defined by the self.stratified_batch_lookup column.
+        :param meta_data: pd.DataFrame [N x ?]
+            Data frame to sample from. Use self.meta_data if this is not set.
+        :param s_ratio: float
+            Sample expression_matrix to this proportion of data points
+        :param s_absolute_size: int
+            Sample expression matrix to this absolute number of data points
+        :param replace: bool
+            Sample with replacement flag (True means sample with replacement)
+        :return new_size, new_idx: int, np.ndarray
+            Return the total number of
+        """
+
+        # Sanity check inputs
+        if s_ratio is None and s_absolute_size is None:
+            raise ValueError("No sampling size set")
+        if s_ratio is not None and s_absolute_size is not None:
+            raise ValueError("Both sampling size options are set. This is not supported.")
+        if not (s_ratio is not None and s_ratio < 0) or not (s_absolute_size is not None and s_absolute_size < 0):
+            raise ValueError("Sampling a negative number of things is not supported")
+
+        if meta_data is None:
+            meta_data = self.meta_data
+
+        if self.stratified_sampling:
+            # Copy and reindex the meta_data so that the index can be used with iloc
+            meta_data = meta_data.copy()
+            meta_data.index = pd.Index(range(meta_data.shape[0]))
+            new_idx = np.ndarray(0, dtype=int)
+            for batch in meta_data[self.stratified_batch_lookup].unique().tolist():
+                batch_idx = meta_data.loc[meta_data[self.stratified_batch_lookup] == batch, :].index.tolist()
+                if s_ratio is not None:
+                    strat_size = int(len(batch_idx) * s_ratio)
+                else:
+                    strat_size = s_absolute_size
+                new_idx = np.append(new_idx, np.random.choice(batch_idx, size=strat_size, replace=replace))
+            return new_idx
+        else:
+            if s_ratio is not None:
+                new_size = int(s_ratio * meta_data.shape[0])
+            else:
+                new_size = s_absolute_size
+            return np.random.choice(meta_data.shape[0], size=new_size, replace=replace)
+
 
 class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
     sizes = DEFAULT_SIZE_SAMPLING
     header = ["Size", "Num_Sampled", "Seed", "AUPR", "Num_Confident_Int", "Num_Precision_Int"]
 
     def modeling_method(self, *args, **kwargs):
-        return self.get_aupr_for_subsampled_data(*args, **kwargs)
+        return self.get_aupr_for_subsampled_data()
 
-    def get_aupr_for_subsampled_data(self, expr_data=None, meta_data=None):
-        if expr_data is None:
-            expr_data = self.expression_matrix
-        if meta_data is None:
-            meta_data = self.meta_data
-
+    def get_aupr_for_subsampled_data(self):
         aupr_data = []
         for s_ratio in self.sizes:
-            new_size = int(s_ratio * self.expression_matrix.shape[1])
             for seed in self.seeds:
                 np.random.seed(seed)
-                new_idx = np.random.choice(expr_data.shape[1], size=new_size)
-                puppet = self.new_puppet(expr_data.iloc[:, new_idx], meta_data.iloc[new_idx, :], seed=seed)
+                nidx = self.get_sample_index(s_ratio)
+                puppet = self.new_puppet(self.expression_matrix.iloc[:, nidx], self.meta_data.iloc[nidx, :], seed=seed)
                 if self.write_network:
                     puppet.network_file_name = "network_{size}_s{seed}.tsv".format(size=s_ratio, seed=seed)
                 puppet.run()
-                size_aupr = (s_ratio, new_size, seed, puppet.aupr, puppet.n_interact, puppet.precision_interact)
+                size_aupr = (s_ratio, len(nidx), seed, puppet.aupr, puppet.n_interact, puppet.precision_interact)
                 aupr_data.extend(size_aupr)
                 if self.is_master():
                     self.writer.writerow(size_aupr)
@@ -173,8 +255,12 @@ class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
 
 
 class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
-    drop_column = None
     header = ["Dropout", "Seed", "AUPR", "Num_Confident_Int", "Num_Precision_Int"]
+
+    # Sampling batches
+    sample_batches_to_size = DEFAULT_BATCH_SIZE
+    stratified_sampling = True
+    drop_column = None
 
     def modeling_method(self, *args, **kwargs):
         return self.auprs_for_condition_dropout()
@@ -212,7 +298,8 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
 
         aupr_data = []
         for seed in self.seeds:
-            puppet = self.new_puppet(local_expr_data, local_meta_data, seed)
+            idx = self.get_sample_index(meta_data=local_meta_data, s_absolute_size=self.sample_batches_to_size)
+            puppet = self.new_puppet(local_expr_data.iloc[:, idx], local_meta_data.iloc[idx, :], seed)
             if self.write_network:
                 puppet.network_file_name = "network_{drop}_s{seed}.tsv".format(drop=r_name, seed=seed)
             puppet.run()
