@@ -17,7 +17,8 @@ SHARED_CLASS_VARIABLES = ['tf_names', 'gene_list', 'num_bootstraps', 'normalize_
                           'normalize_batch_medians', 'magic_imputation', 'batch_correction_lookup',
                           'modify_activity_from_metadata', 'metadata_expression_lookup', 'gene_list_lookup',
                           'mi_sync_path', 'log_two_plus_one', 'ln_plus_one', 'count_minimum',
-                          'gold_standard_filter_method']
+                          'gold_standard_filter_method', 'split_priors_into_gold_standard_ratio',
+                          'split_priors_into_gold_standard_axis']
 
 # DEFAULTS FOR Puppeteer
 DEFAULT_SEED_RANGE = range(42, 45)
@@ -207,11 +208,11 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
         if (sample_ratio is not None and sample_ratio < 0) or (sample_size is not None and sample_size < 0):
             raise ValueError("Sampling a negative number of things is not supported")
 
-        # Use the main meta_data if there's nothing given
-        if meta_data is None:
-            meta_data = self.meta_data
-
         if self.stratified_sampling:
+            # Use the main meta_data if there's nothing given
+            if meta_data is None:
+                meta_data = self.meta_data
+
             # Copy and reindex the meta_data so that the index can be used with iloc
             meta_data = meta_data.copy()
             meta_data.index = pd.Index(range(meta_data.shape[0]))
@@ -229,9 +230,10 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
                 new_idx = np.append(new_idx, np.random.choice(batch_idx, size=new_size, replace=replace))
             return new_idx
         else:
-            # Decide how many to collect from the total
-            new_size = int(sample_ratio * meta_data.shape[0]) if sample_ratio is not None else sample_size
-            return np.random.choice(meta_data.shape[0], size=new_size, replace=replace)
+            # Decide how many to collect from the total expression matrix
+            num_samples = self.expression_matrix.shape[1] if meta_data is None else meta_data.shape[0]
+            new_size = int(sample_ratio * num_samples) if sample_ratio is not None else sample_size
+            return np.random.choice(num_samples, size=new_size, replace=replace)
 
 
 class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
