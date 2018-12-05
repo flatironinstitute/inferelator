@@ -12,16 +12,18 @@ import numpy as np
 
 my_dir = os.path.dirname(__file__)
 
-class StubWorkflow(prior_gs_split_workflow.PriorGoldStandardSplitWorkflowBase, workflow.WorkflowBase):
+class StubWorkflow(workflow.WorkflowBase):
 
     """
     Artificial work flow for logic testing.
     """
 
     test_case = None
+    split_priors_into_gold_standard_ratio = 0.5
+    split_priors_into_gold_standard_axis = 0
 
-    def __init__(self, axis=None):
-        self.axis = axis
+    def __init__(self):
+        pass
 
     def run(self):
         self.get_data()
@@ -47,7 +49,7 @@ class TestPriorGoldStandardSplitWorkflowBaseStub(unittest.TestCase):
         work = StubWorkflow()
         work.input_dir = os.path.join(my_dir, "../../data/dream4")
         work.test_case = self
-        work.prior_gold_split_axis = None
+        work.split_priors_into_gold_standard_axis = None
         # run the workflow (validation tests in emit_results)
         work.run()
         self.assertEqual(np.sum(work.priors_data.sum()), np.sum(work.gold_standard.sum()))
@@ -57,7 +59,7 @@ class TestPriorGoldStandardSplitWorkflowBaseStub(unittest.TestCase):
         work = StubWorkflow()
         work.input_dir = os.path.join(my_dir, "../../data/dream4_no_metadata_for_test_purposes")
         work.test_case = self
-        work.prior_gold_split_axis = None
+        work.split_priors_into_gold_standard_axis = None
         # run the workflow (validation tests in emit_results)
         work.run()
         original_priors = work.input_dataframe(work.priors_file)
@@ -65,10 +67,10 @@ class TestPriorGoldStandardSplitWorkflowBaseStub(unittest.TestCase):
 
     def test_gs_and_prior_same_size_split_on_gene(self):
         # create and configure the work flow
-        work = StubWorkflow(axis=0)
+        work = StubWorkflow()
         work.input_dir = os.path.join(my_dir, "../../data/dream4")
         work.test_case = self
-        work.prior_gold_split_axis = 0
+        work.split_priors_into_gold_standard_axis = 0
         # run the workflow (validation tests in emit_results)
         work.run()
         self.assertEqual(work.priors_data.shape, work.gold_standard.shape)

@@ -6,6 +6,7 @@ code among different variants of the Inferelator workflow.
 """
 
 from inferelator_ng import utils
+from inferelator_ng.prior_gs_split_workflow import split_priors_for_gold_standard
 import numpy as np
 import os
 import datetime
@@ -32,6 +33,10 @@ class WorkflowBase(object):
     output_dir = None
     random_seed = 42
     num_bootstraps = DEFAULT_NUM_BOOTSTRAPS
+
+    # Flags to control splitting priors into a prior/gold-standard set
+    split_priors_into_gold_standard_ratio = None
+    split_priors_into_gold_standard_axis = 0
 
     # Computed data structures [G: Genes, K: Predictors, N: Conditions
     expression_matrix = None  # expression_matrix dataframe [G x N]
@@ -138,7 +143,13 @@ class WorkflowBase(object):
         Read priors file into priors_data and gold standard file into gold_standard
         """
         self.priors_data = self.input_dataframe(self.priors_file)
-        self.gold_standard = self.input_dataframe(self.gold_standard_file)
+        if self.split_priors_into_gold_standard_ratio is not None:
+            new_priors_gs = split_priors_for_gold_standard(self.priors_data,
+                                                           split_ratio=self.split_priors_into_gold_standard_ratio,
+                                                           split_axis=self.split_priors_into_gold_standard_axis)
+            self.priors_data, self.gold_standard = new_priors_gs
+        else:
+            self.gold_standard = self.input_dataframe(self.gold_standard_file)
 
     def input_path(self, filename, mode='r'):
         """
