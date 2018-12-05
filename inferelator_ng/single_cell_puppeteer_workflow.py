@@ -182,16 +182,17 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
             except AttributeError:
                 utils.Debug.vprint("Variable {var} not assigned to parent".format(var=varname))
 
-    def get_sample_index(self, meta_data=None, s_ratio=None, s_absolute_size=None, replace=True):
+    def get_sample_index(self, meta_data=None, sample_ratio=None, sample_size=None, replace=True):
         """
         Produce an integer index to sample data using .iloc. If the self.stratified_sampling flag is True, sample
         separately from each group, as defined by the self.stratified_batch_lookup column.
         :param meta_data: pd.DataFrame [N x ?]
             Data frame to sample from. Use self.meta_data if this is not set.
-        :param s_ratio: float
+        :param sample_ratio: float
             Sample expression_matrix to this proportion of data points
-        :param s_absolute_size: int
-            Sample expression matrix to this absolute number of data points
+        :param sample_size: int
+            Sample expression matrix to this absolute number of data points. If sampling from each stratified group,
+            this is the absolute number of data points PER GROUP (not total)
         :param replace: bool
             Sample with replacement flag (True means sample with replacement)
         :return new_size, new_idx: int, np.ndarray
@@ -199,13 +200,14 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
         """
 
         # Sanity check inputs
-        if s_ratio is None and s_absolute_size is None:
-            raise ValueError("No sampling size set")
-        if s_ratio is not None and s_absolute_size is not None:
+        if sample_ratio is None and sample_size is None:
+            raise ValueError("No sampling size option is set. This is not supported.")
+        if sample_ratio is not None and sample_size is not None:
             raise ValueError("Both sampling size options are set. This is not supported.")
-        if not (s_ratio is not None and s_ratio < 0) or not (s_absolute_size is not None and s_absolute_size < 0):
+        if (sample_ratio is not None and sample_ratio < 0) or (sample_size is not None and sample_size < 0):
             raise ValueError("Sampling a negative number of things is not supported")
 
+        # Use the main meta_data if there's nothing given 
         if meta_data is None:
             meta_data = self.meta_data
 
@@ -214,19 +216,21 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
             meta_data = meta_data.copy()
             meta_data.index = pd.Index(range(meta_data.shape[0]))
             new_idx = np.ndarray(0, dtype=int)
+
+            # For each factor in the batch column
             for batch in meta_data[self.stratified_batch_lookup].unique().tolist():
+                # Get the integer index of the data points in this batch
                 batch_idx = meta_data.loc[meta_data[self.stratified_batch_lookup] == batch, :].index.tolist()
-                if s_ratio is not None:
-                    strat_size = int(len(batch_idx) * s_ratio)
-                else:
-                    strat_size = s_absolute_size
-                new_idx = np.append(new_idx, np.random.choice(batch_idx, size=strat_size, replace=replace))
+
+                # Decide how many to collect from this batch
+                new_size = int(len(batch_idx) * sample_ratio) if sample_ratio is not None else sample_size
+
+                # Resample and append the new sample index to the index array
+                new_idx = np.append(new_idx, np.random.choice(batch_idx, size=new_size, replace=replace))
             return new_idx
         else:
-            if s_ratio is not None:
-                new_size = int(s_ratio * meta_data.shape[0])
-            else:
-                new_size = s_absolute_size
+            # Decide how many to collect from the total
+            new_size = int(sample_ratio * meta_data.shape[0]) if sample_ratio is not None else sample_size
             return np.random.choice(meta_data.shape[0], size=new_size, replace=replace)
 
 
@@ -298,7 +302,7 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
 
         aupr_data = []
         for seed in self.seeds:
-            idx = self.get_sample_index(meta_data=local_meta_data, s_absolute_size=self.sample_batches_to_size)
+            idx = self.get_sample_index(meta_data=local_meta_data, sample_size=self.sample_batches_to_size)
             puppet = self.new_puppet(local_expr_data.iloc[:, idx], local_meta_data.iloc[idx, :], seed)
             if self.write_network:
                 puppet.network_file_name = "network_{drop}_s{seed}.tsv".format(drop=r_name, seed=seed)
