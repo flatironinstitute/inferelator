@@ -146,7 +146,8 @@ class WorkflowBase(object):
         if self.split_priors_into_gold_standard_ratio is not None:
             new_priors_gs = split_priors_for_gold_standard(self.priors_data,
                                                            split_ratio=self.split_priors_into_gold_standard_ratio,
-                                                           split_axis=self.split_priors_into_gold_standard_axis)
+                                                           split_axis=self.split_priors_into_gold_standard_axis,
+                                                           seed=self.random_seed)
             self.priors_data, self.gold_standard = new_priors_gs
         else:
             self.gold_standard = self.input_dataframe(self.gold_standard_file)
