@@ -109,6 +109,7 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
     stratified_batch_lookup = single_cell_workflow.METADATA_FOR_BATCH_CORRECTION
 
     def run(self):
+        np.random.seed(self.random_seed)
         self.startup()
         self.create_writer()
         auprs = self.modeling_method()
@@ -120,6 +121,11 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
     def single_cell_normalize(self):
         # Normalize and impute in the puppet, not in the puppetmaster
         pass
+
+    def set_gold_standard_and_priors(self):
+        # Split priors for a gold standard in the puppet, not in the puppetmaster
+        self.priors_data = self.input_dataframe(self.priors_file)
+        self.gold_standard = self.input_dataframe(self.gold_standard_file)
 
     def modeling_method(self):
         raise NotImplementedError("No method to create models was provided")
@@ -230,9 +236,9 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
                 new_idx = np.append(new_idx, np.random.choice(batch_idx, size=new_size, replace=replace))
             return new_idx
         else:
-            # Decide how many to collect from the total expression matrix
+            # Decide how many to collect from the total expression matrix or the meta_data
             num_samples = self.expression_matrix.shape[1] if meta_data is None else meta_data.shape[0]
-            new_size = int(sample_ratio * num_samples) if sample_ratio is not None else sample_size
+            new_size = sample_size if sample_ratio is None else int(sample_ratio * num_samples)
             return np.random.choice(num_samples, size=new_size, replace=replace)
 
 

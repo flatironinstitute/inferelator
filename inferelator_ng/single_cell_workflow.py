@@ -103,7 +103,7 @@ class SingleCellWorkflow(object):
         :return:
         """
 
-        if self.normalize_counts_to_one and self.normalize_batch_medians:
+        if sum((self.normalize_counts_to_one, self.normalize_batch_medians, self.normalize_multi_batch)) > 1:
             raise ValueError("One normalization method at a time")
         if self.log_two_plus_one and self.ln_plus_one:
             raise ValueError("One logging method at a time")
