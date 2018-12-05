@@ -207,7 +207,7 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
         if (sample_ratio is not None and sample_ratio < 0) or (sample_size is not None and sample_size < 0):
             raise ValueError("Sampling a negative number of things is not supported")
 
-        # Use the main meta_data if there's nothing given 
+        # Use the main meta_data if there's nothing given
         if meta_data is None:
             meta_data = self.meta_data
 
@@ -302,10 +302,11 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
 
         aupr_data = []
         for seed in self.seeds:
+            np.random.seed(seed)
             idx = self.get_sample_index(meta_data=local_meta_data, sample_size=self.sample_batches_to_size)
             puppet = self.new_puppet(local_expr_data.iloc[:, idx], local_meta_data.iloc[idx, :], seed)
             if self.write_network:
-                puppet.network_file_name = "network_{drop}_s{seed}.tsv".format(drop=r_name, seed=seed)
+                puppet.network_file_name = "network_drop_{drop}_s{seed}.tsv".format(drop=r_name, seed=seed)
             puppet.run()
             drop_data = (r_name, seed, puppet.aupr, puppet.n_interact, puppet.precision_interact)
             aupr_data.append(drop_data)
