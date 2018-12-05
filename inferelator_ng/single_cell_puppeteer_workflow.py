@@ -246,7 +246,7 @@ class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
         for s_ratio in self.sizes:
             for seed in self.seeds:
                 np.random.seed(seed)
-                nidx = self.get_sample_index(s_ratio)
+                nidx = self.get_sample_index(sample_ratio=s_ratio)
                 puppet = self.new_puppet(self.expression_matrix.iloc[:, nidx], self.meta_data.iloc[nidx, :], seed=seed)
                 if self.write_network:
                     puppet.network_file_name = "network_{size}_s{seed}.tsv".format(size=s_ratio, seed=seed)
