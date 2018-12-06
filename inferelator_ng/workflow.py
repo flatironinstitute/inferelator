@@ -144,13 +144,19 @@ class WorkflowBase(object):
         """
         self.priors_data = self.input_dataframe(self.priors_file)
         if self.split_priors_into_gold_standard_ratio is not None:
-            new_priors_gs = split_priors_for_gold_standard(self.priors_data,
-                                                           split_ratio=self.split_priors_into_gold_standard_ratio,
-                                                           split_axis=self.split_priors_into_gold_standard_axis,
-                                                           seed=self.random_seed)
-            self.priors_data, self.gold_standard = new_priors_gs
+            self.split_priors_into_gold_standard()
         else:
             self.gold_standard = self.input_dataframe(self.gold_standard_file)
+
+    def split_priors_into_gold_standard(self):
+        """
+        Break priors_data in half and give half to the gold standard
+        """
+        new_priors_gs = split_priors_for_gold_standard(self.priors_data,
+                                                       split_ratio=self.split_priors_into_gold_standard_ratio,
+                                                       split_axis=self.split_priors_into_gold_standard_axis,
+                                                       seed=self.random_seed)
+        self.priors_data, self.gold_standard = new_priors_gs
 
     def input_path(self, filename, mode='r'):
         """
