@@ -80,7 +80,8 @@ def make_puppet_workflow(workflow_type):
             self.gold_standard = gs_data
 
         def startup_run(self):
-            pass
+            if self.split_priors_into_gold_standard_ratio is not None:
+                self.split_priors_into_gold_standard()
 
         def emit_results(self, betas, rescaled_betas, gold_standard, priors):
             if self.is_master():
@@ -126,6 +127,10 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
         # Split priors for a gold standard in the puppet, not in the puppetmaster
         self.priors_data = self.input_dataframe(self.priors_file)
         self.gold_standard = self.input_dataframe(self.gold_standard_file)
+
+    def align_priors_and_expression(self):
+        # Align the priors and expression in the puppet, not in the puppetmaster
+        pass
 
     def modeling_method(self):
         raise NotImplementedError("No method to create models was provided")

@@ -33,7 +33,7 @@ class SingleCellWorkflow(object):
     # Normalization method flags
     normalize_counts_to_one = False  # bool
     normalize_batch_medians = False  # bool
-    normalize_multi_batch = False    # bool
+    normalize_multi_batch = False  # bool
     log_two_plus_one = False  # bool
     ln_plus_one = False  # bool
     magic_imputation = False  # bool
@@ -69,7 +69,6 @@ class SingleCellWorkflow(object):
         self.compute_activity()
 
     def filter_expression_and_priors(self):
-
         # Transpose the expression matrix to convert from [N x G] to [G x N]
         self.expression_matrix = self.expression_matrix.transpose()
 
@@ -83,6 +82,9 @@ class SingleCellWorkflow(object):
         # Only keep stuff from the expression matrix that's got counts
         self.expression_matrix = self.expression_matrix.loc[~(self.expression_matrix.sum(axis=1) == 0)]
 
+        self.align_priors_and_expression()
+
+    def align_priors_and_expression(self):
         # Make sure that the priors align to the expression matrix
         self.priors_data = self.priors_data.reindex(index=self.expression_matrix.index).fillna(value=0)
 
