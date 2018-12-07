@@ -22,6 +22,7 @@ SHARED_CLASS_VARIABLES = ['tf_names', 'gene_list', 'num_bootstraps', 'normalize_
 # DEFAULTS FOR Puppeteer
 DEFAULT_SEED_RANGE = range(42, 45)
 DEFAULT_BASE_SEED = 42
+DEFAULT_MIN = 10
 
 # DEFAULTS FOR SizeSelectPuppeteer
 DEFAULT_SIZE_SAMPLING = [1]
@@ -195,7 +196,7 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
             except AttributeError:
                 utils.Debug.vprint("Variable {var} not assigned to parent".format(var=varname))
 
-    def get_sample_index(self, meta_data=None, sample_ratio=None, sample_size=None, replace=True):
+    def get_sample_index(self, meta_data=None, sample_ratio=None, sample_size=None, replace=True, min_size=DEFAULT_MIN):
         """
         Produce an integer index to sample data using .iloc. If the self.stratified_sampling flag is True, sample
         separately from each group, as defined by the self.stratified_batch_lookup column.
@@ -236,16 +237,16 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
                 batch_idx = meta_data.loc[meta_data[self.stratified_batch_lookup] == batch, :].index.tolist()
 
                 # Decide how many to collect from this batch
-                new_size = int(len(batch_idx) * sample_ratio) if sample_ratio is not None else sample_size
+                size = sample_size if sample_ratio is None else min(int(len(batch_idx) * sample_ratio), min_size)
 
                 # Resample and append the new sample index to the index array
-                new_idx = np.append(new_idx, np.random.choice(batch_idx, size=new_size, replace=replace))
+                new_idx = np.append(new_idx, np.random.choice(batch_idx, size=size, replace=replace))
             return new_idx
         else:
             # Decide how many to collect from the total expression matrix or the meta_data
             num_samples = self.expression_matrix.shape[1] if meta_data is None else meta_data.shape[0]
-            new_size = sample_size if sample_ratio is None else int(sample_ratio * num_samples)
-            return np.random.choice(num_samples, size=new_size, replace=replace)
+            size = sample_size if sample_ratio is None else min(int(sample_ratio * num_samples), min_size)
+            return np.random.choice(num_samples, size=size, replace=replace)
 
 
 class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
