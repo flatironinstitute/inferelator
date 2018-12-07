@@ -7,6 +7,7 @@ import matplotlib
 matplotlib.use('pdf')
 import matplotlib.pyplot as plt
 
+
 class ResultsProcessor:
     filter_method_lookup = {'overlap': 'filter_to_overlap',
                             'keep_all_gold_standard': 'filter_to_left_size'}
@@ -66,6 +67,12 @@ class ResultsProcessor:
         recall = np.cumsum(gs_values).astype(float) / sum(gs_values)
         precision = np.insert(precision, 0, precision[0])
         recall = np.insert(recall, 0, 0)
+
+        # Save sorted confidences for later
+        self.sorted_pr_confidences = conf.values.flatten()[conf_sort_idx]
+        self.recall = recall
+        self.precision = precision
+
         return recall, precision
 
     def plot_pr_curve(self, recall, precision, aupr, output_dir):
@@ -110,12 +117,31 @@ class ResultsProcessor:
         combined_confidences.to_csv(os.path.join(output_dir, 'combined_confidences.tsv'), sep='\t')
         betas_stack.to_csv(os.path.join(output_dir, 'betas_stack.tsv'), sep='\t')
         (recall, precision) = self.calculate_precision_recall(combined_confidences, gold_standard)
-        aupr =self.calculate_aupr(recall, precision)
+        aupr = self.calculate_aupr(recall, precision)
         print("Model AUPR:\t{aupr}".format(aupr=aupr))
         self.plot_pr_curve(recall, precision, aupr, output_dir)
         resc_betas_mean, resc_betas_median = self.mean_and_median(self.rescaled_betas)
         self.save_network_to_tsv(combined_confidences, resc_betas_median, priors, output_dir)
         return aupr
+
+    def find_conf_threshold(self, precision_threshold=None, recall_threshold=None):
+
+        if precision_threshold is None and recall_threshold is None:
+            raise ValueError("Set precision or recall")
+        if precision_threshold is not None and recall_threshold is not None:
+            raise ValueError("Set precision or recall. Not both.")
+
+        if precision_threshold is not None:
+            if 1 >= precision_threshold >= 0:
+                return np.min(self.sorted_pr_confidences[self.precision > precision_threshold])
+            else:
+                raise ValueError("Precision must be between 0 and 1")
+
+        if recall_threshold is not None:
+            if 1 >= recall_threshold >= 0:
+                return np.min(self.sorted_pr_confidences[self.recall > recall_threshold])
+            else:
+                raise ValueError("Recall must be between 0 and 1")
 
     @staticmethod
     def calculate_aupr(recall, precision):
