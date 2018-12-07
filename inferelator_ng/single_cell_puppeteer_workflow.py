@@ -2,7 +2,6 @@ from __future__ import print_function
 
 import os
 import csv
-import datetime
 
 import numpy as np
 import pandas as pd
@@ -34,6 +33,7 @@ DEFAULT_BATCH_SIZE = 500
 DEFAULT_CONF = 0.95
 DEFAULT_PREC = 0.5
 
+
 class NoOutputRP(results_processor.ResultsProcessor):
     """
     Overload the existing results processor to return summary information and to only output files if specifically
@@ -51,7 +51,8 @@ class NoOutputRP(results_processor.ResultsProcessor):
         # Calculate how many interactions are stable (are above the combined confidence threshold)
         stable_interactions = (combined_confidences > confidence_threshold).sum().sum()
         # Calculate how many interactions we should keep for our model (are above the precision threshold)
-        precision_interactions = np.sum(precision > precision_threshold)
+        confidence_cutoff = self.find_conf_threshold(precision_threshold=precision_threshold)
+        precision_interactions = np.sum(combined_confidences > confidence_cutoff)
         # Output the network as a tsv
         if output_file_name is not None:
             self.threshold_and_summarize()
@@ -59,6 +60,7 @@ class NoOutputRP(results_processor.ResultsProcessor):
             self.save_network_to_tsv(combined_confidences, resc_betas_median, priors, output_dir=output_dir,
                                      output_file_name=output_file_name)
         return aupr, stable_interactions, precision_interactions
+
 
 # Factory method to spit out a SingleCellPuppetWorkflow with the appropriate regression type
 def make_puppet_workflow(workflow_type):
@@ -145,7 +147,6 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
             self.writer = csv.writer(open(os.path.join(self.output_dir, self.output_file_name), mode="wb", buffering=0),
                                      delimiter="\t", quoting=csv.QUOTE_NONE)
             self.writer.writerow(self.header)
-
 
     def new_puppet(self, expr_data, meta_data, seed=DEFAULT_BASE_SEED, priors_data=None, gold_standard=None):
         """
