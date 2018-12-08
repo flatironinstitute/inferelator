@@ -237,7 +237,7 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
                 batch_idx = meta_data.loc[meta_data[self.stratified_batch_lookup] == batch, :].index.tolist()
 
                 # Decide how many to collect from this batch
-                size = sample_size if sample_ratio is None else min(int(len(batch_idx) * sample_ratio), min_size)
+                size = sample_size if sample_ratio is None else max(int(len(batch_idx) * sample_ratio), min_size)
 
                 # Resample and append the new sample index to the index array
                 new_idx = np.append(new_idx, np.random.choice(batch_idx, size=size, replace=replace))
@@ -245,7 +245,7 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
         else:
             # Decide how many to collect from the total expression matrix or the meta_data
             num_samples = self.expression_matrix.shape[1] if meta_data is None else meta_data.shape[0]
-            size = sample_size if sample_ratio is None else min(int(sample_ratio * num_samples), min_size)
+            size = sample_size if sample_ratio is None else max(int(sample_ratio * num_samples), min_size)
             return np.random.choice(num_samples, size=size, replace=replace)
 
 
