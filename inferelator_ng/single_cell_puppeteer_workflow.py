@@ -53,7 +53,7 @@ class NoOutputRP(results_processor.ResultsProcessor):
         stable_interactions = (combined_confidences > confidence_threshold).sum().sum()
         # Calculate how many interactions we should keep for our model (are above the precision threshold)
         confidence_cutoff = self.find_conf_threshold(precision_threshold=precision_threshold)
-        precision_interactions = np.sum(combined_confidences > confidence_cutoff)
+        precision_interactions = (combined_confidences > confidence_cutoff).sum().sum()
         # Output the network as a tsv
         if output_file_name is not None:
             self.threshold_and_summarize()
