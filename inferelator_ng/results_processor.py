@@ -7,6 +7,8 @@ import matplotlib
 matplotlib.use('pdf')
 import matplotlib.pyplot as plt
 
+from inferelator_ng import utils
+
 
 class ResultsProcessor:
     filter_method_lookup = {'overlap': 'filter_to_overlap',
@@ -54,24 +56,24 @@ class ResultsProcessor:
         # Filter down to stuff that we have anything in the gold standard for
         gold = np.abs(gold.loc[(gold != 0).any(axis=1), (gold != 0).any(axis=0)])
 
-        print("GS: {gs}, Confidences: {conf}".format(gs=gold.shape, conf=conf.shape))
+        utils.Debug.vprint("GS: {gs}, Confidences: {conf}".format(gs=gold.shape, conf=conf.shape), level=0)
         gold, conf = self.filter_method(gold, conf)
-        print("Filtered to {gs} | {conf}".format(gs=gold.shape, conf=conf.shape))
+        utils.Debug.vprint("Filtered to GS: {gs}, Confidences: {conf}".format(gs=gold.shape, conf=conf.shape), level=0)
 
         # Get the index to sort the confidences
         conf_sort_idx = np.argsort(conf.values, axis=None)[::-1]
         gs_values = gold.values.flatten()[conf_sort_idx]
 
-        # the following mimicks the R function ChristophsPR
-        precision = np.cumsum(gs_values).astype(float) / np.cumsum([1] * len(gs_values))
-        recall = np.cumsum(gs_values).astype(float) / sum(gs_values)
-        precision = np.insert(precision, 0, precision[0])
-        recall = np.insert(recall, 0, 0)
-
         # Save sorted confidences for later
         self.sorted_pr_confidences = conf.values.flatten()[conf_sort_idx]
-        self.recall = recall
-        self.precision = precision
+
+        # the following mimicks the R function ChristophsPR
+        self.precision = np.cumsum(gs_values).astype(float) / np.cumsum([1] * len(gs_values))
+        self.recall = np.cumsum(gs_values).astype(float) / sum(gs_values)
+
+        # Insert values to make it plot cleanly
+        precision = np.insert(self.precision, 0, self.precision[0])
+        recall = np.insert(self.recall, 0, 0)
 
         return recall, precision
 
@@ -118,7 +120,7 @@ class ResultsProcessor:
         betas_stack.to_csv(os.path.join(output_dir, 'betas_stack.tsv'), sep='\t')
         (recall, precision) = self.calculate_precision_recall(combined_confidences, gold_standard)
         aupr = self.calculate_aupr(recall, precision)
-        print("Model AUPR:\t{aupr}".format(aupr=aupr))
+        utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=aupr), level=0)
         self.plot_pr_curve(recall, precision, aupr, output_dir)
         resc_betas_mean, resc_betas_median = self.mean_and_median(self.rescaled_betas)
         self.save_network_to_tsv(combined_confidences, resc_betas_median, priors, output_dir)
