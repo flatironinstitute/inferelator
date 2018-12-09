@@ -133,17 +133,24 @@ class ResultsProcessor:
         if precision_threshold is not None and recall_threshold is not None:
             raise ValueError("Set precision or recall. Not both.")
 
+
         if precision_threshold is not None:
             if 1 >= precision_threshold >= 0:
-                return np.min(self.sorted_pr_confidences[self.precision > precision_threshold])
+                threshold_index = self.precision > precision_threshold
             else:
                 raise ValueError("Precision must be between 0 and 1")
 
         if recall_threshold is not None:
             if 1 >= recall_threshold >= 0:
-                return np.min(self.sorted_pr_confidences[self.recall > recall_threshold])
+                threshold_index = self.recall > recall_threshold
             else:
                 raise ValueError("Recall must be between 0 and 1")
+
+        # If there's nothing in the index return 2. Which might as well be np.inf. 
+        if np.sum(threshold_index) == 0:
+            return 2.0
+        else:
+            return np.min(self.sorted_pr_confidences[threshold_index])
 
     @staticmethod
     def calculate_aupr(recall, precision):
