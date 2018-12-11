@@ -15,7 +15,7 @@ from inferelator_ng import utils
 SHARED_CLASS_VARIABLES = ['tf_names', 'gene_list', 'num_bootstraps', 'modify_activity_from_metadata',
                           'metadata_expression_lookup', 'gene_list_lookup', 'mi_sync_path', 'count_minimum',
                           'gold_standard_filter_method', 'split_priors_into_gold_standard_ratio',
-                          'split_priors_into_gold_standard_axis']
+                          'split_priors_into_gold_standard_axis', 'preprocessing_workflow']
 
 # DEFAULTS FOR Puppeteer
 DEFAULT_SEED_RANGE = range(42, 45)
