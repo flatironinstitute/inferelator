@@ -10,6 +10,7 @@ from inferelator_ng.prior_gs_split_workflow import split_priors_for_gold_standar
 import numpy as np
 import os
 import datetime
+import warnings
 import pandas as pd
 
 import gzip
@@ -152,6 +153,10 @@ class WorkflowBase(object):
         """
         Break priors_data in half and give half to the gold standard
         """
+
+        if self.gold_standard is not None:
+            warnings.warn("Existing gold standard is being discarded and replaced by a split from the prior")
+
         new_priors_gs = split_priors_for_gold_standard(self.priors_data,
                                                        split_ratio=self.split_priors_into_gold_standard_ratio,
                                                        split_axis=self.split_priors_into_gold_standard_axis,
