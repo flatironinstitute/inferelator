@@ -128,14 +128,6 @@ class SingleCellWorkflow(object):
         if self.modify_activity_from_metadata:
             self.apply_metadata_to_activity()
 
-    def scale_activity(self):
-        """
-        Rescale activity to between 0 and 1
-        :return:
-        """
-        self.design = self.design - self.design.min(axis=0)
-        self.design = self.design / self.design.max(axis=0)
-
     def apply_metadata_to_activity(self):
         """
         Set design values according to metadata
