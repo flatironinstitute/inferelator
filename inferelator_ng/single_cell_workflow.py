@@ -2,41 +2,35 @@
 Run Single Cell Network Inference
 """
 import pandas as pd
-import numpy as np
 import types
-import itertools
 
 from inferelator_ng.tfa import TFA
 from inferelator_ng import utils
 from inferelator_ng import tfa_workflow
 from inferelator_ng import elasticnet_python
-
-EXPRESSION_MATRIX_METADATA = ['Genotype', 'Genotype_Group', 'Replicate', 'Condition', 'tenXBarcode']
-GENE_LIST_INDEX_COLUMN = 'SystematicName'
-GENE_LIST_LOOKUP_COLUMN = 'Name'
-METADATA_FOR_TFA_ADJUSTMENT = 'Genotype_Group'
-METADATA_FOR_BATCH_CORRECTION = 'Condition'
+from inferelator_ng import single_cell
+from inferelator_ng import default
 
 
 class SingleCellWorkflow(object):
     # Gene list
-    gene_list_file = None
+    gene_list_file = default.DEFAULT_GENE_LIST_FILE
     gene_list = None
-    gene_list_index = GENE_LIST_INDEX_COLUMN
+    gene_list_index = default.DEFAULT_GENE_LIST_INDEX_COLUMN
 
     # Single-cell expression data manipulations
-    count_minimum = None  # float
-    expression_matrix_columns_are_genes = True  # bool
-    extract_metadata_from_expression_matrix = False  # bool
-    expression_matrix_metadata = EXPRESSION_MATRIX_METADATA  # str
+    count_minimum = default.DEFAULT_COUNT_MINIMUM  # float
+    expression_matrix_columns_are_genes = default.DEFAULT_EXPRESSION_DATA_IS_SAMPLES_BY_GENES  # bool
+    extract_metadata_from_expression_matrix = default.DEFAULT_EXTRACT_METADATA_FROM_EXPR  # bool
+    expression_matrix_metadata = default.DEFAULT_EXPRESSION_MATRIX_METADATA  # str
 
     # Preprocessing workflow holder
     preprocessing_workflow = list()
 
     # TFA modification flags
-    modify_activity_from_metadata = True
-    metadata_expression_lookup = METADATA_FOR_TFA_ADJUSTMENT
-    gene_list_lookup = GENE_LIST_LOOKUP_COLUMN
+    modify_activity_from_metadata = default.DEFAULT_MODIFY_TFA_FROM_METADATA
+    metadata_expression_lookup = default.DEFAULT_METADATA_FOR_TFA_ADJUSTMENT
+    gene_list_lookup = default.DEFAULT_GENE_LIST_LOOKUP_COLUMN
 
     def startup_run(self):
 
@@ -86,20 +80,15 @@ class SingleCellWorkflow(object):
         tf_keepers = list(set(self.tf_names).intersection(set(self.priors_data.columns.tolist())))
         self.priors_data = self.priors_data.loc[:, tf_keepers]
 
-    def filter_genes_for_count(self):
-        if self.count_minimum is None:
-            return None
-        else:
-            keep_genes = self.expression_matrix.sum(axis=0) >= (self.count_minimum * self.expression_matrix.shape[0])
-            self.expression_matrix = self.expression_matrix.loc[:, keep_genes]
-
     def single_cell_normalize(self):
         """
         Single cell normalization. Requires expression_matrix to be all numeric, and to be [N x G]
         :return:
         """
 
-        self.filter_genes_for_count()
+        self.expression_matrix, self.meta_data = single_cell.filter_genes_for_count(self.expression_matrix,
+                                                                                    self.meta_data,
+                                                                                    count_minimum=self.count_minimum)
 
         if self.expression_matrix.isnull().values.any():
             raise ValueError("NaN values are present prior to normalization in the expression matrix")

@@ -127,6 +127,13 @@ class ResultsProcessor:
         return aupr
 
     def find_conf_threshold(self, precision_threshold=None, recall_threshold=None):
+        """
+        Determine the combined confidence at a precision or a recall threshold
+        :param precision_threshold: float
+        :param recall_threshold: float
+        :return: float
+            Confidence value threshold
+        """
 
         if precision_threshold is None and recall_threshold is None:
             raise ValueError("Set precision or recall")
@@ -146,7 +153,7 @@ class ResultsProcessor:
             else:
                 raise ValueError("Recall must be between 0 and 1")
 
-        # If there's nothing in the index return 2. Which might as well be np.inf. 
+        # If there's nothing in the index return 2. Which might as well be np.inf.
         if np.sum(threshold_index) == 0:
             return 2.0
         else:

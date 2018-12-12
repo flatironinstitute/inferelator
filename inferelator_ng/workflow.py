@@ -6,6 +6,7 @@ code among different variants of the Inferelator workflow.
 """
 
 from inferelator_ng import utils
+from inferelator_ng import default
 from inferelator_ng.prior_gs_split_workflow import split_priors_for_gold_standard
 import numpy as np
 import os
@@ -16,28 +17,25 @@ import pandas as pd
 import gzip
 import bz2
 
-PD_INPUT_SETTINGS = dict(sep="\t", header=0)
-DEFAULT_RANDOM_SEED = 42
-DEFAULT_NUM_BOOTSTRAPS = 2
 
 
 class WorkflowBase(object):
     # Common configuration parameters
     input_dir = None
-    file_format_settings = PD_INPUT_SETTINGS
+    file_format_settings = default.DEFAULT_PD_INPUT_SETTINGS
     file_format_overrides = dict()
-    expression_matrix_file = "expression.tsv"
-    tf_names_file = "tf_names.tsv"
-    meta_data_file = "meta_data.tsv"
-    priors_file = "gold_standard.tsv"
-    gold_standard_file = "gold_standard.tsv"
+    expression_matrix_file = default.DEFAULT_EXPRESSION_FILE
+    tf_names_file = default.DEFAULT_TFNAMES_FILE
+    meta_data_file = default.DEFAULT_METADATA_FILE
+    priors_file = default.DEFAULT_PRIORS_FILE
+    gold_standard_file = default.DEFAULT_GOLDSTANDARD_FILE
     output_dir = None
-    random_seed = 42
-    num_bootstraps = DEFAULT_NUM_BOOTSTRAPS
+    random_seed = default.DEFAULT_RANDOM_SEED
+    num_bootstraps = default.DEFAULT_NUM_BOOTSTRAPS
 
     # Flags to control splitting priors into a prior/gold-standard set
-    split_priors_into_gold_standard_ratio = None
-    split_priors_into_gold_standard_axis = 0
+    split_priors_into_gold_standard_ratio = default.DEFAULT_GS_SPLIT_RATIO
+    split_priors_into_gold_standard_axis = default.DEFAULT_GS_SPLIT_AXIS
 
     # Computed data structures [G: Genes, K: Predictors, N: Conditions
     expression_matrix = None  # expression_matrix dataframe [G x N]

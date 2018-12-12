@@ -10,19 +10,17 @@ from inferelator_ng.results_processor import ResultsProcessor
 from inferelator_ng import mi
 from inferelator_ng import bbsr_python
 from inferelator_ng import utils
+from inferelator_ng import default
 
 
 class TFAWorkFlow(workflow.WorkflowBase):
     # Design/response parameters
-    delTmin = 0
-    delTmax = 120
-    tau = 45
-
-    # Regression parameters
-    num_bootstraps = 2
+    delTmin = default.DEFAULT_DELTMIN
+    delTmax = default.DEFAULT_DELTMAX
+    tau = default.DEFAULT_TAU
 
     # Result processing parameters
-    gold_standard_filter_method = 'overlap'
+    gold_standard_filter_method = default.DEFAULT_GS_FILTER_METHOD
 
     def run(self):
         """
@@ -110,4 +108,5 @@ class BBSR_TFA_Workflow(TFAWorkFlow):
         clr_matrix, mi_matrix = self.mi_driver(kvs=self.kvs, sync_in_tmp_path=self.mi_sync_path).run(X, Y)
         mi_matrix = None
         utils.Debug.vprint('Calculating betas using BBSR', level=0)
+
         return self.regression_driver().run(X, Y, clr_matrix, self.priors_data, self.kvs)

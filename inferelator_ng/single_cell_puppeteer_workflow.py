@@ -10,27 +10,13 @@ from inferelator_ng import single_cell_workflow
 from inferelator_ng import tfa_workflow
 from inferelator_ng import results_processor
 from inferelator_ng import utils
+from inferelator_ng import default
 
 # The variable names that get set in the main workflow, but need to get copied to the puppets
 SHARED_CLASS_VARIABLES = ['tf_names', 'gene_list', 'num_bootstraps', 'modify_activity_from_metadata',
                           'metadata_expression_lookup', 'gene_list_lookup', 'mi_sync_path', 'count_minimum',
                           'gold_standard_filter_method', 'split_priors_into_gold_standard_ratio',
                           'split_priors_into_gold_standard_axis', 'preprocessing_workflow']
-
-# DEFAULTS FOR Puppeteer
-DEFAULT_SEED_RANGE = range(42, 45)
-DEFAULT_BASE_SEED = 42
-DEFAULT_MIN = 10
-
-# DEFAULTS FOR SizeSelectPuppeteer
-DEFAULT_SIZE_SAMPLING = [1]
-
-# DEFAULTS FOR SingleCellDropoutConditionSampling
-DEFAULT_BATCH_SIZE = 500
-
-# DEFAULTS FOR NoOutputRP
-DEFAULT_CONF = 0.95
-DEFAULT_PREC = 0.5
 
 
 class NoOutputRP(results_processor.ResultsProcessor):
@@ -39,8 +25,8 @@ class NoOutputRP(results_processor.ResultsProcessor):
     instructed to do so
     """
 
-    def summarize_network(self, output_dir, gold_standard, priors, confidence_threshold=DEFAULT_CONF,
-                          precision_threshold=DEFAULT_PREC, output_file_name=None):
+    def summarize_network(self, output_dir, gold_standard, priors, confidence_threshold=default.DEFAULT_CONF,
+                          precision_threshold=default.DEFAULT_PREC, output_file_name=None):
         # Calculate combined confidences
         combined_confidences = self.compute_combined_confidences()
         # Calculate precision and recall
@@ -97,18 +83,18 @@ def make_puppet_workflow(workflow_type):
 
 
 class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_workflow.TFAWorkFlow):
-    seeds = DEFAULT_SEED_RANGE
+    seeds = default.DEFAULT_SEED_RANGE
     regression_type = tfa_workflow.BBSR_TFA_Workflow
 
     # Output TSV controllers
     write_network = True  # bool
-    writer = None  # csv.csvwriter
-    header = ["Seed", "AUPR", "Num_Interacting"]  # list[]
+    csv_writer = None  # csv.csvwriter
+    csv_header = ["Seed", "AUPR", "Num_Interacting"]  # list[]
     output_file_name = "aupr.tsv"  # str
 
     # How to sample
     stratified_sampling = False
-    stratified_batch_lookup = single_cell_workflow.METADATA_FOR_BATCH_CORRECTION
+    stratified_batch_lookup = default.DEFAULT_METADATA_FOR_BATCH_CORRECTION
 
     def run(self):
         np.random.seed(self.random_seed)
@@ -143,11 +129,11 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
 
         if self.is_master():
             self.create_output_dir()
-            self.writer = csv.writer(open(os.path.join(self.output_dir, self.output_file_name), mode="wb", buffering=0),
-                                     delimiter="\t", quoting=csv.QUOTE_NONE)
-            self.writer.writerow(self.header)
+            self.csv_writer = csv.writer(open(os.path.join(self.output_dir, self.output_file_name), mode="wb", buffering=0),
+                                         delimiter="\t", quoting=csv.QUOTE_NONE)
+            self.csv_writer.writerow(self.csv_header)
 
-    def new_puppet(self, expr_data, meta_data, seed=DEFAULT_BASE_SEED, priors_data=None, gold_standard=None):
+    def new_puppet(self, expr_data, meta_data, seed=default.DEFAULT_RANDOM_SEED, priors_data=None, gold_standard=None):
         """
         Create a new puppet workflow to run the inferelator
         :param expr_data: pd.DataFrame [G x N]
@@ -194,7 +180,8 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
             except AttributeError:
                 utils.Debug.vprint("Variable {var} not assigned to parent".format(var=varname))
 
-    def get_sample_index(self, meta_data=None, sample_ratio=None, sample_size=None, replace=True, min_size=DEFAULT_MIN):
+    def get_sample_index(self, meta_data=None, sample_ratio=None, sample_size=None, replace=True,
+                         min_size=default.DEFAULT_MINIMUM_SAMPLE_SIZE):
         """
         Produce an integer index to sample data using .iloc. If the self.stratified_sampling flag is True, sample
         separately from each group, as defined by the self.stratified_batch_lookup column.
@@ -248,8 +235,8 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
 
 
 class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
-    sizes = DEFAULT_SIZE_SAMPLING
-    header = ["Size", "Num_Sampled", "Seed", "AUPR", "Num_Confident_Int", "Num_Precision_Int"]
+    sizes = default.DEFAULT_SIZE_SAMPLING
+    csv_header = ["Size", "Num_Sampled", "Seed", "AUPR", "Num_Confident_Int", "Num_Precision_Int"]
 
     def modeling_method(self, *args, **kwargs):
         return self.get_aupr_for_subsampled_data()
@@ -267,15 +254,15 @@ class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
                 size_aupr = (s_ratio, len(nidx), seed, puppet.aupr, puppet.n_interact, puppet.precision_interact)
                 aupr_data.extend(size_aupr)
                 if self.is_master():
-                    self.writer.writerow(size_aupr)
+                    self.csv_writer.writerow(size_aupr)
         return aupr_data
 
 
 class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
-    header = ["Dropout", "Seed", "AUPR", "Num_Confident_Int", "Num_Precision_Int"]
+    csv_header = ["Dropout", "Seed", "AUPR", "Num_Confident_Int", "Num_Precision_Int"]
 
     # Sampling batches
-    sample_batches_to_size = DEFAULT_BATCH_SIZE
+    sample_batches_to_size = default.DEFAULT_BATCH_SIZE
     stratified_sampling = True
     drop_column = None
 
@@ -324,5 +311,5 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
             drop_data = (r_name, seed, puppet.aupr, puppet.n_interact, puppet.precision_interact)
             aupr_data.append(drop_data)
             if self.is_master():
-                self.writer.writerow(drop_data)
+                self.csv_writer.writerow(drop_data)
         return aupr_data
