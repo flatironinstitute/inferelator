@@ -129,8 +129,9 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
 
         if self.is_master():
             self.create_output_dir()
-            self.csv_writer = csv.writer(open(os.path.join(self.output_dir, self.output_file_name), mode="wb", buffering=0),
-                                         delimiter="\t", quoting=csv.QUOTE_NONE)
+            self.csv_writer = csv.writer(open(os.path.join(self.output_dir, self.output_file_name),
+                                              mode="w", buffering=1), delimiter="\t", lineterminator="\n",
+                                         quoting=csv.QUOTE_NONE)
             self.csv_writer.writerow(self.csv_header)
 
     def new_puppet(self, expr_data, meta_data, seed=default.DEFAULT_RANDOM_SEED, priors_data=None, gold_standard=None):
