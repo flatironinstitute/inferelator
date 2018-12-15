@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import itertools
+import shutil
 
 from inferelator_ng.default import DEFAULT_METADATA_FOR_BATCH_CORRECTION
 from inferelator_ng.default import DEFAULT_RANDOM_SEED
@@ -10,8 +11,8 @@ from inferelator_ng import utils
 This file is all preprocessing functions. All functions must take positional arguments expression_matrix and meta_data.
 All other arguments must be keyword. All functions must return expression_matrix and meta_data (modified or unmodified).
 
-Normalization functions must take batch_factor_column as a kwarg
-Imputation functions must take random_seed as a kwarg
+Normalization functions must take batch_factor_column [str] as a kwarg
+Imputation functions must take random_seed [int] and output_file [str] as a kwarg 
 """
 
 
@@ -136,19 +137,89 @@ def normalize_multiBatchNorm(expression_matrix, meta_data, batch_factor_column=D
 
     return pd.DataFrame(normed_expression, index=normed_meta.index, columns=expression_matrix.columns), normed_meta
 
-def impute_magic_expression(expression_matrix, meta_data, random_seed=DEFAULT_RANDOM_SEED):
-    utils.Debug.vprint('Imputing data with MAGIC ... ')
-    import magic
-    return magic.MAGIC(random_state=random_seed).fit_transform(expression_matrix), meta_data
 
-def impute_SIMLR_expression(expression_matrix, meta_data, random_seed=DEFAULT_RANDOM_SEED):
-    # Use MAGIC (van Dijk et al Cell, 2018, 10.1016/j.cell.2018.05.061) to impute data
-    utils.Debug.vprint('Imputing data with SIMLR ... ')
-    raise NotImplementedError
-    import SIMLR
-    expression_matrix = SIMLR.helper.fast_pca(expression_matrix, 500)
-    expression_matrix, _, _, _ = SIMLR.SIMLR_LARGE(c, 30, 0).fit(expression_matrix)
-    return expression_matrix, meta_data
+def impute_magic_expression(expression_matrix, meta_data, **kwargs):
+    """
+    Use MAGIC (van Dijk et al Cell, 2018, 10.1016/j.cell.2018.05.061) to impute data
+
+    :param expression_matrix: pd.DataFrame
+    :param meta_data: pd.DataFrame
+    :return imputed, meta_data: pd.DataFrame, pd.DataFrame
+    """
+    kwargs, random_seed, output_file = process_impute_args(**kwargs)
+
+    import magic
+    utils.Debug.vprint('Imputing data with MAGIC ... ')
+    imputed = pd.DataFrame(magic.MAGIC(random_state=random_seed, **kwargs).fit_transform(expression_matrix.values),
+                           index=expression_matrix.index, columns=expression_matrix.columns)
+
+    if output_file is not None:
+        imputed.to_csv(output_file, sep="\t")
+
+    return imputed, meta_data
+
+
+def impute_scimpute_expression(expression_matrix, meta_data, **kwargs):
+    """
+
+    :param expression_matrix: pd.DataFrame
+    :param meta_data: pd.DataFrame
+    :return imputed, meta_data: pd.DataFrame, pd.DataFrame
+    """
+    kwargs, random_seed, output_file = process_impute_args(**kwargs)
+    labels = kwargs.pop('batch_factor_column', DEFAULT_METADATA_FOR_BATCH_CORRECTION)
+
+    # Import rpy2
+    from rpy2 import robjects as robj
+    import rpy2.robjects.packages
+
+    # Activate the numpy interface and convert the expression data to a [Genes x Cells] R matrix ojbect
+    import rpy2.robjects.numpy2ri
+    robj.numpy2ri.activate()
+    r_expression_matrix = robj.r.matrix(expression_matrix.values.T)
+
+    import tempfile
+    tempdir = tempfile.mkdtemp()
+
+    utils.Debug.vprint('Imputing data with scImpute ... ')
+    scimpute = robj.packages.importr('scImpute')
+    imputed = scimpute.imputation_wlabel_model8(count=r_expression_matrix,
+                                                labeled=robj.r("TRUE"),
+                                                cell_labels=robj.StrVector(labels),
+                                                point=0.004321374,
+                                                drop_thre=0.5,
+                                                Kcluster=robj.r("NULL"),
+                                                out_dir=tempdir,
+                                                ncores=1)[0]
+    imputed = pd.DataFrame(np.ndarray(imputed).T, index=expression_matrix.index, columns=expression_matrix.columns)
+    shutil.rmtree(tempdir)
+
+    if output_file is not None:
+        imputed.to_csv(output_file, sep="\t")
+
+    return imputed, meta_data
+
+
+def impute_scscope_expression(expression_matrix, meta_data, **kwargs):
+    """
+    Use scScope (Deng et al 2018, https://www.biorxiv.org/content/early/2018/11/27/315556 ) to impute data
+
+    :param expression_matrix: pd.DataFrame
+    :param meta_data: pd.DataFrame
+    :return imputed, meta_data: pd.DataFrame, pd.DataFrame
+    """
+    kwargs, random_seed, output_file = process_impute_args(**kwargs)
+    latent_dim = kwargs.pop('latent_dim', 50)
+
+    import scscope
+    imputed = pd.DataFrame(scscope.train(expression_matrix.values, latent_dim)['imputated_output'],
+                           index=expression_matrix.index, columns=expression_matrix.columns)
+
+    if output_file is not None:
+        imputed.to_csv(output_file, sep="\t")
+
+    return imputed, meta_data
+
 
 def impute_on_batches(expression_matrix, meta_data, impute_method=impute_magic_expression,
                       random_seed=DEFAULT_RANDOM_SEED, batch_factor_column=DEFAULT_METADATA_FOR_BATCH_CORRECTION):
@@ -176,17 +247,21 @@ def impute_on_batches(expression_matrix, meta_data, impute_method=impute_magic_e
         random_seed += 1
     return pd.DataFrame(bc_expression, index=bc_meta.index, columns=expression_matrix.columns), bc_meta
 
+
 def log10_data(expression_matrix, meta_data):
     utils.Debug.vprint('Logging data ... ')
     return np.log10(expression_matrix + 1), meta_data
+
 
 def log2_data(expression_matrix, meta_data):
     utils.Debug.vprint('Logging data ... ')
     return np.log2(expression_matrix + 1), meta_data
 
+
 def ln_data(expression_matrix, meta_data):
     utils.Debug.vprint('Logging data ... ')
     return np.log1p(expression_matrix), meta_data
+
 
 def filter_genes_for_count(expression_matrix, meta_data, count_minimum=None):
     if count_minimum is None:
@@ -194,3 +269,9 @@ def filter_genes_for_count(expression_matrix, meta_data, count_minimum=None):
     else:
         keep_genes = expression_matrix.sum(axis=0) >= (count_minimum * expression_matrix.shape[0])
         return expression_matrix.loc[:, keep_genes], meta_data
+
+
+def process_impute_args(**kwargs):
+    random_seed = kwargs.pop('random_seed', None)
+    output_file = kwargs.pop('output_file', None)
+    return kwargs, random_seed, output_file
