@@ -95,6 +95,7 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
     # How to sample
     stratified_sampling = False
     stratified_batch_lookup = default.DEFAULT_METADATA_FOR_BATCH_CORRECTION
+    sample_with_replacement = True
 
     def run(self):
         np.random.seed(self.random_seed)
@@ -181,7 +182,7 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
             except AttributeError:
                 utils.Debug.vprint("Variable {var} not assigned to parent".format(var=varname))
 
-    def get_sample_index(self, meta_data=None, sample_ratio=None, sample_size=None, replace=True,
+    def get_sample_index(self, meta_data=None, sample_ratio=None, sample_size=None,
                          min_size=default.DEFAULT_MINIMUM_SAMPLE_SIZE):
         """
         Produce an integer index to sample data using .iloc. If the self.stratified_sampling flag is True, sample
@@ -226,13 +227,14 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
                 size = sample_size if sample_ratio is None else max(int(len(batch_idx) * sample_ratio), min_size)
 
                 # Resample and append the new sample index to the index array
-                new_idx = np.append(new_idx, np.random.choice(batch_idx, size=size, replace=replace))
+                new_idx = np.append(new_idx, np.random.choice(batch_idx, size=size,
+                                                              replace=self.sample_with_replacement))
             return new_idx
         else:
             # Decide how many to collect from the total expression matrix or the meta_data
             num_samples = self.expression_matrix.shape[1] if meta_data is None else meta_data.shape[0]
             size = sample_size if sample_ratio is None else max(int(sample_ratio * num_samples), min_size)
-            return np.random.choice(num_samples, size=size, replace=replace)
+            return np.random.choice(num_samples, size=size, replace=self.sample_with_replacement)
 
 
 class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
@@ -268,7 +270,9 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
     drop_column = None
 
     def modeling_method(self, *args, **kwargs):
-        return self.auprs_for_condition_dropout()
+        auprs = self.auprs_for_condition_dropout()
+        auprs.extend(self.auprs_for_condition_dropin())
+        return auprs
 
     def auprs_for_condition_dropout(self):
         """
@@ -286,6 +290,22 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
             aupr_data.extend(self.auprs_for_index(r_name, r_idx))
         return aupr_data
 
+    def auprs_for_condition_dropin(self):
+        """
+        Run modeling on all data, and then on data where each factor from `drop_column` has been removed one
+        :return:
+        """
+        # Run the modeling on all data
+        aupr_data = []
+
+        if self.drop_column is None:
+            return aupr_data
+
+        # For all of the factors in `drop_column`, iterate through and remove them one by one, modeling on the rest
+        for r_name, r_idx in self.factor_singles().items():
+            aupr_data.extend(self.auprs_for_index(r_name + "_only", r_idx))
+        return aupr_data
+
     def factor_dropouts(self):
         """
         Create a dict of boolean Series, keyed by factor name, with an index boolean pd.Series that removes that factor
@@ -295,6 +315,17 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
         factor_indexes = dict()
         for fact in self.meta_data[self.drop_column].unique().tolist():
             factor_indexes[fact] = self.meta_data[self.drop_column] != fact
+        return factor_indexes
+
+    def factor_singles(self):
+        """
+        Create a dict of boolean Series, keyed by factor name, with an index boolean pd.Series that keeps that factor
+
+        :return factor_indexes: dict{pd.Series}
+        """
+        factor_indexes = dict()
+        for fact in self.meta_data[self.drop_column].unique().tolist():
+            factor_indexes[fact] = self.meta_data[self.drop_column] == fact
         return factor_indexes
 
     def auprs_for_index(self, r_name, r_idx):
