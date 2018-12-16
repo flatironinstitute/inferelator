@@ -270,8 +270,9 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
     drop_column = None
 
     def modeling_method(self, *args, **kwargs):
-        auprs = self.auprs_for_condition_dropout()
-        auprs.extend(self.auprs_for_condition_dropin())
+
+        auprs = self.auprs_for_condition_dropin()
+        auprs.extend(self.auprs_for_condition_dropout())
         return auprs
 
     def auprs_for_condition_dropout(self):
