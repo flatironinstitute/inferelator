@@ -94,6 +94,7 @@ class SingleCellWorkflow(object):
             raise ValueError("NaN values are present prior to normalization in the expression matrix")
 
         for sc_function, sc_kwargs in self.preprocessing_workflow:
+            sc_kwargs['random_seed'] = self.random_seed
             self.expression_matrix, self.meta_data = sc_function(self.expression_matrix, self.meta_data, **sc_kwargs)
 
         if self.expression_matrix.isnull().values.any():
