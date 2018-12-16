@@ -11,13 +11,16 @@ from inferelator_ng import utils
 This file is all preprocessing functions. All functions must take positional arguments expression_matrix and meta_data.
 All other arguments must be keyword. All functions must return expression_matrix and meta_data (modified or unmodified).
 
-Normalization functions must take batch_factor_column [str] as a kwarg
-Imputation functions must take random_seed [int] and output_file [str] as a kwarg 
+Normalization functions take batch_factor_column [str] as a kwarg
+Imputation functions take random_seed [int] and output_file [str] as a kwarg 
+
+Please note that there are a bunch of packages in here that aren't installed as part of the project dependencies
+This is intentional; if you don't have these packages installed, don't try to use them
+TODO: Put together a set of tests for this 
 """
 
 
-def normalize_expression_to_one(expression_matrix, meta_data,
-                                batch_factor_column=DEFAULT_METADATA_FOR_BATCH_CORRECTION):
+def normalize_expression_to_one(expression_matrix, meta_data, **kwargs):
     """
 
     :param expression_matrix:
@@ -25,6 +28,7 @@ def normalize_expression_to_one(expression_matrix, meta_data,
     :param batch_factor_column:
     :return expression_matrix, meta_data: pd.DataFrame, pd.DataFrame
     """
+    kwargs, batch_factor_column = process_normalize_args(**kwargs)
 
     utils.Debug.vprint('Normalizing UMI counts per cell ... ')
 
@@ -35,8 +39,7 @@ def normalize_expression_to_one(expression_matrix, meta_data,
     return expression_matrix.astype(float).divide(umi, axis=0), meta_data
 
 
-def normalize_medians_for_batch(expression_matrix, meta_data,
-                                batch_factor_column=DEFAULT_METADATA_FOR_BATCH_CORRECTION):
+def normalize_medians_for_batch(expression_matrix, meta_data, **kwargs):
     """
     Calculate the median UMI count per cell for each batch. Transform all batches by dividing by a size correction
     factor, so that all batches have the same median UMI count (which is the median batch median UMI count)
@@ -46,6 +49,7 @@ def normalize_medians_for_batch(expression_matrix, meta_data,
         Which meta data column should be used to determine batches
     :return expression_matrix, meta_data: pd.DataFrame, pd.DataFrame
     """
+    kwargs, batch_factor_column = process_normalize_args(**kwargs)
 
     utils.Debug.vprint('Normalizing median counts between batches ... ')
 
@@ -72,8 +76,7 @@ def normalize_medians_for_batch(expression_matrix, meta_data,
     return pd.DataFrame(normed_expression, index=normed_meta.index, columns=expression_matrix.columns), normed_meta
 
 
-def normalize_multiBatchNorm(expression_matrix, meta_data, batch_factor_column=DEFAULT_METADATA_FOR_BATCH_CORRECTION,
-                             minimum_mean=1):
+def normalize_multiBatchNorm(expression_matrix, meta_data, **kwargs):
     """
     Normalize as multiBatchNorm from the R package scran
     :param expression_matrix: pd.DataFrame
@@ -86,6 +89,8 @@ def normalize_multiBatchNorm(expression_matrix, meta_data, batch_factor_column=D
     """
 
     utils.Debug.vprint('Normalizing by multiBatchNorm ... ')
+    kwargs, batch_factor_column = process_normalize_args(**kwargs)
+    minimum_mean = kwargs.pop('minimum_mean', 50)
 
     # Calculate size-corrected average gene expression for each batch
     size_corrected_avg = pd.DataFrame(columns=expression_matrix.columns)
@@ -167,7 +172,7 @@ def impute_scimpute_expression(expression_matrix, meta_data, **kwargs):
     :return imputed, meta_data: pd.DataFrame, pd.DataFrame
     """
     kwargs, random_seed, output_file = process_impute_args(**kwargs)
-    labels = kwargs.pop('batch_factor_column', DEFAULT_METADATA_FOR_BATCH_CORRECTION)
+    kwargs, labels = process_normalize_args(**kwargs)
 
     # Import rpy2
     from rpy2 import robjects as robj
@@ -206,6 +211,7 @@ def impute_scscope_expression(expression_matrix, meta_data, **kwargs):
 
     :param expression_matrix: pd.DataFrame
     :param meta_data: pd.DataFrame
+    :param latent_dim: int
     :return imputed, meta_data: pd.DataFrame, pd.DataFrame
     """
     kwargs, random_seed, output_file = process_impute_args(**kwargs)
@@ -221,8 +227,7 @@ def impute_scscope_expression(expression_matrix, meta_data, **kwargs):
     return imputed, meta_data
 
 
-def impute_on_batches(expression_matrix, meta_data, impute_method=impute_magic_expression,
-                      random_seed=DEFAULT_RANDOM_SEED, batch_factor_column=DEFAULT_METADATA_FOR_BATCH_CORRECTION):
+def impute_on_batches(expression_matrix, meta_data, **kwargs):
     """
     Run imputation on separate batches
     :param expression_matrix: pd.DataFrame
@@ -236,30 +241,53 @@ def impute_on_batches(expression_matrix, meta_data, impute_method=impute_magic_e
     :return expression_matrix, meta_data: pd.DataFrame, pd.DataFrame
     """
 
+    # Extract random_seed, batch_factor_column, and impute method for use. Extract and eat output_file.
+    kwargs, batch_factor_column = process_normalize_args(**kwargs)
+    kwargs, random_seed, _ = process_impute_args(**kwargs)
+    impute_method = kwargs.pop('impute_method', impute_magic_expression)
+
     batches = meta_data[batch_factor_column].unique().tolist()
     bc_expression = np.ndarray((0, expression_matrix.shape[1]), dtype=np.dtype(float))
     bc_meta = pd.DataFrame(columns=meta_data.columns)
     for batch in batches:
         rows = meta_data[batch_factor_column] == batch
-        batch_corrected, _ = impute_method(expression_matrix.loc[rows, :], None, random_seed=random_seed)
+        batch_corrected, _ = impute_method(expression_matrix.loc[rows, :], None, random_seed=random_seed, **kwargs)
         bc_expression = np.vstack((bc_expression, batch_corrected))
         bc_meta = pd.concat([bc_meta, meta_data.loc[rows, :]])
         random_seed += 1
     return pd.DataFrame(bc_expression, index=bc_meta.index, columns=expression_matrix.columns), bc_meta
 
 
-def log10_data(expression_matrix, meta_data):
-    utils.Debug.vprint('Logging data ... ')
+def log10_data(expression_matrix, meta_data, **kwargs):
+    """
+    Transform the expression data by adding one and then taking log10. Ignore any kwargs.
+    :param expression_matrix: pd.DataFrame
+    :param meta_data: pd.DataFrame
+    :return expression_matrix, meta_data: pd.DataFrame, pd.DataFrame
+    """
+    utils.Debug.vprint('Logging data [log10+1] ... ')
     return np.log10(expression_matrix + 1), meta_data
 
 
-def log2_data(expression_matrix, meta_data):
-    utils.Debug.vprint('Logging data ... ')
+def log2_data(expression_matrix, meta_data, **kwargs):
+    """
+    Transform the expression data by adding one and then taking log2. Ignore any kwargs.
+    :param expression_matrix: pd.DataFrame
+    :param meta_data: pd.DataFrame
+    :return expression_matrix, meta_data: pd.DataFrame, pd.DataFrame
+    """
+    utils.Debug.vprint('Logging data [log2+1]... ')
     return np.log2(expression_matrix + 1), meta_data
 
 
-def ln_data(expression_matrix, meta_data):
-    utils.Debug.vprint('Logging data ... ')
+def ln_data(expression_matrix, meta_data, **kwargs):
+    """
+    Transform the expression data by adding one and then taking ln. Ignore any kwargs.
+    :param expression_matrix: pd.DataFrame
+    :param meta_data: pd.DataFrame
+    :return expression_matrix, meta_data: pd.DataFrame, pd.DataFrame
+    """
+    utils.Debug.vprint('Logging data [ln+1]... ')
     return np.log1p(expression_matrix), meta_data
 
 
@@ -272,6 +300,11 @@ def filter_genes_for_count(expression_matrix, meta_data, count_minimum=None):
 
 
 def process_impute_args(**kwargs):
-    random_seed = kwargs.pop('random_seed', None)
+    random_seed = kwargs.pop('random_seed', DEFAULT_RANDOM_SEED)
     output_file = kwargs.pop('output_file', None)
     return kwargs, random_seed, output_file
+
+
+def process_normalize_args(**kwargs):
+    batch_factor_column = kwargs.pop('batch_factor_column', DEFAULT_METADATA_FOR_BATCH_CORRECTION)
+    return kwargs, batch_factor_column
