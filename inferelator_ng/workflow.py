@@ -143,10 +143,14 @@ class WorkflowBase(object):
         Read priors file into priors_data and gold standard file into gold_standard
         """
         self.priors_data = self.input_dataframe(self.priors_file)
+
         if self.split_priors_for_gold_standard:
             self.split_priors_into_gold_standard()
         else:
             self.gold_standard = self.input_dataframe(self.gold_standard_file)
+
+        if self.split_gold_standard_for_crossvalidation:
+            self.cross_validate_gold_standard()
 
     def split_priors_into_gold_standard(self):
         """
@@ -160,17 +164,25 @@ class WorkflowBase(object):
                                                             split_axis=self.cv_split_axis,
                                                             seed=self.random_seed)
 
+        utils.Debug.vprint("Prior split into a prior {pr} and a gold standard {gs}".format(pr=self.priors_data.shape,
+                                                                                           gs=self.gold_standard.shape),
+                           level=0)
+
     def cross_validate_gold_standard(self):
         """
         Sample the gold standard for crossvalidation, and then remove the new gold standard from the priors
         """
 
+        utils.Debug.vprint("Resampling prior {pr} and gold standard {gs}".format(pr=self.priors_data.shape,
+                                                                                 gs=self.gold_standard.shape), level=0)
         _, self.gold_standard = split_for_cv(self.gold_standard,
                                              self.cv_split_ratio,
                                              split_axis=self.cv_split_axis,
                                              seed=self.random_seed)
         self.priors_data, self.gold_standard = remove_prior_circularity(self.priors_data, self.gold_standard,
                                                                         split_axis=self.cv_split_axis)
+        utils.Debug.vprint("Selected prior {pr} and gold standard {gs}".format(pr=self.priors_data.shape,
+                                                                               gs=self.gold_standard.shape), level=0)
 
     def input_path(self, filename, mode='r'):
         """

@@ -66,8 +66,10 @@ class SingleCellPuppetWorkflow(single_cell_workflow.SingleCellWorkflow):
         self.gold_standard = gs_data
 
     def startup_run(self):
-        if self.cv_split_ratio is not None:
+        if self.split_priors_for_gold_standard:
             self.split_priors_into_gold_standard()
+        elif self.split_gold_standard_for_crossvalidation:
+            self.cross_validate_gold_standard()
 
     def emit_results(self, betas, rescaled_betas, gold_standard, priors):
         if self.is_master():
