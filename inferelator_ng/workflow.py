@@ -7,11 +7,10 @@ code among different variants of the Inferelator workflow.
 
 from inferelator_ng import utils
 from inferelator_ng import default
-from inferelator_ng.prior_gs_split_workflow import split_priors_for_gold_standard
+from inferelator_ng.prior_gs_split_workflow import split_for_cv, remove_prior_circularity
 import numpy as np
 import os
 import datetime
-import warnings
 import pandas as pd
 
 import gzip
@@ -34,8 +33,10 @@ class WorkflowBase(object):
     num_bootstraps = default.DEFAULT_NUM_BOOTSTRAPS
 
     # Flags to control splitting priors into a prior/gold-standard set
-    split_priors_into_gold_standard_ratio = default.DEFAULT_GS_SPLIT_RATIO
-    split_priors_into_gold_standard_axis = default.DEFAULT_GS_SPLIT_AXIS
+    split_priors_for_gold_standard = False
+    split_gold_standard_for_crossvalidation = False
+    cv_split_ratio = default.DEFAULT_GS_SPLIT_RATIO
+    cv_split_axis = default.DEFAULT_GS_SPLIT_AXIS
 
     # Computed data structures [G: Genes, K: Predictors, N: Conditions
     expression_matrix = None  # expression_matrix dataframe [G x N]
@@ -142,7 +143,7 @@ class WorkflowBase(object):
         Read priors file into priors_data and gold standard file into gold_standard
         """
         self.priors_data = self.input_dataframe(self.priors_file)
-        if self.split_priors_into_gold_standard_ratio is not None:
+        if self.split_priors_for_gold_standard:
             self.split_priors_into_gold_standard()
         else:
             self.gold_standard = self.input_dataframe(self.gold_standard_file)
@@ -153,13 +154,25 @@ class WorkflowBase(object):
         """
 
         if self.gold_standard is not None:
-            warnings.warn("Existing gold standard is being discarded and replaced by a split from the prior")
+            utils.Debug.vprint("Existing gold standard is being replaced by a split from the prior", level=0)
+        print(self.priors_data.shape)
+        self.priors_data, self.gold_standard = split_for_cv(self.priors_data,
+                                                            self.cv_split_ratio,
+                                                            split_axis=self.cv_split_axis,
+                                                            seed=self.random_seed)
+        print(self.priors_data.shape)
 
-        new_priors_gs = split_priors_for_gold_standard(self.priors_data,
-                                                       split_ratio=self.split_priors_into_gold_standard_ratio,
-                                                       split_axis=self.split_priors_into_gold_standard_axis,
-                                                       seed=self.random_seed)
-        self.priors_data, self.gold_standard = new_priors_gs
+    def cross_validate_gold_standard(self):
+        """
+        Sample the gold standard for crossvalidation, and then remove the new gold standard from the priors
+        """
+
+        _, self.gold_standard = split_for_cv(self.gold_standard,
+                                             self.cv_split_ratio,
+                                             split_axis=self.cv_split_axis,
+                                             seed=self.random_seed)
+        self.priors_data, self.gold_standard = remove_prior_circularity(self.priors_data, self.gold_standard,
+                                                                        split_axis=self.cv_split_axis)
 
     def input_path(self, filename, mode='r'):
         """

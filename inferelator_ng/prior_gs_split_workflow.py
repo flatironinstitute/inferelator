@@ -5,42 +5,36 @@ Workflow class that splits the prior into a gold standard and new prior
 import pandas as pd
 import numpy as np
 from inferelator_ng import utils
-
-DEFAULT_SPLIT = 0.5
-DEFAULT_AXIS = 0
-DEFAULT_SEED = 2001
+from inferelator_ng import default
 
 
-def split_priors_for_gold_standard(all_priors, split_ratio=DEFAULT_SPLIT, split_axis=DEFAULT_AXIS, seed=DEFAULT_SEED):
+def split_for_cv(all_priors, split_ratio, split_axis=default.DEFAULT_CV_AXIS, seed=default.DEFAULT_CV_RANDOM_SEED):
     """
-    Ignore the gold standard file. Instead, create a gold standard
-    from a 50/50 split of the prior. Half of original prior becomes the new prior,
-    the other half becomes the gold standard
+    Take a dataframe and split it according to split_ratio on split_axis into two new dataframes. This is for
+    crossvalidation splits of the priors into a prior & gold standard
 
     :param all_priors: pd.DataFrame [G x K]
         Prior data
-    :param gold_standard_split: float
+    :param split_ratio: float
         The proportion of the priors that should go into the gold standard
-    :param axis: int
+    :param split_axis: int
         Splits on rows (when 0), columns (when 1), or on flattened individual data points (when None)
     :return prior_data, gold_standard: pd.DataFrame [G/2 x K], pd.DataFrame [G/2 x K]
         Returns a new prior and gold standard by splitting the old one in half
     """
 
-    # Get the priors
-
-    # Make sure that the class variables are valid
+    # Make sure that the variables are valid
     if not 1 >= split_ratio >= 0:
-        raise ValueError("prior_gold_split_ratio is a ratio between 0 and 1")
+        raise ValueError("split_ratio is a ratio between 0 and 1")
 
     if not (split_axis in [0, 1, None]):
-        raise ValueError("prior_gold_split_axis takes either 0, 1 or None")
+        raise ValueError("split_axis takes either 0, 1 or None")
 
     # Split the priors into gold standard based on axis (flatten if axis=None)
     if split_axis is None:
-        priors_data, gold_standard = _split_flattened(all_priors, seed=seed)
+        priors_data, gold_standard = _split_flattened(all_priors, split_ratio, seed=seed)
     else:
-        priors_data, gold_standard = _split_axis(all_priors, axis=split_axis, seed=seed)
+        priors_data, gold_standard = _split_axis(all_priors, split_ratio, axis=split_axis, seed=seed)
 
     utils.Debug.vprint("Prior split into a prior {pr} and a gold standard {gs}".format(pr=priors_data.shape,
                                                                                        gs=gold_standard.shape), level=0)
@@ -48,7 +42,25 @@ def split_priors_for_gold_standard(all_priors, split_ratio=DEFAULT_SPLIT, split_
     return priors_data, gold_standard
 
 
-def _split_flattened(priors, split_ratio=DEFAULT_SPLIT, seed=DEFAULT_SEED):
+def remove_prior_circularity(priors, gold_standard, split_axis=default.DEFAULT_CV_AXIS):
+    """
+    Take the gold standard, select some portion of it for crossvalidation, and then remove any matching records from
+    the prior
+    :param priors: pd.DataFrame
+    :param gold_standard: pd.DataFrame
+    :param split_axis: int (0,1)
+    :return:
+    """
+
+    if not (split_axis in [0, 1]):
+        raise ValueError("prior_gold_split_axis takes either 0 or 1")
+
+    new_priors = priors.drop(gold_standard.axes[split_axis], axis=split_axis)
+
+    return new_priors, gold_standard
+
+
+def _split_flattened(priors, split_ratio, seed=default.DEFAULT_CV_RANDOM_SEED):
     pc = np.sum(priors.values != 0)
     gs_count = int(split_ratio * pc)
     idx = _make_shuffled_index(pc, seed=seed)
@@ -71,7 +83,7 @@ def _split_flattened(priors, split_ratio=DEFAULT_SPLIT, seed=DEFAULT_SEED):
     return priors_data, gold_standard
 
 
-def _split_axis(priors, axis=DEFAULT_AXIS, split_ratio=DEFAULT_SPLIT, seed=DEFAULT_SEED):
+def _split_axis(priors, split_ratio, axis=default.DEFAULT_CV_AXIS, seed=default.DEFAULT_CV_RANDOM_SEED):
     pc = priors.shape[axis]
     gs_count = int(split_ratio * pc)
     idx = _make_shuffled_index(pc, seed=seed)
@@ -92,7 +104,7 @@ def _split_axis(priors, axis=DEFAULT_AXIS, split_ratio=DEFAULT_SPLIT, seed=DEFAU
     return priors_data, gold_standard
 
 
-def _make_shuffled_index(idx_len, seed=DEFAULT_SEED):
+def _make_shuffled_index(idx_len, seed=default.DEFAULT_CV_RANDOM_SEED):
     idx = list(range(idx_len))
     np.random.RandomState(seed=seed).shuffle(idx)
     return idx
