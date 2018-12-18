@@ -148,3 +148,6 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
 
     def tfa_adj_func(self, gene):
         return self.design.loc[gene, :].min()
+
+    def add_preprocess_step(self, fun, **kwargs):
+        self.preprocessing_workflow.append((fun, kwargs))
