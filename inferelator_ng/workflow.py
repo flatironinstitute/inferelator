@@ -155,12 +155,10 @@ class WorkflowBase(object):
 
         if self.gold_standard is not None:
             utils.Debug.vprint("Existing gold standard is being replaced by a split from the prior", level=0)
-        print(self.priors_data.shape)
         self.priors_data, self.gold_standard = split_for_cv(self.priors_data,
                                                             self.cv_split_ratio,
                                                             split_axis=self.cv_split_axis,
                                                             seed=self.random_seed)
-        print(self.priors_data.shape)
 
     def cross_validate_gold_standard(self):
         """
