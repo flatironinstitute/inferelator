@@ -42,6 +42,7 @@ class TFAWorkFlow(workflow.WorkflowBase):
         self.emit_results(betas, rescaled_betas, self.gold_standard, self.priors_data)
 
     def startup_run(self):
+        self.set_regression_type()
         self.get_data()
         self.compute_common_data()
         self.compute_activity()
@@ -53,7 +54,6 @@ class TFAWorkFlow(workflow.WorkflowBase):
         self.regression_type.patch_workflow(self)
 
     def run_regression(self):
-        self.set_regression_type()
         betas = []
         rescaled_betas = []
 
