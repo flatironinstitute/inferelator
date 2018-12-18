@@ -164,8 +164,12 @@ def recalculate_betas_from_selected(x, y, idx=None):
     # Subset the predictors with the index array
     x = x[:, idx]
 
-    # Solve for beta-hat with LAPACK
-    beta_hat = np.linalg.solve(np.dot(x.T, x), np.dot(x.T, y))
+    # Solve for beta-hat with LAPACK or return a null model if xTx is singular
+    xtx = np.dot(x.T, x)
+    if np.linalg.matrix_rank(xtx) == xtx.shape[1]:
+        beta_hat = np.linalg.solve(np.dot(x.T, x), np.dot(x.T, y))
+    else:
+        beta_hat = np.zeros(len(idx), dtype=np.dtype(float))
 
     # Use the index array to write beta-hats
     # This yields the same size result matrix as number of predictors in x
@@ -202,7 +206,10 @@ def predict_error_reduction(x, y, betas):
 
         # Reestimate betas for all the predictors except the one that we removed
         x_leaveout = x[:, leave_out]
-        beta_hat = np.linalg.solve(np.dot(x_leaveout.T, x_leaveout), np.dot(x_leaveout.T, y))
+        try:
+            beta_hat = np.linalg.solve(np.dot(x_leaveout.T, x_leaveout), np.dot(x_leaveout.T, y))
+        except np.linalg.LinAlgError:
+            beta_hat = np.zeros(len(leave_out), dtype=np.dtype(float))
 
         # Calculate the variance of the residuals for the new estimated betas
         ss_leaveout = sigma_squared(x_leaveout, y, beta_hat)
