@@ -73,7 +73,7 @@ class ElasticNetRunner:
         return ElasticNet(X, Y, kvs).run()
 
 
-def patch_worflow(obj):
+def patch_workflow(obj):
     """
     Add elasticnet regression into a TFAWorkflow object
 
