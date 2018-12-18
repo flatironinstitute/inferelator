@@ -19,8 +19,9 @@ class StubWorkflow(workflow.WorkflowBase):
     """
 
     test_case = None
-    split_priors_into_gold_standard_ratio = 0.5
-    split_priors_into_gold_standard_axis = 0
+    split_priors_for_gold_standard = True
+    cv_split_ratio = 0.5
+    cv_split_axis = 0
 
     def __init__(self):
         pass
@@ -49,7 +50,7 @@ class TestPriorGoldStandardSplitWorkflowBaseStub(unittest.TestCase):
         work = StubWorkflow()
         work.input_dir = os.path.join(my_dir, "../../data/dream4")
         work.test_case = self
-        work.split_priors_into_gold_standard_axis = None
+        work.cv_split_axis = None
         # run the workflow (validation tests in emit_results)
         work.run()
         self.assertEqual(np.sum(work.priors_data.sum()), np.sum(work.gold_standard.sum()))
@@ -59,7 +60,7 @@ class TestPriorGoldStandardSplitWorkflowBaseStub(unittest.TestCase):
         work = StubWorkflow()
         work.input_dir = os.path.join(my_dir, "../../data/dream4_no_metadata_for_test_purposes")
         work.test_case = self
-        work.split_priors_into_gold_standard_axis = None
+        work.cv_split_axis = None
         # run the workflow (validation tests in emit_results)
         work.run()
         original_priors = work.input_dataframe(work.priors_file)
@@ -70,7 +71,7 @@ class TestPriorGoldStandardSplitWorkflowBaseStub(unittest.TestCase):
         work = StubWorkflow()
         work.input_dir = os.path.join(my_dir, "../../data/dream4")
         work.test_case = self
-        work.split_priors_into_gold_standard_axis = 0
+        work.cv_split_axis = 0
         # run the workflow (validation tests in emit_results)
         work.run()
         self.assertEqual(work.priors_data.shape, work.gold_standard.shape)
