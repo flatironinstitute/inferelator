@@ -36,9 +36,6 @@ def split_for_cv(all_priors, split_ratio, split_axis=default.DEFAULT_CV_AXIS, se
     else:
         priors_data, gold_standard = _split_axis(all_priors, split_ratio, axis=split_axis, seed=seed)
 
-    utils.Debug.vprint("Prior split into a prior {pr} and a gold standard {gs}".format(pr=priors_data.shape,
-                                                                                       gs=gold_standard.shape), level=0)
-
     return priors_data, gold_standard
 
 
@@ -54,8 +51,7 @@ def remove_prior_circularity(priors, gold_standard, split_axis=default.DEFAULT_C
 
     if not (split_axis in [0, 1]):
         raise ValueError("prior_gold_split_axis takes either 0 or 1")
-
-    new_priors = priors.drop(gold_standard.axes[split_axis], axis=split_axis)
+    new_priors = priors.drop(gold_standard.axes[split_axis], axis=split_axis, errors='ignore')
 
     return new_priors, gold_standard
 
