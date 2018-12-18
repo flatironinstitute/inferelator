@@ -43,11 +43,11 @@ class TestBBSRrunnerPython(unittest.TestCase):
     def setUp(self):
         # Check for os.environ['SLURM_NTASKS']
         self.rank = 0
-        self.brd = bbsr_python.BBSR_runner()
+        self.brd = bbsr_python.BBSR
     
     def run_bbsr(self):
         kvs = self.get_kvs()
-        return self.brd.run(self.X, self.Y, self.clr, self.priors, kvs=kvs)
+        return self.brd(self.X, self.Y, self.clr, self.priors, kvs=kvs).run()
 
     def set_all_zero_priors(self):
         self.priors =  pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2'])

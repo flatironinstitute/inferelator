@@ -7,7 +7,6 @@ from inferelator_ng import workflow
 from inferelator_ng import design_response_translation  # added python design_response
 from inferelator_ng.tfa import TFA
 from inferelator_ng.results_processor import ResultsProcessor
-from inferelator_ng import mi
 from inferelator_ng import bbsr_python
 from inferelator_ng import utils
 from inferelator_ng import default
@@ -21,6 +20,9 @@ class TFAWorkFlow(workflow.WorkflowBase):
 
     # Result processing parameters
     gold_standard_filter_method = default.DEFAULT_GS_FILTER_METHOD
+
+    # Regression implementation
+    regression_type = bbsr_python
 
     def run(self):
         """
@@ -47,7 +49,11 @@ class TFAWorkFlow(workflow.WorkflowBase):
     def startup_finish(self):
         pass
 
+    def set_regression_type(self):
+        self.regression_type.patch_workflow(self)
+
     def run_regression(self):
+        self.set_regression_type()
         betas = []
         rescaled_betas = []
 
@@ -93,20 +99,3 @@ class TFAWorkFlow(workflow.WorkflowBase):
         drd.delTmin, drd.delTmax, drd.tau = self.delTmin, self.delTmax, self.tau
         self.design, self.response, self.half_tau_response = drd.run(self.expression_matrix, self.meta_data)
         self.expression_matrix = None
-
-
-class BBSR_TFA_Workflow(TFAWorkFlow):
-    # Drivers
-    mi_driver = mi.MIDriver
-    regression_driver = bbsr_python.BBSR_runner
-    mi_sync_path = None
-
-    def run_bootstrap(self, bootstrap):
-        X = self.design.iloc[:, bootstrap]
-        Y = self.response.iloc[:, bootstrap]
-        utils.Debug.vprint('Calculating MI, Background MI, and CLR Matrix', level=0)
-        clr_matrix, mi_matrix = self.mi_driver(kvs=self.kvs, sync_in_tmp_path=self.mi_sync_path).run(X, Y)
-        mi_matrix = None
-        utils.Debug.vprint('Calculating betas using BBSR', level=0)
-
-        return self.regression_driver().run(X, Y, clr_matrix, self.priors_data, self.kvs)

@@ -2,12 +2,12 @@ from __future__ import print_function
 
 import os
 import csv
+import copy
 
 import numpy as np
 import pandas as pd
 
 from inferelator_ng import single_cell_workflow
-from inferelator_ng import tfa_workflow
 from inferelator_ng import results_processor
 from inferelator_ng import utils
 from inferelator_ng import default
@@ -48,43 +48,39 @@ class NoOutputRP(results_processor.ResultsProcessor):
 
 
 # Factory method to spit out a SingleCellPuppetWorkflow with the appropriate regression type
-def make_puppet_workflow(workflow_type):
-    class SingleCellPuppetWorkflow(single_cell_workflow.SingleCellWorkflow, workflow_type):
-        """
-        Standard workflow except it takes all the data as references to __init__ instead of as filenames on disk or
-        as environment variables, and saves the model AUPR without outputting anything
-        """
+class SingleCellPuppetWorkflow(single_cell_workflow.SingleCellWorkflow):
+    """
+    Standard workflow except it takes all the data as references to __init__ instead of as filenames on disk or
+    as environment variables, and saves the model AUPR without outputting anything
+    """
 
-        network_file_path = None
-        network_file_name = None
+    network_file_path = None
+    network_file_name = None
 
-        def __init__(self, kvs, rank, expr_data, meta_data, prior_data, gs_data):
-            self.kvs = kvs
-            self.rank = rank
-            self.expression_matrix = expr_data
-            self.meta_data = meta_data
-            self.priors_data = prior_data
-            self.gold_standard = gs_data
+    def __init__(self, kvs, rank, expr_data, meta_data, prior_data, gs_data):
+        self.kvs = kvs
+        self.rank = rank
+        self.expression_matrix = expr_data
+        self.meta_data = meta_data
+        self.priors_data = prior_data
+        self.gold_standard = gs_data
 
-        def startup_run(self):
-            if self.split_priors_into_gold_standard_ratio is not None:
-                self.split_priors_into_gold_standard()
+    def startup_run(self):
+        if self.cv_split_ratio is not None:
+            self.split_priors_into_gold_standard()
 
-        def emit_results(self, betas, rescaled_betas, gold_standard, priors):
-            if self.is_master():
-                results = NoOutputRP(betas, rescaled_betas, filter_method=self.gold_standard_filter_method)
-                results = results.summarize_network(self.network_file_path, gold_standard, priors,
-                                                    output_file_name=self.network_file_name)
-                self.aupr, self.n_interact, self.precision_interact = results
-            else:
-                self.aupr, self.n_interact, self.precision_interact = None, None, None
-
-    return SingleCellPuppetWorkflow
+    def emit_results(self, betas, rescaled_betas, gold_standard, priors):
+        if self.is_master():
+            results = NoOutputRP(betas, rescaled_betas, filter_method=self.gold_standard_filter_method)
+            results = results.summarize_network(self.network_file_path, gold_standard, priors,
+                                                output_file_name=self.network_file_name)
+            self.aupr, self.n_interact, self.precision_interact = results
+        else:
+            self.aupr, self.n_interact, self.precision_interact = None, None, None
 
 
-class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_workflow.TFAWorkFlow):
+class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow):
     seeds = default.DEFAULT_SEED_RANGE
-    regression_type = tfa_workflow.BBSR_TFA_Workflow
 
     # Output TSV controllers
     write_network = True  # bool
@@ -153,8 +149,7 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
             priors_data = self.priors_data
 
         # Create a new puppet workflow with the factory method and pass in data on instantiation
-        puppet = make_puppet_workflow(self.regression_type)(self.kvs, self.rank, expr_data, meta_data,
-                                                            priors_data, gold_standard)
+        puppet = SingleCellPuppetWorkflow(self.kvs, self.rank, expr_data, meta_data, priors_data, gold_standard)
 
         # Transfer the class variables necessary to get the puppet to dance (everything in SHARED_CLASS_VARIABLES)
         self.assign_class_vars(puppet)
@@ -182,6 +177,8 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
             except AttributeError:
                 utils.Debug.vprint("Variable {var} not assigned to parent".format(var=varname))
 
+        self.regression_type.patch_workflow(obj)
+
     def get_sample_index(self, meta_data=None, sample_ratio=None, sample_size=None,
                          min_size=default.DEFAULT_MINIMUM_SAMPLE_SIZE):
         """
@@ -194,8 +191,6 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, tfa_w
         :param sample_size: int
             Sample expression matrix to this absolute number of data points. If sampling from each stratified group,
             this is the absolute number of data points PER GROUP (not total)
-        :param replace: bool
-            Sample with replacement flag (True means sample with replacement)
         :return new_size, new_idx: int, np.ndarray
             Return the total number of
         """

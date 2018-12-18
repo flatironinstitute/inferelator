@@ -4,6 +4,7 @@ import numpy as np
 from inferelator_ng import utils
 from inferelator_ng import bayes_stats
 from inferelator_ng import regression
+from inferelator_ng import mi
 
 # Default number of predictors to include in the model
 DEFAULT_nS = 10
@@ -148,3 +149,30 @@ class BBSR_runner:
 
     def run(self, X, Y, clr, prior_mat, kvs=None, rank=0, ownCheck=None):
         return BBSR(X, Y, clr, prior_mat, kvs).run()
+
+
+def patch_workflow(obj):
+    """
+    Add BBSR regression into a TFAWorkflow object
+
+    :param obj: TFAWorkflow
+    """
+
+    import types
+
+    if not hasattr(obj, 'mi_driver'):
+        obj.mi_driver = mi.MIDriver
+    if not hasattr(obj, 'mi_sync_path'):
+        obj.mi_sync_path = None
+
+    def run_bootstrap(self, bootstrap):
+        X = self.design.iloc[:, bootstrap]
+        Y = self.response.iloc[:, bootstrap]
+        utils.Debug.vprint('Calculating MI, Background MI, and CLR Matrix', level=0)
+        clr_matrix, mi_matrix = self.mi_driver(kvs=self.kvs, sync_in_tmp_path=self.mi_sync_path).run(X, Y)
+        mi_matrix = None
+        utils.Debug.vprint('Calculating betas using BBSR', level=0)
+
+        return BBSR(X, Y, clr_matrix, self.priors_data, self.kvs).run()
+
+    obj.run_bootstrap = types.MethodType(run_bootstrap, obj)
