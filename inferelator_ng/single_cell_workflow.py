@@ -7,12 +7,11 @@ import types
 from inferelator_ng.tfa import TFA
 from inferelator_ng import utils
 from inferelator_ng import tfa_workflow
-from inferelator_ng import elasticnet_python
 from inferelator_ng import single_cell
 from inferelator_ng import default
 
 
-class SingleCellWorkflow(object):
+class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
     # Gene list
     gene_list_file = default.DEFAULT_GENE_LIST_FILE
     gene_list = None
@@ -149,11 +148,3 @@ class SingleCellWorkflow(object):
 
     def tfa_adj_func(self, gene):
         return self.design.loc[gene, :].min()
-
-
-class SingleCellBBSRWorkflow(SingleCellWorkflow, tfa_workflow.BBSR_TFA_Workflow):
-    pass
-
-
-class SingleCellMENWorkflow(SingleCellWorkflow, elasticnet_python.MEN_Workflow):
-    pass
