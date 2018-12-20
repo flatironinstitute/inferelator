@@ -161,8 +161,13 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
         for idx, row in self.meta_data.iterrows():
             if pd.isnull(row[self.metadata_expression_lookup]):
                 continue
-            new_value = self.tfa_adj_func(row[self.metadata_expression_lookup])
-            self.design.loc[row[self.metadata_expression_lookup], idx] = new_value
+            try:
+                new_value = self.tfa_adj_func(row[self.metadata_expression_lookup])
+                self.design.loc[row[self.metadata_expression_lookup], idx] = new_value
+            except KeyError:
+                # KeyError occurs when the modification we want to perform is on a row that's been trimmed
+                continue
+
 
     def tfa_adj_func(self, gene):
         return self.design.loc[gene, :].min()
