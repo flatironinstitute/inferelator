@@ -2,6 +2,7 @@
 Run Single Cell Network Inference
 """
 import pandas as pd
+import numpy as np
 import types
 
 from inferelator_ng.tfa import TFA
@@ -71,6 +72,17 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
 
         self.align_priors_and_expression()
 
+    def shuffle_priors(self, **kwargs):
+        """
+        Randomly shuffle prior data
+        """
+
+        shuffled_priors = np.copy(self.priors_data.values).flatten()
+        np.random.RandomState(seed=self.random_seed).shuffle(shuffled_priors)
+        self.priors_data = pd.DataFrame(shuffled_priors.reshape(self.priors_data.shape),
+                                        index=self.priors_data.index,
+                                        columns=self.priors_data.columns)
+
     def align_priors_and_expression(self):
         # Make sure that the priors align to the expression matrix
         self.priors_data = self.priors_data.reindex(index=self.expression_matrix.index).fillna(value=0)
@@ -81,8 +93,9 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
 
     def single_cell_normalize(self):
         """
-        Single cell normalization. Requires expression_matrix to be all numeric, and to be [N x G]
-        :return:
+        Single cell normalization. Requires expression_matrix to be all numeric, and to be [N x G].
+        Executes all preprocessing workflow steps from the preprocessing_workflow list that's set by the
+        add_preprocess_step() class function
         """
 
         self.expression_matrix, self.meta_data = single_cell.filter_genes_for_count(self.expression_matrix,
