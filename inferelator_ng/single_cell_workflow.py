@@ -33,6 +33,7 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
     gene_list_lookup = default.DEFAULT_GENE_LIST_LOOKUP_COLUMN
 
     def startup_run(self):
+        self.set_regression_type()
 
         # If the metadata is embedded in the expression matrix, monkeypatch a new read_metadata() function in
         # to properly extract it
@@ -72,16 +73,20 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
 
         self.align_priors_and_expression()
 
-    def shuffle_priors(self, **kwargs):
+    def shuffle_priors(self, *args, **kwargs):
         """
         Randomly shuffle prior data
         """
-
+        utils.Debug.vprint("Randomly shuffling prior data ({ed} edges)".format(ed=(self.priors_data !=0).sum().sum()),
+                           level=0)
+        # Flatten, shuffle, and then reconstruct an identical axis prior dataframe with the shuffled data
         shuffled_priors = np.copy(self.priors_data.values).flatten()
         np.random.RandomState(seed=self.random_seed).shuffle(shuffled_priors)
         self.priors_data = pd.DataFrame(shuffled_priors.reshape(self.priors_data.shape),
                                         index=self.priors_data.index,
                                         columns=self.priors_data.columns)
+
+        return self.expression_matrix, self.meta_data
 
     def align_priors_and_expression(self):
         # Make sure that the priors align to the expression matrix
