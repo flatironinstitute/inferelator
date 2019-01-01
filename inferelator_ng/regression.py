@@ -63,7 +63,7 @@ class BaseRegression(object):
         oc = self.kvs.own_check(chunk=self.chunk)
         for j in range(self.G):
             level = 0 if j % 100 == 0 else 2
-            utils.Debug.vprint(PROGRESS_STR.format(gn=self.Y.index[j], i=j, total=self.G), level=level)
+            utils.Debug.vprint(PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G), level=level)
             if next(oc):
                 data = self.regress(j)
                 data['ind'] = j
