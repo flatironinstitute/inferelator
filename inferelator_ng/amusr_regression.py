@@ -267,7 +267,7 @@ class AMuSR_regression(regression.BaseRegression):
             if gene in priors.index:
                 priors_out = np.tile(priors.loc[gene, :].values.reshape(-1, 1), (1, len(tasks)))
             else:
-                priors_out = np.zeros(priors.shape[1], len(tasks))
+                priors_out = np.zeros((priors.shape[1], len(tasks)))
 
         return priors_out
 
