@@ -264,7 +264,10 @@ class AMuSR_regression(regression.BaseRegression):
                 priors_out.append(prior)
             priors_out = np.transpose(np.asarray(priors_out))
         else:
-            priors_out = np.tile(priors.loc[gene, :].values.reshape(-1, 1), (1, len(tasks)))
+            if gene in priors.index:
+                priors_out = np.tile(priors.loc[gene, :].values.reshape(-1, 1), (1, len(tasks)))
+            else:
+                priors_out = np.zeros(priors.shape[1], len(tasks))
 
         return priors_out
 
