@@ -32,6 +32,9 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
     metadata_expression_lookup = default.DEFAULT_METADATA_FOR_TFA_ADJUSTMENT
     gene_list_lookup = default.DEFAULT_GENE_LIST_LOOKUP_COLUMN
 
+    # Shuffle priors for a negative control
+    shuffle_prior_axis = None
+
     def startup_run(self):
         self.set_regression_type()
 
@@ -75,35 +78,30 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
         expression_data_exists = self.expression_matrix.sum(axis=1) != 0
         if not expression_data_exists.all():
             self.expression_matrix = self.expression_matrix.loc[expression_data_exists, :]
-            utils.Debug.vprint("All-zero genes removed from expression ({sh})".format(sh=self.expression_matrix.shape),
+            utils.Debug.vprint("{cn} all-0 genes removed from expression {sh}".format(cn=expression_data_exists.sum(),
+                                                                                      sh=self.expression_matrix.shape),
                                level=1)
 
 
         self.align_priors_and_expression()
 
-    def shuffle_priors(self, *args, **kwargs):
-        """
-        Randomly shuffle prior data
-        """
-
-        shuffle_axis = kwargs.pop('axis', 0)
-        if shuffle_axis == 0:
+        # Shuffle priors based on an axis
+        if self.shuffle_prior_axis is None:
+            pass
+        elif self.shuffle_prior_axis == 0:
             # Shuffle index (genes) in the priors_data
             utils.Debug.vprint("Randomly shuffling prior [{sh}] gene data".format(sh=self.priors_data.shape))
             shuffled_priors = self.priors_data.index.tolist()
             np.random.RandomState(seed=self.random_seed).shuffle(shuffled_priors)
             self.priors_data.index = shuffled_priors
-        elif shuffle_axis == 1:
+        elif self.shuffle_prior_axis == 1:
             # Shuffle columns (TFs) in the priors_data
             utils.Debug.vprint("Randomly shuffling prior [{sh}] TF data".format(sh=self.priors_data.shape))
             shuffled_priors = self.priors_data.columns.tolist()
             np.random.RandomState(seed=self.random_seed).shuffle(shuffled_priors)
             self.priors_data.columns = shuffled_priors
         else:
-            raise ValueError("axis must be 0 or 1")
-
-        # These are only returned to this is compatible with the preprocessing workflow interface
-        return self.expression_matrix, self.meta_data
+            raise ValueError("shuffle_prior_axis must be 0 or 1")
 
     def align_priors_and_expression(self):
         # Make sure that the priors align to the expression matrix
