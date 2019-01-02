@@ -65,11 +65,19 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
         if self.gene_list_file is not None:
             self.read_genes()
             genes = self.gene_list[self.gene_list_index]
+            utils.Debug.vprint("Filtering expression and priors to {le} genes from list".format(le=len(genes)), level=1)
             self.expression_matrix = self.expression_matrix.loc[self.expression_matrix.index.intersection(genes)]
+            utils.Debug.vprint("Expression data filtered to {sh}".format(sh=self.expression_matrix.shape), level=1)
             self.priors_data = self.priors_data.loc[self.priors_data.index.intersection(genes)]
+            utils.Debug.vprint("Priors data filtered to {sh}".format(sh=self.priors_data.shape), level=1)
 
         # Only keep stuff from the expression matrix that's got counts
-        self.expression_matrix = self.expression_matrix.loc[~(self.expression_matrix.sum(axis=1) == 0)]
+        expression_data_exists = self.expression_matrix.sum(axis=1) != 0
+        if not expression_data_exists.all():
+            self.expression_matrix = self.expression_matrix.loc[expression_data_exists, :]
+            utils.Debug.vprint("All-zero genes removed from expression ({sh})".format(sh=self.expression_matrix.shape),
+                               level=1)
+
 
         self.align_priors_and_expression()
 
@@ -78,16 +86,16 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
         Randomly shuffle prior data
         """
 
-        utils.Debug.vprint("Randomly shuffling prior data")
-
         shuffle_axis = kwargs.pop('axis', 0)
         if shuffle_axis == 0:
-            # Shuffle columns (TFs) in the priors_data
+            # Shuffle index (genes) in the priors_data
+            utils.Debug.vprint("Randomly shuffling prior [{sh}] gene data".format(sh=self.priors_data.shape))
             shuffled_priors = self.priors_data.index.tolist()
             np.random.RandomState(seed=self.random_seed).shuffle(shuffled_priors)
             self.priors_data.index = shuffled_priors
         elif shuffle_axis == 1:
             # Shuffle columns (TFs) in the priors_data
+            utils.Debug.vprint("Randomly shuffling prior [{sh}] TF data".format(sh=self.priors_data.shape))
             shuffled_priors = self.priors_data.columns.tolist()
             np.random.RandomState(seed=self.random_seed).shuffle(shuffled_priors)
             self.priors_data.columns = shuffled_priors
