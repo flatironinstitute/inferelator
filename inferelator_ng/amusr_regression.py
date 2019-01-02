@@ -307,7 +307,7 @@ class AMuSR_regression(regression.BaseRegression):
             for res in run_data:
                 try:
                     results_k.append(res[k])
-                except IndexError:
+                except KeyError:
                     pass
 
             results_k = pd.concat(results_k)
