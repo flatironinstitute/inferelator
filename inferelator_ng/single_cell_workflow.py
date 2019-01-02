@@ -80,10 +80,19 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
 
         utils.Debug.vprint("Randomly shuffling prior data")
 
-        # Shuffle columns (TFs) in the priors_data
-        shuffled_priors = self.priors_data.columns.tolist()
-        np.random.RandomState(seed=self.random_seed).shuffle(shuffled_priors)
-        self.priors_data.columns = shuffled_priors
+        shuffle_axis = kwargs.pop('axis', 0)
+        if shuffle_axis == 0:
+            # Shuffle columns (TFs) in the priors_data
+            shuffled_priors = self.priors_data.index.tolist()
+            np.random.RandomState(seed=self.random_seed).shuffle(shuffled_priors)
+            self.priors_data.index = shuffled_priors
+        elif shuffle_axis == 1:
+            # Shuffle columns (TFs) in the priors_data
+            shuffled_priors = self.priors_data.columns.tolist()
+            np.random.RandomState(seed=self.random_seed).shuffle(shuffled_priors)
+            self.priors_data.columns = shuffled_priors
+        else:
+            raise ValueError("axis must be 0 or 1")
 
         # These are only returned to this is compatible with the preprocessing workflow interface
         return self.expression_matrix, self.meta_data
