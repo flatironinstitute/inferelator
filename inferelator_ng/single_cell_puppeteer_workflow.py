@@ -16,7 +16,8 @@ from inferelator_ng import default
 SHARED_CLASS_VARIABLES = ['tf_names', 'gene_list', 'num_bootstraps', 'modify_activity_from_metadata',
                           'metadata_expression_lookup', 'gene_list_lookup', 'mi_sync_path', 'count_minimum',
                           'gold_standard_filter_method', 'split_priors_for_gold_standard', 'cv_split_ratio',
-                          'split_gold_standard_for_crossvalidation', 'cv_split_axis', 'preprocessing_workflow']
+                          'split_gold_standard_for_crossvalidation', 'cv_split_axis', 'preprocessing_workflow',
+                          'shuffle_prior_axis']
 
 
 class NoOutputRP(results_processor.ResultsProcessor):
@@ -118,6 +119,10 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow):
         # Align the priors and expression in the puppet, not in the puppetmaster
         pass
 
+    def shuffle_priors(self):
+        # Do any shuffles in the puppet, not in the puppetmaster
+        pass
+
     def modeling_method(self):
         raise NotImplementedError("No method to create models was provided")
 
@@ -182,7 +187,7 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow):
         self.regression_type.patch_workflow(obj)
 
     def get_sample_index(self, meta_data=None, sample_ratio=None, sample_size=None,
-                         min_size=default.DEFAULT_MINIMUM_SAMPLE_SIZE):
+                         min_size=default.DEFAULT_MINIMUM_SAMPLE_SIZE, stratified_sampling=None):
         """
         Produce an integer index to sample data using .iloc. If the self.stratified_sampling flag is True, sample
         separately from each group, as defined by the self.stratified_batch_lookup column.
@@ -205,7 +210,10 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow):
         if (sample_ratio is not None and sample_ratio < 0) or (sample_size is not None and sample_size < 0):
             raise ValueError("Sampling a negative number of things is not supported")
 
-        if self.stratified_sampling:
+        if stratified_sampling is None:
+            stratified_sampling = self.stratified_sampling
+
+        if stratified_sampling:
             # Use the main meta_data if there's nothing given
             if meta_data is None:
                 meta_data = self.meta_data
@@ -274,7 +282,7 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
 
     def auprs_for_condition_dropout(self):
         """
-        Run modeling on all data, and then on data where each factor from `drop_column` has been removed one
+        Run modeling on all data, and then on data where each factor from `drop_column` has been removed
         :return:
         """
         # Run the modeling on all data
@@ -294,12 +302,12 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
         :return:
         """
         # Run the modeling on all data
-        aupr_data = []
+        aupr_data = [self.auprs_for_index("all", pd.Series(True, index=self.meta_data.index), )]
 
         if self.drop_column is None:
             return aupr_data
 
-        # For all of the factors in `drop_column`, iterate through and remove them one by one, modeling on the rest
+        # For all of the factors in `drop_column`, iterate through them and model each separately
         for r_name, r_idx in self.factor_singles().items():
             aupr_data.extend(self.auprs_for_index(r_name + "_only", r_idx))
         return aupr_data

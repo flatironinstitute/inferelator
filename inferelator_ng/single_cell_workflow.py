@@ -82,9 +82,10 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
                                                                                       sh=self.expression_matrix.shape),
                                level=1)
 
-
         self.align_priors_and_expression()
+        self.shuffle_priors()
 
+    def shuffle_priors(self):
         # Shuffle priors based on an axis
         if self.shuffle_prior_axis is None:
             pass
@@ -182,7 +183,6 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
             except KeyError:
                 # KeyError occurs when the modification we want to perform is on a row that's been trimmed
                 continue
-
 
     def tfa_adj_func(self, gene):
         return self.design.loc[gene, :].min()
