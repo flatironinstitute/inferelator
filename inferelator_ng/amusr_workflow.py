@@ -31,7 +31,7 @@ class SingleCellMultiTask(single_cell_puppeteer_workflow.SingleCellPuppeteerWork
 
         betas, betas_resc = self.run_regression()
         # Write the results out to a file
-        self.emit_results(betas, betas_resc, self.gold_standard, self.priors_data)
+        self.emit_results(betas, betas_resc)
 
     def separate_tasks_by_metadata(self, meta_data_column=default.DEFAULT_METADATA_FOR_BATCH_CORRECTION):
         """
@@ -99,3 +99,17 @@ class SingleCellMultiTask(single_cell_puppeteer_workflow.SingleCellPuppeteerWork
             rp = results_processor.ResultsProcessor(betas[k], rescaled_betas[k],
                                                     filter_method=self.gold_standard_filter_method)
             rp.summarize_network(output_dir, self.gold_standard, self.priors_data)
+
+    def set_gold_standard_and_priors(self):
+        """
+        Read priors file into priors_data and gold standard file into gold_standard
+        """
+        self.priors_data = self.input_dataframe(self.priors_file)
+
+        if self.split_priors_for_gold_standard:
+            self.split_priors_into_gold_standard()
+        else:
+            self.gold_standard = self.input_dataframe(self.gold_standard_file)
+
+        if self.split_gold_standard_for_crossvalidation:
+            self.cross_validate_gold_standard()
