@@ -67,7 +67,7 @@ class SingleCellMultiTask(single_cell_puppeteer_workflow.SingleCellPuppeteerWork
 
         for expr_data, meta_data in zip(self.expression_matrix, self.meta_data):
             task = self.new_puppet(expr_data, meta_data, seed=self.random_seed)
-            task.startup()
+            task.startup_finish()
             self.task_design.append(task.design)
             self.task_response.append(task.response)
             self.task_meta_data.append(task.meta_data)
