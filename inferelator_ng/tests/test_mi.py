@@ -35,7 +35,7 @@ class Test2By2(TestMI):
         self.calculate_mi()
         self.print_results()
         expected = np.array([[0, 1], [1, 0]])
-        np.testing.assert_almost_equal(self.clr_matrix.as_matrix(), expected)
+        np.testing.assert_almost_equal(self.clr_matrix.values, expected)
 
     def test_12_34_minus(self):
         "Compute mi for identical arrays [[1, 2], [2, 4]]."
@@ -45,7 +45,7 @@ class Test2By2(TestMI):
         self.calculate_mi()
         #self.print_results()
         expected = np.array([[0, 1], [1, 0]])
-        np.testing.assert_almost_equal(self.clr_matrix.as_matrix(), expected)
+        np.testing.assert_almost_equal(self.clr_matrix.values, expected)
 
     def test_12_34_times_pi(self):
         "Compute mi for identical arrays [[1, 2], [2, 4]]."
@@ -55,7 +55,7 @@ class Test2By2(TestMI):
         self.calculate_mi()
         #self.print_results()
         expected = np.array([[0, 1], [1, 0]])
-        np.testing.assert_almost_equal(self.clr_matrix.as_matrix(), expected)
+        np.testing.assert_almost_equal(self.clr_matrix.values, expected)
 
     def test_12_34_swapped(self):
         "Compute mi for identical arrays [[1, 2], [2, 4]]."
@@ -65,7 +65,7 @@ class Test2By2(TestMI):
         self.y_dataframe = pd.DataFrame(np.array(L2))
         self.calculate_mi()
         expected = np.array([[0, 1], [1, 0]])
-        np.testing.assert_almost_equal(self.clr_matrix.as_matrix(), expected)
+        np.testing.assert_almost_equal(self.clr_matrix.values, expected)
 
     def test_12_34_transposed(self):
         "Compute mi for identical arrays [[1, 2], [2, 4]]."
@@ -75,7 +75,7 @@ class Test2By2(TestMI):
         self.calculate_mi()
         #self.print_results()
         expected = np.array([[0, 1], [1, 0]])
-        np.testing.assert_almost_equal(self.clr_matrix.as_matrix(), expected)
+        np.testing.assert_almost_equal(self.clr_matrix.values, expected)
 
     def test_12_34_and_zeros(self):
         "Compute mi for identical arrays [[1, 2], [2, 4]]."
@@ -85,7 +85,7 @@ class Test2By2(TestMI):
         self.calculate_mi()
         #self.print_results()
         # the entire clr matrix is NAN
-        self.assertTrue(np.isnan(self.clr_matrix.as_matrix()).all())
+        self.assertTrue(np.isnan(self.clr_matrix.values).all())
 
     def test_12_34_and_ones(self):
         "Compute mi for identical arrays [[1, 2], [2, 4]]."
@@ -94,7 +94,7 @@ class Test2By2(TestMI):
         self.y_dataframe = pd.DataFrame(np.ones((2,2)))
         self.calculate_mi()
         #self.print_results()
-        self.assertTrue(np.isnan(self.clr_matrix.as_matrix()).all())
+        self.assertTrue(np.isnan(self.clr_matrix.values).all())
 
 
 class Test2By3(TestMI):
@@ -107,7 +107,7 @@ class Test2By3(TestMI):
         self.calculate_mi()
         #self.print_results()
         expected = np.array([[0, 1], [1, 0]])
-        np.testing.assert_almost_equal(self.clr_matrix.as_matrix(), expected)
+        np.testing.assert_almost_equal(self.clr_matrix.values, expected)
 
     def test_mixed(self):
         "Compute mi for mixed arrays."
@@ -118,4 +118,4 @@ class Test2By3(TestMI):
         self.calculate_mi()
         self.print_results()
         expected = np.array([[0, 1], [1, 0]])
-        #np.testing.assert_almost_equal(self.clr_matrix.as_matrix(), expected)
+        #np.testing.assert_almost_equal(self.clr_matrix.values, expected)
