@@ -92,15 +92,15 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
         elif self.shuffle_prior_axis == 0:
             # Shuffle index (genes) in the priors_data
             utils.Debug.vprint("Randomly shuffling prior [{sh}] gene data".format(sh=self.priors_data.shape))
-            shuffled_priors = self.priors_data.index.tolist()
-            np.random.RandomState(seed=self.random_seed).shuffle(shuffled_priors)
-            self.priors_data.index = shuffled_priors
+            prior_index = self.priors_data.index.tolist()
+            self.priors_data = self.priors_data.sample(frac=1, axis=0, random_state=self.random_seed)
+            self.priors_data.index = prior_index
         elif self.shuffle_prior_axis == 1:
             # Shuffle columns (TFs) in the priors_data
             utils.Debug.vprint("Randomly shuffling prior [{sh}] TF data".format(sh=self.priors_data.shape))
-            shuffled_priors = self.priors_data.columns.tolist()
-            np.random.RandomState(seed=self.random_seed).shuffle(shuffled_priors)
-            self.priors_data.columns = shuffled_priors
+            prior_index = self.priors_data.columns.tolist()
+            self.priors_data = self.priors_data.sample(frac=1, axis=1, random_state=self.random_seed)
+            self.priors_data.columns = prior_index
         else:
             raise ValueError("shuffle_prior_axis must be 0 or 1")
 
