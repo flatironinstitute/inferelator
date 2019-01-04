@@ -31,7 +31,8 @@ class SingleCellMultiTask(single_cell_puppeteer_workflow.SingleCellPuppeteerWork
 
         betas, betas_resc = self.run_regression()
         # Write the results out to a file
-        self.emit_results(betas, betas_resc)
+        if self.kvs.is_master():
+            self.emit_results(betas, betas_resc)
 
     def separate_tasks_by_metadata(self, meta_data_column=default.DEFAULT_METADATA_FOR_BATCH_CORRECTION):
         """
@@ -95,7 +96,12 @@ class SingleCellMultiTask(single_cell_puppeteer_workflow.SingleCellPuppeteerWork
         self.create_output_dir()
         for k in range(self.n_tasks):
             output_dir = os.path.join(self.output_dir, self.tasks_dir[k])
-            os.makedirs(output_dir)
+
+            try:
+                os.makedirs(output_dir)
+            except OSError:
+                pass
+
             rp = results_processor.ResultsProcessor(betas[k], rescaled_betas[k],
                                                     filter_method=self.gold_standard_filter_method)
             rp.summarize_network(output_dir, self.gold_standard, self.priors_data)
