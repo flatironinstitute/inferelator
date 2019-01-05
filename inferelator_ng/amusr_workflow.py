@@ -31,7 +31,7 @@ class SingleCellMultiTask(single_cell_puppeteer_workflow.SingleCellPuppeteerWork
 
         betas, betas_resc = self.run_regression()
         # Write the results out to a file
-        if self.kvs.is_master():
+        if self.kvs.is_master:
             self.emit_results(betas, betas_resc)
 
     def separate_tasks_by_metadata(self, meta_data_column=default.DEFAULT_METADATA_FOR_BATCH_CORRECTION):
