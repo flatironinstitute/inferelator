@@ -77,8 +77,9 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
         # Only keep stuff from the expression matrix that's got counts
         expression_data_exists = self.expression_matrix.sum(axis=1) != 0
         if not expression_data_exists.all():
+            removed_gene_count = self.expression_matrix.shape[0] - expression_data_exists.sum()
             self.expression_matrix = self.expression_matrix.loc[expression_data_exists, :]
-            utils.Debug.vprint("{cn} all-0 genes removed from expression {sh}".format(cn=expression_data_exists.sum(),
+            utils.Debug.vprint("{cn} all-0 genes removed from expression {sh}".format(cn=removed_gene_count,
                                                                                       sh=self.expression_matrix.shape),
                                level=1)
 
