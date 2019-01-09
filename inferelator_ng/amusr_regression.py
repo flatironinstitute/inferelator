@@ -257,19 +257,24 @@ class AMuSR_regression(regression.BaseRegression):
             for k in tasks:
                 prior = priors[k]
                 prior = prior.loc[gene, :].replace(np.nan, 0)
-                prior = (prior != 0).astype(int)
-                prior /= prior_weight
-                prior[prior == 0] = 1.
-                prior = prior / prior.sum() * len(prior)
-                priors_out.append(prior)
+                priors_out.append(self.weight_prior(prior, prior_weight))
             priors_out = np.transpose(np.asarray(priors_out))
         else:
             if gene in priors.index:
-                priors_out = np.tile(priors.loc[gene, :].values.reshape(-1, 1), (1, len(tasks)))
+                priors_out = np.tile(self.weight_prior(priors.loc[gene, :].values, prior_weight).reshape(-1, 1),
+                                     (1, len(tasks)))
             else:
                 priors_out = np.zeros((priors.shape[1], len(tasks)))
 
         return priors_out
+
+    @staticmethod
+    def weight_prior(prior, prior_weight):
+        prior = (prior != 0).astype(float)
+        prior /= prior_weight
+        prior[prior == 0] = 1.0
+        prior = prior / prior.sum() * len(prior)
+        return prior
 
     def regress(self, idx):
         """
