@@ -10,6 +10,7 @@ except ImportError:
     pass
 
 import numpy as np
+import pandas as pd
 from inferelator_ng import utils
 from inferelator_ng import single_cell_puppeteer_workflow
 from inferelator_ng import default
@@ -20,6 +21,7 @@ from inferelator_ng import results_processor
 class SingleCellMultiTask(single_cell_puppeteer_workflow.SingleCellPuppeteerWorkflow):
     regression_type = amusr_regression
     prior_weight = 1
+    task_expression_filter = "intersection"
 
     def run(self):
         np.random.seed(self.random_seed)
@@ -64,7 +66,7 @@ class SingleCellMultiTask(single_cell_puppeteer_workflow.SingleCellPuppeteerWork
         """
 
         self.task_design, self.task_response, self.task_meta_data, self.task_bootstraps = [], [], [], []
-        self.targets, self.regulators = None, None
+        targets, regulators = [], []
 
         for expr_data, meta_data in zip(self.expression_matrix, self.meta_data):
             task = self.new_puppet(expr_data, meta_data, seed=self.random_seed)
@@ -74,20 +76,43 @@ class SingleCellMultiTask(single_cell_puppeteer_workflow.SingleCellPuppeteerWork
             self.task_meta_data.append(task.meta_data)
             self.task_bootstraps.append(task.get_bootstraps())
 
-            if self.regulators is None:
-                self.regulators = task.design.index
-            else:
-                self.regulators = self.regulators.intersection(task.design.index)
+            regulators.append(task.design.index)
+            targets.append(task.response.index)
 
-            if self.targets is None:
-                self.targets = task.response.index
-            else:
-                self.targets = self.targets.intersection(task.response.index)
-
+        self.targets, self.regulators = self.filter_genes_on_tasks(targets), self.filter_genes_on_tasks(regulators)
         self.expression_matrix = None
 
         utils.Debug.vprint("Processed data into design/response [{g} x {k}]".format(g=len(self.targets),
                                                                                     k=len(self.regulators)), level=0)
+
+    def filter_genes_on_tasks(self, list_of_indexes):
+        """
+        Take a list of indexes and filter them based on the method specified in task_expression_filter to a single
+        index
+
+        :param list_of_indexes: list(pd.Index)
+        :return filtered_genes: pd.Index
+        """
+
+        filtered_genes = list_of_indexes[0]
+
+        # If task_expression_filter is a number only keep genes in that number of tasks or higher
+        if isinstance(self.task_expression_filter, int):
+            filtered_genes = pd.concat(list(map(lambda x: x.to_series(), list_of_indexes))).value_counts()
+            filtered_genes = filtered_genes[filtered_genes >= self.task_expression_filter].index
+        # If task_expression_filter is "intersection" only keep genes in all tasks
+        elif self.task_expression_filter == "intersection":
+            for gene_idx in list_of_indexes:
+                filtered_genes = filtered_genes.intersection(gene_idx)
+        # If task_expression_filter is "union" keep genes that are in any task
+        elif self.task_expression_filter == "union":
+            for gene_idx in list_of_indexes:
+                filtered_genes = filtered_genes.union(gene_idx)
+        else:
+            raise ValueError("{v} is not an allowed task_expression_filter value".format(v=self.task_expression_filter))
+
+        return filtered_genes
+
 
     def emit_results(self, betas, rescaled_betas):
         """
