@@ -38,7 +38,6 @@ def normalize_expression_to_one(expression_matrix, meta_data, **kwargs):
     # Divide each cell's raw count data by the total number of UMI counts for that cell
     return expression_matrix.astype(float).divide(umi, axis=0), meta_data
 
-
 def normalize_medians_for_batch(expression_matrix, meta_data, **kwargs):
     """
     Calculate the median UMI count per cell for each batch. Transform all batches by dividing by a size correction
@@ -62,18 +61,11 @@ def normalize_medians_for_batch(expression_matrix, meta_data, **kwargs):
     # Group and take the median UMI count for each batch
     median_umi = median_umi.groupby(batch_factor_column).agg('median')
 
-    # Convert to a correction factor
-    median_umi['umi'] = median_umi['umi'] / median_umi['umi'].median()
+    # Convert to a correction factor based on the median of the medians
+    umi_corr = umi / median_umi['umi'].median()
 
-    # Apply the correction factor to all the data batch-wise. Do this with numpy because pandas is a glacier.
-    normed_expression = np.ndarray((0, expression_matrix.shape[1]), dtype=np.dtype(float))
-    normed_meta = pd.DataFrame(columns=meta_data.columns)
-    for batch, corr_factor in median_umi.iterrows():
-        rows = meta_data[batch_factor_column] == batch
-        normed_expression = np.vstack((normed_expression, expression_matrix.loc[rows, :].values / corr_factor['umi']))
-        normed_meta = pd.concat([normed_meta, meta_data.loc[rows, :]])
-
-    return pd.DataFrame(normed_expression, index=normed_meta.index, columns=expression_matrix.columns), normed_meta
+    # Apply the correction factor to all the data
+    return expression_matrix.divide(umi_corr, axis=0), meta_data
 
 
 def normalize_multiBatchNorm(expression_matrix, meta_data, **kwargs):
@@ -308,3 +300,4 @@ def process_impute_args(**kwargs):
 def process_normalize_args(**kwargs):
     batch_factor_column = kwargs.pop('batch_factor_column', DEFAULT_METADATA_FOR_BATCH_CORRECTION)
     return kwargs, batch_factor_column
+
