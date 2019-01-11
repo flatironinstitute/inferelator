@@ -183,7 +183,7 @@ class AMuSR_regression(regression.BaseRegression):
 
     """
 
-    def __init__(self, X, Y, kvs, priors=None, prior_weight=1, chunk=25):
+    def __init__(self, X, Y, kvs, tfs=None, genes=None, priors=None, prior_weight=1, chunk=25):
         """
         Set up a regression object for multitask regression
 
@@ -208,20 +208,18 @@ class AMuSR_regression(regression.BaseRegression):
         self.priors = priors
         self.prior_weight = float(prior_weight)
 
-        tfs, genes = None, None
-        for design, response in zip(X, Y):
-            if tfs is None:
-                tfs = design.columns
-            else:
-                tfs = tfs.intersection(design.columns)
-
-            if genes is None:
-                genes = response.columns
-            else:
-                genes = genes.intersection(response.columns)
+        if tfs is None or genes is None:
+            tfs, genes = [], []
+            for design, response in zip(X, Y):
+                tfs.append(design.columns)
+                genes.append(response.columns)
+            self.tfs = filter_genes_on_tasks(tfs, "intersection")
+            self.genes = filter_genes_on_tasks(genes, "intersection")
+        else:
+            self.tfs, self.genes = tfs, genes
 
         # Set the regulators and targets into the regression object
-        self.tfs, self.genes = tfs, genes
+
         self.K, self.G = len(tfs), len(genes)
 
     def format_weights(self, df, col, targets, regs):
@@ -465,8 +463,39 @@ def patch_workflow(obj):
             y.append(self.task_response[k].iloc[:, self.task_bootstraps[k][bootstrap_idx]].transpose())
 
         self.kvs.sync_processes(pref="amusr_pre")
-        regress = AMuSR_regression(x, y, self.kvs, priors=self.priors_data, prior_weight=self.prior_weight)
+        regress = AMuSR_regression(x, y, self.kvs, tfs=self.regulators, genes=self.targets, priors=self.priors_data,
+                                   prior_weight=self.prior_weight)
         return regress.run()
 
     obj.run_regression = types.MethodType(run_regression, obj)
     obj.run_bootstrap = types.MethodType(run_bootstrap, obj)
+
+
+def filter_genes_on_tasks(list_of_indexes, task_expression_filter):
+    """
+    Take a list of indexes and filter them based on the method specified in task_expression_filter to a single
+    index
+
+    :param list_of_indexes: list(pd.Index)
+    :param task_expression_filter: str or int
+    :return filtered_genes: pd.Index
+    """
+
+    filtered_genes = list_of_indexes[0]
+
+    # If task_expression_filter is a number only keep genes in that number of tasks or higher
+    if isinstance(task_expression_filter, int):
+        filtered_genes = pd.concat(list(map(lambda x: x.to_series(), list_of_indexes))).value_counts()
+        filtered_genes = filtered_genes[filtered_genes >= task_expression_filter].index
+    # If task_expression_filter is "intersection" only keep genes in all tasks
+    elif task_expression_filter == "intersection":
+        for gene_idx in list_of_indexes:
+            filtered_genes = filtered_genes.intersection(gene_idx)
+    # If task_expression_filter is "union" keep genes that are in any task
+    elif task_expression_filter == "union":
+        for gene_idx in list_of_indexes:
+            filtered_genes = filtered_genes.union(gene_idx)
+    else:
+        raise ValueError("{v} is not an allowed task_expression_filter value".format(v=task_expression_filter))
+
+    return filtered_genes
