@@ -183,7 +183,8 @@ class AMuSR_regression(regression.BaseRegression):
 
     """
 
-    def __init__(self, X, Y, kvs, tfs=None, genes=None, priors=None, prior_weight=1, chunk=25):
+    def __init__(self, X, Y, kvs, tfs=None, genes=None, priors=None, prior_weight=1, chunk=25,
+                 remove_autoregulation=True):
         """
         Set up a regression object for multitask regression
 
@@ -193,6 +194,7 @@ class AMuSR_regression(regression.BaseRegression):
         :param priors: pd.DataFrame [G, K]
         :param prior_weight: float
         :param chunk: int
+        :param remove_autoregulation: bool
         """
 
         # Set the KVS controller into the regression object
@@ -221,6 +223,7 @@ class AMuSR_regression(regression.BaseRegression):
         # Set the regulators and targets into the regression object
 
         self.K, self.G = len(tfs), len(genes)
+        self.remove_autoregulation = remove_autoregulation
 
     def format_weights(self, df, col, targets, regs):
 
@@ -283,15 +286,20 @@ class AMuSR_regression(regression.BaseRegression):
         """
         gene = self.genes[idx]
         x, y, tasks = [], [], []
+        
+        if self.remove_autoregulation:
+            tfs = [x for x in self.tfs if x != gene]
+        else:
+            tfs = self.tfs
 
         for k in range(self.n_tasks):
             if gene in self.Y[k]:
-                x.append(self.X[k].loc[:, self.tfs].values)  # list([N, K])
+                x.append(self.X[k].loc[:, tfs].values)  # list([N, K])
                 y.append(self.Y[k].loc[:, gene].values.reshape(-1, 1))  # list([N, 1])
                 tasks.append(k)  # [T,]
 
         prior = self.format_prior(self.priors, gene, tasks, self.prior_weight)  # [K, T]
-        return run_regression_EBIC(x, y, self.tfs, tasks, gene, prior)
+        return run_regression_EBIC(x, y, tfs, tasks, gene, prior)
 
     def pileup_data(self):
         run_data = []
