@@ -286,9 +286,9 @@ class AMuSR_regression(regression.BaseRegression):
         """
         gene = self.genes[idx]
         x, y, tasks = [], [], []
-        
+
         if self.remove_autoregulation:
-            tfs = [x for x in self.tfs if x != gene]
+            tfs = [t for t in self.tfs if t != gene]
         else:
             tfs = self.tfs
 
