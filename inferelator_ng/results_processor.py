@@ -114,7 +114,7 @@ class ResultsProcessor:
                 row_data += [priors.ix[row_name, column_name]]
             else:
                 row_data += [np.nan]
-            
+
             if gold_standard is not None:
                 if row_name in gold_standard.index and column_name in gold_standard.columns:
                     row_data += [gold_standard.ix[row_name, column_name]]
@@ -139,7 +139,8 @@ class ResultsProcessor:
         utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=aupr), level=0)
         self.plot_pr_curve(recall, precision, aupr, output_dir)
         resc_betas_mean, resc_betas_median = self.mean_and_median(self.rescaled_betas)
-        self.save_network_to_tsv(combined_confidences, resc_betas_median, priors, output_dir)
+        self.save_network_to_tsv(combined_confidences, resc_betas_median, priors, output_dir,
+                                 gold_standard=gold_standard)
         return aupr
 
     def find_conf_threshold(self, precision_threshold=None, recall_threshold=None):
