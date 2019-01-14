@@ -87,27 +87,43 @@ class ResultsProcessor:
         plt.close()
 
     def save_network_to_tsv(self, combined_confidences, resc_betas_median, priors, output_dir,
-                            output_file_name="network.tsv"):
+                            output_file_name="network.tsv", gold_standard=None, conf_threshold=0):
         output_list = [
             ['regulator', 'target', 'beta.sign.sum', 'beta.non.zero', 'var.exp.median', 'combined_confidences',
              'prior']]
+        if gold_standard is not None:
+            output_list[0] += ["gold.standard"]
+
         sorted_by_confidence = np.argsort(combined_confidences.values, axis=None)[::-1]
         num_cols = len(combined_confidences.columns)
         for i in sorted_by_confidence:
+            row_data = []
             # Since this was sorted using a flattened index, we need to reconvert into labeled 2d index
             index_idx = int(i / num_cols)
             column_idx = i % num_cols
             row_name = combined_confidences.index[index_idx]
             column_name = combined_confidences.columns[column_idx]
-            if row_name in priors.index:
-                prior_value = priors.ix[row_name, column_name]
+            comb_conf = combined_confidences.ix[row_name, column_name]
+
+            row_data += [column_name, row_name,
+                         self.betas_sign.ix[row_name, column_name],
+                         resc_betas_median[index_idx, column_idx],
+                         comb_conf]
+
+            if row_name in priors.index and column_name in priors.columns:
+                row_data += [priors.ix[row_name, column_name]]
             else:
-                prior_value = np.nan
-            if (combined_confidences.ix[row_name, column_name] > 0):
-                output_list.append([column_name, row_name, self.betas_sign.ix[row_name, column_name],
-                                    self.betas_non_zero.ix[row_name, column_name],
-                                    resc_betas_median[index_idx, column_idx],
-                                    combined_confidences.ix[row_name, column_name], prior_value])
+                row_data += [np.nan]
+            
+            if gold_standard is not None:
+                if row_name in gold_standard.index and column_name in gold_standard.columns:
+                    row_data += [gold_standard.ix[row_name, column_name]]
+                else:
+                    row_data += [np.nan]
+
+            if comb_conf > conf_threshold:
+                output_list.append(row_data)
+
         with open(os.path.join(output_dir, output_file_name), 'w') as myfile:
             wr = csv.writer(myfile, delimiter='\t')
             for row in output_list:
