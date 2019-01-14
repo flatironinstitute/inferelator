@@ -184,7 +184,7 @@ class AMuSR_regression(regression.BaseRegression):
     """
 
     def __init__(self, X, Y, kvs, tfs=None, genes=None, priors=None, prior_weight=1, chunk=25,
-                 remove_autoregulation=True):
+                 remove_autoregulation=False):
         """
         Set up a regression object for multitask regression
 
