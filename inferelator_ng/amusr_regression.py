@@ -179,12 +179,23 @@ class AMuSR_OneGene:
 
 
 class AMuSR_regression(regression.BaseRegression):
-    """
+    kvs = None  # KVSClient()
+    chunk = 25  # int
 
-    """
+    X = None  # list(pd.DataFrame [N, K])
+    Y = None  # list(pd.DataFrame [N, G])
+    priors = None  # list(pd.DataFrame [G, K]) OR pd.DataFrame [G, K]
+    tfs = None  # pd.Index OR list
+    genes = None  # pd.Index OR list
+
+    K = None  # int
+    G = None  # int
+    n_tasks = None  # int
+    prior_weight = 1.0  # float
+    remove_autoregulation = True  # bool
 
     def __init__(self, X, Y, kvs, tfs=None, genes=None, priors=None, prior_weight=1, chunk=25,
-                 remove_autoregulation=False):
+                 remove_autoregulation=True):
         """
         Set up a regression object for multitask regression
 
