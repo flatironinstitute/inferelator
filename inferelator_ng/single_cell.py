@@ -56,16 +56,49 @@ def normalize_medians_for_batch(expression_matrix, meta_data, **kwargs):
     umi = expression_matrix.sum(axis=1)
 
     # Create a new dataframe with the UMI counts and the factor to batch correct on
-    median_umi = pd.DataFrame({'umi': umi, batch_factor_column: meta_data[batch_factor_column]})
+    umi = pd.DataFrame({'umi': umi, batch_factor_column: meta_data[batch_factor_column]})
 
     # Group and take the median UMI count for each batch
-    median_umi = median_umi.groupby(batch_factor_column).agg('median')
+    median_umi = umi.groupby(batch_factor_column).agg('median')
 
     # Convert to a correction factor based on the median of the medians
-    umi_corr = umi / median_umi['umi'].median()
+    median_umi = median_umi / median_umi['umi'].median()
+    umi = umi.join(median_umi, on="Condition", how="left", rsuffix="_mod")
 
     # Apply the correction factor to all the data
-    return expression_matrix.divide(umi_corr, axis=0), meta_data
+    return expression_matrix.divide(umi['umi_mod'], axis=0), meta_data
+
+def normalize_sizes_within_batch(expression_matrix, meta_data, **kwargs):
+    """
+    Calculate the median UMI count within each batch and then resize each sample so that each sample has the same total
+    UMI count
+
+    :param expression_matrix: pd.DataFrame
+    :param meta_data: pd.DataFrame
+    :param batch_factor_column: str
+        Which meta data column should be used to determine batches
+    :return expression_matrix, meta_data: pd.DataFrame, pd.DataFrame
+    """
+
+    kwargs, batch_factor_column = process_normalize_args(**kwargs)
+
+    utils.Debug.vprint('Normalizing median counts within batches ... ')
+
+    # Get UMI counts for each cell
+    umi = expression_matrix.sum(axis=1)
+
+    # Create a new dataframe with the UMI counts and the factor to batch correct on
+    umi = pd.DataFrame({'umi': umi, batch_factor_column: meta_data[batch_factor_column]})
+
+    # Group and take the median UMI count for each batch
+    median_umi = umi.groupby(batch_factor_column).agg('median')
+
+    # Convert to a correction factor based on the median of the medians
+    umi = umi.join(median_umi, on="Condition", how="left", rsuffix="_mod")
+    umi['umi_mod'] = umi['umi'] / umi['umi_mod']
+
+    # Apply the correction factor to all the data
+    return expression_matrix.divide(umi['umi_mod'], axis=0), meta_data
 
 
 def normalize_multiBatchNorm(expression_matrix, meta_data, **kwargs):
