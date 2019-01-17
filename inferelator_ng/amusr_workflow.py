@@ -87,7 +87,7 @@ class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, single_cell_p
         utils.Debug.vprint("Processed data into design/response [{g} x {k}]".format(g=len(self.targets),
                                                                                     k=len(self.regulators)), level=0)
 
-    def emit_results(self, betas, rescaled_betas):
+    def emit_results(self, betas, rescaled_betas, gold_standard, priors_data):
         """
         Output result report(s) for workflow run.
         """
@@ -102,7 +102,7 @@ class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, single_cell_p
 
             rp = results_processor.ResultsProcessor(betas[k], rescaled_betas[k],
                                                     filter_method=self.gold_standard_filter_method)
-            rp.summarize_network(output_dir, self.gold_standard, self.priors_data)
+            rp.summarize_network(output_dir, gold_standard, priors_data)
 
     def set_gold_standard_and_priors(self):
         """
