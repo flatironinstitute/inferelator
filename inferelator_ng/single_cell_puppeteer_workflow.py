@@ -28,8 +28,9 @@ class NoOutputRP(results_processor.ResultsProcessor):
 
     def summarize_network(self, output_dir, gold_standard, priors, confidence_threshold=default.DEFAULT_CONF,
                           precision_threshold=default.DEFAULT_PREC, output_file_name=None):
+
         # Calculate combined confidences
-        combined_confidences = self.compute_combined_confidences()
+        combined_confidences = self.compute_combined_confidences(self.betas, self.rescaled_betas)
         # Calculate precision and recall
         recall, precision = self.calculate_precision_recall(combined_confidences, gold_standard)
         # Calculate AUPR
@@ -41,10 +42,10 @@ class NoOutputRP(results_processor.ResultsProcessor):
         precision_interactions = (combined_confidences > confidence_cutoff).sum().sum()
         # Output the network as a tsv
         if output_file_name is not None:
-            self.threshold_and_summarize()
+            _, self.betas_sign, _ = self.threshold_and_summarize(self.betas, self.threshold)
             resc_betas_mean, resc_betas_median = self.mean_and_median(self.rescaled_betas)
-            self.save_network_to_tsv(combined_confidences, resc_betas_median, priors, output_dir=output_dir,
-                                     output_file_name=output_file_name)
+            self.save_network_to_tsv(combined_confidences, resc_betas_median, priors, gold_standard,
+                                     output_dir=output_dir, output_file_name=output_file_name)
         return aupr, stable_interactions, precision_interactions
 
 
@@ -82,49 +83,15 @@ class SingleCellPuppetWorkflow(single_cell_workflow.SingleCellWorkflow):
             self.aupr, self.n_interact, self.precision_interact = None, None, None
 
 
-class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow):
-    seeds = default.DEFAULT_SEED_RANGE
-
-    # Output TSV controllers
+class PuppeteerWorkflow(object):
+    """
+    This class contains the methods to create new child Workflow objects
+    It does not extend WorkflowBase because I hate keeping track of multiinheritance patterns
+    """
     write_network = True  # bool
     csv_writer = None  # csv.csvwriter
-    csv_header = ["Seed", "AUPR", "Num_Interacting"]  # list[]
+    csv_header = []  # list[]
     output_file_name = "aupr.tsv"  # str
-
-    # How to sample
-    stratified_sampling = False
-    stratified_batch_lookup = default.DEFAULT_METADATA_FOR_BATCH_CORRECTION
-    sample_with_replacement = True
-
-    def run(self):
-        np.random.seed(self.random_seed)
-        self.startup()
-        self.create_writer()
-        auprs = self.modeling_method()
-
-    def compute_activity(self):
-        # Compute activities in the puppet, not in the puppetmaster
-        pass
-
-    def single_cell_normalize(self):
-        # Normalize and impute in the puppet, not in the puppetmaster
-        pass
-
-    def set_gold_standard_and_priors(self):
-        # Split priors for a gold standard in the puppet, not in the puppetmaster
-        self.priors_data = self.input_dataframe(self.priors_file)
-        self.gold_standard = self.input_dataframe(self.gold_standard_file)
-
-    def align_priors_and_expression(self):
-        # Align the priors and expression in the puppet, not in the puppetmaster
-        pass
-
-    def shuffle_priors(self):
-        # Do any shuffles in the puppet, not in the puppetmaster
-        pass
-
-    def modeling_method(self):
-        raise NotImplementedError("No method to create models was provided")
 
     def create_writer(self):
         """
@@ -185,6 +152,51 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow):
                 utils.Debug.vprint("Variable {var} not assigned to parent".format(var=varname))
 
         self.regression_type.patch_workflow(obj)
+
+
+class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, PuppeteerWorkflow):
+    seeds = default.DEFAULT_SEED_RANGE
+
+    # Output TSV controllers
+    write_network = True  # bool
+    csv_writer = None  # csv.csvwriter
+    csv_header = ["Seed", "AUPR", "Num_Interacting"]  # list[]
+    output_file_name = "aupr.tsv"  # str
+
+    # How to sample
+    stratified_sampling = False
+    stratified_batch_lookup = default.DEFAULT_METADATA_FOR_BATCH_CORRECTION
+    sample_with_replacement = True
+
+    def run(self):
+        np.random.seed(self.random_seed)
+        self.startup()
+        self.create_writer()
+        auprs = self.modeling_method()
+
+    def compute_activity(self):
+        # Compute activities in the puppet, not in the puppetmaster
+        pass
+
+    def single_cell_normalize(self):
+        # Normalize and impute in the puppet, not in the puppetmaster
+        pass
+
+    def set_gold_standard_and_priors(self):
+        # Split priors for a gold standard in the puppet, not in the puppetmaster
+        self.priors_data = self.input_dataframe(self.priors_file)
+        self.gold_standard = self.input_dataframe(self.gold_standard_file)
+
+    def align_priors_and_expression(self):
+        # Align the priors and expression in the puppet, not in the puppetmaster
+        pass
+
+    def shuffle_priors(self):
+        # Do any shuffles in the puppet, not in the puppetmaster
+        pass
+
+    def modeling_method(self):
+        raise NotImplementedError("No method to create models was provided")
 
     def get_sample_index(self, meta_data=None, sample_ratio=None, sample_size=None,
                          min_size=default.DEFAULT_MINIMUM_SAMPLE_SIZE, stratified_sampling=None):
