@@ -30,7 +30,7 @@ class NoOutputRP(results_processor.ResultsProcessor):
                           precision_threshold=default.DEFAULT_PREC, output_file_name=None):
 
         # Calculate combined confidences
-        combined_confidences = self.compute_combined_confidences(self.betas, self.rescaled_betas)
+        combined_confidences = self.compute_combined_confidences(self.rescaled_betas)
         # Calculate precision and recall
         recall, precision = self.calculate_precision_recall(combined_confidences, gold_standard)
         # Calculate AUPR
