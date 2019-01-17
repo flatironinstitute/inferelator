@@ -9,32 +9,33 @@ try:
 except ImportError:
     pass
 
-import numpy as np
 import pandas as pd
+import numpy as np
 from inferelator_ng import utils
 from inferelator_ng import single_cell_puppeteer_workflow
+from inferelator_ng import single_cell_workflow
 from inferelator_ng import default
 from inferelator_ng import amusr_regression
 from inferelator_ng import results_processor
 
 
-class SingleCellMultiTask(single_cell_puppeteer_workflow.SingleCellPuppeteerWorkflow):
+class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, single_cell_puppeteer_workflow.PuppeteerWorkflow):
     regression_type = amusr_regression
     prior_weight = 1
     task_expression_filter = "intersection"
 
-    def run(self):
-        np.random.seed(self.random_seed)
+    def startup_finish(self):
+        # If the expression matrix is [G x N], transpose it for preprocessing
+        if not self.expression_matrix_columns_are_genes:
+            self.expression_matrix = self.expression_matrix.transpose()
 
-        self.startup()
+        # Filter expression and priors to align
+        self.filter_expression_and_priors()
         self.separate_tasks_by_metadata()
         self.process_task_data()
-        self.set_regression_type()
 
-        betas, betas_resc = self.run_regression()
-        # Write the results out to a file
-        if self.kvs.is_master:
-            self.emit_results(betas, betas_resc)
+    def align_priors_and_expression(self):
+        pass
 
     def separate_tasks_by_metadata(self, meta_data_column=default.DEFAULT_METADATA_FOR_BATCH_CORRECTION):
         """
