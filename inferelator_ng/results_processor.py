@@ -18,39 +18,15 @@ class ResultsProcessor:
     def __init__(self, betas, rescaled_betas, threshold=0.5, filter_method='overlap'):
         self.betas = betas
         self.rescaled_betas = rescaled_betas
-        self.threshold = threshold
+
+        if 1 >= threshold >= 0:
+            self.threshold = threshold
+        else:
+            raise ValueError("Threshold must be a float in the interval [0, 1]")
         try:
             self.filter_method = getattr(self, self.filter_method_lookup[filter_method])
         except KeyError:
             raise ValueError("{val} is not an allowed filter_method option".format(val=filter_method))
-
-    def compute_combined_confidences(self):
-        combined_confidences = pd.DataFrame(np.zeros((self.betas[0].shape)), index=self.betas[0].index,
-                                            columns=self.betas[0].columns)
-        for beta_resc in self.rescaled_betas:
-            # this ranking code is especially wordy because the rank function only works in one dimension (col or row), so I had to flatten the matrix
-            ranked_df = np.reshape(pd.DataFrame(np.ndarray.flatten(beta_resc.values)).rank(method="average").values,
-                                   self.rescaled_betas[0].shape)
-            combined_confidences = combined_confidences + ranked_df
-
-        min_element = min(combined_confidences.min())
-        combined_confidences = (combined_confidences - min_element) / (
-                len(self.betas) * combined_confidences.size - min_element)
-        return combined_confidences
-
-    def threshold_and_summarize(self):
-        self.betas_sign = pd.DataFrame(np.zeros((self.betas[0].shape)), index=self.betas[0].index,
-                                       columns=self.betas[0].columns)
-        self.betas_non_zero = pd.DataFrame(np.zeros((self.betas[0].shape)), index=self.betas[0].index,
-                                           columns=self.betas[0].columns)
-        for beta in self.betas:
-            self.betas_sign = self.betas_sign + np.sign(beta.values)
-            self.betas_non_zero = self.betas_non_zero + np.absolute(np.sign(beta.values))
-
-        # The following line returns 1 for all entries that appear in more than (or equal to) self.threshold fraction of bootstraps and 0 otherwise
-        thresholded_matrix = ((self.betas_non_zero / len(self.betas)) >= self.threshold).astype(int)
-        # Note that the current version is blind to the sign of those betas, so the betas_sign matrix is not used. Later we might want to modify this such that only same-sign interactions count.
-        return thresholded_matrix
 
     def calculate_precision_recall(self, conf, gold):
         # Filter down to stuff that we have anything in the gold standard for
@@ -76,7 +52,6 @@ class ResultsProcessor:
         recall = np.insert(self.recall, 0, 0)
 
         return recall, precision
-
 
     def save_network_to_tsv(self, combined_confidences, resc_betas_median, priors, gold_standard,
                             output_dir, output_file_name="network.tsv", conf_threshold=0):
@@ -114,7 +89,7 @@ class ResultsProcessor:
 
             # Add gold standard, precision, and recall (or nan if the gold standard does not cover this interaction)
             if row_name in gold_standard.index and column_name in gold_standard.columns:
-                row_data += [gold_standard.ix[row_name, column_name], precision_list.pop(0), recall_list.pop(0)]
+                row_data += [gold_standard.ix[row_name, column_name], precision_list.pop(), recall_list.pop()]
             else:
                 row_data += [np.nan, np.nan, np.nan]
 
@@ -127,16 +102,25 @@ class ResultsProcessor:
                 wr.writerow(row)
 
     def summarize_network(self, output_dir, gold_standard, priors):
-        combined_confidences = self.compute_combined_confidences()
-        betas_stack = self.threshold_and_summarize()
-        combined_confidences.to_csv(os.path.join(output_dir, 'combined_confidences.tsv'), sep='\t')
-        betas_stack.to_csv(os.path.join(output_dir, 'betas_stack.tsv'), sep='\t')
-        recall, precision = self.calculate_precision_recall(combined_confidences, gold_standard)
+        self.combined_confidences = self.compute_combined_confidences(self.betas, self.rescaled_betas)
+        self.beta_threshold, self.betas_sign, self.beta_nonzero = self.threshold_and_summarize(self.betas,
+                                                                                               self.threshold)
+
+        # Output results to a TSV
+        self.combined_confidences.to_csv(os.path.join(output_dir, 'combined_confidences.tsv'), sep='\t')
+        self.beta_threshold.to_csv(os.path.join(output_dir, 'betas_stack.tsv'), sep='\t')
+
+        # Calculate precision & recall
+        recall, precision = self.calculate_precision_recall(self.combined_confidences, gold_standard)
         aupr = self.calculate_aupr(recall, precision)
         utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=aupr), level=0)
+
+        # Plot PR curve
         self.plot_pr_curve(recall, precision, aupr, output_dir)
+
+
         resc_betas_mean, resc_betas_median = self.mean_and_median(self.rescaled_betas)
-        self.save_network_to_tsv(combined_confidences, resc_betas_median, priors, gold_standard, output_dir)
+        self.save_network_to_tsv(self.combined_confidences, resc_betas_median, priors, gold_standard, output_dir)
         return aupr
 
     def find_conf_threshold(self, precision_threshold=None, recall_threshold=None):
@@ -152,7 +136,6 @@ class ResultsProcessor:
             raise ValueError("Set precision or recall")
         if precision_threshold is not None and recall_threshold is not None:
             raise ValueError("Set precision or recall. Not both.")
-
 
         if precision_threshold is not None:
             if 1 >= precision_threshold >= 0:
@@ -173,6 +156,61 @@ class ResultsProcessor:
             return np.min(self.sorted_pr_confidences[threshold_index])
 
     @staticmethod
+    def compute_combined_confidences(betas, rescaled_betas):
+        """
+        Calculate combined confidences based on betas and beta error reduction
+        :param betas: list(pd.DataFrame) B x [G x K]
+            List of beta dataframes (each dataframe is the result of one bootstrap run)
+        :param rescaled_betas: list(pd.DataFrame) B x [G x K]
+            List of beta_resc dataframes (each dataframe is the result of one bootstrap run
+        :return combine_conf: pd.DataFrame [G x K]
+        """
+        combine_conf = pd.DataFrame(np.zeros(betas[0].shape), index=betas[0].index, columns=betas[0].columns)
+        for beta_resc in rescaled_betas:
+            # Flatten and rank based on the beta error reductions
+            ranked_df = np.reshape(pd.DataFrame(beta_resc.values.flatten()).rank(method="average").values,
+                                   rescaled_betas[0].shape)
+            # Sum the rankings for each bootstrap
+            combine_conf = combine_conf + ranked_df
+
+        # Convert rankings to confidence values
+        min_element = min(combine_conf.values.flatten())
+        combine_conf = (combine_conf - min_element) / (len(betas) * combine_conf.size - min_element)
+        return combine_conf
+
+    @staticmethod
+    def threshold_and_summarize(betas, threshold):
+        """
+        Compute summary information about betas
+
+        :param betas: list(pd.DataFrame) B x [G x K]
+        :param threshold: float
+            The proportion of bootstraps (0 to 1)
+        :return thresholded_matrix: pd.DataFrame [G x K]
+            A bool dataframe where 1 corresponds to interactions that are in more than the threshold proportion of
+            bootstraps
+        :return betas_sign: pd.DataFrame [G x K]
+            A dataframe with the summation of np.sign() for each bootstrap
+        :return betas_non_zero: pd.DataFrame [G x K]
+            A dataframe with a count of the number of non-zero betas for an interaction
+        """
+        betas_sign = pd.DataFrame(np.zeros(betas[0].shape), index=betas[0].index, columns=betas[0].columns)
+        betas_non_zero = pd.DataFrame(np.zeros(betas[0].shape), index=betas[0].index, columns=betas[0].columns)
+        for beta in betas:
+            # Convert betas to -1,0,1 based on signing and then sum the results for each bootstrap
+            betas_sign = betas_sign + np.sign(beta.values)
+            # Tally all non-zeros for each bootstrap
+            betas_non_zero = betas_non_zero + (beta != 0).astype(int)
+
+        # The following line returns 1 for all entries that appear in more than (or equal to) self.threshold fraction of
+        # bootstraps and 0 otherwise
+
+        thresholded_matrix = ((betas_non_zero / len(betas)) >= threshold).astype(int)
+        # Note that the current version is blind to the sign of those betas, so the betas_sign matrix is not used. Later
+        # we might want to modify this such that only same-sign interactions count.
+        return thresholded_matrix, betas_sign, betas_non_zero
+
+    @staticmethod
     def plot_pr_curve(recall, precision, aupr, output_dir):
         plt.figure()
         plt.plot(recall, precision)
@@ -181,7 +219,6 @@ class ResultsProcessor:
         plt.annotate("aupr = {aupr}".format(aupr=aupr), xy=(0.4, 0.05), xycoords='axes fraction')
         plt.savefig(os.path.join(output_dir, 'pr_curve.pdf'))
         plt.close()
-
 
     @staticmethod
     def calculate_aupr(recall, precision):
