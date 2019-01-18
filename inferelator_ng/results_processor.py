@@ -53,7 +53,7 @@ class ResultsProcessor:
 
         return recall, precision
 
-    def save_network_to_tsv(self, combined_confidences, resc_betas_median, priors, gold_standard,
+    def save_network_to_tsv(self, combined_confidences, betas_sign, resc_betas_median, priors, gold_standard,
                             output_dir, output_file_name="network.tsv", conf_threshold=0):
 
         output_list = [
@@ -76,10 +76,8 @@ class ResultsProcessor:
             comb_conf = combined_confidences.ix[row_name, column_name]
 
             # Add interactor names, beta_sign, median_beta, and combined_confidence
-            row_data += [column_name, row_name,
-                         self.betas_sign.ix[row_name, column_name],
-                         resc_betas_median[index_idx, column_idx],
-                         comb_conf]
+            row_data += [column_name, row_name, betas_sign.ix[row_name, column_name],
+                         resc_betas_median[index_idx, column_idx], comb_conf]
 
             # Add prior value (or nan if the priors does not cover this interaction)
             if row_name in priors.index and column_name in priors.columns:
@@ -120,7 +118,8 @@ class ResultsProcessor:
 
 
         resc_betas_mean, resc_betas_median = self.mean_and_median(self.rescaled_betas)
-        self.save_network_to_tsv(self.combined_confidences, resc_betas_median, priors, gold_standard, output_dir)
+        self.save_network_to_tsv(self.combined_confidences, self.betas_sign, resc_betas_median, priors, gold_standard,
+                                 output_dir)
         return aupr
 
     def find_conf_threshold(self, precision_threshold=None, recall_threshold=None):
