@@ -19,9 +19,69 @@ from inferelator_ng import amusr_regression
 from inferelator_ng import results_processor
 
 
+class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
+    """
+    This results processor should handle the results of the MultiTask inferelator
+    """
+
+    def summarize_network(self, output_dir, gold_standard, priors):
+        """
+
+        :param output_dir: (path, [path])
+        :param gold_standard:
+        :param priors:
+        :return:
+        """
+        overall_confidences = []
+        overall_resc_betas = []
+        overall_sign = pd.DataFrame(np.zeros(self.betas[0][0].shape), index=self.betas[0][0].index,
+                                    columns=self.betas[0][0].columns)
+        overall_threshold = overall_sign.copy()
+
+        for task_id, task_dir in enumerate(output_dir[1]):
+            combined_confidences = self.compute_combined_confidences(self.rescaled_betas[task_id])
+            task_threshold, task_sign, task_nonzero = self.threshold_and_summarize(self.betas[task_id], self.threshold)
+
+            overall_confidences.append(combined_confidences)
+            overall_sign += np.sign(task_sign)
+            overall_threshold += task_threshold
+
+            combined_confidences.to_csv(os.path.join(task_dir, 'combined_confidences.tsv'), sep='\t')
+            task_threshold.to_csv(os.path.join(task_dir, 'betas_stack.tsv'), sep='\t')
+
+            recall, precision = self.calculate_precision_recall(combined_confidences, gold_standard)
+            aupr = self.calculate_aupr(recall, precision)
+            utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=aupr), level=0)
+
+            # Plot PR curve
+            self.plot_pr_curve(recall, precision, aupr, output_dir)
+
+            task_resc_betas_mean, task_resc_betas_median = self.mean_and_median(self.rescaled_betas[task_id])
+            overall_resc_betas.append(task_resc_betas_median)
+
+            self.save_network_to_tsv(combined_confidences, task_sign, task_resc_betas_median, priors, gold_standard,
+                                     task_dir)
+
+        rank_combine_conf = self.compute_combined_confidences(overall_confidences)
+        rank_combine_conf.to_csv(os.path.join(output_dir[0], 'combined_confidences.tsv'), sep='\t')
+
+        overall_threshold = (overall_threshold / len(overall_confidences) > self.threshold).astype(int)
+        overall_threshold.to_csv(os.path.join(output_dir[0], 'betas_stack.tsv'), sep='\t')
+
+        recall, precision = self.calculate_precision_recall(rank_combine_conf, gold_standard)
+        aupr = self.calculate_aupr(recall, precision)
+        utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=aupr), level=0)
+
+        task_resc_betas_mean, task_resc_betas_median = self.mean_and_median(overall_resc_betas)
+        self.save_network_to_tsv(rank_combine_conf, overall_sign, task_resc_betas_median, priors, gold_standard,
+                                 output_dir[0])
+
+        return aupr
+
+
 class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, single_cell_puppeteer_workflow.PuppeteerWorkflow):
     regression_type = amusr_regression
-    prior_weight = 1
+    prior_weight = 1.
     task_expression_filter = "intersection"
 
     def startup_finish(self):
@@ -91,29 +151,15 @@ class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, single_cell_p
         """
         Output result report(s) for workflow run.
         """
-        self.create_output_dir()
-        for k in range(self.n_tasks):
-            output_dir = os.path.join(self.output_dir, self.tasks_dir[k])
+        if self.is_master():
+            self.create_output_dir()
+            self.output_dir = (self.output_dir, [os.path.join(self.output_dir, tk) for tk in self.tasks_dir])
 
-            try:
-                os.makedirs(output_dir)
-            except OSError:
-                pass
+            for task_path in self.output_dir[1]:
+                try:
+                    os.makedirs(task_path)
+                except OSError:
+                    pass
 
-            rp = results_processor.ResultsProcessor(betas[k], rescaled_betas[k],
-                                                    filter_method=self.gold_standard_filter_method)
-            rp.summarize_network(output_dir, gold_standard, priors_data)
-
-    def set_gold_standard_and_priors(self):
-        """
-        Read priors file into priors_data and gold standard file into gold_standard
-        """
-        self.priors_data = self.input_dataframe(self.priors_file)
-
-        if self.split_priors_for_gold_standard:
-            self.split_priors_into_gold_standard()
-        else:
-            self.gold_standard = self.input_dataframe(self.gold_standard_file)
-
-        if self.split_gold_standard_for_crossvalidation:
-            self.cross_validate_gold_standard()
+            rp = ResultsProcessorMultiTask(betas, rescaled_betas, filter_method=self.gold_standard_filter_method)
+            rp.summarize_network(self.output_dir, gold_standard, priors_data)
