@@ -69,15 +69,13 @@ class ResultsProcessor:
         for i in sorted_by_confidence:
             row_data = []
             # Since this was sorted using a flattened index, we need to reconvert into labeled 2d index
-            index_idx = int(i / num_cols)
-            column_idx = i % num_cols
-            row_name = combined_confidences.index[index_idx]
-            column_name = combined_confidences.columns[column_idx]
+            row_name = combined_confidences.index[int(i / num_cols)]
+            column_name = combined_confidences.columns[i % num_cols]
             comb_conf = combined_confidences.ix[row_name, column_name]
 
             # Add interactor names, beta_sign, median_beta, and combined_confidence
             row_data += [column_name, row_name, betas_sign.ix[row_name, column_name],
-                         resc_betas_median[index_idx, column_idx], comb_conf]
+                         resc_betas_median.ix[row_name, column_name], comb_conf]
 
             # Add prior value (or nan if the priors does not cover this interaction)
             if row_name in priors.index and column_name in priors.columns:
@@ -232,7 +230,9 @@ class ResultsProcessor:
     @staticmethod
     def mean_and_median(stack):
         matrix_stack = [x.values for x in stack]
-        return np.mean(matrix_stack, axis=0), np.median(matrix_stack, axis=0)
+        mean_data = pd.DataFrame(np.mean(matrix_stack, axis=0), index = stack[0].index, columns = stack[0].columns)
+        median_data = pd.DataFrame(np.median(matrix_stack, axis=0), index = stack[0].index, columns = stack[0].columns)
+        return mean_data, median_data
 
     @staticmethod
     def filter_to_left_size(left, right):
