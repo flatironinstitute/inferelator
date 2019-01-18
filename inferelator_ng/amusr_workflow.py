@@ -54,7 +54,7 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
             utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=aupr), level=0)
 
             # Plot PR curve
-            self.plot_pr_curve(recall, precision, aupr, output_dir)
+            self.plot_pr_curve(recall, precision, aupr, task_dir)
 
             task_resc_betas_mean, task_resc_betas_median = self.mean_and_median(self.rescaled_betas[task_id])
             overall_resc_betas.append(task_resc_betas_median)
@@ -83,6 +83,13 @@ class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, single_cell_p
     regression_type = amusr_regression
     prior_weight = 1.
     task_expression_filter = "intersection"
+
+    # Task-specific data
+    n_tasks = None
+    task_design = []
+    task_response = []
+    task_meta_data = []
+    task_bootstraps = []
 
     def startup_finish(self):
         # If the expression matrix is [G x N], transpose it for preprocessing
