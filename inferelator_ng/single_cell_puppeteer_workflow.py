@@ -49,39 +49,42 @@ class NoOutputRP(results_processor.ResultsProcessor):
         return aupr, stable_interactions, precision_interactions
 
 
-# Factory method to spit out a SingleCellPuppetWorkflow with the appropriate regression type
-class SingleCellPuppetWorkflow(single_cell_workflow.SingleCellWorkflow):
-    """
-    Standard workflow except it takes all the data as references to __init__ instead of as filenames on disk or
-    as environment variables, and saves the model AUPR without outputting anything
-    """
+# Factory method to spit out a puppet workflow
+def create_puppet_workflow(base_class=single_cell_workflow.SingleCellWorkflow, result_processor=NoOutputRP):
+    class puppet_class(base_class):
+        """
+        Standard workflow except it takes all the data as references to __init__ instead of as filenames on disk or
+        as environment variables, and saves the model AUPR without outputting anything
+        """
 
-    network_file_path = None
-    network_file_name = None
+        network_file_path = None
+        network_file_name = None
 
-    def __init__(self, kvs, rank, expr_data, meta_data, prior_data, gs_data):
-        self.kvs = kvs
-        self.rank = rank
-        self.expression_matrix = expr_data
-        self.meta_data = meta_data
-        self.priors_data = prior_data
-        self.gold_standard = gs_data
+        def __init__(self, kvs, rank, expr_data, meta_data, prior_data, gs_data):
+            self.kvs = kvs
+            self.rank = rank
+            self.expression_matrix = expr_data
+            self.meta_data = meta_data
+            self.priors_data = prior_data
+            self.gold_standard = gs_data
 
-    def startup_run(self):
-        if self.split_priors_for_gold_standard:
-            self.split_priors_into_gold_standard()
-        elif self.split_gold_standard_for_crossvalidation:
-            self.cross_validate_gold_standard()
+        def startup_run(self):
+            if self.split_priors_for_gold_standard:
+                self.split_priors_into_gold_standard()
+            elif self.split_gold_standard_for_crossvalidation:
+                self.cross_validate_gold_standard()
 
-    def emit_results(self, betas, rescaled_betas, gold_standard, priors):
-        if self.is_master():
-            results = NoOutputRP(betas, rescaled_betas, filter_method=self.gold_standard_filter_method)
-            results = results.summarize_network(self.network_file_path, gold_standard, priors,
-                                                output_file_name=self.network_file_name)
-            self.aupr, self.n_interact, self.precision_interact = results
-        else:
-            self.aupr, self.n_interact, self.precision_interact = None, None, None
+        def emit_results(self, betas, rescaled_betas, gold_standard, priors):
+            if self.is_master():
+                results = result_processor(betas, rescaled_betas, filter_method=self.gold_standard_filter_method)
+                results.output_file_name = self.network_file_name
+                results = results.summarize_network(self.network_file_path, gold_standard, priors,
+                                                    output_file_name=self.network_file_name)
+                self.aupr, self.n_interact, self.precision_interact = results
+            else:
+                self.aupr, self.n_interact, self.precision_interact = None, None, None
 
+    return puppet_class
 
 class PuppeteerWorkflow(object):
     """
@@ -92,6 +95,9 @@ class PuppeteerWorkflow(object):
     csv_writer = None  # csv.csvwriter
     csv_header = []  # list[]
     output_file_name = "aupr.tsv"  # str
+
+    puppet_class = single_cell_workflow.SingleCellWorkflow
+    puppet_result_processor = NoOutputRP
 
     def create_writer(self):
         """
@@ -123,7 +129,8 @@ class PuppeteerWorkflow(object):
             priors_data = self.priors_data
 
         # Create a new puppet workflow with the factory method and pass in data on instantiation
-        puppet = SingleCellPuppetWorkflow(self.kvs, self.rank, expr_data, meta_data, priors_data, gold_standard)
+        puppet = create_puppet_workflow(base_class = self.puppet_class, result_processor = self.puppet_result_processor)
+        puppet = puppet(self.kvs, self.rank, expr_data, meta_data, priors_data, gold_standard)
 
         # Transfer the class variables necessary to get the puppet to dance (everything in SHARED_CLASS_VARIABLES)
         self.assign_class_vars(puppet)

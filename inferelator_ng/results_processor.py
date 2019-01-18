@@ -56,6 +56,9 @@ class ResultsProcessor:
     def save_network_to_tsv(self, combined_confidences, betas_sign, resc_betas_median, priors, gold_standard,
                             output_dir, output_file_name="network.tsv", conf_threshold=0):
 
+        if output_dir is None:
+            return
+
         output_list = [
             ['regulator', 'target', 'beta.sign.sum', 'beta.non.zero', 'var.exp.median', 'combined_confidences',
              'prior', 'gold.standard', 'precision', 'recall']]
@@ -103,8 +106,8 @@ class ResultsProcessor:
                                                                                                self.threshold)
 
         # Output results to a TSV
-        self.combined_confidences.to_csv(os.path.join(output_dir, 'combined_confidences.tsv'), sep='\t')
-        self.beta_threshold.to_csv(os.path.join(output_dir, 'betas_stack.tsv'), sep='\t')
+        self.write_csv(self.combined_confidences, output_dir, 'combined_confidences.tsv')
+        self.write_csv(self.beta_threshold, output_dir, 'betas_stack.tsv')
 
         # Calculate precision & recall
         recall, precision = self.calculate_precision_recall(self.combined_confidences, gold_standard)
@@ -151,6 +154,12 @@ class ResultsProcessor:
             return 2.0
         else:
             return np.min(self.sorted_pr_confidences[threshold_index])
+
+    @staticmethod
+    def write_csv(data, pathname, filename):
+        if pathname is not None and filename is not None:
+            data.to_csv(os.path.join(pathname, filename), sep='\t')
+
 
     @staticmethod
     def compute_combined_confidences(rescaled_betas):
@@ -212,6 +221,8 @@ class ResultsProcessor:
 
     @staticmethod
     def plot_pr_curve(recall, precision, aupr, output_dir):
+        if output_dir is None:
+            return
         plt.figure()
         plt.plot(recall, precision)
         plt.xlabel('recall')

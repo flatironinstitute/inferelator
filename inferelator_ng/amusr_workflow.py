@@ -24,14 +24,8 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
     This results processor should handle the results of the MultiTask inferelator
     """
 
-    def summarize_network(self, output_dir, gold_standard, priors):
-        """
-
-        :param output_dir: (path, [path])
-        :param gold_standard:
-        :param priors:
-        :return:
-        """
+    def summarize_network(self, output_dir, gold_standard, priors, confidence_threshold=default.DEFAULT_CONF,
+                          precision_threshold=default.DEFAULT_PREC):
         overall_confidences = []
         overall_resc_betas = []
         overall_sign = pd.DataFrame(np.zeros(self.betas[0][0].shape), index=self.betas[0][0].index,
@@ -46,8 +40,8 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
             overall_sign += np.sign(task_sign)
             overall_threshold += task_threshold
 
-            combined_confidences.to_csv(os.path.join(task_dir, 'combined_confidences.tsv'), sep='\t')
-            task_threshold.to_csv(os.path.join(task_dir, 'betas_stack.tsv'), sep='\t')
+            self.write_csv(combined_confidences, task_dir, 'combined_confidences.tsv')
+            self.write_csv(task_threshold, task_dir, 'betas_stack.tsv')
 
             recall, precision = self.calculate_precision_recall(combined_confidences, gold_standard)
             aupr = self.calculate_aupr(recall, precision)
@@ -63,10 +57,10 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
                                      task_dir)
 
         rank_combine_conf = self.compute_combined_confidences(overall_confidences)
-        rank_combine_conf.to_csv(os.path.join(output_dir[0], 'combined_confidences.tsv'), sep='\t')
+        self.write_csv(rank_combine_conf, output_dir[0], 'combined_confidences.tsv')
 
         overall_threshold = (overall_threshold / len(overall_confidences) > self.threshold).astype(int)
-        overall_threshold.to_csv(os.path.join(output_dir[0], 'betas_stack.tsv'), sep='\t')
+        self.write_csv(overall_threshold, output_dir[0], 'betas_stack.tsv')
 
         recall, precision = self.calculate_precision_recall(rank_combine_conf, gold_standard)
         aupr = self.calculate_aupr(recall, precision)
@@ -76,7 +70,13 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
         self.save_network_to_tsv(rank_combine_conf, overall_sign, task_resc_betas_median, priors, gold_standard,
                                  output_dir[0])
 
-        return aupr
+        # Calculate how many interactions are stable (are above the combined confidence threshold)
+        stable_interactions = (rank_combine_conf > confidence_threshold).sum().sum()
+        # Calculate how many interactions we should keep for our model (are above the precision threshold)
+        confidence_cutoff = self.find_conf_threshold(precision_threshold=precision_threshold)
+        precision_interactions = (rank_combine_conf > confidence_cutoff).sum().sum()
+
+        return aupr, stable_interactions, precision_interactions
 
 
 class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, single_cell_puppeteer_workflow.PuppeteerWorkflow):
@@ -90,6 +90,11 @@ class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, single_cell_p
     task_response = []
     task_meta_data = []
     task_bootstraps = []
+    tasks_dir = []
+
+    # Axis labels to keep
+    targets = None
+    regulators = None
 
     def startup_finish(self):
         # If the expression matrix is [G x N], transpose it for preprocessing
@@ -169,4 +174,7 @@ class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, single_cell_p
                     pass
 
             rp = ResultsProcessorMultiTask(betas, rescaled_betas, filter_method=self.gold_standard_filter_method)
-            rp.summarize_network(self.output_dir, gold_standard, priors_data)
+            results = rp.summarize_network(self.output_dir, gold_standard, priors_data)
+            self.aupr, self.n_interact, self.precision_interact = results
+        else:
+            self.aupr, self.n_interact, self.precision_interact = None, None, None
