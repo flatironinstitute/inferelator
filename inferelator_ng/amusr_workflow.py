@@ -65,6 +65,7 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
         recall, precision = self.calculate_precision_recall(rank_combine_conf, gold_standard)
         aupr = self.calculate_aupr(recall, precision)
         utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=aupr), level=0)
+        self.plot_pr_curve(recall, precision, aupr, output_dir)
 
         task_resc_betas_mean, task_resc_betas_median = self.mean_and_median(overall_resc_betas)
         self.save_network_to_tsv(rank_combine_conf, overall_sign, task_resc_betas_median, priors, gold_standard,

@@ -37,11 +37,11 @@ class ResultsProcessor:
         utils.Debug.vprint("Filtered to GS: {gs}, Confidences: {conf}".format(gs=gold.shape, conf=conf.shape), level=0)
 
         # Get the index to sort the confidences
-        conf_sort_idx = np.argsort(conf.values, axis=None)[::-1]
-        gs_values = gold.values.flatten()[conf_sort_idx]
+        self.conf_sort_idx = np.argsort(conf.values, axis=None)[::-1]
+        gs_values = gold.values.flatten()[self.conf_sort_idx]
 
         # Save sorted confidences for later
-        self.sorted_pr_confidences = conf.values.flatten()[conf_sort_idx]
+        self.sorted_pr_confidences = conf.values.flatten()[self.conf_sort_idx]
 
         # the following mimicks the R function ChristophsPR
         self.precision = np.cumsum(gs_values).astype(float) / np.cumsum([1] * len(gs_values))
@@ -60,14 +60,17 @@ class ResultsProcessor:
             return
 
         output_list = [
-            ['regulator', 'target', 'beta.sign.sum', 'beta.non.zero', 'var.exp.median', 'combined_confidences',
+            ['regulator', 'target', 'beta.sign.sum', 'var.exp.median', 'combined_confidences',
              'prior', 'gold.standard', 'precision', 'recall']]
 
         sorted_by_confidence = np.argsort(combined_confidences.values, axis=None)[::-1]
         num_cols = len(combined_confidences.columns)
 
-        precision_list = self.precision.tolist()
-        recall_list = self.recall.tolist()
+        reverse_index = np.argsort(self.conf_sort_idx)
+        precision_data = pd.DataFrame(self.precision[reverse_index].reshape(betas_sign.shape),
+                                      index=betas_sign.index, columns=betas_sign.columns)
+        recall_data = pd.DataFrame(self.recall[reverse_index].reshape(betas_sign.shape),
+                                      index=betas_sign.index, columns=betas_sign.columns)
 
         for i in sorted_by_confidence:
             row_data = []
@@ -88,7 +91,8 @@ class ResultsProcessor:
 
             # Add gold standard, precision, and recall (or nan if the gold standard does not cover this interaction)
             if row_name in gold_standard.index and column_name in gold_standard.columns:
-                row_data += [gold_standard.ix[row_name, column_name], precision_list.pop(), recall_list.pop()]
+                row_data += [gold_standard.ix[row_name, column_name], precision_data.ix[row_name, column_name],
+                             recall_data.ix[row_name, column_name]]
             else:
                 row_data += [np.nan, np.nan, np.nan]
 
