@@ -25,7 +25,7 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
     """
 
     def summarize_network(self, output_dir, gold_standard, priors, confidence_threshold=default.DEFAULT_CONF,
-                          precision_threshold=default.DEFAULT_PREC):
+                          precision_threshold=default.DEFAULT_PREC, output_task_files=True):
         overall_confidences = []
         overall_resc_betas = []
         overall_sign = pd.DataFrame(np.zeros(self.betas[0][0].shape), index=self.betas[0][0].index,
@@ -33,51 +33,40 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
         overall_threshold = overall_sign.copy()
 
         for task_id, task_dir in enumerate(output_dir[1]):
-            combined_confidences = self.compute_combined_confidences(self.rescaled_betas[task_id])
+            pr_calc = results_processor.RankSummaryPR(self.rescaled_betas[task_id], gold_standard,
+                                                      filter_method=self.filter_method)
             task_threshold, task_sign, task_nonzero = self.threshold_and_summarize(self.betas[task_id], self.threshold)
+            task_resc_betas_mean, task_resc_betas_median = self.mean_and_median(self.rescaled_betas[task_id])
+            network_data = {'beta.sign.sum': task_sign, 'var.exp.median': task_resc_betas_median}
 
-            overall_confidences.append(combined_confidences)
+            # Pile up data
+            overall_confidences.append(pr_calc.combined_confidences())
+            overall_resc_betas.append(task_resc_betas_median)
             overall_sign += np.sign(task_sign)
             overall_threshold += task_threshold
 
-            self.write_csv(combined_confidences, task_dir, 'combined_confidences.tsv')
-            self.write_csv(task_threshold, task_dir, 'betas_stack.tsv')
+            utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=pr_calc.aupr), level=0)
 
-            recall, precision = self.calculate_precision_recall(combined_confidences, gold_standard)
-            aupr = self.calculate_aupr(recall, precision)
-            utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=aupr), level=0)
+            if output_task_files:
+                self.write_output_files(pr_calc, task_dir, priors, gold_standard, task_threshold, network_data)
 
-            # Plot PR curve
-            self.plot_pr_curve(recall, precision, aupr, task_dir)
-
-            task_resc_betas_mean, task_resc_betas_median = self.mean_and_median(self.rescaled_betas[task_id])
-            overall_resc_betas.append(task_resc_betas_median)
-
-            self.save_network_to_tsv(combined_confidences, task_sign, task_resc_betas_median, priors, gold_standard,
-                                     task_dir)
-
-        rank_combine_conf = self.compute_combined_confidences(overall_confidences)
-        self.write_csv(rank_combine_conf, output_dir[0], 'combined_confidences.tsv')
+        overall_pr_calc = results_processor.RankSummaryPR(overall_confidences, gold_standard,
+                                                          filter_method=self.filter_method)
 
         overall_threshold = (overall_threshold / len(overall_confidences) > self.threshold).astype(int)
-        self.write_csv(overall_threshold, output_dir[0], 'betas_stack.tsv')
+        overall_resc_betas_mean, overall_resc_betas_median = self.mean_and_median(overall_resc_betas)
+        network_data = {'beta.sign.sum': overall_sign, 'var.exp.median': overall_resc_betas_median}
 
-        recall, precision = self.calculate_precision_recall(rank_combine_conf, gold_standard)
-        aupr = self.calculate_aupr(recall, precision)
-        utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=aupr), level=0)
-        self.plot_pr_curve(recall, precision, aupr, output_dir[0])
+        utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=overall_pr_calc.aupr), level=0)
 
-        task_resc_betas_mean, task_resc_betas_median = self.mean_and_median(overall_resc_betas)
-        self.save_network_to_tsv(rank_combine_conf, overall_sign, task_resc_betas_median, priors, gold_standard,
-                                 output_dir[0])
+        self.write_output_files(overall_pr_calc, output_dir[0], priors, gold_standard, overall_threshold, network_data)
 
         # Calculate how many interactions are stable (are above the combined confidence threshold)
-        stable_interactions = (rank_combine_conf > confidence_threshold).sum().sum()
+        stable_interactions = overall_pr_calc.num_over_conf_threshold(confidence_threshold)
         # Calculate how many interactions we should keep for our model (are above the precision threshold)
-        confidence_cutoff = self.find_conf_threshold(precision_threshold=precision_threshold)
-        precision_interactions = (rank_combine_conf > confidence_cutoff).sum().sum()
+        precision_interactions = overall_pr_calc.num_over_precision_threshold(precision_threshold)
 
-        return aupr, stable_interactions, precision_interactions
+        return overall_pr_calc.aupr, stable_interactions, precision_interactions
 
 
 class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, single_cell_puppeteer_workflow.PuppeteerWorkflow):
