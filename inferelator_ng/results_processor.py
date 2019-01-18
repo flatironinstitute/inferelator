@@ -29,9 +29,6 @@ class ResultsProcessor:
             raise ValueError("{val} is not an allowed filter_method option".format(val=filter_method))
 
     def calculate_precision_recall(self, conf, gold):
-        # Filter down to stuff that we have anything in the gold standard for
-        gold = np.abs(gold.loc[(gold != 0).any(axis=1), (gold != 0).any(axis=0)])
-
         utils.Debug.vprint("GS: {gs}, Confidences: {conf}".format(gs=gold.shape, conf=conf.shape), level=0)
         gold, conf = self.filter_method(gold, conf)
         utils.Debug.vprint("Filtered to GS: {gs}, Confidences: {conf}".format(gs=gold.shape, conf=conf.shape), level=0)
@@ -166,29 +163,28 @@ class ResultsProcessor:
 
 
     @staticmethod
-    def compute_combined_confidences(rescaled_betas):
+    def compute_combined_confidences(rankable_data):
         """
-        Calculate combined confidences based on the rescaled betas
-        :param rescaled_betas: list(pd.DataFrame) B x [G x K]
-            List of beta_resc dataframes (each dataframe is the result of one bootstrap run)
-        :return combine_conf: pd.DataFrame [G x K]
+        Calculate combined confidences from rank sum
+        :param rankable_data: list(pd.DataFrame) R x [M x N]
+            List of dataframes which have the same axes and need to be rank summed
+        :return combine_conf: pd.DataFrame [M x N]
         """
 
         # Create an 0s dataframe shaped to the data to be ranked
-        combine_conf = pd.DataFrame(np.zeros(rescaled_betas[0].shape),
-                                    index=rescaled_betas[0].index,
-                                    columns=rescaled_betas[0].columns)
+        combine_conf = pd.DataFrame(np.zeros(rankable_data[0].shape),
+                                    index=rankable_data[0].index,
+                                    columns=rankable_data[0].columns)
 
-        for beta_resc in rescaled_betas:
+        for replicate in rankable_data:
             # Flatten and rank based on the beta error reductions
-            ranked_df = np.reshape(pd.DataFrame(beta_resc.values.flatten()).rank(method="average").values,
-                                   rescaled_betas[0].shape)
+            ranked_replicate = np.reshape(pd.DataFrame(replicate.values.flatten()).rank().values, replicate.shape)
             # Sum the rankings for each bootstrap
-            combine_conf = combine_conf + ranked_df
+            combine_conf += ranked_replicate
 
         # Convert rankings to confidence values
         min_element = min(combine_conf.values.flatten())
-        combine_conf = (combine_conf - min_element) / (len(rescaled_betas) * combine_conf.size - min_element)
+        combine_conf = (combine_conf - min_element) / (len(rankable_data) * combine_conf.size - min_element)
         return combine_conf
 
     @staticmethod
