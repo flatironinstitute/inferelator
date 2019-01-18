@@ -67,7 +67,8 @@ class ResultsProcessor:
     def save_network_to_tsv(pr_calc, priors, output_dir, output_file_name="network.tsv", extra_columns=None):
 
         header = ['regulator', 'target', 'combined_confidences', 'prior', 'gold.standard', 'precision', 'recall']
-        header += [k for k in sorted(extra_columns.keys())]
+        if extra_columns is not None:
+            header += [k for k in sorted(extra_columns.keys())]
 
         output_list = [header]
 
@@ -89,11 +90,12 @@ class ResultsProcessor:
             else:
                 row_data += [np.nan, np.nan, np.nan]
 
-            for k in sorted(extra_columns.keys()):
-                if row_name in extra_columns[k].index and column_name in extra_columns[k].columns:
-                    row_data += [extra_columns[k].ix[row_name, column_name]]
-                else:
-                    row_data += [np.nan]
+            if extra_columns is not None:
+                for k in sorted(extra_columns.keys()):
+                    if row_name in extra_columns[k].index and column_name in extra_columns[k].columns:
+                        row_data += [extra_columns[k].ix[row_name, column_name]]
+                    else:
+                        row_data += [np.nan]
 
         with open(os.path.join(output_dir, output_file_name), 'w') as myfile:
             wr = csv.writer(myfile, delimiter='\t')
@@ -257,6 +259,15 @@ class RankSummaryPR(object):
             return idx[::-1]
         else:
             return idx
+
+    def num_over_precision_threshold(self, threshold):
+        return np.sum(self.all_confidences.values > self.precision_threshold(threshold), axis=None)
+
+    def num_over_recall_threshold(self, threshold):
+        return np.sum(self.all_confidences.values > self.recall_threshold(threshold), axis=None)
+
+    def num_over_conf_threshold(self, threshold):
+        return np.sum(self.all_confidences.values > threshold, axis=None)
 
     def precision_threshold(self, threshold):
         return self.find_pr_threshold(self.precision, threshold)
