@@ -67,10 +67,10 @@ class ResultsProcessor:
         num_cols = len(combined_confidences.columns)
 
         reverse_index = np.argsort(self.conf_sort_idx)
-        precision_data = pd.DataFrame(self.precision[reverse_index].reshape(betas_sign.shape),
-                                      index=betas_sign.index, columns=betas_sign.columns)
-        recall_data = pd.DataFrame(self.recall[reverse_index].reshape(betas_sign.shape),
-                                      index=betas_sign.index, columns=betas_sign.columns)
+        precision_data = pd.DataFrame(self.precision[reverse_index].reshape(gold_standard.shape),
+                                      index=gold_standard.index, columns=gold_standard.columns)
+        recall_data = pd.DataFrame(self.recall[reverse_index].reshape(gold_standard.shape),
+                                      index=gold_standard.index, columns=gold_standard.columns)
 
         for i in sorted_by_confidence:
             row_data = []
