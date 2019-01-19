@@ -2,7 +2,6 @@ from __future__ import print_function
 
 import os
 import csv
-import copy
 
 import numpy as np
 import pandas as pd
@@ -11,6 +10,7 @@ from inferelator_ng import single_cell_workflow
 from inferelator_ng import results_processor
 from inferelator_ng import utils
 from inferelator_ng import default
+from inferelator_ng import bbsr_python
 
 # The variable names that get set in the main workflow, but need to get copied to the puppets
 SHARED_CLASS_VARIABLES = ['tf_names', 'gene_list', 'num_bootstraps', 'modify_activity_from_metadata',
@@ -118,6 +118,7 @@ class PuppeteerWorkflow(object):
 
     puppet_class = single_cell_workflow.SingleCellWorkflow
     puppet_result_processor = NoOutputRP
+    regression_type = bbsr_python
 
     def create_writer(self):
         """
