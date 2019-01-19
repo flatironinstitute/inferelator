@@ -26,27 +26,48 @@ class NoOutputRP(results_processor.ResultsProcessor):
     instructed to do so
     """
 
-    def summarize_network(self, output_dir, gold_standard, priors, confidence_threshold=default.DEFAULT_CONF,
-                          precision_threshold=default.DEFAULT_PREC, output_file_name=None):
+    network_file_name = None
+    pr_curve_file_name = None
+    confidence_file_name = None
+    threshold_file_name = None
 
-        # Calculate combined confidences
-        combined_confidences = self.compute_combined_confidences(self.rescaled_betas)
-        # Calculate precision and recall
-        recall, precision = self.calculate_precision_recall(combined_confidences, gold_standard)
-        # Calculate AUPR
-        aupr = self.calculate_aupr(recall, precision)
-        # Calculate how many interactions are stable (are above the combined confidence threshold)
-        stable_interactions = (combined_confidences > confidence_threshold).sum().sum()
-        # Calculate how many interactions we should keep for our model (are above the precision threshold)
-        confidence_cutoff = self.find_conf_threshold(precision_threshold=precision_threshold)
-        precision_interactions = (combined_confidences > confidence_cutoff).sum().sum()
-        # Output the network as a tsv
-        if output_file_name is not None:
-            _, betas_sign, _ = self.threshold_and_summarize(self.betas, self.threshold)
-            resc_betas_mean, resc_betas_median = self.mean_and_median(self.rescaled_betas)
-            self.save_network_to_tsv(combined_confidences, betas_sign, resc_betas_median, priors, gold_standard,
-                                     output_dir=output_dir, output_file_name=output_file_name)
-        return aupr, stable_interactions, precision_interactions
+    def summarize_network(self, output_dir, gold_standard, priors, confidence_threshold=default.DEFAULT_CONF,
+                          precision_threshold=default.DEFAULT_PREC):
+        """
+        Take the betas and rescaled beta_errors, construct a network, and test it against the gold standard
+        :param output_dir: str
+            Path to write files into. Don't write anything if this is None.
+        :param gold_standard: pd.DataFrame [G x K]
+            Gold standard to test the network against
+        :param priors: pd.DataFrame [G x K]
+            Prior data
+        :param confidence_threshold: float
+            Threshold for confidence scores
+        :param precision_threshold: float
+            Threshold for precision
+        :return aupr: float
+            Returns the AUPR calculated from the network and gold standard
+        :return num_conf: int
+            The number of interactions above the confidence threshold
+        :return num_prec: int
+            The number of interactions above the precision threshold
+        """
+
+        pr_calc = results_processor.RankSummaryPR(self.rescaled_betas, gold_standard, filter_method=self.filter_method)
+        beta_sign, beta_nonzero = self.summarize(self.betas)
+        beta_threshold = self.passes_threshold(beta_nonzero, len(self.betas), self.threshold)
+        resc_betas_mean, resc_betas_median = self.mean_and_median(self.rescaled_betas)
+        network_data = {'beta.sign.sum': beta_sign, 'var.exp.median': resc_betas_median}
+
+        utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=pr_calc.aupr), level=0)
+
+        # Plot PR curve & Output results to a TSV
+        self.write_output_files(pr_calc, output_dir, priors, beta_threshold, network_data)
+
+        num_conf = pr_calc.num_over_conf_threshold(confidence_threshold)
+        num_prec = pr_calc.num_over_precision_threshold(precision_threshold)
+
+        return pr_calc.aupr, num_conf, num_prec
 
 
 # Factory method to spit out a puppet workflow
@@ -77,9 +98,8 @@ def create_puppet_workflow(base_class=single_cell_workflow.SingleCellWorkflow, r
         def emit_results(self, betas, rescaled_betas, gold_standard, priors):
             if self.is_master():
                 results = result_processor(betas, rescaled_betas, filter_method=self.gold_standard_filter_method)
-                results.output_file_name = self.network_file_name
-                results = results.summarize_network(self.network_file_path, gold_standard, priors,
-                                                    output_file_name=self.network_file_name)
+                results.network_file_name = self.network_file_name
+                results = results.summarize_network(self.network_file_path, gold_standard, priors)
                 self.aupr, self.n_interact, self.precision_interact = results
             else:
                 self.aupr, self.n_interact, self.precision_interact = None, None, None

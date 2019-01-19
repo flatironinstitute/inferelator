@@ -11,6 +11,22 @@ import matplotlib.pyplot as plt
 
 class ResultsProcessor:
 
+    # Data
+    betas = None
+    rescaled_betas = None
+    filter_method = None
+
+    # Cutoffs
+    threshold = None
+
+    # File names
+    network_file_name = "network.tsv"
+    confidence_file_name = "combined_confidences.tsv"
+    threshold_file_name = "betas_stack.tsv"
+    pr_curve_file_name = "pr_curve.pdf"
+
+
+
     def __init__(self, betas, rescaled_betas, threshold=0.5, filter_method='overlap'):
         self.betas = betas
         self.rescaled_betas = rescaled_betas
@@ -21,50 +37,43 @@ class ResultsProcessor:
         else:
             raise ValueError("Threshold must be a float in the interval [0, 1]")
 
-    def summarize_network(self, output_dir, gold_standard, priors, output_files=True):
+    def summarize_network(self, output_dir, gold_standard, priors):
+        """
+        Take the betas and rescaled beta_errors, construct a network, and test it against the gold standard
+        :param output_dir: str
+            Path to write files into. Don't write anything if this is None.
+        :param gold_standard: pd.DataFrame [G x K]
+            Gold standard to test the network against
+        :param priors: pd.DataFrame [G x K]
+            Prior data
+        :return aupr: float
+            Returns the AUPR calculated from the network and gold standard
+        """
 
-        self.pr_calc = RankSummaryPR(self.rescaled_betas, gold_standard, filter_method=self.filter_method)
+        pr_calc = RankSummaryPR(self.rescaled_betas, gold_standard, filter_method=self.filter_method)
         beta_sign, beta_nonzero = self.summarize(self.betas)
         beta_threshold = self.passes_threshold(beta_nonzero, len(self.betas), self.threshold)
         resc_betas_mean, resc_betas_median = self.mean_and_median(self.rescaled_betas)
         network_data = {'beta.sign.sum': beta_sign, 'var.exp.median': resc_betas_median}
 
-        utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=self.pr_calc.aupr), level=0)
+        utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=pr_calc.aupr), level=0)
 
-        # Plot PR curve
-        # Output results to a TSV
-        if output_files:
-            self.write_output_files(self.pr_calc, output_dir, priors, beta_threshold, network_data)
+        # Plot PR curve & Output results to a TSV
+        self.write_output_files(pr_calc, output_dir, priors, beta_threshold, network_data)
 
-        return self.pr_calc.aupr
+        return pr_calc.aupr
 
     def write_output_files(self, pr_calc, output_dir, priors, beta_threshold, network_data):
-        self.write_csv(pr_calc.combined_confidences(), output_dir, 'combined_confidences.tsv')
-        self.write_csv(beta_threshold, output_dir, 'betas_stack.tsv')
-        pr_calc.output_pr_curve_pdf(output_dir)
-        self.save_network_to_tsv(pr_calc, priors, output_dir, extra_columns=network_data)
-
-    def find_conf_threshold(self, precision_threshold=None, recall_threshold=None):
-        """
-        Determine the combined confidence at a precision or a recall threshold
-        :param precision_threshold: float
-        :param recall_threshold: float
-        :return: float
-            Confidence value threshold
-        """
-
-        if precision_threshold is None and recall_threshold is None:
-            raise ValueError("Set precision or recall")
-        if precision_threshold is not None and recall_threshold is not None:
-            raise ValueError("Set precision or recall. Not both.")
-
-        if precision_threshold is not None:
-            return self.pr_calc.precision_threshold(precision_threshold)
-        if recall_threshold is not None:
-            return self.pr_calc.recall_threshold(recall_threshold)
+        self.write_csv(pr_calc.combined_confidences(), output_dir, self.confidence_file_name)
+        self.write_csv(beta_threshold, output_dir, self.threshold_file_name)
+        pr_calc.output_pr_curve_pdf(output_dir, file_name=self.pr_curve_file_name)
+        self.save_network_to_tsv(pr_calc, priors, output_dir, output_file_name=self.network_file_name,
+                                 extra_columns=network_data)
 
     @staticmethod
     def save_network_to_tsv(pr_calc, priors, output_dir, output_file_name="network.tsv", extra_columns=None):
+        if output_dir is None or output_file_name is None:
+            return False
 
         header = ['regulator', 'target', 'combined_confidences', 'prior', 'gold.standard', 'precision', 'recall']
         if extra_columns is not None:
@@ -371,11 +380,13 @@ class RankSummaryPR(object):
         return sum(d_recall * m_precision)
 
     @staticmethod
-    def plot_pr_curve(recall, precision, aupr, output_dir):
+    def plot_pr_curve(recall, precision, aupr, output_dir, file_name="pr_curve.pdf"):
+        if file_name is None or output_dir is None:
+            return False
         plt.figure()
         plt.plot(recall, precision)
         plt.xlabel('recall')
         plt.ylabel('precision')
         plt.annotate("aupr = {aupr}".format(aupr=aupr), xy=(0.4, 0.05), xycoords='axes fraction')
-        plt.savefig(os.path.join(output_dir, 'pr_curve.pdf'))
+        plt.savefig(os.path.join(output_dir, file_name))
         plt.close()
