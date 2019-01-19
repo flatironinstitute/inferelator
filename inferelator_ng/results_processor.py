@@ -65,10 +65,11 @@ class ResultsProcessor:
         self.write_csv(beta_threshold, output_dir, self.threshold_file_name)
         pr_calc.output_pr_curve_pdf(output_dir, file_name=self.pr_curve_file_name)
         self.save_network_to_tsv(pr_calc, priors, output_dir, output_file_name=self.network_file_name,
-                                 extra_columns=network_data)
+                                 beta_threshold=beta_threshold, extra_columns=network_data)
 
     @staticmethod
-    def save_network_to_tsv(pr_calc, priors, output_dir, output_file_name="network.tsv", extra_columns=None):
+    def save_network_to_tsv(pr_calc, priors, output_dir, confidence_threshold=0, output_file_name="network.tsv",
+                            beta_threshold=None, extra_columns=None):
         if output_dir is None or output_file_name is None:
             return False
 
@@ -81,6 +82,12 @@ class ResultsProcessor:
         recall_data, precision_data = pr_calc.dataframe_recall_precision()
 
         for row_name, column_name, conf in pr_calc.confidence_ordered_generator():
+            if conf < confidence_threshold:
+                continue
+
+            if beta_threshold is not None and not beta_threshold.ix[row_name, column_name]:
+                continue
+
             row_data = [column_name, row_name, conf]
 
             # Add prior value (or nan if the priors does not cover this interaction)
