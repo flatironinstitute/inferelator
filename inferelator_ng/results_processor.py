@@ -269,13 +269,13 @@ class RankSummaryPR(object):
             return idx
 
     def num_over_precision_threshold(self, threshold):
-        return np.sum(self.all_confidences.values > self.precision_threshold(threshold), axis=None)
+        return np.sum(self.all_confidences.values >= self.precision_threshold(threshold), axis=None)
 
     def num_over_recall_threshold(self, threshold):
-        return np.sum(self.all_confidences.values > self.recall_threshold(threshold), axis=None)
+        return np.sum(self.all_confidences.values >= self.recall_threshold(threshold), axis=None)
 
     def num_over_conf_threshold(self, threshold):
-        return np.sum(self.all_confidences.values > threshold, axis=None)
+        return np.sum(self.all_confidences.values >= threshold, axis=None)
 
     def precision_threshold(self, threshold):
         return self.find_pr_threshold(self.precision, threshold)
