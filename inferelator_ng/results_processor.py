@@ -97,6 +97,8 @@ class ResultsProcessor:
                     else:
                         row_data += [np.nan]
 
+            output_list.append(row_data)
+
         with open(os.path.join(output_dir, output_file_name), 'w') as myfile:
             wr = csv.writer(myfile, delimiter='\t')
             for row in output_list:
