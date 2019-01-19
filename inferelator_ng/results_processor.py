@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 
 
 class ResultsProcessor:
-
     # Data
     betas = None
     rescaled_betas = None
@@ -24,8 +23,6 @@ class ResultsProcessor:
     confidence_file_name = "combined_confidences.tsv"
     threshold_file_name = "betas_stack.tsv"
     pr_curve_file_name = "pr_curve.pdf"
-
-
 
     def __init__(self, betas, rescaled_betas, threshold=0.5, filter_method='overlap'):
         self.betas = betas
@@ -236,12 +233,12 @@ class RankSummaryPR(object):
                               index=self.filtered_confidences.index, columns=self.filtered_confidences.columns)
         return recall, precision
 
-    def output_pr_curve_pdf(self, output_dir):
+    def output_pr_curve_pdf(self, output_dir, file_name="pr_curve.pdf"):
         if output_dir is None:
             return False
         else:
             recall, precision = self.modify_pr(self.recall, self.precision)
-            self.plot_pr_curve(recall, precision, self.aupr, output_dir)
+            self.plot_pr_curve(recall, precision, self.aupr, output_dir, file_name=file_name)
 
     def combined_confidences(self):
         return self.all_confidences
