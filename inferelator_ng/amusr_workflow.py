@@ -48,7 +48,7 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
             utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=pr_calc.aupr), level=0)
 
             if output_task_files:
-                self.save_network_to_tsv(pr_calc, priors, gold_standard, task_dir, extra_columns=network_data)
+                self.write_output_files(pr_calc, task_dir, priors, task_threshold, network_data)
 
         overall_pr_calc = results_processor.RankSummaryPR(overall_confidences, gold_standard,
                                                           filter_method=self.filter_method)
@@ -59,7 +59,7 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
 
         utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=overall_pr_calc.aupr), level=0)
 
-        self.save_network_to_tsv(overall_pr_calc, priors, gold_standard, output_dir[0], extra_columns=network_data)
+        self.write_output_files(overall_pr_calc, output_dir[0], priors, overall_threshold, network_data)
 
         # Calculate how many interactions are stable (are above the combined confidence threshold)
         stable_interactions = overall_pr_calc.num_over_conf_threshold(confidence_threshold)
