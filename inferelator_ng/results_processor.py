@@ -38,11 +38,11 @@ class ResultsProcessor:
 
         return self.pr_calc.aupr
 
-    def write_output_files(self, pr_calc, output_dir, priors, gold_standard, beta_threshold, network_data):
+    def write_output_files(self, pr_calc, output_dir, priors, beta_threshold, network_data):
         self.write_csv(pr_calc.combined_confidences(), output_dir, 'combined_confidences.tsv')
         self.write_csv(beta_threshold, output_dir, 'betas_stack.tsv')
         pr_calc.output_pr_curve_pdf(output_dir)
-        self.save_network_to_tsv(pr_calc, priors, gold_standard, output_dir, extra_columns=network_data)
+        self.save_network_to_tsv(pr_calc, priors, output_dir, extra_columns=network_data)
 
     def find_conf_threshold(self, precision_threshold=None, recall_threshold=None):
         """
