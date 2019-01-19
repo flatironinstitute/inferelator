@@ -34,7 +34,7 @@ class ResultsProcessor:
         # Plot PR curve
         # Output results to a TSV
         if output_files:
-            self.write_output_files(self.pr_calc, output_dir, priors, gold_standard, beta_threshold, network_data)
+            self.write_output_files(self.pr_calc, output_dir, priors, beta_threshold, network_data)
 
         return self.pr_calc.aupr
 
@@ -279,13 +279,13 @@ class RankSummaryPR(object):
         if 1 >= threshold >= 0:
             threshold_index = pr > threshold
         else:
-            raise ValueError("Precision must be between 0 and 1")
+            raise ValueError("Precision/recall threshold must be between 0 and 1")
 
         # If there's nothing in the index return np.inf.
         if np.sum(threshold_index) == 0:
             return np.inf
         else:
-            return np.min(self.filtered_confidences[self.ranked_idx][threshold_index])
+            return np.min(self.filtered_confidences.values.flatten()[self.ranked_idx][threshold_index])
 
     @staticmethod
     def compute_combined_confidences(rankable_data):
