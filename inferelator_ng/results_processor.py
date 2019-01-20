@@ -61,6 +61,15 @@ class ResultsProcessor:
         return pr_calc.aupr
 
     def write_output_files(self, pr_calc, output_dir, priors, beta_threshold, network_data):
+        if output_dir is None:
+            return None
+        elif not os.path.exists(output_dir):
+            try:
+                os.makedirs(output_dir)
+            except OSError as error:
+                utils.Debug.vprint("Unable to create path {pa}: {err}".format(pa=output_dir, err=str(error)))
+                return None
+
         self.write_csv(pr_calc.combined_confidences(), output_dir, self.confidence_file_name)
         self.write_csv(beta_threshold, output_dir, self.threshold_file_name)
         pr_calc.output_pr_curve_pdf(output_dir, file_name=self.pr_curve_file_name)
