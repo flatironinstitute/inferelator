@@ -72,7 +72,7 @@ class NoOutputRP(results_processor.ResultsProcessor):
 
 # Factory method to spit out a puppet workflow
 def create_puppet_workflow(base_class=single_cell_workflow.SingleCellWorkflow, result_processor=NoOutputRP):
-    class puppet_class(base_class):
+    class PuppetClass(base_class):
         """
         Standard workflow except it takes all the data as references to __init__ instead of as filenames on disk or
         as environment variables, and saves the model AUPR without outputting anything
@@ -99,12 +99,15 @@ def create_puppet_workflow(base_class=single_cell_workflow.SingleCellWorkflow, r
             if self.is_master():
                 results = result_processor(betas, rescaled_betas, filter_method=self.gold_standard_filter_method)
                 results.network_file_name = self.network_file_name
+                results.pr_curve_file_name = None
+                results.confidence_file_name = None
+                results.threshold_file_name = None
                 results = results.summarize_network(self.network_file_path, gold_standard, priors)
                 self.aupr, self.n_interact, self.precision_interact = results
             else:
                 self.aupr, self.n_interact, self.precision_interact = None, None, None
 
-    return puppet_class
+    return PuppetClass
 
 class PuppeteerWorkflow(object):
     """
