@@ -75,7 +75,7 @@ def create_puppet_workflow(base_class=single_cell_workflow.SingleCellWorkflow, r
     class PuppetClass(base_class):
         """
         Standard workflow except it takes all the data as references to __init__ instead of as filenames on disk or
-        as environment variables, and saves the model AUPR without outputting anything
+        as environment variables, and returns the model AUPR and edge counts without writing files (unless told to)
         """
 
         network_file_path = None
@@ -102,6 +102,7 @@ def create_puppet_workflow(base_class=single_cell_workflow.SingleCellWorkflow, r
                 results.pr_curve_file_name = None
                 results.confidence_file_name = None
                 results.threshold_file_name = None
+                results.write_task_files = False
                 results = results.summarize_network(self.network_file_path, gold_standard, priors)
                 self.aupr, self.n_interact, self.precision_interact = results
             else:
