@@ -50,7 +50,7 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
             utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=pr_calc.aupr), level=0)
 
             if self.write_task_files is True and output_dir is not None:
-                self.write_output_files(pr_calc, os.path.join(output_dir, task_dir), priors, task_threshold,
+                self.write_output_files(pr_calc, os.path.join(output_dir[0], task_dir), priors, task_threshold,
                                         network_data)
 
         overall_pr_calc = results_processor.RankSummaryPR(overall_confidences, gold_standard,
