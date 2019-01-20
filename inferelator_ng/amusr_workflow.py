@@ -24,8 +24,10 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
     This results processor should handle the results of the MultiTask inferelator
     """
 
+    write_task_files = True
+
     def summarize_network(self, output_dir, gold_standard, priors, confidence_threshold=default.DEFAULT_CONF,
-                          precision_threshold=default.DEFAULT_PREC, output_task_files=True):
+                          precision_threshold=default.DEFAULT_PREC):
         overall_confidences = []
         overall_resc_betas = []
         overall_sign = pd.DataFrame(np.zeros(self.betas[0][0].shape), index=self.betas[0][0].index,
@@ -47,8 +49,9 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
 
             utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=pr_calc.aupr), level=0)
 
-            if output_task_files:
-                self.write_output_files(pr_calc, task_dir, priors, task_threshold, network_data)
+            if self.write_task_files is True and output_dir is not None:
+                self.write_output_files(pr_calc, os.path.join(output_dir, task_dir), priors, task_threshold,
+                                        network_data)
 
         overall_pr_calc = results_processor.RankSummaryPR(overall_confidences, gold_standard,
                                                           filter_method=self.filter_method)
@@ -80,7 +83,7 @@ class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, single_cell_p
     task_response = []
     task_meta_data = []
     task_bootstraps = []
-    tasks_dir = []
+    tasks_names = []
 
     # Axis labels to keep
     targets = None
@@ -119,7 +122,7 @@ class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, single_cell_p
         self.n_tasks = len(task_data)
         self.expression_matrix = task_data
         self.meta_data = task_metadata
-        self.tasks_dir = task_name
+        self.tasks_names = task_name
 
         utils.Debug.vprint("Separated data into {ntask} tasks".format(ntask=self.n_tasks), level=0)
 
@@ -155,16 +158,8 @@ class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, single_cell_p
         """
         if self.is_master():
             self.create_output_dir()
-            self.output_dir = (self.output_dir, [os.path.join(self.output_dir, tk) for tk in self.tasks_dir])
-
-            for task_path in self.output_dir[1]:
-                try:
-                    os.makedirs(task_path)
-                except OSError:
-                    pass
-
             rp = ResultsProcessorMultiTask(betas, rescaled_betas, filter_method=self.gold_standard_filter_method)
-            results = rp.summarize_network(self.output_dir, gold_standard, priors_data)
+            results = rp.summarize_network((self.output_dir, self.tasks_names), gold_standard, priors_data)
             self.aupr, self.n_interact, self.precision_interact = results
         else:
             self.aupr, self.n_interact, self.precision_interact = None, None, None
