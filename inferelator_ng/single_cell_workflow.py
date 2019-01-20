@@ -74,15 +74,6 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
             self.priors_data = self.priors_data.loc[self.priors_data.index.intersection(genes)]
             utils.Debug.vprint("Priors data filtered to {sh}".format(sh=self.priors_data.shape), level=1)
 
-        # Only keep stuff from the expression matrix that's got counts
-        expression_data_exists = self.expression_matrix.sum(axis=1) != 0
-        if not expression_data_exists.all():
-            removed_gene_count = self.expression_matrix.shape[0] - expression_data_exists.sum()
-            self.expression_matrix = self.expression_matrix.loc[expression_data_exists, :]
-            utils.Debug.vprint("{cn} all-0 genes removed from expression {sh}".format(cn=removed_gene_count,
-                                                                                      sh=self.expression_matrix.shape),
-                               level=1)
-
         self.align_priors_and_expression()
         self.shuffle_priors()
 
