@@ -6,6 +6,7 @@ from inferelator_ng import kvs_controller
 from inferelator_ng.tests.test_mi import Test2By2, Test2By3
 
 # TODO: Actually implement this well
+# TODO: Find out if nosetests going alphabetical is actually spec or just a thing that happens sometimes
 temp_fd, temp_file_name = tempfile.mkstemp()
 os.close(temp_fd)
 KVS_CMD = ['python', '-m', 'kvsstcp.kvsstcp', "--addrfile", temp_file_name]

@@ -38,8 +38,10 @@ class TestAMuSRrunner(unittest.TestCase):
 
     def test_amusr_regression(self):
 
-        des = [np.array([[1, 1, 3], [0, 0, 2], [0, 0, 1]]), np.array([[1, 1, 3], [0, 0, 2], [0, 0, 1]])]
-        res = [np.array([1, 2, 3]).reshape(-1, 1), np.array([1, 2, 3]).reshape(-1, 1)]
+        des = [np.array([[1, 1, 3], [0, 0, 2], [0, 0, 1]]).astype(float),
+               np.array([[1, 1, 3], [0, 0, 2], [0, 0, 1]]).astype(float)]
+        res = [np.array([1, 2, 3]).reshape(-1, 1).astype(float),
+               np.array([1, 2, 3]).reshape(-1, 1).astype(float)]
         tfs = ['tf1', 'tf2', 'tf3']
         targets = ['gene1', 'gene2']
         priors = [pd.DataFrame([[0, 1, 1], [1, 0, 1]], index = targets, columns = tfs),
@@ -64,3 +66,30 @@ class TestAMuSRrunner(unittest.TestCase):
                             columns = ['regulator', 'target', 'weights', 'resc_weights'])
         pdt.assert_frame_equal(pd.concat(output[0]), out0, check_dtype=False)
         pdt.assert_frame_equal(pd.concat(output[1]), out1, check_dtype=False)
+
+    def test_unaligned_regression_genes(self):
+
+        tfs = ['tf1', 'tf2', 'tf3']
+        targets = ['gene1', 'gene2', 'gene3']
+        targets1 = ['gene1', 'gene2']
+        targets2 = ['gene1', 'gene3']
+        des = [pd.DataFrame(np.array([[1, 1, 3], [0, 0, 2], [0, 0, 1]]).astype(float), columns = tfs),
+               pd.DataFrame(np.array([[1, 1, 3], [0, 0, 2], [0, 0, 1]]).astype(float), columns = tfs)]
+        res = [pd.DataFrame(np.array([[1, 1], [2, 2], [3, 3]]).astype(float), columns = targets1),
+               pd.DataFrame(np.array([[1, 1], [2, 2], [3, 3]]).astype(float), columns = targets2)]
+        priors = pd.DataFrame([[0, 1, 1], [1, 0, 1], [1, 0, 1]], index = targets, columns = tfs)
+
+        r = amusr_regression.AMuSR_regression(des, res, None, tfs=tfs, genes=targets, priors=priors)
+
+        out = [pd.DataFrame([['tf3', 'gene1', -1, 1], ['tf3', 'gene1', -1, 1]],
+                           index = pd.MultiIndex(levels=[[0, 1], [0]], labels=[[0, 1], [0, 0]]),
+                           columns = ['regulator', 'target', 'weights', 'resc_weights']),
+               pd.DataFrame([['tf3', 'gene2', -1, 1]],
+                            index=pd.MultiIndex(levels=[[0, 1], [0]], labels=[[0], [0]]),
+                            columns=['regulator', 'target', 'weights', 'resc_weights']),
+               pd.DataFrame([['tf3', 'gene3', -1, 1]],
+                            index=pd.MultiIndex(levels=[[0, 1], [0]], labels=[[1], [0]]),
+                            columns=['regulator', 'target', 'weights', 'resc_weights'])]
+
+        for i in range(len(targets)):
+            pdt.assert_frame_equal(pd.concat(r.regress(i)), out[i], check_dtype=False)
