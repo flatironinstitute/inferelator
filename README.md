@@ -1,5 +1,9 @@
 # inferelator_ng
 
+[![Travis](https://travis-ci.org/asistradition/inferelator_ng.svg?branch=master)](https://travis-ci.org/asistradition/inferelator_ng)
+[![codecov](https://codecov.io/gh/asistradition/inferelator_ng/branch/master/graph/badge.svg)](https://codecov.io/gh/asistradition/inferelator_ng)
+
+
 The next generation of the inferelator codebase.
 
 To install the python packages needed for the inferelator, run `pip install -r requirements.txt`
