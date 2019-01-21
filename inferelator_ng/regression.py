@@ -7,6 +7,7 @@ from inferelator_ng import utils
 DEFAULT_CHUNK = 25
 PROGRESS_STR = "Regression on {gn} [{i} / {total}]"
 
+
 class BaseRegression(object):
     # These are all the things that have to be set in a new regression class
 
@@ -171,6 +172,7 @@ def recalculate_betas_from_selected(x, y, idx=None):
     else:
         beta_hat = np.zeros(len(idx), dtype=np.dtype(float))
 
+
     # Use the index array to write beta-hats
     # This yields the same size result matrix as number of predictors in x
     # (even if x is subset with an index)
@@ -210,6 +212,7 @@ def predict_error_reduction(x, y, betas):
             beta_hat = np.linalg.solve(np.dot(x_leaveout.T, x_leaveout), np.dot(x_leaveout.T, y))
         except np.linalg.LinAlgError:
             beta_hat = np.zeros(len(leave_out), dtype=np.dtype(float))
+
 
         # Calculate the variance of the residuals for the new estimated betas
         ss_leaveout = sigma_squared(x_leaveout, y, beta_hat)

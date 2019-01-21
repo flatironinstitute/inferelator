@@ -48,6 +48,7 @@ class MIDriver:
         self.kvs = kvs
         self.temp_dir = sync_in_tmp_path
 
+
     def run(self, x_df, y_df, bins=None, logtype=DEFAULT_LOG_TYPE):
         """
         Wrapper to calculate the CLR and MI for two data sets that have common condition columns
@@ -74,6 +75,7 @@ class MIDriver:
 
 
 def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, temp_dir=None, chunk=DEFAULT_CHUNK):
+
     """
     Calculate the mutual information matrix between two data matrices, where the columns are equivalent conditions
 
@@ -113,7 +115,6 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, temp_dir=
         mi = mi_through_dir(X, Y, bins, kvs, temp_dir, logtype=logtype, chunk=chunk)
 
     return pd.DataFrame(mi, index=mi_r, columns=mi_c)
-
 
 def mi_through_kvs(X, Y, bins, kvs, logtype=DEFAULT_LOG_TYPE, chunk=DEFAULT_CHUNK):
     # Run MI calculations on everything that an ownCheck gives to this process and stash it in KVS

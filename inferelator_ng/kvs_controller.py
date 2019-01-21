@@ -1,7 +1,6 @@
 """
 KVSController is a wrapper for KVSClient that adds some useful functionality related to interprocess
 communication.
-
 It also keeps track of a bunch of SLURM related stuff that was previously workflow's problem.
 """
 
@@ -75,7 +74,6 @@ class KVSController(KVSClient):
         Block all processes until they reach this point, then release them
         It may be wise to use unique prefixes if this is gonna get called rapidly so there's no collision
         Or not. I'm a comment, not a cop.
-
         :param pref: str
             Prefix attached to the KVS keys
         :param value: Anything you can pickle
@@ -110,14 +108,12 @@ class KVSController(KVSClient):
 def ownCheck(kvs, rank, chunk=1, kvs_key='count'):
     """
     Generator
-
     :param kvs: KVSClient
         KVS object for server access
     :param chunk: int
         The size of the chunk given to each subprocess
     :param kvs_key: str
         The KVS key to increment (default is 'count')
-
     :yield: bool
         True if this process has dibs on whatever. False if some other process has claimed it first.
     """

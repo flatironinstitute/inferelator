@@ -184,6 +184,7 @@ class WorkflowBase(object):
         utils.Debug.vprint("Selected prior {pr} and gold standard {gs}".format(pr=self.priors_data.shape,
                                                                                gs=self.gold_standard.shape), level=0)
 
+
     def input_path(self, filename, mode='r'):
         """
         Join filename to input_dir
@@ -220,6 +221,9 @@ class WorkflowBase(object):
         setattr(self, var_name, os.path.join(path, to_append))
 
     def create_default_meta_data(self, expression_matrix):
+        """
+        Create a meta_data dataframe from basic defaults
+        """
         metadata_rows = expression_matrix.columns.tolist()
         metadata_defaults = {"isTs": "FALSE", "is1stLast": "e", "prevCol": "NA", "del.t": "NA", "condName": None}
         data = {}
@@ -267,3 +271,4 @@ class WorkflowBase(object):
             os.makedirs(self.output_dir)
         except OSError:
             pass
+
