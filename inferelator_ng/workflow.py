@@ -6,41 +6,50 @@ code among different variants of the Inferelator workflow.
 """
 
 from inferelator_ng import utils
+from inferelator_ng import default
+from inferelator_ng.prior_gs_split_workflow import split_for_cv, remove_prior_circularity
 import numpy as np
 import os
+import datetime
 import pandas as pd
 
 import gzip
 import bz2
 
-PD_INPUT_SETTINGS = dict(sep="\t", header=0)
 
 
 class WorkflowBase(object):
     # Common configuration parameters
     input_dir = None
-    file_format_settings = PD_INPUT_SETTINGS
+    file_format_settings = default.DEFAULT_PD_INPUT_SETTINGS
     file_format_overrides = dict()
-    expression_matrix_file = "expression.tsv"
-    tf_names_file = "tf_names.tsv"
-    meta_data_file = "meta_data.tsv"
-    priors_file = "gold_standard.tsv"
-    gold_standard_file = "gold_standard.tsv"
+    expression_matrix_file = default.DEFAULT_EXPRESSION_FILE
+    tf_names_file = default.DEFAULT_TFNAMES_FILE
+    meta_data_file = default.DEFAULT_METADATA_FILE
+    priors_file = default.DEFAULT_PRIORS_FILE
+    gold_standard_file = default.DEFAULT_GOLDSTANDARD_FILE
     output_dir = None
-    random_seed = 42
+    random_seed = default.DEFAULT_RANDOM_SEED
+    num_bootstraps = default.DEFAULT_NUM_BOOTSTRAPS
 
-    # Computed data structures
-    expression_matrix = None  # expression_matrix dataframe
-    tf_names = None  # tf_names list
-    meta_data = None  # meta data dataframe
-    priors_data = None  # priors data dataframe
-    gold_standard = None  # gold standard dataframe
+    # Flags to control splitting priors into a prior/gold-standard set
+    split_priors_for_gold_standard = False
+    split_gold_standard_for_crossvalidation = False
+    cv_split_ratio = default.DEFAULT_GS_SPLIT_RATIO
+    cv_split_axis = default.DEFAULT_GS_SPLIT_AXIS
+
+    # Computed data structures [G: Genes, K: Predictors, N: Conditions
+    expression_matrix = None  # expression_matrix dataframe [G x N]
+    tf_names = None  # tf_names list [k,]
+    meta_data = None  # meta data dataframe [G x ?]
+    priors_data = None  # priors data dataframe [G x K]
+    gold_standard = None  # gold standard dataframe [G x K]
 
     # Hold the KVS information
     rank = 0
     kvs = None
     tasks = None
-    
+
     def __init__(self, initialize_mp=True):
         # Connect to KVS and get environment variables
         if initialize_mp:
@@ -134,7 +143,47 @@ class WorkflowBase(object):
         Read priors file into priors_data and gold standard file into gold_standard
         """
         self.priors_data = self.input_dataframe(self.priors_file)
-        self.gold_standard = self.input_dataframe(self.gold_standard_file)
+
+        if self.split_priors_for_gold_standard:
+            self.split_priors_into_gold_standard()
+        else:
+            self.gold_standard = self.input_dataframe(self.gold_standard_file)
+
+        if self.split_gold_standard_for_crossvalidation:
+            self.cross_validate_gold_standard()
+
+    def split_priors_into_gold_standard(self):
+        """
+        Break priors_data in half and give half to the gold standard
+        """
+
+        if self.gold_standard is not None:
+            utils.Debug.vprint("Existing gold standard is being replaced by a split from the prior", level=0)
+        self.priors_data, self.gold_standard = split_for_cv(self.priors_data,
+                                                            self.cv_split_ratio,
+                                                            split_axis=self.cv_split_axis,
+                                                            seed=self.random_seed)
+
+        utils.Debug.vprint("Prior split into a prior {pr} and a gold standard {gs}".format(pr=self.priors_data.shape,
+                                                                                           gs=self.gold_standard.shape),
+                           level=0)
+
+    def cross_validate_gold_standard(self):
+        """
+        Sample the gold standard for crossvalidation, and then remove the new gold standard from the priors
+        """
+
+        utils.Debug.vprint("Resampling prior {pr} and gold standard {gs}".format(pr=self.priors_data.shape,
+                                                                                 gs=self.gold_standard.shape), level=0)
+        _, self.gold_standard = split_for_cv(self.gold_standard,
+                                             self.cv_split_ratio,
+                                             split_axis=self.cv_split_axis,
+                                             seed=self.random_seed)
+        self.priors_data, self.gold_standard = remove_prior_circularity(self.priors_data, self.gold_standard,
+                                                                        split_axis=self.cv_split_axis)
+        utils.Debug.vprint("Selected prior {pr} and gold standard {gs}".format(pr=self.priors_data.shape,
+                                                                               gs=self.gold_standard.shape), level=0)
+
 
     def input_path(self, filename, mode='r'):
         """
@@ -172,6 +221,9 @@ class WorkflowBase(object):
         setattr(self, var_name, os.path.join(path, to_append))
 
     def create_default_meta_data(self, expression_matrix):
+        """
+        Create a meta_data dataframe from basic defaults
+        """
         metadata_rows = expression_matrix.columns.tolist()
         metadata_defaults = {"isTs": "FALSE", "is1stLast": "e", "prevCol": "NA", "del.t": "NA", "condName": None}
         data = {}
@@ -184,11 +236,11 @@ class WorkflowBase(object):
         Guarantee that each row of the prior is in the expression and vice versa.
         Also filter the priors to only includes columns, transcription factors, that are in the tf_names list
         """
-        exp_genes = self.expression_matrix.index.tolist()
-        all_regs_with_data = list(
-            set.union(set(self.expression_matrix.index.tolist()), set(self.priors_data.columns.tolist())))
-        tf_names = list(set.intersection(set(self.tf_names), set(all_regs_with_data)))
-        self.priors_data = self.priors_data.loc[exp_genes, tf_names]
+        expressed_targets = self.expression_matrix.index
+        expressed_or_prior = expressed_targets.union(self.priors_data.columns)
+        keeper_regulators = expressed_or_prior.intersection(self.tf_names)
+
+        self.priors_data = self.priors_data.loc[expressed_targets, keeper_regulators]
         self.priors_data = pd.DataFrame.fillna(self.priors_data, 0)
 
     def get_bootstraps(self):
@@ -196,7 +248,8 @@ class WorkflowBase(object):
         Generate sequence of bootstrap parameter objects for run.
         """
         col_range = range(self.response.shape[1])
-        return np.random.choice(col_range, size=(self.num_bootstraps, self.response.shape[1])).tolist()
+        random_state = np.random.RandomState(seed=self.random_seed)
+        return random_state.choice(col_range, size=(self.num_bootstraps, self.response.shape[1])).tolist()
 
     def emit_results(self):
         """
@@ -210,3 +263,12 @@ class WorkflowBase(object):
             return True
         else:
             return False
+
+    def create_output_dir(self):
+        if self.output_dir is None:
+            self.output_dir = os.path.join(self.input_dir, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+        try:
+            os.makedirs(self.output_dir)
+        except OSError:
+            pass
+
