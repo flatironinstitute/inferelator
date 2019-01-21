@@ -52,6 +52,9 @@ coverage.xml
 # Testing Artifacts:
 inferelator_ng/tests/artifacts/*
 
+# Data
+data/
+
 # Django stuff:
 *.log
 
