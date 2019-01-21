@@ -3,26 +3,26 @@ Run BSubtilis Network Inference with TFA BBSR.
 """
 
 import numpy as np
-import os
 from inferelator_ng import workflow
 from inferelator_ng import design_response_translation  # added python design_response
 from inferelator_ng.tfa import TFA
 from inferelator_ng.results_processor import ResultsProcessor
-from inferelator_ng import mi
 from inferelator_ng import bbsr_python
-from inferelator_ng import elasticnet_python
-import datetime
 from inferelator_ng import utils
+from inferelator_ng import default
 
 
 class TFAWorkFlow(workflow.WorkflowBase):
     # Design/response parameters
-    delTmin = 0
-    delTmax = 120
-    tau = 45
+    delTmin = default.DEFAULT_DELTMIN
+    delTmax = default.DEFAULT_DELTMAX
+    tau = default.DEFAULT_TAU
 
-    # Regression parameters
-    num_bootstraps = 2
+    # Result processing parameters
+    gold_standard_filter_method = default.DEFAULT_GS_FILTER_METHOD
+
+    # Regression implementation
+    regression_type = bbsr_python
 
     def run(self):
         """
@@ -42,12 +42,16 @@ class TFAWorkFlow(workflow.WorkflowBase):
         self.emit_results(betas, rescaled_betas, self.gold_standard, self.priors_data)
 
     def startup_run(self):
+        self.set_regression_type()
         self.get_data()
         self.compute_common_data()
         self.compute_activity()
 
     def startup_finish(self):
         pass
+
+    def set_regression_type(self):
+        self.regression_type.patch_workflow(self)
 
     def run_regression(self):
         betas = []
@@ -80,13 +84,9 @@ class TFAWorkFlow(workflow.WorkflowBase):
         Output result report(s) for workflow run.
         """
         if self.is_master():
-            if self.output_dir is None:
-                self.output_dir = os.path.join(self.input_dir, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
-            try:
-                os.makedirs(self.output_dir)
-            except OSError:
-                pass
-            self.results_processor = ResultsProcessor(betas, rescaled_betas)
+            self.create_output_dir()
+            self.results_processor = ResultsProcessor(betas, rescaled_betas,
+                                                      filter_method=self.gold_standard_filter_method)
             self.results_processor.summarize_network(self.output_dir, gold_standard, priors)
 
     def compute_common_data(self):
@@ -99,30 +99,3 @@ class TFAWorkFlow(workflow.WorkflowBase):
         drd.delTmin, drd.delTmax, drd.tau = self.delTmin, self.delTmax, self.tau
         self.design, self.response, self.half_tau_response = drd.run(self.expression_matrix, self.meta_data)
         self.expression_matrix = None
-
-
-class BBSR_TFA_Workflow(TFAWorkFlow):
-    # Drivers
-    mi_driver = mi.MIDriver
-    regression_driver = bbsr_python.BBSR_runner
-
-    def run_bootstrap(self, bootstrap):
-        X = self.design.iloc[:, bootstrap]
-        Y = self.response.iloc[:, bootstrap]
-        utils.Debug.vprint('Calculating MI, Background MI, and CLR Matrix', level=0)
-        clr_matrix, mi_matrix = self.mi_driver(kvs=self.kvs).run(X, Y)
-        mi_matrix = None
-        utils.Debug.vprint('Calculating betas using BBSR', level=0)
-        return self.regression_driver().run(X, Y, clr_matrix, self.priors_data, self.kvs)
-
-
-class MEN_Workflow(TFAWorkFlow):
-    # Drivers
-    regression_driver = elasticnet_python.ElasticNetRunner
-
-    def run_bootstrap(self, bootstrap):
-        X = self.design.iloc[:, bootstrap]
-        Y = self.response.iloc[:, bootstrap]
-        utils.Debug.vprint('Calculating betas using MEN', level=0)
-        self.kvs.sync_processes("pre-bootstrap")
-        return self.regression_driver().run(X, Y, self.kvs)

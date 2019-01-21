@@ -3,115 +3,403 @@ import pandas as pd
 import os
 import csv
 import matplotlib
+from inferelator_ng import utils
+
 matplotlib.use('pdf')
 import matplotlib.pyplot as plt
 
 
-
 class ResultsProcessor:
+    # Data
+    betas = None
+    rescaled_betas = None
+    filter_method = None
 
-    def __init__(self, betas, rescaled_betas, threshold=0.5):
+    # Cutoffs
+    threshold = None
+
+    # File names
+    network_file_name = "network.tsv"
+    confidence_file_name = "combined_confidences.tsv"
+    threshold_file_name = "betas_stack.tsv"
+    pr_curve_file_name = "pr_curve.pdf"
+
+    def __init__(self, betas, rescaled_betas, threshold=0.5, filter_method='overlap'):
         self.betas = betas
         self.rescaled_betas = rescaled_betas
-        self.threshold = threshold
+        self.filter_method = filter_method
 
-    def compute_combined_confidences(self):
-        combined_confidences = pd.DataFrame(np.zeros((self.betas[0].shape)), index = self.betas[0].index, columns = self.betas[0].columns )
-        for beta_resc in self.rescaled_betas:
-            # this ranking code is especially wordy because the rank function only works in one dimension (col or row), so I had to flatten the matrix
-            ranked_df =np.reshape(pd.DataFrame(np.ndarray.flatten(beta_resc.values)).rank( method = "average").values, self.rescaled_betas[0].shape)
-            combined_confidences = combined_confidences + ranked_df
+        if 1 >= threshold >= 0:
+            self.threshold = threshold
+        else:
+            raise ValueError("Threshold must be a float in the interval [0, 1]")
 
-        min_element = min(combined_confidences.min())
-        combined_confidences = (combined_confidences - min_element) / (len(self.betas) * combined_confidences.size - min_element)
-        return combined_confidences
+    def summarize_network(self, output_dir, gold_standard, priors):
+        """
+        Take the betas and rescaled beta_errors, construct a network, and test it against the gold standard
+        :param output_dir: str
+            Path to write files into. Don't write anything if this is None.
+        :param gold_standard: pd.DataFrame [G x K]
+            Gold standard to test the network against
+        :param priors: pd.DataFrame [G x K]
+            Prior data
+        :return aupr: float
+            Returns the AUPR calculated from the network and gold standard
+        """
 
-    def threshold_and_summarize(self):
-        self.betas_sign = pd.DataFrame(np.zeros((self.betas[0].shape)), index = self.betas[0].index, columns = self.betas[0].columns )
-        self.betas_non_zero = pd.DataFrame(np.zeros((self.betas[0].shape)), index = self.betas[0].index, columns = self.betas[0].columns )
-        for beta in self.betas:
-            self.betas_sign = self.betas_sign + np.sign(beta.values)
-            self.betas_non_zero = self.betas_non_zero + np.absolute(np.sign(beta.values))
-     
-        #The following line returns 1 for all entries that appear in more than (or equal to) self.threshold fraction of bootstraps and 0 otherwise
-        thresholded_matrix = ((self.betas_non_zero / len(self.betas)) >= self.threshold).astype(int)
-        #Note that the current version is blind to the sign of those betas, so the betas_sign matrix is not used. Later we might want to modify this such that only same-sign interactions count.
-        return thresholded_matrix
+        pr_calc = RankSummaryPR(self.rescaled_betas, gold_standard, filter_method=self.filter_method)
+        beta_sign, beta_nonzero = self.summarize(self.betas)
+        beta_threshold = self.passes_threshold(beta_nonzero, len(self.betas), self.threshold)
+        resc_betas_mean, resc_betas_median = self.mean_and_median(self.rescaled_betas)
+        network_data = {'beta.sign.sum': beta_sign, 'var.exp.median': resc_betas_median}
 
-    def calculate_precision_recall(self, combined_confidences, gold_standard):
-        # this code only runs for a positive gold standard, so explicitly transform it using the absolute value: 
-        gold_standard = np.abs(gold_standard)
-        # filter gold standard
-        gold_standard_nozero = gold_standard.loc[(gold_standard!=0).any(axis=1), (gold_standard!=0).any(axis=0)]
-        intersect_index = combined_confidences.index.intersection(gold_standard_nozero.index)
-        intersect_cols = combined_confidences.columns.intersection(gold_standard_nozero.columns)
-        gold_standard_filtered = gold_standard_nozero.loc[intersect_index, intersect_cols]
-        combined_confidences_filtered = combined_confidences.loc[intersect_index, intersect_cols]
-        # rank from highest to lowest confidence
-        sorted_candidates = np.argsort(combined_confidences_filtered.values, axis = None)[::-1]
-        gs_values = gold_standard_filtered.values.flatten()[sorted_candidates]
-        #the following mimicks the R function ChristophsPR
+        utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=pr_calc.aupr), level=0)
+
+        # Plot PR curve & Output results to a TSV
+        self.write_output_files(pr_calc, output_dir, priors, beta_threshold, network_data)
+
+        return pr_calc.aupr
+
+    def write_output_files(self, pr_calc, output_dir, priors, beta_threshold, network_data):
+        if output_dir is None:
+            return None
+        elif not os.path.exists(output_dir):
+            try:
+                os.makedirs(output_dir)
+            except OSError as error:
+                utils.Debug.vprint("Unable to create path {pa}: {err}".format(pa=output_dir, err=str(error)))
+                return None
+
+        self.write_csv(pr_calc.combined_confidences(), output_dir, self.confidence_file_name)
+        self.write_csv(beta_threshold, output_dir, self.threshold_file_name)
+        pr_calc.output_pr_curve_pdf(output_dir, file_name=self.pr_curve_file_name)
+        self.save_network_to_tsv(pr_calc, priors, output_dir, output_file_name=self.network_file_name,
+                                 beta_threshold=beta_threshold, extra_columns=network_data)
+
+    @staticmethod
+    def save_network_to_tsv(pr_calc, priors, output_dir, confidence_threshold=0, output_file_name="network.tsv",
+                            beta_threshold=None, extra_columns=None):
+        if output_dir is None or output_file_name is None:
+            return False
+
+        header = ['regulator', 'target', 'combined_confidences', 'prior', 'gold.standard', 'precision', 'recall']
+        if extra_columns is not None:
+            header += [k for k in sorted(extra_columns.keys())]
+
+        output_list = [header]
+
+        recall_data, precision_data = pr_calc.dataframe_recall_precision()
+
+        for row_name, column_name, conf in pr_calc.confidence_ordered_generator():
+            if conf < confidence_threshold:
+                continue
+
+            if beta_threshold is not None and not beta_threshold.ix[row_name, column_name]:
+                continue
+
+            row_data = [column_name, row_name, conf]
+
+            # Add prior value (or nan if the priors does not cover this interaction)
+            if row_name in priors.index and column_name in priors.columns:
+                row_data += [priors.ix[row_name, column_name]]
+            else:
+                row_data += [np.nan]
+
+            # Add gold standard, precision, and recall (or nan if the gold standard does not cover this interaction)
+            if row_name in pr_calc.gold_standard.index and column_name in pr_calc.gold_standard.columns:
+                row_data += [pr_calc.gold_standard.ix[row_name, column_name], precision_data.ix[row_name, column_name],
+                             recall_data.ix[row_name, column_name]]
+            else:
+                row_data += [np.nan, np.nan, np.nan]
+
+            if extra_columns is not None:
+                for k in sorted(extra_columns.keys()):
+                    if row_name in extra_columns[k].index and column_name in extra_columns[k].columns:
+                        row_data += [extra_columns[k].ix[row_name, column_name]]
+                    else:
+                        row_data += [np.nan]
+
+            output_list.append(row_data)
+
+        with open(os.path.join(output_dir, output_file_name), 'w') as myfile:
+            wr = csv.writer(myfile, delimiter='\t')
+            for row in output_list:
+                wr.writerow(row)
+
+    @staticmethod
+    def write_csv(data, pathname, filename):
+        if pathname is not None and filename is not None:
+            data.to_csv(os.path.join(pathname, filename), sep='\t')
+
+    @staticmethod
+    def threshold_and_summarize(betas, threshold):
+        betas_sign, betas_non_zero = ResultsProcessor.summarize(betas)
+        betas_threshold = ResultsProcessor.passes_threshold(betas_non_zero, len(betas), threshold)
+        return betas_threshold, betas_sign, betas_non_zero
+
+    @staticmethod
+    def summarize(betas):
+        """
+        Compute summary information about betas
+
+        :param betas: list(pd.DataFrame) B x [M x N]
+            A dataframe with the original data
+        :return betas_sign: pd.DataFrame [M x N]
+            A dataframe with the summation of np.sign() for each bootstrap
+        :return betas_non_zero: pd.DataFrame [M x N]
+            A dataframe with a count of the number of non-zero betas for an interaction
+        """
+        betas_sign = pd.DataFrame(np.zeros(betas[0].shape), index=betas[0].index, columns=betas[0].columns)
+        betas_non_zero = pd.DataFrame(np.zeros(betas[0].shape), index=betas[0].index, columns=betas[0].columns)
+        for beta in betas:
+            # Convert betas to -1,0,1 based on signing and then sum the results for each bootstrap
+            betas_sign = betas_sign + np.sign(beta.values)
+            # Tally all non-zeros for each bootstrap
+            betas_non_zero = betas_non_zero + (beta != 0).astype(int)
+
+        return betas_sign, betas_non_zero
+
+    @staticmethod
+    def passes_threshold(betas_non_zero, max_num, threshold):
+        """
+
+        :param betas_non_zero: pd.DataFrame [M x N]
+            A dataframe of integer counts indicating how many times the original data was non-zero
+        :param max_num: int
+            The maximum number of possible counts (# bootstraps)
+        :param threshold: float
+            The proportion of integer counts over max possible in order to consider the interaction valid
+        :return: pd.DataFrame [M x N]
+            A bool dataframe where 1 corresponds to interactions that are in more than the threshold proportion of
+            bootstraps
+        """
+        return ((betas_non_zero / max_num) >= threshold).astype(int)
+
+    @staticmethod
+    def mean_and_median(stack):
+        matrix_stack = [x.values for x in stack]
+        mean_data = pd.DataFrame(np.mean(matrix_stack, axis=0), index=stack[0].index, columns=stack[0].columns)
+        median_data = pd.DataFrame(np.median(matrix_stack, axis=0), index=stack[0].index, columns=stack[0].columns)
+        return mean_data, median_data
+
+
+class RankSummaryPR(object):
+    """
+    This class takes a data set that has some rankable values and a gold standard for which elements of that data set
+    are true and calculates confidences and precision-recall
+    """
+
+    # Filter methods to align gold standard and confidences
+    filter_method = None
+    filter_method_lookup = {'overlap': 'filter_to_overlap',
+                            'keep_all_gold_standard': 'filter_to_left_size'}
+
+    # Data
+    rankable_data = None
+    gold_standard = None
+
+    # Confidences
+    all_confidences = None
+    filtered_confidences = None
+
+    # PR
+    precision = None
+    recall = None
+    aupr = None
+
+    # Ranking
+    ranked_idx = None
+
+    def __init__(self, rankable_data, gold_standard, filter_method='keep_all_gold_standard'):
+
+        try:
+            self.filter_method = getattr(self, self.filter_method_lookup[filter_method])
+        except KeyError:
+            raise ValueError("{val} is not an allowed filter_method option".format(val=filter_method))
+
+        # Calculate confidences based on the ranked data
+        self.rankable_data = rankable_data
+        self.all_confidences = self.compute_combined_confidences(rankable_data)
+
+        # Filter the gold standard and confidences down to a format that can be directly compared
+        utils.Debug.vprint("GS: {gs}, Confidences: {conf}".format(gs=gold_standard.shape,
+                                                                  conf=self.all_confidences.shape),
+                           level=0)
+        self.gold_standard, self.filtered_confidences = self.filter_method(gold_standard, self.all_confidences)
+        utils.Debug.vprint("Filtered to GS: {gs}, Confidences: {conf}".format(gs=gold_standard.shape,
+                                                                              conf=self.all_confidences.shape),
+                           level=0)
+
+        # Calculate the precision and recall and save the index that sorts the ranked confidences (filtered)
+        self.recall, self.precision, self.ranked_idx = self.calculate_precision_recall(self.filtered_confidences,
+                                                                                       self.gold_standard)
+        self.aupr = self.calculate_aupr(self.recall, self.precision)
+
+    def recall_precision(self):
+        return self.recall, self.precision
+
+    def plottable_recall_precision(self):
+        return self.modify_pr(self.recall, self.precision)
+
+    def dataframe_recall_precision(self):
+        reverse_index = np.argsort(self.ranked_idx)
+        precision = pd.DataFrame(self.precision[reverse_index].reshape(self.filtered_confidences.shape),
+                                 index=self.filtered_confidences.index, columns=self.filtered_confidences.columns)
+        recall = pd.DataFrame(self.recall[reverse_index].reshape(self.filtered_confidences.shape),
+                              index=self.filtered_confidences.index, columns=self.filtered_confidences.columns)
+        return recall, precision
+
+    def output_pr_curve_pdf(self, output_dir, file_name="pr_curve.pdf"):
+        if output_dir is None:
+            return False
+        else:
+            recall, precision = self.modify_pr(self.recall, self.precision)
+            self.plot_pr_curve(recall, precision, self.aupr, output_dir, file_name=file_name)
+
+    def combined_confidences(self):
+        return self.all_confidences
+
+    def confidence_ordered_generator(self, threshold=None, desc=True):
+        idx = self.sorted_confidence_index(threshold=threshold, desc=desc)
+        num_cols = len(self.all_confidences.columns)
+        for i in idx:
+            row_name = self.all_confidences.index[int(i / num_cols)]
+            column_name = self.all_confidences.columns[i % num_cols]
+            yield row_name, column_name, self.all_confidences.ix[row_name, column_name]
+
+    def sorted_confidence_index(self, threshold=None, desc=True):
+        conf_values = self.all_confidences.values
+        idx = np.argsort(conf_values, axis=None)
+        if threshold is None:
+            pass
+        elif 1 >= threshold >= 0:
+            drop_count = np.sum(conf_values.flatten() < threshold)
+            if drop_count > 0:
+                idx = idx[:(-1 * drop_count)]
+        else:
+            raise ValueError("Threshold must be between 0 and 1")
+
+        if desc:
+            return idx[::-1]
+        else:
+            return idx
+
+    def num_over_precision_threshold(self, threshold):
+        return np.sum(self.all_confidences.values >= self.precision_threshold(threshold), axis=None)
+
+    def num_over_recall_threshold(self, threshold):
+        return np.sum(self.all_confidences.values >= self.recall_threshold(threshold), axis=None)
+
+    def num_over_conf_threshold(self, threshold):
+        return np.sum(self.all_confidences.values >= threshold, axis=None)
+
+    def precision_threshold(self, threshold):
+        return self.find_pr_threshold(self.precision, threshold)
+
+    def recall_threshold(self, threshold):
+        return self.find_pr_threshold(self.recall, threshold)
+
+    def find_pr_threshold(self, pr, threshold):
+        if 1 >= threshold >= 0:
+            threshold_index = pr > threshold
+        else:
+            raise ValueError("Precision/recall threshold must be between 0 and 1")
+
+        # If there's nothing in the index return np.inf.
+        if np.sum(threshold_index) == 0:
+            return np.inf
+        else:
+            return np.min(self.filtered_confidences.values.flatten()[self.ranked_idx][threshold_index])
+
+    @staticmethod
+    def compute_combined_confidences(rankable_data):
+        """
+        Calculate combined confidences from rank sum
+        :param rankable_data: list(pd.DataFrame) R x [M x N]
+            List of dataframes which have the same axes and need to be rank summed
+        :return combine_conf: pd.DataFrame [M x N]
+        """
+
+        # Create an 0s dataframe shaped to the data to be ranked
+        combine_conf = pd.DataFrame(np.zeros(rankable_data[0].shape),
+                                    index=rankable_data[0].index,
+                                    columns=rankable_data[0].columns)
+
+        for replicate in rankable_data:
+            # Flatten and rank based on the beta error reductions
+            ranked_replicate = np.reshape(pd.DataFrame(replicate.values.flatten()).rank().values, replicate.shape)
+            # Sum the rankings for each bootstrap
+            combine_conf += ranked_replicate
+
+        # Convert rankings to confidence values
+        min_element = min(combine_conf.values.flatten())
+        combine_conf = (combine_conf - min_element) / (len(rankable_data) * combine_conf.size - min_element)
+        return combine_conf
+
+    @staticmethod
+    def calculate_precision_recall(conf, gold):
+        # Get the index to sort the confidences
+        ranked_idx = np.argsort(conf.values, axis=None)[::-1]
+        gs_values = (gold.values != 0).astype(int)
+        gs_values = gs_values.flatten()[ranked_idx]
+
+        # the following mimicks the R function ChristophsPR
         precision = np.cumsum(gs_values).astype(float) / np.cumsum([1] * len(gs_values))
         recall = np.cumsum(gs_values).astype(float) / sum(gs_values)
-        precision = np.insert(precision,0,precision[0])
-        recall = np.insert(recall,0,0)
-        return (recall, precision)
 
-    def calculate_aupr(self, recall, precision):
-        #using midpoint integration to calculate the area under the curve
+        return recall, precision, ranked_idx
+
+    @staticmethod
+    def filter_to_left_size(left, right):
+        # Find out if there are any rows or columns NOT in the left data frame
+        missing_idx = left.index.difference(right.index)
+        missing_col = left.columns.difference(right.columns)
+
+        # Fill out the right dataframe with 0s
+        right_filtered = pd.concat((right, pd.DataFrame(0.0, index=missing_idx, columns=right.columns)), axis=0)
+        right_filtered = pd.concat((right_filtered, pd.DataFrame(0.0, index=right_filtered.index, columns=missing_col)),
+                                   axis=1)
+
+        # Return the right dataframe sized to the left
+        return left, right_filtered.loc[left.index, left.columns]
+
+    @staticmethod
+    def filter_to_overlap(left, right):
+        # Find out of there are any rows or columns in both data frames
+        intersect_idx = right.index.intersection(left.index)
+        intersect_col = right.columns.intersection(left.columns)
+
+        # Return both dataframes sized to the overlap
+        return left.loc[intersect_idx, intersect_col], right.loc[intersect_idx, intersect_col]
+
+    @staticmethod
+    def modify_pr(recall, precision):
+        """
+        Inserts values into the precision and recall to allow for plotting & calculations of area
+        :param recall:
+        :param precision:
+        :return:
+        """
+        precision = np.insert(precision, 0, precision[0])
+        recall = np.insert(recall, 0, 0)
+        return recall, precision
+
+    @staticmethod
+    def calculate_aupr(recall, precision):
+        recall, precision = RankSummaryPR.modify_pr(recall, precision)
+        # using midpoint integration to calculate the area under the curve
         d_recall = np.diff(recall)
         m_precision = precision[:-1] + np.diff(precision) / 2
         return sum(d_recall * m_precision)
 
-
-    def plot_pr_curve(self, recall, precision, aupr, output_dir):
+    @staticmethod
+    def plot_pr_curve(recall, precision, aupr, output_dir, file_name="pr_curve.pdf"):
+        if file_name is None or output_dir is None:
+            return False
         plt.figure()
         plt.plot(recall, precision)
         plt.xlabel('recall')
         plt.ylabel('precision')
         plt.annotate("aupr = {aupr}".format(aupr=aupr), xy=(0.4, 0.05), xycoords='axes fraction')
-        plt.savefig(os.path.join(output_dir, 'pr_curve.pdf'))
+        plt.savefig(os.path.join(output_dir, file_name))
         plt.close()
-
-    def mean_and_median(self, stack):
-        matrix_stack = [x.values for x in stack]
-        mean = np.mean(matrix_stack, axis = 0)
-        median = np.median(matrix_stack, axis = 0)
-        return (mean, median)
-
-    def save_network_to_tsv(self,combined_confidences, resc_betas_median, priors, output_dir):
-        output_list = [['regulator', 'target', 'beta.sign.sum', 'beta.non.zero', 'var.exp.median', 'combined_confidences', 'prior']]
-        sorted_by_confidence = np.argsort(combined_confidences.values, axis = None)[::-1]
-        num_cols = len(combined_confidences.columns)
-        for i in sorted_by_confidence:
-            # Since this was sorted using a flattened index, we need to reconvert into labeled 2d index
-            index_idx = int(i / num_cols)
-            column_idx = i % num_cols
-            row_name = combined_confidences.index[index_idx]   
-            column_name = combined_confidences.columns[column_idx]
-            if row_name in priors.index:
-                prior_value = priors.ix[row_name, column_name]
-            else:
-                prior_value = np.nan
-            if (combined_confidences.ix[row_name, column_name] > 0):
-                output_list.append([column_name, row_name, self.betas_sign.ix[row_name, column_name],
-                    self.betas_non_zero.ix[row_name, column_name], resc_betas_median[index_idx, column_idx],
-                    combined_confidences.ix[row_name, column_name],prior_value])
-        with open(os.path.join(output_dir, 'network.tsv'), 'w') as myfile:
-            wr = csv.writer(myfile,  delimiter = '\t')
-            for row in output_list:
-                wr.writerow(row)
-
-    def summarize_network(self, output_dir, gold_standard, priors):
-        combined_confidences = self.compute_combined_confidences()
-        betas_stack = self.threshold_and_summarize()
-        combined_confidences.to_csv(os.path.join(output_dir, 'combined_confidences.tsv'), sep = '\t')
-        betas_stack.to_csv(os.path.join(output_dir,'betas_stack.tsv'), sep = '\t')
-        (recall, precision) = self.calculate_precision_recall(combined_confidences, gold_standard)
-        aupr = self.calculate_aupr(recall, precision)
-        print("Model AUPR:\t{aupr}".format(aupr=aupr))
-        self.plot_pr_curve(recall, precision, aupr, output_dir)
-        resc_betas_mean, resc_betas_median = self.mean_and_median(self.rescaled_betas)
-        self.save_network_to_tsv(combined_confidences, resc_betas_median, priors, output_dir)
-        return aupr
-        

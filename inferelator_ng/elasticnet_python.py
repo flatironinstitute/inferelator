@@ -73,13 +73,20 @@ class ElasticNetRunner:
         return ElasticNet(X, Y, kvs).run()
 
 
-class MEN_Workflow(tfa_workflow.TFAWorkFlow):
-    # Drivers
-    regression_driver = ElasticNetRunner
+def patch_workflow(obj):
+    """
+    Add elasticnet regression into a TFAWorkflow object
+
+    :param obj: TFAWorkflow
+    """
+
+    import types
 
     def run_bootstrap(self, bootstrap):
         X = self.design.iloc[:, bootstrap]
         Y = self.response.iloc[:, bootstrap]
         utils.Debug.vprint('Calculating betas using MEN', level=0)
         self.kvs.sync_processes("pre-bootstrap")
-        return self.regression_driver().run(X, Y, self.kvs)
+        return ElasticNetRunner().run(X, Y, self.kvs)
+
+    obj.run_bootstrap = types.MethodType(run_bootstrap, obj)

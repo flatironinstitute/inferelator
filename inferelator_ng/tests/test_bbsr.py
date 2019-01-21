@@ -9,13 +9,6 @@ from inferelator_ng import regression
 
 my_dir = os.path.dirname(__file__)
 
-def should_skip(environment_flags=[("TRAVIS", "true"), ("SKIP_KVS_TESTS", "true")]):
-    for (flag, value) in environment_flags:
-        if (flag in os.environ and os.environ[flag] == value):
-            return True
-    # default
-    return False
-
 class TestBBSRrunnerPython(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
@@ -43,11 +36,11 @@ class TestBBSRrunnerPython(unittest.TestCase):
     def setUp(self):
         # Check for os.environ['SLURM_NTASKS']
         self.rank = 0
-        self.brd = bbsr_python.BBSR_runner()
+        self.brd = bbsr_python.BBSR
     
     def run_bbsr(self):
         kvs = self.get_kvs()
-        return self.brd.run(self.X, self.Y, self.clr, self.priors, kvs=kvs)
+        return self.brd(self.X, self.Y, self.clr, self.priors, kvs=kvs).run()
 
     def set_all_zero_priors(self):
         self.priors =  pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2'])
@@ -58,7 +51,6 @@ class TestBBSRrunnerPython(unittest.TestCase):
     def assert_matrix_is_square(self, size, matrix):
         self.assertEqual(matrix.shape, (size, size))
 
-    @unittest.skipIf(should_skip(), "Skipping this test on Travis CI.")
     def test_two_genes(self):
         self.set_all_zero_priors()
         self.set_all_zero_clr()
@@ -80,7 +72,6 @@ class TestBBSRrunnerPython(unittest.TestCase):
         self.assertRaises(CalledProcessError, self.brd.run, self.X, self.Y, self.clr, self.priors)
     '''
 
-    @unittest.skipIf(should_skip(), "Skipping this test on Travis CI.")
     def test_two_genes_nonzero(self):
         self.set_all_zero_priors()
         self.set_all_zero_clr()
@@ -108,7 +99,6 @@ class TestBBSRrunnerPython(unittest.TestCase):
             0     0
     """)
     '''
-    @unittest.skipIf(should_skip(), "Skipping this test on Travis CI.")
     def test_two_genes_nonzero_clr_nonzero(self):
         self.set_all_zero_priors()
         self.X = pd.DataFrame([1, 2], index = ['gene1', 'gene2'], columns = ['ss'])
@@ -120,7 +110,6 @@ class TestBBSRrunnerPython(unittest.TestCase):
         pdt.assert_frame_equal(betas, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
         pdt.assert_frame_equal(resc, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
 
-    @unittest.skipIf(should_skip(), "Skipping this test on Travis CI.")
     def test_two_genes_nonzero_clr_two_conditions_negative_influence(self):
         self.set_all_zero_priors()
         self.X = pd.DataFrame([[1, 2], [2, 1]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
@@ -132,7 +121,6 @@ class TestBBSRrunnerPython(unittest.TestCase):
         pdt.assert_frame_equal(betas, pd.DataFrame([[0, -1],[-1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
         pdt.assert_frame_equal(resc, pd.DataFrame([[0, 1],[1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
 
-    @unittest.skipIf(should_skip(), "Skipping this test on Travis CI.")
     def test_two_genes_nonzero_clr_two_conditions_zero_gene1_negative_influence(self):
         self.set_all_zero_priors()
         self.X = pd.DataFrame([[0, 2], [2, 0]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
@@ -144,7 +132,6 @@ class TestBBSRrunnerPython(unittest.TestCase):
         pdt.assert_frame_equal(betas, pd.DataFrame([[0, -1],[-1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
         pdt.assert_frame_equal(resc, pd.DataFrame([[0, 1],[1, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
 
-    @unittest.skipIf(should_skip(), "Skipping this test on Travis CI.")
     def test_two_genes_zero_clr_two_conditions_zero_betas(self):
         self.set_all_zero_priors()
         self.set_all_zero_clr()
@@ -156,7 +143,6 @@ class TestBBSRrunnerPython(unittest.TestCase):
         pdt.assert_frame_equal(betas, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
         pdt.assert_frame_equal(resc, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
 
-    @unittest.skipIf(should_skip(), "Skipping this test on Travis CI.")
     def test_two_genes_zero_clr_two_conditions_zero_gene1_zero_betas(self):
         self.set_all_zero_priors()
         self.set_all_zero_clr()
@@ -168,7 +154,6 @@ class TestBBSRrunnerPython(unittest.TestCase):
         pdt.assert_frame_equal(betas, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
         pdt.assert_frame_equal(resc, pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2']).astype(float))
 
-    @unittest.skipIf(should_skip(), "Skipping this test on Travis CI.")
     def test_two_genes_nonzero_clr_two_conditions_positive_influence(self):
         self.set_all_zero_priors()
         self.X = pd.DataFrame([[1, 2], [1, 2]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
@@ -194,7 +179,6 @@ class TestBBSRrunnerPython(unittest.TestCase):
         result = regression.predict_error_reduction(self.X, self.Y, betas)
         self.assertTrue((result == [ 0.,  0.]).all())
 
-    @unittest.skipIf(should_skip(), "Skipping this test on Travis CI.")
     def test_two_genes_nonzero_clr_two_conditions_zero_gene1_positive_influence(self):
         self.set_all_zero_priors()
         self.X = pd.DataFrame([[0, 2], [0, 2]], index = ['gene1', 'gene2'], columns = ['ss1', 'ss2'])
