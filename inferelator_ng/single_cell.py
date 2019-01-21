@@ -64,7 +64,7 @@ def normalize_medians_for_batch(expression_matrix, meta_data, **kwargs):
 
     # Convert to a correction factor based on the median of the medians
     median_umi = median_umi / median_umi['umi'].median()
-    umi = umi.join(median_umi, on="Condition", how="left", rsuffix="_mod")
+    umi = umi.join(median_umi, on=batch_factor_column, how="left", rsuffix="_mod")
 
     # Apply the correction factor to all the data
     return expression_matrix.divide(umi['umi_mod'], axis=0), meta_data
@@ -84,7 +84,7 @@ def normalize_sizes_within_batch(expression_matrix, meta_data, **kwargs):
 
     kwargs, batch_factor_column = process_normalize_args(**kwargs)
 
-    utils.Debug.vprint('Normalizing median counts within batches ... ')
+    utils.Debug.vprint('Normalizing to median counts within batches ... ')
 
     # Get UMI counts for each cell
     umi = expression_matrix.sum(axis=1)
@@ -191,69 +191,6 @@ def impute_magic_expression(expression_matrix, meta_data, **kwargs):
     return imputed, meta_data
 
 
-def impute_scimpute_expression(expression_matrix, meta_data, **kwargs):
-    """
-
-    :param expression_matrix: pd.DataFrame
-    :param meta_data: pd.DataFrame
-    :return imputed, meta_data: pd.DataFrame, pd.DataFrame
-    """
-    kwargs, random_seed, output_file = process_impute_args(**kwargs)
-    kwargs, labels = process_normalize_args(**kwargs)
-
-    # Import rpy2
-    from rpy2 import robjects as robj
-    import rpy2.robjects.packages
-
-    # Activate the numpy interface and convert the expression data to a [Genes x Cells] R matrix ojbect
-    import rpy2.robjects.numpy2ri
-    robj.numpy2ri.activate()
-    r_expression_matrix = robj.r.matrix(expression_matrix.values.T)
-
-    import tempfile
-    tempdir = tempfile.mkdtemp()
-
-    utils.Debug.vprint('Imputing data with scImpute ... ')
-    scimpute = robj.packages.importr('scImpute')
-    imputed = scimpute.imputation_wlabel_model8(count=r_expression_matrix,
-                                                labeled=robj.r("TRUE"),
-                                                cell_labels=robj.StrVector(labels),
-                                                point=0.004321374,
-                                                drop_thre=0.5,
-                                                Kcluster=robj.r("NULL"),
-                                                out_dir=tempdir,
-                                                ncores=1)[0]
-    imputed = pd.DataFrame(np.ndarray(imputed).T, index=expression_matrix.index, columns=expression_matrix.columns)
-    shutil.rmtree(tempdir)
-
-    if output_file is not None:
-        imputed.to_csv(output_file, sep="\t")
-
-    return imputed, meta_data
-
-
-def impute_scscope_expression(expression_matrix, meta_data, **kwargs):
-    """
-    Use scScope (Deng et al 2018, https://www.biorxiv.org/content/early/2018/11/27/315556 ) to impute data
-
-    :param expression_matrix: pd.DataFrame
-    :param meta_data: pd.DataFrame
-    :param latent_dim: int
-    :return imputed, meta_data: pd.DataFrame, pd.DataFrame
-    """
-    kwargs, random_seed, output_file = process_impute_args(**kwargs)
-    latent_dim = kwargs.pop('latent_dim', 50)
-
-    import scscope
-    imputed = pd.DataFrame(scscope.train(expression_matrix.values, latent_dim)['imputated_output'],
-                           index=expression_matrix.index, columns=expression_matrix.columns)
-
-    if output_file is not None:
-        imputed.to_csv(output_file, sep="\t")
-
-    return imputed, meta_data
-
-
 def impute_on_batches(expression_matrix, meta_data, **kwargs):
     """
     Run imputation on separate batches
@@ -324,11 +261,14 @@ def filter_genes_for_var(expression_matrix, meta_data, **kwargs):
     return expression_matrix.loc[:, ~no_signal], meta_data
 
 
-def filter_genes_for_count(expression_matrix, meta_data, count_minimum=None):
+def filter_genes_for_count(expression_matrix, meta_data, count_minimum=None, check_for_scaling=False):
     expression_matrix, meta_data = filter_genes_for_var(expression_matrix, meta_data)
     if count_minimum is None:
         return expression_matrix, meta_data
     else:
+        if check_for_scaling and (expression_matrix < 0).sum().sum() > 0:
+            raise ValueError("Negative values in the expression matrix. Count thresholding scaled data is unsupported.")
+
         keep_genes = expression_matrix.sum(axis=0) >= (count_minimum * expression_matrix.shape[0])
         utils.Debug.vprint("Filtering {gn} genes [Count]".format(gn=expression_matrix.shape[1] - keep_genes.sum()),
                            level=1)

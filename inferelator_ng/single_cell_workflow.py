@@ -65,8 +65,10 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
         self.expression_matrix = self.expression_matrix.transpose()
 
         # If gene_list_file is set, read a list of genes in and then filter the expression and priors to this list
-        if self.gene_list_file is not None:
+        if self.gene_list is None and self.gene_list_file is not None:
             self.read_genes()
+
+        if self.gene_list is not None:
             genes = self.gene_list[self.gene_list_index]
             utils.Debug.vprint("Filtering expression and priors to {le} genes from list".format(le=len(genes)), level=1)
             self.expression_matrix = self.expression_matrix.loc[self.expression_matrix.index.intersection(genes)]
