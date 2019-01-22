@@ -17,7 +17,7 @@ SHARED_CLASS_VARIABLES = ['tf_names', 'gene_list', 'num_bootstraps', 'modify_act
                           'metadata_expression_lookup', 'gene_list_lookup', 'mi_sync_path', 'count_minimum',
                           'gold_standard_filter_method', 'split_priors_for_gold_standard', 'cv_split_ratio',
                           'split_gold_standard_for_crossvalidation', 'cv_split_axis', 'preprocessing_workflow',
-                          'shuffle_prior_axis']
+                          'shuffle_prior_axis', 'write_network', 'output_dir']
 
 
 class NoOutputRP(results_processor.ResultsProcessor):
@@ -78,7 +78,7 @@ def create_puppet_workflow(base_class=single_cell_workflow.SingleCellWorkflow, r
         as environment variables, and returns the model AUPR and edge counts without writing files (unless told to)
         """
 
-        network_file_path = None
+        write_network = True
         network_file_name = None
 
         def __init__(self, kvs, rank, expr_data, meta_data, prior_data, gs_data):
@@ -98,12 +98,18 @@ def create_puppet_workflow(base_class=single_cell_workflow.SingleCellWorkflow, r
         def emit_results(self, betas, rescaled_betas, gold_standard, priors):
             if self.is_master():
                 results = result_processor(betas, rescaled_betas, filter_method=self.gold_standard_filter_method)
-                results.network_file_name = self.network_file_name
+                if self.write_network:
+                    results.network_file_name = self.network_file_name
+                    network_file_path = self.output_dir
+                else:
+                    results.network_file_name = None
+                    network_file_path = None
                 results.pr_curve_file_name = None
                 results.confidence_file_name = None
                 results.threshold_file_name = None
                 results.write_task_files = False
-                results = results.summarize_network(self.network_file_path, gold_standard, priors)
+                results.tasks_names = getattr(self, "tasks_names", None) # For multitask
+                results = results.summarize_network(network_file_path, gold_standard, priors)
                 self.aupr, self.n_interact, self.precision_interact = results
             else:
                 self.aupr, self.n_interact, self.precision_interact = None, None, None
@@ -166,10 +172,8 @@ class PuppeteerWorkflow(object):
         # Make sure that the puppet knows the correct orientation of the expression matrix
         puppet.expression_matrix_columns_are_genes = False
 
-        # Tell the puppet to produce a network.tsv file (if write_network is true)
-        if self.write_network:
-            puppet.network_file_path = self.output_dir
-            puppet.network_file_name = "network_s{seed}.tsv".format(seed=seed)
+        # Tell the puppet what to name stuff (if write_network is False then no output will be produced)
+        puppet.network_file_name = "network_s{seed}.tsv".format(seed=seed)
         return puppet
 
     def assign_class_vars(self, obj):
