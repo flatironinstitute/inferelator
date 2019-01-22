@@ -1,12 +1,11 @@
 import unittest
 import pandas as pd
-import pandas.util.testing as pdt
 import numpy as np
 from inferelator_ng import amusr_regression
 from inferelator_ng import amusr_workflow
 from inferelator_ng.single_cell_puppeteer_workflow import create_puppet_workflow
 import numpy.testing as npt
-import pandas.testing as pdt
+import pandas.util.testing as pdt
 
 
 class TestAMuSRWorkflow(unittest.TestCase):
@@ -29,6 +28,7 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.workflow = self.workflow(None, 0, self.expr, self.meta, self.prior, self.gold_standard)
         self.workflow.tf_names = self.tf_names
         self.workflow.gene_list = self.gene_list
+        self.workflow.create_output_dir = lambda *x: None
 
     def test_task_separation(self):
         self.workflow.filter_expression_and_priors()
@@ -39,11 +39,9 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.assertEqual(list(map(lambda x: x.shape, self.workflow.meta_data)), [(2, 2), (4, 2), (4, 2)])
 
     def test_task_processing(self):
-        self.workflow.filter_expression_and_priors()
-        self.workflow.separate_tasks_by_metadata()
-        self.workflow.process_task_data()
-        self.assertEqual(set(self.workflow.regulators.tolist()), set(["gene3", "gene6"]))
-        self.assertEqual(set(self.workflow.targets.tolist()), set(["gene1", "gene2", "gene4", "gene6"]))
+        self.workflow.startup_finish()
+        self.assertEqual(self.workflow.regulators.tolist(), ["gene3", "gene6"])
+        self.assertEqual(self.workflow.targets.tolist(), ["gene1", "gene2", "gene4", "gene6"])
         self.assertEqual(len(self.workflow.task_design), 3)
         self.assertEqual(len(self.workflow.task_response), 3)
         self.assertEqual(len(self.workflow.task_meta_data), 3)
@@ -55,6 +53,49 @@ class TestAMuSRWorkflow(unittest.TestCase):
                                pd.DataFrame([[2, 3], [28, 27], [16, 5], [3, 4]],
                                             index=["gene1", "gene2", "gene4", "gene6"], columns = [0, 6]),
                                check_dtype=False)
+
+    def test_result_processor_random(self):
+        beta1 = pd.DataFrame(np.array([[1, 0], [0.5, 0], [0, 1], [0.5, 0]]),
+                             ["gene1", "gene2", "gene4", "gene6"], ["gene3", "gene6"])
+        beta2 = pd.DataFrame(np.array([[0, 0], [0.5, 0], [1, 0], [0.5, 0]]),
+                             ["gene1", "gene2", "gene4", "gene6"], ["gene3", "gene6"])
+        beta3 = pd.DataFrame(np.array([[0.5, 0.2], [0.5, 0.1], [0.5, 0.2], [0.5, 0.2]]),
+                             ["gene1", "gene2", "gene4", "gene6"], ["gene3", "gene6"])
+        rb1 = pd.DataFrame(np.array([[0.75, 0], [0.25, 0], [0.75, 0], [0.25, 0]]),
+                           ["gene1", "gene2", "gene4", "gene6"], ["gene3", "gene6"])
+        rb2 = pd.DataFrame(np.array([[0, 0], [1, 0], [0, 0], [1, 0]]),
+                           ["gene1", "gene2", "gene4", "gene6"], ["gene3", "gene6"])
+        rb3 = pd.DataFrame(np.array([[0.5, 0.5], [0.5, 0.5], [0.5, 0.5], [0.5, 0.5]]),
+                           ["gene1", "gene2", "gene4", "gene6"], ["gene3", "gene6"])
+        self.workflow.startup_finish()
+        self.workflow.emit_results([[beta1, beta1], [beta2, beta2], [beta3, beta3]],
+                                   [[rb1, rb1], [rb2, rb2], [rb3, rb3]],
+                                   self.workflow.gold_standard,
+                                   self.workflow.priors_data)
+        self.assertAlmostEqual(self.workflow.aupr, 0.3416666666666667)
+        self.assertEqual(self.workflow.n_interact, 0)
+        self.assertEqual(self.workflow.precision_interact, 0)
+
+    def test_result_processor_perfect(self):
+        beta1 = pd.DataFrame(np.array([[0, 1], [0, 1], [1, 0], [0.5, 0]]),
+                             ["gene1", "gene2", "gene4", "gene6"], ["gene3", "gene6"])
+        beta2 = pd.DataFrame(np.array([[0, 1], [0, 1], [1, 0], [0.5, 0]]),
+                             ["gene1", "gene2", "gene4", "gene6"], ["gene3", "gene6"])
+        beta3 = pd.DataFrame(np.array([[0, 1], [0, 1], [1, 0], [0.5, 0.2]]),
+                             ["gene1", "gene2", "gene4", "gene6"], ["gene3", "gene6"])
+        rb1 = pd.DataFrame(np.array([[0, 1], [0, 1], [1, 0], [0.25, 0]]),
+                           ["gene1", "gene2", "gene4", "gene6"], ["gene3", "gene6"])
+        rb2 = pd.DataFrame(np.array([[0, 1], [0, 1], [1, 0], [1, 0]]),
+                           ["gene1", "gene2", "gene4", "gene6"], ["gene3", "gene6"])
+        rb3 = pd.DataFrame(np.array([[0, 1], [0, 1], [1, 0], [0.5, 0.5]]),
+                           ["gene1", "gene2", "gene4", "gene6"], ["gene3", "gene6"])
+        self.workflow.startup_finish()
+        self.workflow.emit_results([[beta1, beta1], [beta2, beta2], [beta3, beta3]],
+                                   [[rb1, rb1], [rb2, rb2], [rb3, rb3]],
+                                   self.workflow.gold_standard,
+                                   self.workflow.priors_data)
+        self.assertAlmostEqual(self.workflow.aupr, 1)
+
 
 
 class TestAMuSRrunner(unittest.TestCase):

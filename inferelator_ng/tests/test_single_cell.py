@@ -86,7 +86,7 @@ class SingleCellWorkflowTest(SingleCellTestCase):
         tfs = ["gene3", "gene6"]
         self.assertEqual(self.workflow.expression_matrix.index.tolist(), genes)
         self.assertEqual(self.workflow.priors_data.index.tolist(), genes)
-        self.assertEqual(set(self.workflow.priors_data.columns.tolist()), set(tfs))
+        self.assertEqual(self.workflow.priors_data.columns.tolist(), tfs)
 
     def TestStack(self):
         self.workflow.gene_list = self.gene_list
@@ -94,6 +94,6 @@ class SingleCellWorkflowTest(SingleCellTestCase):
         self.workflow.startup()
         genes = ["gene1", "gene2", "gene4", "gene6"]
         tfs = ["gene3", "gene6"]
-        self.assertEqual(set(self.workflow.design.index.tolist()), set(tfs))
+        self.assertEqual(self.workflow.design.index.tolist(), tfs)
         self.assertEqual(self.workflow.response.index.tolist(), genes)
         self.assertEqual(self.workflow.response.columns.tolist(), self.workflow.design.columns.tolist())
