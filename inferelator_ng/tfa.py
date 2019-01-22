@@ -34,9 +34,9 @@ class TFA:
 
     def compute_transcription_factor_activity(self, allow_self_interactions_for_duplicate_prior_columns = True):
         # Find TFs that have non-zero columns in the priors matrix
-        non_zero_tfs = self.prior.columns[(self.prior != 0).any(axis=0)].tolist()
+        non_zero_tfs = pd.Index(self.prior.columns[(self.prior != 0).any(axis=0)])
         # Delete tfs that have neither prior information nor expression
-        delete_tfs = set(self.prior.columns).difference(self.expression_matrix.index).difference(non_zero_tfs)
+        delete_tfs = self.prior.columns.difference(self.expression_matrix.index).difference(non_zero_tfs)
 
         # Raise warnings
         if len(delete_tfs) > 0:
@@ -56,7 +56,7 @@ class TFA:
         is_duplicated = self.prior[non_zero_tfs].transpose().duplicated(keep=False)
 
         # Find non-zero TFs that are also present in target gene list
-        self_interacting_tfs = set(non_zero_tfs).intersection(self.prior.index)
+        self_interacting_tfs = non_zero_tfs.intersection(self.prior.index)
 
         if is_duplicated.sum() > 0:
             duplicates = is_duplicated[is_duplicated].index.tolist()
@@ -71,7 +71,7 @@ class TFA:
         self.prior.at[self_interacting_tfs, self_interacting_tfs] = subset
 
         # Set the activity of non-zero tfs to the pseudoinverse of the prior matrix times the expression
-        if non_zero_tfs:
+        if len(non_zero_tfs) > 0:
             activity.loc[non_zero_tfs,:] = np.matrix(linalg.pinv2(self.prior[non_zero_tfs])) * np.matrix(self.expression_matrix_halftau)
 
         return activity

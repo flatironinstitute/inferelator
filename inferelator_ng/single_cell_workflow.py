@@ -103,7 +103,7 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
         self.priors_data = self.priors_data.reindex(index=self.expression_matrix.index).fillna(value=0)
 
         # Trim to the tf_names list
-        tf_keepers = list(set(self.tf_names).intersection(set(self.priors_data.columns.tolist())))
+        tf_keepers = pd.Index(self.tf_names).intersection(pd.Index(self.priors_data.columns))
         self.priors_data = self.priors_data.loc[:, tf_keepers]
 
     def single_cell_normalize(self):
