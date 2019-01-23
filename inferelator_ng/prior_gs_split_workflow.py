@@ -4,17 +4,17 @@ Workflow class that splits the prior into a gold standard and new prior
 
 import pandas as pd
 import numpy as np
-from inferelator_ng import utils
+from inferelator_ng.utils import Validator as check
 from inferelator_ng import default
 
 
-def split_for_cv(all_priors, split_ratio, split_axis=default.DEFAULT_CV_AXIS, seed=default.DEFAULT_CV_RANDOM_SEED):
+def split_for_cv(all_data, split_ratio, split_axis=default.DEFAULT_CV_AXIS, seed=default.DEFAULT_CV_RANDOM_SEED):
     """
     Take a dataframe and split it according to split_ratio on split_axis into two new dataframes. This is for
-    crossvalidation splits of the priors into a prior & gold standard
+    crossvalidation splits of a gold standard
 
-    :param all_priors: pd.DataFrame [G x K]
-        Prior data
+    :param all_data: pd.DataFrame [G x K]
+        Existing prior or gold standard data
     :param split_ratio: float
         The proportion of the priors that should go into the gold standard
     :param split_axis: int
@@ -23,65 +23,83 @@ def split_for_cv(all_priors, split_ratio, split_axis=default.DEFAULT_CV_AXIS, se
         Returns a new prior and gold standard by splitting the old one in half
     """
 
-    # Make sure that the variables are valid
-    if not 1 >= split_ratio >= 0:
-        raise ValueError("split_ratio is a ratio between 0 and 1")
-
-    if not (split_axis in [0, 1, None]):
-        raise ValueError("split_axis takes either 0, 1 or None")
+    check.argument_numeric(split_ratio, 0, 1)
+    check.argument_enum(split_axis, [0, 1], allow_none=True)
 
     # Split the priors into gold standard based on axis (flatten if axis=None)
     if split_axis is None:
-        priors_data, gold_standard = _split_flattened(all_priors, split_ratio, seed=seed)
+        priors_data, gold_standard = _split_flattened(all_data, split_ratio, seed=seed)
     else:
-        priors_data, gold_standard = _split_axis(all_priors, split_ratio, axis=split_axis, seed=seed)
+        priors_data, gold_standard = _split_axis(all_data, split_ratio, axis=split_axis, seed=seed)
 
     return priors_data, gold_standard
 
 
 def remove_prior_circularity(priors, gold_standard, split_axis=default.DEFAULT_CV_AXIS):
     """
-    Take the gold standard, select some portion of it for crossvalidation, and then remove any matching records from
-    the prior
-    :param priors: pd.DataFrame
-    :param gold_standard: pd.DataFrame
+    Remove all row labels that occur in the gold standard from the prior
+    :param priors: pd.DataFrame [M x N]
+    :param gold_standard: pd.DataFrame [m x n]
     :param split_axis: int (0,1)
-    :return:
+    :return new_priors: pd.DataFrame [M-m x N]
+    :return gold_standard: pd.DataFrame [m x n]
     """
 
-    if not (split_axis in [0, 1]):
-        raise ValueError("prior_gold_split_axis takes either 0 or 1")
+    check.argument_enum(split_axis, [0, 1])
     new_priors = priors.drop(gold_standard.axes[split_axis], axis=split_axis, errors='ignore')
 
     return new_priors, gold_standard
 
 
-def _split_flattened(priors, split_ratio, seed=default.DEFAULT_CV_RANDOM_SEED):
-    pc = np.sum(priors.values != 0)
+def _split_flattened(data, split_ratio, seed=default.DEFAULT_CV_RANDOM_SEED):
+    """
+    Instead of splitting by axis labels, split edges and ignore axes
+    :param data: pd.DataFrame [M x N]
+    :param split_ratio: float
+    :param seed:
+    :return priors_data: pd.DataFrame [M x N]
+    :return gold_standard: pd.DataFrame [M x N]
+    """
+
+    check.argument_numeric(split_ratio, 0, 1)
+
+    pc = np.sum(data.values != 0)
     gs_count = int(split_ratio * pc)
     idx = _make_shuffled_index(pc, seed=seed)
 
-    pr_idx = priors.values[priors.values != 0].copy()
-    gs_idx = priors.values[priors.values != 0].copy()
+    pr_idx = data.values[data.values != 0].copy()
+    gs_idx = data.values[data.values != 0].copy()
 
     pr_idx[idx[0:gs_count]] = 0
     gs_idx[idx[gs_count:]] = 0
 
-    gs = priors.values.copy()
-    pr = priors.values.copy()
+    gs = data.values.copy()
+    pr = data.values.copy()
 
     gs[gs != 0] = gs_idx
     pr[pr != 0] = pr_idx
 
-    priors_data = pd.DataFrame(pr, index=priors.index, columns=priors.columns)
-    gold_standard = pd.DataFrame(gs, index=priors.index, columns=priors.columns)
+    priors_data = pd.DataFrame(pr, index=data.index, columns=data.columns)
+    gold_standard = pd.DataFrame(gs, index=data.index, columns=data.columns)
 
     return priors_data, gold_standard
 
 
 def _split_axis(priors, split_ratio, axis=default.DEFAULT_CV_AXIS, seed=default.DEFAULT_CV_RANDOM_SEED):
+    """
+    Split by axis labels on the chosen axis
+    :param priors: pd.DataFrame [M x N]
+    :param split_ratio: float
+    :param axis: [0, 1]
+    :param seed:
+    :return:
+    """
+
+    check.argument_numeric(split_ratio, 0, 1)
+    check.argument_enum(axis, [0, 1])
+
     pc = priors.shape[axis]
-    gs_count = int(split_ratio * pc)
+    gs_count = int((1 - split_ratio) * pc)
     idx = _make_shuffled_index(pc, seed=seed)
 
     if axis == 0:

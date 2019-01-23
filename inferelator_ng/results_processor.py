@@ -4,10 +4,12 @@ import os
 import csv
 import matplotlib
 from inferelator_ng import utils
+from inferelator_ng.utils import Validator as check
 
 matplotlib.use('pdf')
 import matplotlib.pyplot as plt
 
+FILTER_METHODS = ("overlap", "keep_all_gold_standard")
 
 class ResultsProcessor:
     # Data
@@ -25,14 +27,25 @@ class ResultsProcessor:
     pr_curve_file_name = "pr_curve.pdf"
 
     def __init__(self, betas, rescaled_betas, threshold=0.5, filter_method='overlap'):
+        """
+        :param betas: list(pd.DataFrame[G x K])
+        :param rescaled_betas: list(pd.DataFrame[G x K])
+        :param threshold: float
+        :param filter_method: str
+            How to handle gold standard filtering ('overlap' filters to beta, 'keep_all_gold_standard' doesn't filter)
+        """
+
+        check.dataframes_align(betas)
         self.betas = betas
+
+        check.dataframes_align(rescaled_betas)
         self.rescaled_betas = rescaled_betas
+
+        check.argument_enum(filter_method, FILTER_METHODS)
         self.filter_method = filter_method
 
-        if 1 >= threshold >= 0:
-            self.threshold = threshold
-        else:
-            raise ValueError("Threshold must be a float in the interval [0, 1]")
+        check.argument_numeric(threshold, 0, 1)
+        self.threshold = threshold
 
     def summarize_network(self, output_dir, gold_standard, priors):
         """
@@ -46,6 +59,10 @@ class ResultsProcessor:
         :return aupr: float
             Returns the AUPR calculated from the network and gold standard
         """
+
+        check.argument_path(output_dir, allow_none=True)
+        check.argument_type(gold_standard, pd.DataFrame)
+        check.argument_type(priors, pd.DataFrame)
 
         pr_calc = RankSummaryPR(self.rescaled_betas, gold_standard, filter_method=self.filter_method)
         beta_sign, beta_nonzero = self.summarize(self.betas)
@@ -61,14 +78,9 @@ class ResultsProcessor:
         return pr_calc.aupr
 
     def write_output_files(self, pr_calc, output_dir, priors, beta_threshold, network_data):
-        if output_dir is None:
-            return None
-        elif not os.path.exists(output_dir):
-            try:
-                os.makedirs(output_dir)
-            except OSError as error:
-                utils.Debug.vprint("Unable to create path {pa}: {err}".format(pa=output_dir, err=str(error)))
-                return None
+
+        check.argument_type(pr_calc, RankSummaryPR)
+        check.argument_path(output_dir, allow_none=True, create_if_needed=True)
 
         self.write_csv(pr_calc.combined_confidences(), output_dir, self.confidence_file_name)
         self.write_csv(beta_threshold, output_dir, self.threshold_file_name)
@@ -79,6 +91,31 @@ class ResultsProcessor:
     @staticmethod
     def save_network_to_tsv(pr_calc, priors, output_dir, confidence_threshold=0, output_file_name="network.tsv",
                             beta_threshold=None, extra_columns=None):
+        """
+        Create a network file and save it
+        :param pr_calc: RankSummaryPR
+            The rank-sum object with the math in it
+        :param priors: pd.DataFrame [G x K]
+            Prior data
+        :param output_dir: str
+            The path to the output file. If None, don't save anything
+        :param confidence_threshold: numeric
+            The minimum confidence score needed to write a network edge
+        :param output_file_name: str
+            The output file name. If None, don't save anything
+        :param beta_threshold: pd.DataFrame [G x K]
+            The thresholded betas to include in the network. If None, include everything.
+        :param extra_columns: dict(col_name: pd.DataFrame [G x K])
+            Any additional data to include, keyed by column name and indexable with row and column names
+        """
+
+        check.argument_type(pr_calc, RankSummaryPR)
+        check.argument_type(priors, pd.DataFrame)
+        check.argument_type(beta_threshold, pd.DataFrame, allow_none=True)
+        check.argument_path(output_dir, allow_none=True)
+        check.argument_type(output_file_name, str, allow_none=True)
+        check.argument_numeric(confidence_threshold, 0, 1)
+
         if output_dir is None or output_file_name is None:
             return False
 
@@ -128,6 +165,10 @@ class ResultsProcessor:
 
     @staticmethod
     def write_csv(data, pathname, filename):
+        check.argument_path(pathname, allow_none=True)
+        check.argument_type(filename, str, allow_none=True)
+        check.argument_type(data, pd.DataFrame)
+
         if pathname is not None and filename is not None:
             data.to_csv(os.path.join(pathname, filename), sep='\t')
 
