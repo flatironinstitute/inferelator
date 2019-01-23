@@ -1,6 +1,8 @@
 import unittest
-from .. import utils
+from inferelator_ng import utils
+from inferelator_ng.utils import Validator as check
 from io import StringIO
+import pandas as pd
 
 metadata_text_1 = u"""
 "isTs"\t"is1stLast"\t"prevCol"\t"del.t"\t"condName"
@@ -31,3 +33,53 @@ class TestUtils(unittest.TestCase):
         df = utils.metadata_df(f)
         self.assertEqual({'del.t', 'is1stLast', 'isTs', 'prevCol'}, set(df.keys()))
         return df
+
+class TestValidator(unittest.TestCase):
+
+    def setUp(self):
+        self.frame1 = pd.DataFrame(index=["A", "B", "C", "D", "E"], columns = ["RED", "BLUE", "GREEN"])
+        self.frame2 = pd.DataFrame(index=["A", "B", "C", "D", "E"], columns = ["CYAN", "BLUE", "MAUVE"])
+        self.frame3 = pd.DataFrame(index=["A", "B", "C", "E", "D"], columns = ["RED", "BLUE", "GREEN"])
+
+    def test_frame_alignment(self):
+
+        self.assertTrue(check.dataframes_align([self.frame1, self.frame1, self.frame1]))
+        self.assertTrue(check.dataframes_align([self.frame1, self.frame1, self.frame3], check_order=False))
+
+        with self.assertRaises(ValueError):
+            check.dataframes_align([self.frame1, self.frame2, self.frame1])
+
+        with self.assertRaises(ValueError):
+            check.dataframes_align([self.frame1, self.frame3, self.frame1])
+
+    def test_numeric(self):
+
+        self.assertTrue(check.argument_numeric(0))
+        self.assertTrue(check.argument_numeric(0.0))
+
+        with self.assertRaises(ValueError):
+            check.argument_numeric("0")
+
+        self.assertTrue(check.argument_numeric(1, 0, 2))
+
+        with self.assertRaises(ValueError):
+            self.assertTrue(check.argument_numeric(2, 0, 1))
+
+        self.assertTrue(check.argument_numeric(None, allow_none=True))
+
+    def test_type(self):
+
+        self.assertTrue(check.argument_type(self, unittest.TestCase))
+        self.assertTrue(check.argument_type(None, unittest.TestCase, allow_none=True))
+
+        with self.assertRaises(ValueError):
+            self.assertTrue(check.argument_type("0", unittest.TestCase))
+
+    def test_enum(self):
+
+        self.assertTrue(check.argument_enum("A", ("A", "B")))
+        self.assertTrue(check.argument_enum(["A", "B", "A"], ("A", "B")))
+
+        with self.assertRaises(ValueError):
+            check.argument_enum(["A", "B", "C"], ("A", "B"))
+

@@ -74,6 +74,122 @@ class Debug:
             return
 
 
+class Validator(object):
+
+    @staticmethod
+    def argument_numeric(arg, low=None, high=None, allow_none=False):
+        """
+        Validate an input argument as being numeric (either an int or a float). Also check bounds if set.
+        :param arg:
+            Argument to validate
+        :param low: numeric
+            Lowest (inclusive) acceptable value of the argument; ignore this if it's None
+        :param high: numeric
+            Lowest (inclusive) acceptable value of the argument; ignore this if it's None
+        :param allow_none: bool
+            Allow arg to be None if true
+        :return:
+            Returns True if valid. Raises an exception otherwise
+        """
+        if allow_none and arg is None:
+            return True
+
+        if not isinstance(arg, (int, float)):
+            raise ValueError("Argument must be numeric ({arg}, {typ} provided) ".format(arg=arg, typ=type(arg)))
+
+        if low is not None and Validator.argument_numeric(low) and arg < low:
+            raise ValueError("Argument must be at least {low}".format(low=low))
+        if high is not None and Validator.argument_numeric(high) and arg > high:
+            raise ValueError("Argument must be no more than {high}".format(high=high))
+
+        return True
+
+    @staticmethod
+    def argument_enum(arg, enum_list, allow_none=False):
+        """
+        Validate an input argument as being present in an list of acceptable values
+        :param arg:
+            Argument to validate. If arg is a list or tuple, validate that each element is acceptable
+        :param enum_list:
+            A list or tuple of valid arguments
+        :param allow_none: bool
+            Allow arg to be None if true
+        :return:
+            Returns True if valid. Raises an exception otherwise
+        """
+
+        if allow_none and arg is None:
+            return True
+
+        if isinstance(arg, (list, tuple)):
+            for a in arg:
+                Validator.argument_enum(a, enum_list, allow_none=allow_none)
+            return True
+        elif arg not in enum_list:
+            raise ValueError("Argument {arg} must be one of: {enum}".format(arg=arg, enum=",".join(enum_list)))
+        else:
+            return True
+
+    @staticmethod
+    def argument_path(arg, allow_none=False, create_if_needed=False):
+        if allow_none and arg is None:
+            return True
+
+        if os.path.exists(arg):
+            return True
+        elif create_if_needed:
+            try:
+                os.makedirs(arg)
+            except OSError as err:
+                raise ValueError("Path {arg} does not exist and cant be created:\n{err}".format(arg=arg, err=str(err)))
+        else:
+            raise ValueError("Argument {arg} must be an existing path".format(arg=arg))
+
+    @staticmethod
+    def argument_type(arg, arg_type, allow_none=False):
+        if allow_none and arg is None:
+            return True
+
+        if isinstance(arg, arg_type):
+            return True
+        else:
+            raise ValueError("Argument {arg} must be of type {typ}".format(arg=arg, typ=arg_type))
+
+    @staticmethod
+    def dataframes_align(frame_iterable, allow_none=False, check_order=True):
+        if allow_none and any([f is None for f in frame_iterable]):
+            return True
+
+        try:
+            Validator.indexes_align([f.index for f in frame_iterable], allow_none=allow_none, check_order=check_order)
+        except ValueError as ve:
+            raise ValueError("Dataframes are not aligned on indexes: {err}".format(err=str(ve)))
+
+        try:
+            Validator.indexes_align([f.columns for f in frame_iterable], allow_none=allow_none, check_order=check_order)
+        except ValueError as ve:
+            raise ValueError("Dataframes are not aligned on columns: {err}".format(err=str(ve)))
+
+        return True
+
+    @staticmethod
+    def indexes_align(index_iterable, allow_none=False, check_order=True):
+        if allow_none and any([i is None for i in index_iterable]):
+            return True
+
+        order_flag = False
+        zindex = index_iterable[0]
+        for ind in index_iterable:
+            if len(zindex.difference(ind)) > 0:
+                raise ValueError("Indexes have mismatching labels")
+            elif check_order and any(zindex != ind):
+                order_flag = True
+
+        if order_flag:
+            raise ValueError("Indexes have matching labels but mismatching order")
+
+        return True
+
 def df_from_tsv(file_like, has_index=True):
     "Read a tsv file or buffer with headers and row ids into a pandas dataframe."
     return pd.read_csv(file_like, sep="\t", header=0, index_col=0 if has_index else False)
