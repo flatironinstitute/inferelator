@@ -159,10 +159,10 @@ class PythonDRDriver:
                                                 (Following_condition_name, Following_delt)]
         """
         time_series = self.meta_data[self.ts_col].values.astype(bool)
-        steadies = dict(zip(self.meta_data[self.cond_col], np.logical_not(time_series)))
+        steadies = dict(zip(self.meta_data[self.cond_col].astype(str), np.logical_not(time_series)))
 
         ts_data = self.meta_data[time_series].fillna(False)
-        ts_dict = dict(zip(ts_data[self.cond_col].tolist(),
+        ts_dict = dict(zip(ts_data[self.cond_col].astype(str).tolist(),
                            zip(ts_data[self.prev_col].tolist(),
                                ts_data[self.delt_col].tolist())))
         ts_group = {}
