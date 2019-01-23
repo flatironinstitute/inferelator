@@ -5,6 +5,15 @@ import numpy as np
 
 class TestResultsProcessor(unittest.TestCase):
 
+    def test_full_stack(self):
+        beta = pd.DataFrame(np.array([[0, 1], [0.5, 0.05]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        beta_resc = pd.DataFrame(np.array([[0, 1], [1, 0.05]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        prior = pd.DataFrame([[0, 1], [1, 0]], ['gene1', 'gene2'], ['tf1', 'tf2'])
+        gold_standard = pd.DataFrame([[0, 1], [1, 0]], ['gene1', 'gene2'], ['tf1', 'tf2'])
+        rp = results_processor.ResultsProcessor([beta], [beta_resc])
+        aupr = rp.summarize_network(None, gold_standard, prior)
+        self.assertEqual(aupr, 1)
+
     def test_combining_confidences_one_beta(self):
         # rescaled betas are only in the 
         beta = pd.DataFrame(np.array([[0.5, 0], [0.5, 1]]), ['gene1', 'gene2'], ['tf1','tf2'])
