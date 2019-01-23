@@ -17,7 +17,6 @@ import gzip
 import bz2
 
 
-
 class WorkflowBase(object):
     # Common configuration parameters
     input_dir = None
@@ -79,15 +78,14 @@ class WorkflowBase(object):
 
     def startup_run(self):
         """
-        Execute any data preprocessing necessary before regression. This should include only steps that can be
-        run asynchronously by each separate client
+        Execute any data preprocessing necessary before regression. Startup_run is mostly for reading in data
         """
         raise NotImplementedError  # implement in subclass
 
     def startup_finish(self):
         """
-        Execute any data preprocessing necessary before regression. This should include steps that need to be run
-        synchronously. It will be executed after startup_run.
+        Execute any data preprocessing necessary before regression. Startup_finish is mostly for preprocessing data
+        prior to regression
         """
         raise NotImplementedError  # implement in subclass
 
@@ -184,7 +182,6 @@ class WorkflowBase(object):
         utils.Debug.vprint("Selected prior {pr} and gold standard {gs}".format(pr=self.priors_data.shape,
                                                                                gs=self.gold_standard.shape), level=0)
 
-
     def input_path(self, filename, mode='r'):
         """
         Join filename to input_dir
@@ -220,7 +217,8 @@ class WorkflowBase(object):
             raise ValueError("Cannot append to None")
         setattr(self, var_name, os.path.join(path, to_append))
 
-    def create_default_meta_data(self, expression_matrix):
+    @staticmethod
+    def create_default_meta_data(expression_matrix):
         """
         Create a meta_data dataframe from basic defaults
         """
@@ -240,6 +238,9 @@ class WorkflowBase(object):
         expressed_or_prior = expressed_targets.union(self.priors_data.columns)
         keeper_regulators = expressed_or_prior.intersection(self.tf_names)
 
+        if len(keeper_regulators) == 0 or len(expressed_targets) == 0:
+            raise ValueError("Filtering will result in a priors with at least one axis of 0 length")
+
         self.priors_data = self.priors_data.loc[expressed_targets, keeper_regulators]
         self.priors_data = pd.DataFrame.fillna(self.priors_data, 0)
 
@@ -258,6 +259,9 @@ class WorkflowBase(object):
         raise NotImplementedError  # implement in subclass
 
     def is_master(self):
+        """
+        Return True if this is the rank-0 (master) thread
+        """
 
         if self.rank == 0:
             return True
@@ -265,10 +269,12 @@ class WorkflowBase(object):
             return False
 
     def create_output_dir(self):
+        """
+        Set a default output_dir if nothing is set. Create the path if it doesn't exist.
+        """
         if self.output_dir is None:
             self.output_dir = os.path.join(self.input_dir, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
         try:
             os.makedirs(self.output_dir)
         except OSError:
             pass
-
