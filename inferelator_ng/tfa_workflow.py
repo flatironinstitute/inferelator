@@ -44,11 +44,10 @@ class TFAWorkFlow(workflow.WorkflowBase):
     def startup_run(self):
         self.set_regression_type()
         self.get_data()
-        self.compute_common_data()
-        self.compute_activity()
 
     def startup_finish(self):
-        pass
+        self.compute_common_data()
+        self.compute_activity()
 
     def set_regression_type(self):
         self.regression_type.patch_workflow(self)
