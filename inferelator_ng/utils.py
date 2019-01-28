@@ -75,6 +75,9 @@ class Debug:
 
 
 class Validator(object):
+    """
+    Validation module for function arguments. Each function here should return True or it should raise an exception
+    """
 
     @staticmethod
     def argument_numeric(arg, low=None, high=None, allow_none=False):
@@ -111,7 +114,7 @@ class Validator(object):
         :param arg:
             Argument to validate. If arg is a list or tuple, validate that each element is acceptable
         :param enum_list:
-            A list or tuple of valid arguments
+            A list or tuple (or anything that you can use 'in' with; like an index) of valid arguments
         :param allow_none: bool
             Allow arg to be None if true
         :return:
@@ -188,6 +191,29 @@ class Validator(object):
         if order_flag:
             raise ValueError("Indexes have matching labels but mismatching order")
 
+        return True
+
+
+    @staticmethod
+    def arguments_not_none(*args, num_none=None):
+        """
+
+        :param args:
+            Arguments to check
+        :param num_none: int
+            The number of arguments which should not be None (so 1 means exactly 1 argument should be not None)
+            If None, all arguments should not be None
+        :return:
+        """
+        n_not_none = 0
+        for ar in args:
+            n_not_none += 0 if ar is None else 1
+
+        if num_none is None and n_not_none != len(args):
+            raise ValueError("One of these arguments is None; None is not an acceptable argument")
+        if n_not_none != num_none:
+            raise ValueError("{num} arguments are not None; only {nnum} are allowed".format(num=n_not_none,
+                                                                                            nnum=num_none))
         return True
 
 def df_from_tsv(file_like, has_index=True):
