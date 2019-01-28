@@ -11,6 +11,7 @@ from inferelator_ng import results_processor
 from inferelator_ng import utils
 from inferelator_ng import default
 from inferelator_ng import bbsr_python
+from inferelator_ng.utils import Validator as check
 
 # The variable names that get set in the main workflow, but need to get copied to the puppets
 SHARED_CLASS_VARIABLES = ['tf_names', 'gene_list', 'num_bootstraps', 'modify_activity_from_metadata',
@@ -251,20 +252,15 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, Puppe
         """
 
         # Sanity check inputs
-        if sample_ratio is None and sample_size is None:
-            raise ValueError("No sampling size option is set. This is not supported.")
-        if sample_ratio is not None and sample_size is not None:
-            raise ValueError("Both sampling size options are set. This is not supported.")
-        if (sample_ratio is not None and sample_ratio < 0) or (sample_size is not None and sample_size < 0):
-            raise ValueError("Sampling a negative number of things is not supported")
+        assert check.arguments_not_none(sample_ratio, sample_size, num_none=1)
+        assert check.argument_numeric(sample_ratio, low=0, allow_none=True)
+        assert check.argument_numeric(sample_size, low=0, allow_none=True)
 
-        if stratified_sampling is None:
-            stratified_sampling = self.stratified_sampling
+        stratified_sampling = stratified_sampling if stratified_sampling is not None else self.stratified_sampling
 
         if stratified_sampling:
             # Use the main meta_data if there's nothing given
-            if meta_data is None:
-                meta_data = self.meta_data
+            meta_data = meta_data if meta_data is not None else self.meta_data
 
             # Copy and reindex the meta_data so that the index can be used with iloc
             meta_data = meta_data.copy()
@@ -324,6 +320,7 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
 
     def modeling_method(self, *args, **kwargs):
 
+        self.factor_indexes = self.factor_singles()
         auprs = self.auprs_for_condition_dropin()
         auprs.extend(self.auprs_for_condition_dropout())
         return auprs
@@ -334,13 +331,13 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
         :return:
         """
         # Run the modeling on all data
-        aupr_data = [self.auprs_for_index("all", pd.Series(True, index=self.meta_data.index))]
+        aupr_data = [self.auprs_for_index("all_dropout", pd.Series(True, index=self.meta_data.index))]
 
         if self.drop_column is None:
             return aupr_data
 
         # For all of the factors in `drop_column`, iterate through and remove them one by one, modeling on the rest
-        for r_name, r_idx in self.factor_dropouts().items():
+        for r_name, r_idx in self.factor_indexes.items():
             aupr_data.extend(self.auprs_for_index(r_name, r_idx))
         return aupr_data
 
@@ -349,14 +346,16 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
         Run modeling on all data, and then on data where each factor from `drop_column` has been removed one
         :return:
         """
-        # Run the modeling on all data
-        aupr_data = [self.auprs_for_index("all", pd.Series(True, index=self.meta_data.index), )]
+        # Run the modeling on all data with resizing
+        drop_in_sizing = int(self.sample_batches_to_size / len(self.factor_indexes))
+        aupr_data = [self.auprs_for_index("all_dropin", pd.Series(True, index=self.meta_data.index),
+                                          sample_size=drop_in_sizing)]
 
         if self.drop_column is None:
             return aupr_data
 
         # For all of the factors in `drop_column`, iterate through them and model each separately
-        for r_name, r_idx in self.factor_singles().items():
+        for r_name, r_idx in self.factor_indexes.items():
             aupr_data.extend(self.auprs_for_index(r_name + "_only", r_idx))
         return aupr_data
 
@@ -382,14 +381,17 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
             factor_indexes[fact] = self.meta_data[self.drop_column] == fact
         return factor_indexes
 
-    def auprs_for_index(self, r_name, r_idx):
+    def auprs_for_index(self, r_name, r_idx, sample_size=None):
+
+        sample_size = sample_size if sample_size is not None else self.sample_batches_to_size
+
         local_expr_data = self.expression_matrix.loc[:, r_idx]
         local_meta_data = self.meta_data.loc[r_idx, :]
 
         aupr_data = []
         for seed in self.seeds:
             np.random.seed(seed)
-            idx = self.get_sample_index(meta_data=local_meta_data, sample_size=self.sample_batches_to_size)
+            idx = self.get_sample_index(meta_data=local_meta_data, sample_size=sample_size)
             puppet = self.new_puppet(local_expr_data.iloc[:, idx], local_meta_data.iloc[idx, :], seed)
             if self.write_network:
                 puppet.network_file_name = "network_drop_{drop}_s{seed}.tsv".format(drop=r_name, seed=seed)
