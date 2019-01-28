@@ -105,7 +105,8 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
 
         utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=overall_pr_calc.aupr), level=0)
 
-        self.write_output_files(overall_pr_calc, output_dir, priors, overall_threshold, network_data)
+        self.write_output_files(overall_pr_calc, output_dir, priors, overall_threshold, network_data,
+                                threshold_network=False)
 
         # Calculate how many interactions are stable (are above the combined confidence threshold)
         stable_interactions = overall_pr_calc.num_over_conf_threshold(confidence_threshold)
