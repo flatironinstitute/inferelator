@@ -83,3 +83,17 @@ class TestValidator(unittest.TestCase):
         with self.assertRaises(ValueError):
             check.argument_enum(["A", "B", "C"], ("A", "B"))
 
+    def test_none(self):
+
+        self.assertTrue(check.arguments_not_none(("A", "B")))
+        self.assertTrue(check.arguments_not_none(("A", None), num_none=1))
+        with self.assertRaises(ValueError):
+            self.assertTrue(check.arguments_not_none((None, None, "A")))
+        with self.assertRaises(ValueError):
+            self.assertTrue(check.arguments_not_none((None, None, "A"), num_none=0))
+
+if __name__ == '__main__':
+    unittest.main()
+
+
+

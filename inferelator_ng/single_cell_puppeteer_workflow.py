@@ -252,7 +252,7 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, Puppe
         """
 
         # Sanity check inputs
-        assert check.arguments_not_none(sample_ratio, sample_size, num_none=1)
+        assert check.arguments_not_none((sample_ratio, sample_size), num_none=1)
         assert check.argument_numeric(sample_ratio, low=0, allow_none=True)
         assert check.argument_numeric(sample_size, low=0, allow_none=True)
 

@@ -195,11 +195,10 @@ class Validator(object):
 
 
     @staticmethod
-    def arguments_not_none(*args, num_none=None):
+    def arguments_not_none(args, num_none=None):
         """
-
         :param args:
-            Arguments to check
+            Tuple of arguments to check
         :param num_none: int
             The number of arguments which should not be None (so 1 means exactly 1 argument should be not None)
             If None, all arguments should not be None
@@ -211,7 +210,7 @@ class Validator(object):
 
         if num_none is None and n_not_none != len(args):
             raise ValueError("One of these arguments is None; None is not an acceptable argument")
-        if n_not_none != num_none:
+        elif num_none is not None and n_not_none != num_none:
             raise ValueError("{num} arguments are not None; only {nnum} are allowed".format(num=n_not_none,
                                                                                             nnum=num_none))
         return True
