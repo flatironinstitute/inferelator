@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 
 FILTER_METHODS = ("overlap", "keep_all_gold_standard")
 
+
 class ResultsProcessor:
     # Data
     betas = None
@@ -256,7 +257,7 @@ class RankSummaryPR(object):
     # Ranking
     ranked_idx = None
 
-    def __init__(self, rankable_data, gold_standard, filter_method='keep_all_gold_standard'):
+    def __init__(self, rankable_data, gold_standard, filter_method='keep_all_gold_standard', rank_method="sum"):
 
         try:
             self.filter_method = getattr(self, self.filter_method_lookup[filter_method])
@@ -265,7 +266,7 @@ class RankSummaryPR(object):
 
         # Calculate confidences based on the ranked data
         self.rankable_data = rankable_data
-        self.all_confidences = self.compute_combined_confidences(rankable_data)
+        self.all_confidences = self.compute_combined_confidences(rankable_data, rank_method=rank_method)
 
         # Filter the gold standard and confidences down to a format that can be directly compared
         utils.Debug.vprint("GS: {gs}, Confidences: {conf}".format(gs=gold_standard.shape,
@@ -358,7 +359,7 @@ class RankSummaryPR(object):
             return np.min(self.filtered_confidences.values.flatten()[self.ranked_idx][threshold_index])
 
     @staticmethod
-    def compute_combined_confidences(rankable_data):
+    def compute_combined_confidences(rankable_data, rank_method="sum"):
         """
         Calculate combined confidences from rank sum
         :param rankable_data: list(pd.DataFrame) R x [M x N]
@@ -366,6 +367,22 @@ class RankSummaryPR(object):
         :return combine_conf: pd.DataFrame [M x N]
         """
 
+        assert check.argument_enum(rank_method, ("sum", "max", "geo_mean"))
+
+        if rank_method == "sum":
+            return RankSummaryPR.rank_sum(rankable_data)
+        elif rank_method == "max":
+            return RankSummaryPR.rank_max(rankable_data)
+        elif rank_method == "geo_mean":
+            return RankSummaryPR.rank_geo_mean(rankable_data)
+
+    @staticmethod
+    def rank_sum(rankable_data):
+        """
+        Calculate confidences based on ranking value in all of the data frames and summing the ranks
+        :param rankable_data: list(pd.DataFrame [M x N])
+        :return combine_conf: pd.DataFrame [M x N]
+        """
         # Create an 0s dataframe shaped to the data to be ranked
         combine_conf = pd.DataFrame(np.zeros(rankable_data[0].shape),
                                     index=rankable_data[0].index,
@@ -380,6 +397,73 @@ class RankSummaryPR(object):
         # Convert rankings to confidence values
         min_element = min(combine_conf.values.flatten())
         combine_conf = (combine_conf - min_element) / (len(rankable_data) * combine_conf.size - min_element)
+        return combine_conf
+
+    @staticmethod
+    def rank_max(rankable_data):
+        """
+        Calculate confidences based on ranking the maximum value in all of the data frames
+        :param rankable_data: list(pd.DataFrame [M x N])
+        :return combine_conf: pd.DataFrame [M x N]
+        """
+        combine_conf = pd.DataFrame(np.zeros(rankable_data[0].shape),
+                                    index=rankable_data[0].index,
+                                    columns=rankable_data[0].columns)
+
+        for replicate in rankable_data:
+            # Max the values for each bootstrap
+            combine_conf = pd.DataFrame(np.maximum(combine_conf.values, replicate.values),
+                                        index=combine_conf.index,
+                                        columns=combine_conf.columns)
+
+        # Rank the maxed values
+        combine_conf = pd.DataFrame(np.reshape(pd.DataFrame(combine_conf.values.flatten()).rank().values,
+                                               combine_conf.shape),
+                                    index=combine_conf.index,
+                                    columns=combine_conf.columns)
+
+        # Convert rankings to confidence values
+        min_element = min(combine_conf.values.flatten())
+        max_element = max(combine_conf.values.flatten())
+        combine_conf = (combine_conf - min_element) / (max_element - min_element)
+        return combine_conf
+
+    @staticmethod
+    def rank_geo_mean(rankable_data):
+        """
+        Calculate confidences based on ranking value in all of the data frames and taking the geo mean of the ranks
+        :param rankable_data: list(pd.DataFrame [M x N])
+        :return combine_conf: pd.DataFrame [M x N]
+        """
+        combine_conf = pd.DataFrame(np.ones(rankable_data[0].shape),
+                                    index=rankable_data[0].index,
+                                    columns=rankable_data[0].columns)
+        include_counts = pd.DataFrame(np.zeros(rankable_data[0].shape),
+                                      index=rankable_data[0].index,
+                                      columns=rankable_data[0].columns)
+
+        for replicate in rankable_data:
+            # Flatten and rank based on the beta error reductions
+            ranked_replicate = np.reshape(pd.DataFrame(replicate.values.flatten()).rank().values, replicate.shape)
+            non_zero_replicate = replicate != 0
+            # Combine the rankings for each bootstrap
+            combine_conf[non_zero_replicate] *= ranked_replicate[non_zero_replicate]
+            include_counts += non_zero_replicate
+
+        non_zero_all = include_counts != 0
+        include_counts[non_zero_all] = 1 / include_counts[non_zero_all]
+        combine_conf[~non_zero_all] = 0
+        combine_conf[non_zero_all] = np.power(combine_conf[non_zero_all].values, include_counts[non_zero_all])
+
+        # Rank the mean values
+        combine_conf = pd.DataFrame(np.reshape(pd.DataFrame(combine_conf.values.flatten()).rank().values,
+                                               combine_conf.shape),
+                                    index=combine_conf.index,
+                                    columns=combine_conf.columns)
+
+        # Convert rankings to confidence values
+        min_element = min(combine_conf.values.flatten())
+        combine_conf = (combine_conf - min_element) / (combine_conf.size - min_element)
         return combine_conf
 
     @staticmethod
