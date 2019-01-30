@@ -145,6 +145,7 @@ class Validator(object):
                 os.makedirs(arg)
             except OSError as err:
                 raise ValueError("Path {arg} does not exist and cant be created:\n{err}".format(arg=arg, err=str(err)))
+            return True
         else:
             raise ValueError("Argument {arg} must be an existing path".format(arg=arg))
 
