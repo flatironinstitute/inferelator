@@ -444,7 +444,10 @@ class RankSummaryPR(object):
 
         for replicate in rankable_data:
             # Flatten and rank based on the beta error reductions
-            ranked_replicate = np.reshape(pd.DataFrame(replicate.values.flatten()).rank().values, replicate.shape)
+            ranked_replicate = pd.DataFrame(np.reshape(pd.DataFrame(replicate.values.flatten()).rank().values,
+                                                       replicate.shape),
+                                            index=replicate.index,
+                                            columns=replicate.columns)
             non_zero_replicate = replicate != 0
             # Combine the rankings for each bootstrap
             combine_conf[non_zero_replicate] *= ranked_replicate[non_zero_replicate]
