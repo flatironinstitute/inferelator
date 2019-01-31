@@ -359,7 +359,7 @@ class RankSummaryPR(object):
             return np.min(self.filtered_confidences.values.flatten()[self.ranked_idx][threshold_index])
 
     @staticmethod
-    def compute_combined_confidences(rankable_data, rank_method="sum"):
+    def compute_combined_confidences(rankable_data, **kwargs):
         """
         Calculate combined confidences from rank sum
         :param rankable_data: list(pd.DataFrame) R x [M x N]
@@ -367,12 +367,15 @@ class RankSummaryPR(object):
         :return combine_conf: pd.DataFrame [M x N]
         """
 
-        assert check.argument_enum(rank_method, ("sum", "max", "geo_mean"))
+        rank_method = kwargs.pop("rank_method", "sum")
+        assert check.argument_enum(rank_method, ("sum", "threshold_sum", "max", "geo_mean"))
 
         if rank_method == "sum":
             return RankSummaryPR.rank_sum(rankable_data)
+        elif rank_method == "threshold_sum":
+            return RankSummaryPR.rank_sum_threshold(rankable_data, data_threshold=kwargs.pop("data_threshold", 0.5))
         elif rank_method == "max":
-            return RankSummaryPR.rank_max(rankable_data)
+            return RankSummaryPR.rank_max_value(rankable_data)
         elif rank_method == "geo_mean":
             return RankSummaryPR.rank_geo_mean(rankable_data)
 
@@ -400,7 +403,36 @@ class RankSummaryPR(object):
         return combine_conf
 
     @staticmethod
-    def rank_max(rankable_data):
+    def rank_sum_threshold(rankable_data, data_threshold=0.5):
+        """
+        Calculate confidences based on ranking value in all of the data frames, discarding ranks that don't meet
+        a threhsold, and summing the remainder
+        :param rankable_data: list(pd.DataFrame [M x N])
+        :return combine_conf: pd.DataFrame [M x N]
+        """
+        combine_conf = pd.DataFrame(np.zeros(rankable_data[0].shape),
+                                    index=rankable_data[0].index,
+                                    columns=rankable_data[0].columns)
+
+        for replicate in rankable_data:
+            # Flatten and rank based on the beta error reductions
+            ranked_replicate = pd.DataFrame(np.reshape(pd.DataFrame(replicate.values.flatten()).rank().values,
+                                                       replicate.shape),
+                                            index=replicate.index,
+                                            columns=replicate.columns)
+            # Find the values we want to keep
+            to_include = replicate >= data_threshold
+            # Sum the rankings for each bootstrap
+            combine_conf[to_include] += ranked_replicate[to_include]
+
+        # Convert rankings to confidence values
+        min_element = min(combine_conf.values.flatten())
+        max_element = max(combine_conf.values.flatten())
+        combine_conf = (combine_conf - min_element) / (max_element - min_element)
+        return combine_conf
+
+    @staticmethod
+    def rank_max_value(rankable_data):
         """
         Calculate confidences based on ranking the maximum value in all of the data frames
         :param rankable_data: list(pd.DataFrame [M x N])
