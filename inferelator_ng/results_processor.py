@@ -259,13 +259,10 @@ class RankSummaryPR(object):
 
     def __init__(self, rankable_data, gold_standard, filter_method='keep_all_gold_standard', rank_method="sum"):
 
-        try:
-            self.filter_method = getattr(self, self.filter_method_lookup[filter_method])
-        except KeyError:
-            raise ValueError("{val} is not an allowed filter_method option".format(val=filter_method))
+        assert check.argument_enum(filter_method, self.filter_method_lookup.keys())
+        self.filter_method = getattr(self, self.filter_method_lookup[filter_method])
 
         # Calculate confidences based on the ranked data
-        self.rankable_data = rankable_data
         self.all_confidences = self.compute_combined_confidences(rankable_data, rank_method=rank_method)
 
         # Filter the gold standard and confidences down to a format that can be directly compared
@@ -373,7 +370,7 @@ class RankSummaryPR(object):
         if rank_method == "sum":
             return RankSummaryPR.rank_sum(rankable_data)
         elif rank_method == "threshold_sum":
-            return RankSummaryPR.rank_sum_threshold(rankable_data, data_threshold=kwargs.pop("data_threshold", 0.5))
+            return RankSummaryPR.rank_sum_threshold(rankable_data, data_threshold=kwargs.pop("data_threshold", 0.9))
         elif rank_method == "max":
             return RankSummaryPR.rank_max_value(rankable_data)
         elif rank_method == "geo_mean":
@@ -403,11 +400,12 @@ class RankSummaryPR(object):
         return combine_conf
 
     @staticmethod
-    def rank_sum_threshold(rankable_data, data_threshold=0.5):
+    def rank_sum_threshold(rankable_data, data_threshold=0.9):
         """
         Calculate confidences based on ranking value in all of the data frames, discarding ranks that don't meet
-        a threhsold, and summing the remainder
+        a threshold, and summing the remainder
         :param rankable_data: list(pd.DataFrame [M x N])
+        :param data_threshold: float
         :return combine_conf: pd.DataFrame [M x N]
         """
         combine_conf = pd.DataFrame(np.zeros(rankable_data[0].shape),
