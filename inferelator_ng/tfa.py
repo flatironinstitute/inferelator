@@ -45,12 +45,8 @@ class TFA:
             self.prior = self.prior.drop(delete_tfs, axis = 1)
 
         # Create activity dataframe with values set by default to the transcription factor's expression
-        # Create an empty dataframe [K x G]
-        activity = pd.DataFrame(0.0, index=self.prior.columns, columns=self.expression_matrix.columns)
-
-        # Populate with expression values as a default
-        add_default_activity = self.prior.columns.intersection(self.expression_matrix.index)
-        activity.loc[add_default_activity, :] = self.expression_matrix.loc[add_default_activity, :]
+        # Create a dataframe [K x N] with the expression values as defaults
+        activity = self.expression_matrix.reindex(self.prior.columns)
 
         # Find all non-zero TFs that are duplicates of any other non-zero tfs
         is_duplicated = self.prior[non_zero_tfs].transpose().duplicated(keep=False)
@@ -73,6 +69,12 @@ class TFA:
         # Set the activity of non-zero tfs to the pseudoinverse of the prior matrix times the expression
         if len(non_zero_tfs) > 0:
             activity.loc[non_zero_tfs,:] = np.matrix(linalg.pinv2(self.prior[non_zero_tfs])) * np.matrix(self.expression_matrix_halftau)
+
+        activity_nas = activity.isna().any(axis=0)
+        if activity_nas.sum() > 0:
+            lose_tfs = activity_nas.index[activity_nas].tolist()
+            utils.Debug.vprint("Dropping TFs with NaN values: {drop}".format(drop=" ".join(lose_tfs)))
+            activity = activity.dropna(axis=0)
 
         return activity
 

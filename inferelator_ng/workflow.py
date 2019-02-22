@@ -6,6 +6,7 @@ code among different variants of the Inferelator workflow.
 """
 
 from inferelator_ng import utils
+from inferelator_ng.utils import Validator as check
 from inferelator_ng import default
 from inferelator_ng.prior_gs_split_workflow import split_for_cv, remove_prior_circularity
 import numpy as np
@@ -149,6 +150,18 @@ class WorkflowBase(object):
 
         if self.split_gold_standard_for_crossvalidation:
             self.cross_validate_gold_standard()
+
+        try:
+            check.index_values_unique(self.priors_data.index)
+        except ValueError as v_err:
+            utils.Debug.vprint("Duplicate gene(s) in prior index", level=0)
+            utils.Debug.vprint(str(v_err), level=0)
+
+        try:
+            check.index_values_unique(self.priors_data.columns)
+        except ValueError as v_err:
+            utils.Debug.vprint("Duplicate tf(s) in prior index", level=0)
+            utils.Debug.vprint(str(v_err), level=0)
 
     def split_priors_into_gold_standard(self):
         """
