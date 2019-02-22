@@ -5,7 +5,6 @@ import pandas as pd
 import numpy as np
 import types
 
-from inferelator_ng.tfa import TFA
 from inferelator_ng import utils
 from inferelator_ng import tfa_workflow
 from inferelator_ng import single_cell
@@ -137,7 +136,7 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
         Compute Transcription Factor Activity
         """
         utils.Debug.vprint('Computing Transcription Factor Activity ... ')
-        TFA_calculator = TFA(self.priors_data, self.expression_matrix, self.expression_matrix)
+        TFA_calculator = self.tfa_driver(self.priors_data, self.expression_matrix, self.expression_matrix)
         self.design = TFA_calculator.compute_transcription_factor_activity()
         self.response = self.expression_matrix
         self.expression_matrix = None
