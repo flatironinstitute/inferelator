@@ -37,7 +37,7 @@ class BBSR(regression.BaseRegression):
     pp = None  # [G x K] bool
     nS = DEFAULT_nS  # int
 
-    def __init__(self, X, Y, clr_mat, prior_mat, kvs, nS=DEFAULT_nS, prior_weight=DEFAULT_prior_weight,
+    def __init__(self, X, Y, clr_mat, prior_mat, nS=DEFAULT_nS, prior_weight=DEFAULT_prior_weight,
                  no_prior_weight=DEFAULT_no_prior_weight, chunk=regression.DEFAULT_CHUNK):
         """
         Create a Regression object for Bayes Best Subset Regression
@@ -56,11 +56,9 @@ class BBSR(regression.BaseRegression):
             Weight of a predictor which does have a prior
         :param no_prior_weight: int
             Weight of a predictor which doesn't have a prior
-        :param kvs: KVSClient
-            KVS client object (for SLURM)
         """
 
-        super(BBSR, self).__init__(X, Y, kvs, chunk=chunk)
+        super(BBSR, self).__init__(X, Y, chunk=chunk)
 
         self.nS = nS
 
@@ -150,8 +148,8 @@ class BBSR_runner:
     Wrapper for the BBSR class. Passes arguments in and then calls run. Returns the result.
     """
 
-    def run(self, X, Y, clr, prior_mat, kvs=None, rank=0, ownCheck=None):
-        return BBSR(X, Y, clr, prior_mat, kvs).run()
+    def run(self, X, Y, clr, prior_mat):
+        return BBSR(X, Y, clr, prior_mat).run()
 
 
 def patch_workflow(obj):
@@ -172,10 +170,10 @@ def patch_workflow(obj):
         X = self.design.iloc[:, bootstrap]
         Y = self.response.iloc[:, bootstrap]
         utils.Debug.vprint('Calculating MI, Background MI, and CLR Matrix', level=0)
-        clr_matrix, mi_matrix = self.mi_driver(kvs=self.kvs, sync_in_tmp_path=self.mi_sync_path).run(X, Y)
+        clr_matrix, mi_matrix = self.mi_driver(sync_in_tmp_path=self.mi_sync_path).run(X, Y)
         mi_matrix = None
         utils.Debug.vprint('Calculating betas using BBSR', level=0)
 
-        return BBSR(X, Y, clr_matrix, self.priors_data, self.kvs).run()
+        return BBSR(X, Y, clr_matrix, self.priors_data).run()
 
     obj.run_bootstrap = types.MethodType(run_bootstrap, obj)

@@ -3,6 +3,7 @@ import pandas as pd
 import copy
 
 from inferelator_ng import utils
+from inferelator_ng.distributed.kvs_controller import KVSController
 
 DEFAULT_CHUNK = 25
 PROGRESS_STR = "Regression on {gn} [{i} / {total}]"
@@ -11,10 +12,6 @@ PROGRESS_STR = "Regression on {gn} [{i} / {total}]"
 class BaseRegression(object):
     # These are all the things that have to be set in a new regression class
 
-    # Variables that handle multiprocessing via SLURM / KVS
-    # The defaults here are placeholders for troubleshooting
-    # These should always be provided when instantiating
-    kvs = None  # KVSClient
     chunk = DEFAULT_CHUNK  # int
 
     # Raw Data
@@ -23,7 +20,7 @@ class BaseRegression(object):
     G = None  # int G
     K = None  # int K
 
-    def __init__(self, X, Y, kvs, chunk=25):
+    def __init__(self, X, Y, chunk=25):
         """
         Create a regression object and do basic data transforms
 
@@ -32,7 +29,6 @@ class BaseRegression(object):
         :param Y: pd.DataFrame [G x N]
             Response data
         """
-        self.kvs = kvs
         self.chunk = chunk
 
         # Get the IDs and total count for the genes and predictors
@@ -61,7 +57,7 @@ class BaseRegression(object):
         # If it should (ownCheck is TRUE), call self.regress with the index to the response variable
         # Keep a list of the resulting regression results
 
-        oc = self.kvs.own_check(chunk=self.chunk)
+        oc = KVSController.own_check(chunk=self.chunk)
         for j in range(self.G):
             level = 0 if j % 100 == 0 else 2
             utils.Debug.vprint(PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G), level=level)
@@ -71,11 +67,11 @@ class BaseRegression(object):
                 regression_data.append(data)
 
         # Put the regression results that this thread has calculated into KVS
-        self.kvs.put('plist', (self.kvs.rank, regression_data))
-        self.kvs.sync_processes("bootstrap")
+        KVSController.put_key('plist', (KVSController.rank, regression_data))
+        KVSController.sync_processes("bootstrap")
 
         # If this is the master thread, pile the regression betas into dataframes and return them
-        if self.kvs.is_master:
+        if KVSController.is_master:
             return self.pileup_data()
         else:
             return None, None
@@ -102,9 +98,9 @@ class BaseRegression(object):
 
         # Reach into KVS to get the model data
         for p in range(utils.slurm_envs()['tasks']):
-            pid, ps = self.kvs.get('plist')
+            pid, ps = KVSController.get_key('plist')
             run_data.extend(ps)
-        self.kvs.master_remove_key()
+        KVSController.master_remove_key()
 
         # Create G x K arrays of 0s to populate with the regression data
         betas = np.zeros((self.G, self.K), dtype=np.dtype(float))

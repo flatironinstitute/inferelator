@@ -90,7 +90,6 @@ class KVSController:
         :return None:
         """
 
-
         wkey = pref + '_wait'
         ckey = pref + '_continue'
 
@@ -114,11 +113,24 @@ class KVSController:
 
     @classmethod
     def get_key(cls, key):
+        """
+        Wrapper for KVSClient get
+        """
         return cls.kvs_client.get(key)
 
     @classmethod
     def put_key(cls, key, value):
+        """
+        Wrapper for KVSClient put
+        """
         return cls.kvs_client.put(key, value)
+
+    @classmethod
+    def view_key(cls, key):
+        """
+        Wrapper for KVSClient view
+        """
+        return cls.kvs_client.view(key)
 
 
 def ownCheck(kvs, rank, chunk=1, kvs_key='count'):

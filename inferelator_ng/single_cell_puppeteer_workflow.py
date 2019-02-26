@@ -82,9 +82,7 @@ def create_puppet_workflow(base_class=single_cell_workflow.SingleCellWorkflow, r
         write_network = True
         network_file_name = None
 
-        def __init__(self, kvs, rank, expr_data, meta_data, prior_data, gs_data):
-            self.kvs = kvs
-            self.rank = rank
+        def __init__(self, expr_data, meta_data, prior_data, gs_data):
             self.expression_matrix = expr_data
             self.meta_data = meta_data
             self.priors_data = prior_data
@@ -162,7 +160,7 @@ class PuppeteerWorkflow(object):
 
         # Create a new puppet workflow with the factory method and pass in data on instantiation
         puppet = create_puppet_workflow(base_class = self.puppet_class, result_processor = self.puppet_result_processor)
-        puppet = puppet(self.kvs, self.rank, expr_data, meta_data, priors_data, gold_standard)
+        puppet = puppet(expr_data, meta_data, priors_data, gold_standard)
 
         # Transfer the class variables necessary to get the puppet to dance (everything in SHARED_CLASS_VARIABLES)
         self.assign_class_vars(puppet)

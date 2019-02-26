@@ -2,8 +2,8 @@ import subprocess
 import tempfile
 import os
 import time
-from inferelator_ng import kvs_controller
-from inferelator_ng.tests.test_mi import Test2By2, Test2By3
+from inferelator_ng.distributed import kvs_controller
+from inferelator_ng.tests.test_mi import Test2By2
 
 # TODO: Actually implement this well
 # TODO: Find out if nosetests going alphabetical is actually spec or just a thing that happens sometimes
@@ -20,9 +20,5 @@ os.environ["KVSSTCP_HOST"] = addr
 os.environ["KVSSTCP_PORT"] = port
 os.remove(temp_file_name)
 
-class TestMIKVS2by2(Test2By2):
-    kvs = kvs_controller.KVSController(suppress_warnings=True)
-
-
-class TestMIKVS2by3(Test2By3):
-    kvs = kvs_controller.KVSController(suppress_warnings=True)
+class TestKVSConnect(Test2By2):
+    kvs_controller.KVSController.connect(suppress_warnings=True)

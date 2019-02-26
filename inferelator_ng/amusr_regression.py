@@ -5,9 +5,10 @@ from scipy.misc import comb
 from scipy.optimize import minimize
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
+
+from inferelator_ng.distributed.kvs_controller import KVSController
 from inferelator_ng import utils
 from inferelator_ng import regression
-import os
 
 # Shadow built-in zip with itertools.izip if this is python2 (This puts out a memory dumpster fire)
 try:
@@ -179,7 +180,6 @@ class AMuSR_OneGene:
 
 
 class AMuSR_regression(regression.BaseRegression):
-    kvs = None  # KVSClient()
     chunk = 25  # int
 
     X = None  # list(pd.DataFrame [N, K])
@@ -194,22 +194,19 @@ class AMuSR_regression(regression.BaseRegression):
     prior_weight = 1.0  # float
     remove_autoregulation = True  # bool
 
-    def __init__(self, X, Y, kvs, tfs=None, genes=None, priors=None, prior_weight=1, chunk=25,
+    def __init__(self, X, Y, tfs=None, genes=None, priors=None, prior_weight=1, chunk=25,
                  remove_autoregulation=True):
         """
         Set up a regression object for multitask regression
 
         :param X: list(pd.DataFrame [N, K])
         :param Y: list(pd.DataFrame [N, G])
-        :param kvs: KVSClient
         :param priors: pd.DataFrame [G, K]
         :param prior_weight: float
         :param chunk: int
         :param remove_autoregulation: bool
         """
 
-        # Set the KVS controller into the regression object
-        self.kvs = kvs
         self.chunk = chunk
 
         # Set the data into the regression object
@@ -317,9 +314,9 @@ class AMuSR_regression(regression.BaseRegression):
 
         # Reach into KVS to get the model data
         for p in range(utils.slurm_envs()['tasks']):
-            pid, ps = self.kvs.get('plist')
+            pid, ps = KVSController.get_key('plist')
             run_data.extend(ps)
-        self.kvs.master_remove_key()
+        KVSController.master_remove_key()
 
         weights = []
         rescaled_weights = []
@@ -483,8 +480,8 @@ def patch_workflow(obj):
             x.append(self.task_design[k].iloc[:, self.task_bootstraps[k][bootstrap_idx]].transpose())
             y.append(self.task_response[k].iloc[:, self.task_bootstraps[k][bootstrap_idx]].transpose())
 
-        self.kvs.sync_processes(pref="amusr_pre")
-        regress = AMuSR_regression(x, y, self.kvs, tfs=self.regulators, genes=self.targets, priors=self.priors_data,
+        KVSController.sync_processes(pref="amusr_pre")
+        regress = AMuSR_regression(x, y, tfs=self.regulators, genes=self.targets, priors=self.priors_data,
                                    prior_weight=self.prior_weight)
         return regress.run()
 

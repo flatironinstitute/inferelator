@@ -2,7 +2,7 @@ import numpy as np
 
 from inferelator_ng import utils
 from inferelator_ng import regression
-from inferelator_ng import tfa_workflow
+from inferelator_ng.distributed.kvs_controller import KVSController
 from sklearn.linear_model import ElasticNetCV
 
 ELASTICNET_PARAMETERS = dict(l1_ratio=[0.5, 0.7, 0.9],
@@ -69,8 +69,8 @@ class ElasticNet(regression.BaseRegression):
 
 
 class ElasticNetRunner:
-    def run(self, X, Y, kvs):
-        return ElasticNet(X, Y, kvs).run()
+    def run(self, X, Y):
+        return ElasticNet(X, Y).run()
 
 
 def patch_workflow(obj):
@@ -86,7 +86,7 @@ def patch_workflow(obj):
         X = self.design.iloc[:, bootstrap]
         Y = self.response.iloc[:, bootstrap]
         utils.Debug.vprint('Calculating betas using MEN', level=0)
-        self.kvs.sync_processes("pre-bootstrap")
-        return ElasticNetRunner().run(X, Y, self.kvs)
+        KVSController.sync_processes("pre-bootstrap")
+        return ElasticNetRunner().run(X, Y)
 
     obj.run_bootstrap = types.MethodType(run_bootstrap, obj)

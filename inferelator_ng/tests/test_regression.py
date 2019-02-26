@@ -6,7 +6,6 @@ from inferelator_ng import regression
 from inferelator_ng import bbsr_python
 from inferelator_ng import elasticnet_python
 from inferelator_ng import amusr_regression
-from inferelator_ng import kvs_controller
 
 import pandas as pd
 
@@ -24,8 +23,7 @@ class TestPatching(unittest.TestCase):
                                   columns=["gene3", "gene6"])
         self.gold_standard = self.prior.copy()
         self.workflow = create_puppet_workflow(base_class=tfa_workflow.TFAWorkFlow)
-        self.workflow = self.workflow(kvs_controller.KVSController(), 0, self.expr.transpose(), self.meta, self.prior,
-                                      self.gold_standard)
+        self.workflow = self.workflow(self.expr.transpose(), self.meta, self.prior,self.gold_standard)
         self.workflow.gene_list = pd.DataFrame({"SystematicName":
                                                     ["gene1", "gene2", "gene3", "gene4", "gene7", "gene6"]})
         self.workflow.tf_names = ["gene3", "gene6"]

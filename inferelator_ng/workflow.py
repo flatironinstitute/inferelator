@@ -9,6 +9,8 @@ from inferelator_ng import utils
 from inferelator_ng.utils import Validator as check
 from inferelator_ng import default
 from inferelator_ng.prior_gs_split_workflow import split_for_cv, remove_prior_circularity
+from inferelator_ng.distributed.kvs_controller import KVSController
+
 import numpy as np
 import os
 import datetime
@@ -45,10 +47,8 @@ class WorkflowBase(object):
     priors_data = None  # priors data dataframe [G x K]
     gold_standard = None  # gold standard dataframe [G x K]
 
-    # Hold the KVS information
-    rank = 0
-    kvs = None
-    tasks = None
+    # Multiprocessing controller
+    multiprocessing_controller = None
 
     def __init__(self, initialize_mp=True):
         # Connect to KVS and get environment variables
@@ -60,8 +60,8 @@ class WorkflowBase(object):
         """
         Override this if you want to use something besides KVS for multiprocessing.
         """
-        from inferelator_ng.kvs_controller import KVSController
-        self.kvs = KVSController()
+        KVSController.connect()
+        self.multiprocessing_controller = KVSController
 
     def get_environmentals(self):
         """
@@ -276,7 +276,7 @@ class WorkflowBase(object):
         Return True if this is the rank-0 (master) thread
         """
 
-        if self.rank == 0:
+        if KVSController.rank == 0:
             return True
         else:
             return False
