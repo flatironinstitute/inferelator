@@ -64,13 +64,30 @@ def elastic_net(X, Y, params):
 class ElasticNet(regression.BaseRegression):
     params = ELASTICNET_PARAMETERS
 
-    def regress(self, idx):
-        return elastic_net(self.X.values, self.Y.ix[idx, :].values, self.params)
+    def run(self):
 
+        """
+        Execute Elastic Net
 
-class ElasticNetRunner:
-    def run(self, X, Y):
-        return ElasticNet(X, Y).run()
+        :return: pd.DataFrame [G x K], pd.DataFrame [G x K]
+            Returns the regression betas and beta error reductions for all threads if this is the master thread (rank 0)
+            Returns None, None if it's a subordinate thread
+        """
+
+        def regression_maker(regression_obj, j):
+            level = 0 if j % 100 == 0 else 2
+            utils.Debug.vprint(regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G), level=level)
+            data = elastic_net(regression_obj.X.values, regression_obj.Y.iloc[j, :].values, regression_obj.params)
+            data['ind'] = j
+            return data
+
+        dsk = {'j': list(range(self.G)), 'data': (regression_maker, self, 'j')}
+        run_data = KVSController.get(dsk, 'data', tell_children=False)
+
+        if KVSController.is_master:
+            return self.pileup_data(run_data)
+        else:
+            return None, None
 
 
 def patch_workflow(obj):
@@ -87,6 +104,6 @@ def patch_workflow(obj):
         Y = self.response.iloc[:, bootstrap]
         utils.Debug.vprint('Calculating betas using MEN', level=0)
         KVSController.sync_processes("pre-bootstrap")
-        return ElasticNetRunner().run(X, Y)
+        return ElasticNet(X, Y).run()
 
     obj.run_bootstrap = types.MethodType(run_bootstrap, obj)
