@@ -51,33 +51,13 @@ class BaseRegression(object):
             Returns the regression betas and beta error reductions for all threads if this is the master thread (rank 0)
             Returns None, None if it's a subordinate thread
         """
-        regression_data = []
 
-        # For every response variable G, check to see if this thread should run a regression for that variable
-        # If it should (ownCheck is TRUE), call self.regress with the index to the response variable
-        # Keep a list of the resulting regression results
+        def regression_maker(regression_obj, j):
+            raise NotImplementedError
 
-        oc = KVSController.own_check(chunk=self.chunk)
-        for j in range(self.G):
-            level = 0 if j % 100 == 0 else 2
-            utils.Debug.vprint(PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G), level=level)
-            if next(oc):
-                data = self.regress(j)
-                data['ind'] = j
-                regression_data.append(data)
-
-        # Put the regression results that this thread has calculated into KVS
-        KVSController.put_key('plist', (KVSController.rank, regression_data))
-        KVSController.sync_processes("bootstrap")
-
-        # If this is the master thread, pile the regression betas into dataframes and return them
-        if KVSController.is_master:
-            return self.pileup_data()
-        else:
-            return None, None
-
-    def regress(self, idx):
-        raise NotImplementedError
+        dsk = {'j': list(range(self.G)), 'data': (regression_maker, self, 'j')}
+        run_data = KVSController.get(dsk, 'data', tell_children=False)
+        return self.pileup_data(run_data)
 
     @staticmethod
     def _scale(df):
@@ -89,18 +69,11 @@ class BaseRegression(object):
         df = df.T
         return ((df - df.mean()) / df.std(ddof=1)).T
 
-    def pileup_data(self):
+    def pileup_data(self, run_data):
         """
         Take the completed run data and pack it up into a DataFrame of betas
         :return: (pd.DataFrame [G x K], pd.DataFrame [G x K])
         """
-        run_data = []
-
-        # Reach into KVS to get the model data
-        for p in range(utils.slurm_envs()['tasks']):
-            pid, ps = KVSController.get_key('plist')
-            run_data.extend(ps)
-        KVSController.master_remove_key()
 
         # Create G x K arrays of 0s to populate with the regression data
         betas = np.zeros((self.G, self.K), dtype=np.dtype(float))

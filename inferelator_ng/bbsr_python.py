@@ -5,6 +5,7 @@ from inferelator_ng import utils
 from inferelator_ng import bayes_stats
 from inferelator_ng import regression
 from inferelator_ng import mi
+from inferelator_ng.distributed.kvs_controller import KVSController
 
 # Default number of predictors to include in the model
 DEFAULT_nS = 10
@@ -76,20 +77,33 @@ class BBSR(regression.BaseRegression):
         # Build a boolean matrix indicating which tfs should be used as predictors for regression for each gene
         self.pp = self._build_pp_matrix()
 
-    def regress(self, idx):
+    def run(self):
         """
-        Execute BBSR on a specific index
+        Execute BBSR
 
-        :param idx: int
-            Integer corresponding to row (gene) which should be modeled from the response data
-        :return: dict
-            Passes return from bayes_stats.bbsr, which is: dict(pp, betas, betas_resc)
+        :return: pd.DataFrame [G x K], pd.DataFrame [G x K]
+            Returns the regression betas and beta error reductions for all threads if this is the master thread (rank 0)
+            Returns None, None if it's a subordinate thread
         """
-        return bayes_stats.bbsr(self.X.values,
-                                self.Y.iloc[idx, :].values,
-                                self.pp.iloc[idx, :].values,
-                                self.weights_mat.iloc[idx, :].values,
-                                self.nS)
+
+        def regression_maker(regression_obj, j):
+            level = 0 if j % 100 == 0 else 2
+            utils.Debug.vprint(regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G), level=level)
+            data = bayes_stats.bbsr(regression_obj.X.values,
+                                    regression_obj.Y.iloc[j, :].values,
+                                    regression_obj.pp.iloc[j, :].values,
+                                    regression_obj.weights_mat.iloc[j, :].values,
+                                    regression_obj.nS)
+            data['ind'] = j
+            return data
+
+        dsk = {'j': list(range(self.G)), 'data': (regression_maker, self, 'j')}
+        run_data = KVSController.get(dsk, 'data', tell_children=False)
+
+        if KVSController.is_master:
+            return self.pileup_data(run_data)
+        else:
+            return None, None
 
     def _build_pp_matrix(self):
         """
@@ -141,15 +155,6 @@ class BBSR(regression.BaseRegression):
         """
         weights_mat = p_matrix * 0 + no_p_weight
         return weights_mat.mask(p_matrix != 0, other=p_weight)
-
-
-class BBSR_runner:
-    """
-    Wrapper for the BBSR class. Passes arguments in and then calls run. Returns the result.
-    """
-
-    def run(self, X, Y, clr, prior_mat):
-        return BBSR(X, Y, clr, prior_mat).run()
 
 
 def patch_workflow(obj):
