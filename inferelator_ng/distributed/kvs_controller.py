@@ -290,7 +290,7 @@ class KVSController:
             if tell_children and tmp_file_path is None:
                 pileup_list = cls.view_key(FINAL_DATA)
             elif tell_children:
-                with os.fdopen(cls.view_key(FINAL_DATA), "wb") as temp:
+                with open(cls.view_key(FINAL_DATA), "r") as temp:
                     pileup_list = pickle.load(temp)
             else:
                 pileup_list = cls.view_key(FINAL_DATA)
