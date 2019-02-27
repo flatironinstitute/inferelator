@@ -1,5 +1,3 @@
-import itertools
-import tempfile
 import os
 import numpy as np
 import pandas as pd
@@ -17,15 +15,8 @@ CLR_DDOF = 1
 # Log type for MI calculations. np.log2 gives results in bits; np.log gives results in nats
 DEFAULT_LOG_TYPE = np.log
 
-# Multiprocessing chunk size
-DEFAULT_CHUNK = 2000
-
 # KVS keys for multiprocessing
-COUNT_KEY = 'micount'
-PILEUP_DATA_KEY = 'mi_pileup'
-FINAL_MI_DATA_KEY = 'mi_final'
 SYNC_CLR_KEY = 'post_clr'
-SYNC_MI_KEY = 'post_mi'
 
 
 class MIDriver:
@@ -71,7 +62,7 @@ class MIDriver:
         return clr, mi
 
 
-def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None, chunk=DEFAULT_CHUNK):
+def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
     """
     Calculate the mutual information matrix between two data matrices, where the columns are equivalent conditions
 
@@ -101,85 +92,12 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None, chun
     X = _make_array_discrete(X, bins, axis=1).transpose()
     Y = _make_array_discrete(Y, bins, axis=1).transpose()
 
-    # If there is a KVS object, run distributed and give the results to everyone
-    if temp_dir is None:
-        mi = mi_through_kvs(X, Y, bins, logtype=logtype, chunk=chunk)
-    else:
-        mi = mi_through_dir(X, Y, bins, temp_dir, logtype=logtype, chunk=chunk)
-
+    # Build the MI matrix
+    mi = build_mi_array(X, Y, bins, logtype=logtype, temp_dir=temp_dir)
     return pd.DataFrame(mi, index=mi_r, columns=mi_c)
 
 
-def mi_through_kvs(X, Y, bins, logtype=DEFAULT_LOG_TYPE, chunk=DEFAULT_CHUNK):
-    # Run MI calculations on everything that an ownCheck gives to this process and stash it in KVS
-    oc = KVSController.own_check(chunk=chunk, kvs_key=COUNT_KEY)
-    KVSController.put_key(PILEUP_DATA_KEY, build_mi_array(X, Y, bins, logtype=logtype, oc=oc))
-
-    # Block here until mi pileup is complete and then get the final mi matrix from mi_final
-    if KVSController.is_master:
-        mi = np.full((X.shape[1], Y.shape[1]), np.nan, dtype=np.dtype(float))
-        for _ in range(KVSController.tasks):
-            mi_two = KVSController.get_key(PILEUP_DATA_KEY)
-            update = ~np.isnan(mi_two)
-            mi[update] = mi_two[update]
-        KVSController.put_key(FINAL_MI_DATA_KEY, mi)
-    else:
-        mi = KVSController.view_key(FINAL_MI_DATA_KEY)
-
-    # Block here until all the processes have mi_final and then tear down the KVS data
-    KVSController.sync_processes(pref=SYNC_MI_KEY)
-    KVSController.master_remove_key(kvs_key=COUNT_KEY)
-    KVSController.master_remove_key(kvs_key=FINAL_MI_DATA_KEY)
-
-    return mi
-
-
-def mi_through_dir(X, Y, bins, temp_dir, logtype=DEFAULT_LOG_TYPE, chunk=DEFAULT_CHUNK):
-    # Do MI calculations locally
-    local_mi = build_mi_array(X, Y, bins, logtype=logtype, oc=KVSController.own_check(chunk=chunk, kvs_key=COUNT_KEY))
-
-    # Write these MI calculations to a temp file and put that filename on KVS
-    temp_fd, temp_name = tempfile.mkstemp(prefix="mi", dir=temp_dir)
-    with os.fdopen(temp_fd, "wb") as temp:
-        np.savetxt(temp, local_mi, delimiter="\t")
-    KVSController.put_key(PILEUP_DATA_KEY, temp_name)
-
-    # Pile up the resulting data
-    if KVSController.is_master:
-        # Read in each temp file, put it into a master MI array, and then delete the temp file
-        mi = np.full((X.shape[1], Y.shape[1]), np.nan, dtype=np.dtype(float))
-        for _ in range(KVSController.tasks):
-            mi_tmp_path = KVSController.get_key(PILEUP_DATA_KEY)
-            with open(mi_tmp_path, mode="r") as temp:
-                mi_two = np.loadtxt(temp, delimiter="\t")
-            os.remove(mi_tmp_path)
-            update = ~np.isnan(mi_two)
-            mi[update] = mi_two[update]
-
-        # Write the complete MI array to a temp file and put that filename on KVS
-        final_fd, final_name = tempfile.mkstemp(prefix="mi", dir=temp_dir)
-        with os.fdopen(final_fd, "wb") as temp:
-            np.savetxt(temp, mi, delimiter="\t")
-        KVSController.put_key(FINAL_MI_DATA_KEY, final_name)
-    # Get the complete MI array filename from KVS and read it in
-    else:
-        mi_tmp_path = KVSController.view_key(FINAL_MI_DATA_KEY)
-        with open(mi_tmp_path, mode="r") as temp:
-            mi = np.loadtxt(temp, delimiter="\t")
-
-    # Block here until all the processes have mi_final and then tear down the KVS data
-    KVSController.sync_processes(pref=SYNC_MI_KEY)
-    KVSController.master_remove_key(kvs_key=COUNT_KEY)
-    KVSController.master_remove_key(kvs_key=FINAL_MI_DATA_KEY)
-
-    # Delete the complete MI array temp file
-    if KVSController.is_master:
-        os.remove(final_name)
-
-    return mi
-
-
-def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, oc=None):
+def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
     """
     Calculate MI into an array initialized with NaNs
 
@@ -191,19 +109,22 @@ def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, oc=None):
         The total number of bins that were used to make the arrays discrete
     :param logtype: np.log func
         Which log function to use (log2 gives bits, ln gives nats)
-    :param oc: ownCheck generator
-        The multiprocessing controller from KVS. Tells this process what to calculate.
-        If None, calculate the entire array
     :return mi: np.ndarray (m1 x m2)
         Returns the mutual information calculated by this process.
         If oc isn't None, this array will be np.NaNs for all values not calculated
     """
     m1, m2 = X.shape[1], Y.shape[1]
     mi = np.full((m1, m2), np.nan, dtype=np.dtype(float))
-    for i, j in itertools.product(range(m1), range(m2)):
-        if oc is None or next(oc):
-            ctable = _make_table(X[:, i], Y[:, j], bins)
-            mi[i, j] = _calc_mi(ctable, logtype=logtype)
+
+    def mi_maker(i):
+        return [_calc_mi(_make_table(X[:, i], Y[:, j], bins), logtype=logtype) for j in range(m2)]
+
+    dsk = {'i': list(range(m1)), 'mi': (mi_maker, 'i')}
+    mi_list = KVSController.get(dsk, 'mi', tmp_file_path=temp_dir)
+
+    for i in range(m1):
+        mi[i, :] = mi_list[i]
+
     return mi
 
 
@@ -282,6 +203,9 @@ def _make_table(x, y, num_bins):
     :return ctable: np.ndarray (num_bins x num_bins)
         Contingency table of variables X and Y
     """
+
+    assert len(x.shape) == 1
+    assert len(y.shape) == 1
 
     # The only fast way to do this is by reindexing the table as an index array
     reindex = x * num_bins + y

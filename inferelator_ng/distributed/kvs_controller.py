@@ -6,8 +6,14 @@ It also keeps track of a bunch of SLURM related stuff that was previously workfl
 
 from kvsstcp import KVSClient
 
+from inferelator_ng.utils import Validator as check
+
 import os
 import warnings
+import collections
+import itertools
+import tempfile
+import pickle
 
 # SLURM environment variables
 SBATCH_VARS = dict(SLURM_PROCID=('rank', int, 0),
@@ -131,6 +137,141 @@ class KVSController:
         Wrapper for KVSClient view
         """
         return cls.kvs_client.view(key)
+
+    @classmethod
+    def get(cls, dsk, result, chunk=25, kvs_key="kvs_get", tmp_file_path=None):
+        """
+        Wrapper to handle multiprocessing data execution of very simple data pipelines
+        Only one layer will be executed
+
+        :param dsk: dict
+            A dask graph {key: (func, arg1, arg2, ...)}
+        :param result: key
+            The result that we want
+        :return:
+        """
+
+        assert check.argument_type(result, collections.Hashable)
+
+        # If result points to a function tuple, start unpacking. Otherwise just return it
+        if isinstance(dsk[result], tuple):
+            func = dsk[result][0]
+        else:
+            return dsk[result]
+
+        # If the function tuple is just a function, execute it and then return it
+        if len(dsk[result]) == 1:
+            return func()
+        else:
+            func_args = dsk[result][1:]
+
+        # Unpack arguments and map anything that's got data in the graph
+        map_args = []
+        for arg in func_args:
+            try:
+                map_args.append(dsk[arg])
+            except (TypeError, KeyError):
+                map_args.append(arg)
+
+        # Find out which arguments should be iterated over
+        iter_args = [isinstance(arg, (tuple, list)) for arg in map_args]
+        iter_product = []
+
+        # If nothing is iterable, call the function and return it
+        if sum(iter_args) == 0:
+            return func(*map_args)
+
+        # Put the iterables in a list
+        for iter_bool, arg in zip(iter_args, map_args):
+            if iter_bool:
+                iter_product.append(arg)
+
+        # Set up the multiprocessing
+        owncheck = cls.own_check(chunk=chunk, kvs_key=kvs_key)
+        results = dict()
+        for pos, iterated_args in enumerate(itertools.product(*iter_product)):
+            if next(owncheck):
+                iter_arg_idx = 0
+                current_args = []
+
+                # Pack up this iteration's arguments into a list
+                for iter_bool, arg in zip(iter_args, map_args):
+                    if iter_bool:
+                        current_args.append(iterated_args[iter_arg_idx])
+                        iter_arg_idx += 1
+                    else:
+                        current_args.append(arg)
+
+                # Run the function
+                results[pos] = func(*current_args)
+
+        # Process results and synchronize exit from the get call
+        results = cls.process_results(results, tmp_file_path=tmp_file_path)
+        cls.sync_processes(pref="post_get")
+        cls.master_remove_key(kvs_key=kvs_key)
+        cls.master_remove_key(kvs_key="final_data")
+        return results
+
+    @classmethod
+    def process_results(cls, results, tmp_file_path=None):
+        """
+        Pile up results from a get call
+        :param results: dict
+            A dict of results (keyed by position in a final list)
+        :param tmp_file_path:
+        :return:
+        """
+
+        # Put the data in KVS or in a file
+        if tmp_file_path is None:
+            cls.put_key("data_pileup", results)
+        else:
+            # Write these MI calculations to a temp file and put that filename on KVS
+            temp_fd, temp_name = tempfile.mkstemp(prefix="kvs", dir=tmp_file_path)
+            with os.fdopen(temp_fd, "wb") as temp:
+                pickle.dump(results, temp, -1)
+            KVSController.put_key("data_pileup", temp_name)
+
+        # Block here until mi pileup is complete and then get the final mi matrix from mi_final
+        if cls.is_master:
+            pileup_results = dict()
+            for _ in range(cls.tasks):
+                if tmp_file_path is None:
+                    pileup_results.update(cls.get_key("data_pileup"))
+                else:
+                    temp_name = cls.get_key("data_pileup")
+                    with open(temp_name, mode="r") as temp:
+                        pileup_results.update(pickle.load(temp))
+                    os.remove(temp_name)
+
+            # Put everything into a list based on the dict key
+            pileup_list = [None] * len(pileup_results)
+            for idx, val in pileup_results.items():
+                pileup_list[idx] = val
+
+            # Put the piled-up data into KVS or into a file
+            if tmp_file_path is None:
+                cls.put_key("final_data", pileup_list)
+            else:
+                temp_fd, temp_name = tempfile.mkstemp(prefix="kvs", dir=tmp_file_path)
+                with os.fdopen(temp_fd, "wb") as temp:
+                    pickle.dump(pileup_list, temp, -1)
+                cls.put_key("final_data", temp_name)
+        else:
+            if tmp_file_path is None:
+                pileup_list = cls.view_key("final_data")
+            else:
+                with os.fdopen(cls.view_key("final_data"), "wb") as temp:
+                    pileup_list = pickle.load(temp)
+
+        # Return the piled up data or wait until everyone is done so that the temp file can be deleted
+        if tmp_file_path is None:
+            return pileup_list
+        else:
+            cls.sync_processes(pref="tmp_file_read")
+            if cls.is_master:
+                os.remove(cls.view_key("final_data"))
+            return pileup_list
 
 
 def ownCheck(kvs, rank, chunk=1, kvs_key='count'):
