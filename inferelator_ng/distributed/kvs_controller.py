@@ -25,6 +25,14 @@ SBATCH_VARS = dict(SLURM_PROCID=('rank', int, 0),
 DEFAULT_MASTER = 0
 DEFAULT_WARNING = "SBATCH has not set ENV {var}. Setting {var} to {defa}."
 
+# KVS Keys to use
+
+GET_COUNT = "kvs_get"
+TMP_FILE_SYNC = "tmp_file_read"
+POST_GET_SYNC = "post_get"
+PILEUP_DATA = "data_pileup"
+FINAL_DATA = "final_data"
+
 
 class KVSController:
     # Set from SLURM environment variables
@@ -139,7 +147,7 @@ class KVSController:
         return cls.kvs_client.view(key)
 
     @classmethod
-    def get(cls, dsk, result, chunk=25, kvs_key="kvs_get", tmp_file_path=None):
+    def get(cls, dsk, result, chunk=25, tmp_file_path=None, tell_children=True):
         """
         Wrapper to handle multiprocessing data execution of very simple data pipelines
         Only one layer will be executed
@@ -148,10 +156,19 @@ class KVSController:
             A dask graph {key: (func, arg1, arg2, ...)}
         :param result: key
             The result that we want
+        :param chunk: int
+            The number of iterations to assign in blocks.
+        :param tmp_file_path: path
+            If this is not None, instead of putting data onto the KVS, data will be pickled to temp files and the
+            path to the temp file will be put onto the KVS
+        :param tell_children: bool
+            If this is True, all processes will end up with the final data after assembly. If false, only the master
+            will have the final data; others will return None
         :return:
         """
 
         assert check.argument_type(result, collections.Hashable)
+        assert check.argument_integer(chunk, low=1, allow_none=False)
 
         # If result points to a function tuple, start unpacking. Otherwise just return it
         if isinstance(dsk[result], tuple):
@@ -187,7 +204,7 @@ class KVSController:
                 iter_product.append(arg)
 
         # Set up the multiprocessing
-        owncheck = cls.own_check(chunk=chunk, kvs_key=kvs_key)
+        owncheck = cls.own_check(chunk=chunk, kvs_key=GET_COUNT)
         results = dict()
         for pos, iterated_args in enumerate(itertools.product(*iter_product)):
             if next(owncheck):
@@ -206,40 +223,46 @@ class KVSController:
                 results[pos] = func(*current_args)
 
         # Process results and synchronize exit from the get call
-        results = cls.process_results(results, tmp_file_path=tmp_file_path)
-        cls.sync_processes(pref="post_get")
-        cls.master_remove_key(kvs_key=kvs_key)
-        cls.master_remove_key(kvs_key="final_data")
+        results = cls.process_results(results, tmp_file_path=tmp_file_path, tell_children=tell_children)
+        cls.sync_processes(pref=POST_GET_SYNC)
+        cls.master_remove_key(kvs_key=GET_COUNT)
+        cls.master_remove_key(kvs_key=FINAL_DATA)
         return results
 
     @classmethod
-    def process_results(cls, results, tmp_file_path=None):
+    def process_results(cls, results, tmp_file_path=None, tell_children=True):
         """
         Pile up results from a get call
         :param results: dict
             A dict of results (keyed by position in a final list)
-        :param tmp_file_path:
-        :return:
+        :param tmp_file_path: path
+            If this is not None, instead of putting data onto the KVS, data will be pickled to temp files and the
+            path to the temp file will be put onto the KVS
+        :param tell_children: bool
+            If this is True, all processes will end up with the final data after assembly. If false, only the master
+            will have the final data; others will return None
+        :return: list
+            A list of function results
         """
 
-        # Put the data in KVS or in a file
         if tmp_file_path is None:
-            cls.put_key("data_pileup", results)
+            # Put the data in KVS
+            cls.put_key(PILEUP_DATA, results)
         else:
-            # Write these MI calculations to a temp file and put that filename on KVS
+            # Put the data in a pickled file
             temp_fd, temp_name = tempfile.mkstemp(prefix="kvs", dir=tmp_file_path)
             with os.fdopen(temp_fd, "wb") as temp:
                 pickle.dump(results, temp, -1)
-            KVSController.put_key("data_pileup", temp_name)
+            cls.put_key(PILEUP_DATA, temp_name)
 
-        # Block here until mi pileup is complete and then get the final mi matrix from mi_final
         if cls.is_master:
+            # If this is the master thread, get all the data and pile it up
             pileup_results = dict()
             for _ in range(cls.tasks):
                 if tmp_file_path is None:
-                    pileup_results.update(cls.get_key("data_pileup"))
+                    pileup_results.update(cls.get_key(PILEUP_DATA))
                 else:
-                    temp_name = cls.get_key("data_pileup")
+                    temp_name = cls.get_key(PILEUP_DATA)
                     with open(temp_name, mode="r") as temp:
                         pileup_results.update(pickle.load(temp))
                     os.remove(temp_name)
@@ -249,28 +272,36 @@ class KVSController:
             for idx, val in pileup_results.items():
                 pileup_list[idx] = val
 
-            # Put the piled-up data into KVS or into a file
-            if tmp_file_path is None:
-                cls.put_key("final_data", pileup_list)
-            else:
+            if tell_children and tmp_file_path is None:
+                # Put the piled-up data into KVS
+                cls.put_key(FINAL_DATA, pileup_list)
+            elif tell_children:
+                # Pute the piled-up data into a pickled file
                 temp_fd, temp_name = tempfile.mkstemp(prefix="kvs", dir=tmp_file_path)
                 with os.fdopen(temp_fd, "wb") as temp:
                     pickle.dump(pileup_list, temp, -1)
-                cls.put_key("final_data", temp_name)
-        else:
-            if tmp_file_path is None:
-                pileup_list = cls.view_key("final_data")
+                cls.put_key(FINAL_DATA, temp_name)
             else:
-                with os.fdopen(cls.view_key("final_data"), "wb") as temp:
+                # Put a None onto KVS - only the master needs this data
+                cls.put_key(FINAL_DATA, None)
+
+        else:
+            # If this is not the master thread, get the finalized data when the master is finished
+            if tell_children and tmp_file_path is None:
+                pileup_list = cls.view_key(FINAL_DATA)
+            elif tell_children:
+                with os.fdopen(cls.view_key(FINAL_DATA), "wb") as temp:
                     pileup_list = pickle.load(temp)
+            else:
+                pileup_list = cls.view_key(FINAL_DATA)
 
         # Return the piled up data or wait until everyone is done so that the temp file can be deleted
         if tmp_file_path is None:
             return pileup_list
         else:
-            cls.sync_processes(pref="tmp_file_read")
+            cls.sync_processes(pref=TMP_FILE_SYNC)
             if cls.is_master:
-                os.remove(cls.view_key("final_data"))
+                os.remove(cls.view_key(FINAL_DATA))
             return pileup_list
 
 

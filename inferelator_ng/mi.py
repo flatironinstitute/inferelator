@@ -74,8 +74,10 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
         Number of bins to discretize continuous data into for the generation of a contingency table
     :param logtype: np.log func
         Which type of log function should be used (log2 results in MI bits, log results in MI nats, log10... is weird)
+    :param temp_dir: path
+        Path to write temp files for multiprocessing
 
-    :return mi: pd.DataFrame (m1 x m2)
+    :return mi: pd.DataFramae (m1 x m2)
         The mutual information between variables m1 and m2
     """
     assert X.shape[1] == Y.shape[1]
@@ -109,9 +111,10 @@ def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
         The total number of bins that were used to make the arrays discrete
     :param logtype: np.log func
         Which log function to use (log2 gives bits, ln gives nats)
+    :param temp_dir: path
+        Path to write temp files for multiprocessing
     :return mi: np.ndarray (m1 x m2)
-        Returns the mutual information calculated by this process.
-        If oc isn't None, this array will be np.NaNs for all values not calculated
+        Returns the mutual information array
     """
     m1, m2 = X.shape[1], Y.shape[1]
     mi = np.full((m1, m2), np.nan, dtype=np.dtype(float))
@@ -122,8 +125,8 @@ def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
     dsk = {'i': list(range(m1)), 'mi': (mi_maker, 'i')}
     mi_list = KVSController.get(dsk, 'mi', tmp_file_path=temp_dir)
 
-    for i in range(m1):
-        mi[i, :] = mi_list[i]
+    for m1_i in range(m1):
+        mi[m1_i, :] = mi_list[m1_i]
 
     return mi
 
