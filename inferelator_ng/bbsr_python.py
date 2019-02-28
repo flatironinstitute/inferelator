@@ -5,7 +5,7 @@ from inferelator_ng import utils
 from inferelator_ng import bayes_stats
 from inferelator_ng import regression
 from inferelator_ng import mi
-from inferelator_ng.distributed.kvs_controller import KVSController
+from inferelator_ng.distributed.inferelator_mp import MPControl
 
 # Default number of predictors to include in the model
 DEFAULT_nS = 10
@@ -98,9 +98,9 @@ class BBSR(regression.BaseRegression):
             return data
 
         dsk = {'j': list(range(self.G)), 'data': (regression_maker, self, 'j')}
-        run_data = KVSController.get(dsk, 'data', tell_children=False)
+        run_data = MPControl.get(dsk, 'data', tell_children=False)
 
-        if KVSController.is_master:
+        if MPControl.is_master:
             return self.pileup_data(run_data)
         else:
             return None, None

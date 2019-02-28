@@ -2,7 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from inferelator_ng.distributed.kvs_controller import KVSController
+from inferelator_ng.distributed.inferelator_mp import MPControl
 from inferelator_ng import utils
 from inferelator_ng.utils import Validator as check
 
@@ -57,7 +57,7 @@ class MIDriver:
         mi_bg = mutual_information(x_df, x_df, self.bins, temp_dir=self.temp_dir, logtype=logtype)
         clr = calc_mixed_clr(utils.df_set_diag(mi, 0), utils.df_set_diag(mi_bg, 0))
 
-        KVSController.sync_processes(pref=SYNC_CLR_KEY)
+        MPControl.sync_processes(pref=SYNC_CLR_KEY)
 
         return clr, mi
 
@@ -124,7 +124,7 @@ def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
 
     # Send the MI build to the multiprocessing controller
     dsk = {'i': list(range(m1)), 'mi': (mi_maker, 'i')}
-    mi_list = KVSController.get(dsk, 'mi', tmp_file_path=temp_dir)
+    mi_list = MPControl.get(dsk, 'mi', tmp_file_path=temp_dir)
 
     # Convert the list of lists to an array
     mi = np.array(mi_list)

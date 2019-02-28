@@ -3,7 +3,7 @@ import pandas as pd
 import copy
 
 from inferelator_ng import utils
-from inferelator_ng.distributed.kvs_controller import KVSController
+from inferelator_ng.distributed.inferelator_mp import MPControl
 
 DEFAULT_CHUNK = 25
 PROGRESS_STR = "Regression on {gn} [{i} / {total}]"
@@ -56,7 +56,7 @@ class BaseRegression(object):
             raise NotImplementedError
 
         dsk = {'j': list(range(self.G)), 'data': (regression_maker, self, 'j')}
-        run_data = KVSController.get(dsk, 'data', tell_children=False)
+        run_data = MPControl.get(dsk, 'data', tell_children=False)
         return self.pileup_data(run_data)
 
     @staticmethod
