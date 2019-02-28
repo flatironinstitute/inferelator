@@ -2,7 +2,7 @@ import unittest, os
 import pandas as pd
 import pandas.util.testing as pdt
 import numpy as np
-from inferelator_ng.distributed.kvs_controller import KVSController
+from inferelator_ng.distributed.inferelator_mp import MPControl
 from inferelator_ng import bbsr_python
 from inferelator_ng import bayes_stats
 from inferelator_ng import regression
@@ -15,7 +15,7 @@ class TestBBSRrunnerPython(unittest.TestCase):
         super(TestBBSRrunnerPython, self).__init__(*args, **kwargs)
         # Extra behavior: only run if KVSClient can reach the host:
         try:
-            KVSController.connect()
+            MPControl.connect()
         except Exception as e:
             if str(e) == 'Missing host':
                 print('Test test_bbsr.py exiting since KVS host is not running')
