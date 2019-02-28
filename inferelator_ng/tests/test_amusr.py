@@ -184,5 +184,6 @@ class TestAMuSRrunner(unittest.TestCase):
                             index=pd.MultiIndex(levels=[[0, 1], [0]], labels=[[1], [0]]),
                             columns=['regulator', 'target', 'weights', 'resc_weights'])]
 
+        regress_data = r.regress()
         for i in range(len(targets)):
-            pdt.assert_frame_equal(pd.concat(r.regress(i)), out[i], check_dtype=False)
+            pdt.assert_frame_equal(pd.concat(regress_data[i]), out[i], check_dtype=False)

@@ -6,7 +6,7 @@ from scipy.optimize import minimize
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
 
-from inferelator_ng.distributed.kvs_controller import KVSController
+from inferelator_ng.distributed.inferelator_mp import MPControl
 from inferelator_ng import utils
 from inferelator_ng import regression
 
@@ -285,39 +285,42 @@ class AMuSR_regression(regression.BaseRegression):
         prior = prior / prior.sum() * len(prior)
         return prior
 
-    def regress(self, idx):
+    def run(self):
         """
-        Model a single gene by multitask regression
-        :param idx: int
-            Gene index
+        Execute multitask (AMUSR)
         :return:
         """
-        gene = self.genes[idx]
-        x, y, tasks = [], [], []
 
-        if self.remove_autoregulation:
-            tfs = [t for t in self.tfs if t != gene]
+        run_data = self.regress()
+
+        if MPControl.is_master:
+            return self.pileup_data(run_data)
         else:
-            tfs = self.tfs
+            return None
 
-        for k in range(self.n_tasks):
-            if gene in self.Y[k]:
-                x.append(self.X[k].loc[:, tfs].values)  # list([N, K])
-                y.append(self.Y[k].loc[:, gene].values.reshape(-1, 1))  # list([N, 1])
-                tasks.append(k)  # [T,]
+    def regress(self):
+        def regression_maker(regression_obj, j):
+            gene = regression_obj.genes[j]
+            x, y, tasks = [], [], []
 
-        prior = self.format_prior(self.priors, gene, tasks, self.prior_weight)  # [K, T]
-        return run_regression_EBIC(x, y, tfs, tasks, gene, prior)
+            if regression_obj.remove_autoregulation:
+                tfs = [t for t in regression_obj.tfs if t != gene]
+            else:
+                tfs = regression_obj.tfs
 
-    def pileup_data(self):
-        run_data = []
+            for k in range(regression_obj.n_tasks):
+                if gene in regression_obj.Y[k]:
+                    x.append(regression_obj.X[k].loc[:, tfs].values)  # list([N, K])
+                    y.append(regression_obj.Y[k].loc[:, gene].values.reshape(-1, 1))  # list([N, 1])
+                    tasks.append(k)  # [T,]
 
-        # Reach into KVS to get the model data
-        for p in range(utils.slurm_envs()['tasks']):
-            pid, ps = KVSController.get_key('plist')
-            run_data.extend(ps)
-        KVSController.master_remove_key()
+            prior = regression_obj.format_prior(regression_obj.priors, gene, tasks, regression_obj.prior_weight)
+            return run_regression_EBIC(x, y, tfs, tasks, gene, prior)
 
+        dsk = {'j': list(range(self.G)), 'data': (regression_maker, self, 'j')}
+        return MPControl.get(dsk, 'data', tell_children=False)
+
+    def pileup_data(self, run_data):
         weights = []
         rescaled_weights = []
 
@@ -480,7 +483,7 @@ def patch_workflow(obj):
             x.append(self.task_design[k].iloc[:, self.task_bootstraps[k][bootstrap_idx]].transpose())
             y.append(self.task_response[k].iloc[:, self.task_bootstraps[k][bootstrap_idx]].transpose())
 
-        KVSController.sync_processes(pref="amusr_pre")
+        MPControl.sync_processes(pref="amusr_pre")
         regress = AMuSR_regression(x, y, tfs=self.regulators, genes=self.targets, priors=self.priors_data,
                                    prior_weight=self.prior_weight)
         return regress.run()
