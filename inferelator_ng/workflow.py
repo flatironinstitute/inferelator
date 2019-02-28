@@ -211,7 +211,7 @@ class WorkflowBase(object):
         else:
             opener = open
 
-        return opener(os.path.abspath(os.path.join(self.input_dir, filename)), mode=mode)
+        return opener(os.path.abspath(os.path.expanduser(os.path.join(self.input_dir, filename))), mode=mode)
 
     def input_dataframe(self, filename, index_col=0):
         """
@@ -277,13 +277,9 @@ class WorkflowBase(object):
 
     def is_master(self):
         """
-        Return True if this is the rank-0 (master) thread
+        Return True if this is the master thread
         """
-
-        if KVSController.rank == 0:
-            return True
-        else:
-            return False
+        return MPControl.is_master
 
     def create_output_dir(self):
         """
