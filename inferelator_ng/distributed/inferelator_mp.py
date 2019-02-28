@@ -5,8 +5,13 @@ class MPControl:
     """
     This is the multiprocessing controller
     """
+
+    # Which multiprocessing engine to use
     multiprocess_engine = KVSController
+
+    # Relevant external state booleans
     is_master = False
+    is_initialized = False
 
     @classmethod
     def set_multiprocess_engine(cls, engine):
@@ -15,8 +20,11 @@ class MPControl:
 
     @classmethod
     def connect(cls, *args, **kwargs):
+        if cls.is_initialized:
+            return True
         connect_return = cls.multiprocess_engine.connect(*args, **kwargs)
         cls.is_master = cls.multiprocess_engine.is_master
+        cls.is_initialized = True
         return connect_return
 
     @classmethod
