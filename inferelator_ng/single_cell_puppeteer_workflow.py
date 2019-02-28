@@ -81,6 +81,7 @@ def create_puppet_workflow(base_class=single_cell_workflow.SingleCellWorkflow, r
 
         write_network = True
         network_file_name = None
+        initialize_mp = False
 
         def __init__(self, expr_data, meta_data, prior_data, gs_data):
             self.expression_matrix = expr_data
