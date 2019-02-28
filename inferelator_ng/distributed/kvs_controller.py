@@ -26,7 +26,6 @@ DEFAULT_MASTER = 0
 DEFAULT_WARNING = "SBATCH has not set ENV {var}. Setting {var} to {defa}."
 
 # KVS Keys to use
-
 GET_COUNT = "kvs_get"
 TMP_FILE_SYNC = "tmp_file_read"
 POST_GET_SYNC = "post_get"
@@ -35,10 +34,11 @@ FINAL_DATA = "final_data"
 
 
 class KVSController:
-    # Set from SLURM environment variables
 
+    # An active KVSClient object
     kvs_client = None
 
+    # Set from SLURM environment variables
     rank = None  # int
     tasks = None  # int
     node = None  # int
