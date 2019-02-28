@@ -2,7 +2,7 @@ import numpy as np
 
 from inferelator_ng import utils
 from inferelator_ng import regression
-from inferelator_ng.distributed.kvs_controller import KVSController
+from inferelator_ng.distributed.inferelator_mp import MPControl
 from sklearn.linear_model import ElasticNetCV
 
 ELASTICNET_PARAMETERS = dict(l1_ratio=[0.5, 0.7, 0.9],
@@ -82,9 +82,9 @@ class ElasticNet(regression.BaseRegression):
             return data
 
         dsk = {'j': list(range(self.G)), 'data': (regression_maker, self, 'j')}
-        run_data = KVSController.get(dsk, 'data', tell_children=False)
+        run_data = MPControl.get(dsk, 'data', tell_children=False)
 
-        if KVSController.is_master:
+        if MPControl.is_master:
             return self.pileup_data(run_data)
         else:
             return None, None
@@ -103,7 +103,7 @@ def patch_workflow(obj):
         X = self.design.iloc[:, bootstrap]
         Y = self.response.iloc[:, bootstrap]
         utils.Debug.vprint('Calculating betas using MEN', level=0)
-        KVSController.sync_processes("pre-bootstrap")
+        MPControl.sync_processes("pre-bootstrap")
         return ElasticNet(X, Y).run()
 
     obj.run_bootstrap = types.MethodType(run_bootstrap, obj)
