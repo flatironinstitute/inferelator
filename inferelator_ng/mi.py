@@ -80,8 +80,8 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
     :return mi: pd.DataFramae (m1 x m2)
         The mutual information between variables m1 and m2
     """
-    assert X.shape[1] == Y.shape[1]
-    assert (X.columns == Y.columns).all()
+
+    assert check.indexes_align((X.columns, Y.columns))
 
     # Create dense output matrix and copy the inputs
     mi_r = X.index
@@ -95,8 +95,7 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
     Y = _make_array_discrete(Y, bins, axis=1).transpose()
 
     # Build the MI matrix
-    mi = build_mi_array(X, Y, bins, logtype=logtype, temp_dir=temp_dir)
-    return pd.DataFrame(mi, index=mi_r, columns=mi_c)
+    return pd.DataFrame(build_mi_array(X, Y, bins, logtype=logtype, temp_dir=temp_dir), index=mi_r, columns=mi_c)
 
 
 def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
@@ -116,17 +115,20 @@ def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
     :return mi: np.ndarray (m1 x m2)
         Returns the mutual information array
     """
-    m1, m2 = X.shape[1], Y.shape[1]
-    mi = np.full((m1, m2), np.nan, dtype=np.dtype(float))
 
+    m1, m2 = X.shape[1], Y.shape[1]
+
+    # Define the function which calculates MI for each variable in X against every variable in Y
     def mi_maker(i):
         return [_calc_mi(_make_table(X[:, i], Y[:, j], bins), logtype=logtype) for j in range(m2)]
 
+    # Send the MI build to the multiprocessing controller
     dsk = {'i': list(range(m1)), 'mi': (mi_maker, 'i')}
     mi_list = KVSController.get(dsk, 'mi', tmp_file_path=temp_dir)
 
-    for m1_i in range(m1):
-        mi[m1_i, :] = mi_list[m1_i]
+    # Convert the list of lists to an array
+    mi = np.array(mi_list)
+    assert (m1, m2) == mi.shape
 
     return mi
 
