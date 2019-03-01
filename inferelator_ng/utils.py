@@ -1,6 +1,6 @@
 from __future__ import print_function
+
 import pandas as pd
-import numpy as np
 import os
 
 # Get the following environment variables
@@ -31,7 +31,7 @@ class Debug:
     default_level = 1
 
     silence_clients = True
-    rank = slurm_envs()['rank']
+    is_master = True
 
     levels = dict(silent=-1,
                   normal=0,
@@ -46,7 +46,7 @@ class Debug:
 
     @classmethod
     def vprint(cls, *args, **kwargs):
-        if cls.silence_clients and cls.rank != 0:
+        if cls.silence_clients and not cls.is_master:
             return
         cls.print_level(*args, **kwargs)
 

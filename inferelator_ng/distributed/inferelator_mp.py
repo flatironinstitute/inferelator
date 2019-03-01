@@ -1,5 +1,5 @@
 from inferelator_ng.distributed.kvs_controller import KVSController
-
+from inferelator_ng import utils
 
 class MPControl:
     """
@@ -23,8 +23,14 @@ class MPControl:
         if cls.is_initialized:
             return True
         connect_return = cls.multiprocess_engine.connect(*args, **kwargs)
+
+        # Set the process state
         cls.is_master = cls.multiprocess_engine.is_master
         cls.is_initialized = True
+
+        # Also tell Debug if we're the master process
+        utils.Debug.is_master = cls.is_master
+
         return connect_return
 
     @classmethod
