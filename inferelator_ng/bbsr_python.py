@@ -86,14 +86,15 @@ class BBSR(regression.BaseRegression):
             Returns None, None if it's a subordinate thread
         """
 
-        def regression_maker(regression_obj, j):
+        def regression_maker(r_obj, j):
             level = 0 if j % 100 == 0 else 2
-            utils.Debug.vprint(regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G), level=level)
-            data = bayes_stats.bbsr(regression_obj.X.values,
-                                    regression_obj.Y.iloc[j, :].values,
-                                    regression_obj.pp.iloc[j, :].values,
-                                    regression_obj.weights_mat.iloc[j, :].values,
-                                    regression_obj.nS)
+            utils.Debug.vprint(regression.PROGRESS_STR.format(gn=r_obj.genes[j], i=j, total=r_obj.G),
+                               level=level)
+            data = bayes_stats.bbsr(r_obj.X.values,
+                                    r_obj.Y.iloc[j, :].values,
+                                    r_obj.pp.iloc[j, :].values,
+                                    r_obj.weights_mat.iloc[j, :].values,
+                                    r_obj.nS)
             data['ind'] = j
             return data
 
