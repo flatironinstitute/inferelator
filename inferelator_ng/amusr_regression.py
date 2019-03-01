@@ -8,6 +8,7 @@ from sklearn.linear_model import LinearRegression
 
 from inferelator_ng.distributed.inferelator_mp import MPControl
 from inferelator_ng import utils
+from inferelator_ng.utils import Validator as check
 from inferelator_ng import regression
 
 # Shadow built-in zip with itertools.izip if this is python2 (This puts out a memory dumpster fire)
@@ -180,7 +181,6 @@ class AMuSR_OneGene:
 
 
 class AMuSR_regression(regression.BaseRegression):
-    chunk = 25  # int
 
     X = None  # list(pd.DataFrame [N, K])
     Y = None  # list(pd.DataFrame [N, G])
@@ -194,8 +194,7 @@ class AMuSR_regression(regression.BaseRegression):
     prior_weight = 1.0  # float
     remove_autoregulation = True  # bool
 
-    def __init__(self, X, Y, tfs=None, genes=None, priors=None, prior_weight=1, chunk=25,
-                 remove_autoregulation=True):
+    def __init__(self, X, Y, tfs=None, genes=None, priors=None, prior_weight=1, remove_autoregulation=True):
         """
         Set up a regression object for multitask regression
 
@@ -203,11 +202,8 @@ class AMuSR_regression(regression.BaseRegression):
         :param Y: list(pd.DataFrame [N, G])
         :param priors: pd.DataFrame [G, K]
         :param prior_weight: float
-        :param chunk: int
         :param remove_autoregulation: bool
         """
-
-        self.chunk = chunk
 
         # Set the data into the regression object
         self.X = X
@@ -296,31 +292,40 @@ class AMuSR_regression(regression.BaseRegression):
         if MPControl.is_master:
             return self.pileup_data(run_data)
         else:
-            return None
+            return None, None
 
     def regress(self):
-        def regression_maker(regression_obj, j):
-            gene = regression_obj.genes[j]
+        """
+
+        :return:
+        """
+        def regression_maker(r_obj, j):
+            level = 0 if j % 100 == 0 else 2
+            utils.Debug.vprint(regression.PROGRESS_STR.format(gn=r_obj.genes[j], i=j, total=r_obj.G),
+                               level=level)
+
+            gene = r_obj.genes[j]
             x, y, tasks = [], [], []
 
-            if regression_obj.remove_autoregulation:
-                tfs = [t for t in regression_obj.tfs if t != gene]
+            if r_obj.remove_autoregulation:
+                tfs = [t for t in r_obj.tfs if t != gene]
             else:
-                tfs = regression_obj.tfs
+                tfs = r_obj.tfs
 
-            for k in range(regression_obj.n_tasks):
-                if gene in regression_obj.Y[k]:
-                    x.append(regression_obj.X[k].loc[:, tfs].values)  # list([N, K])
-                    y.append(regression_obj.Y[k].loc[:, gene].values.reshape(-1, 1))  # list([N, 1])
+            for k in range(r_obj.n_tasks):
+                if gene in r_obj.Y[k]:
+                    x.append(r_obj.X[k].loc[:, tfs].values)  # list([N, K])
+                    y.append(r_obj.Y[k].loc[:, gene].values.reshape(-1, 1))  # list([N, 1])
                     tasks.append(k)  # [T,]
 
-            prior = regression_obj.format_prior(regression_obj.priors, gene, tasks, regression_obj.prior_weight)
+            prior = r_obj.format_prior(r_obj.priors, gene, tasks, r_obj.prior_weight)
             return run_regression_EBIC(x, y, tfs, tasks, gene, prior)
 
         dsk = {'j': list(range(self.G)), 'data': (regression_maker, self, 'j')}
         return MPControl.get(dsk, 'data', tell_children=False)
 
     def pileup_data(self, run_data):
+
         weights = []
         rescaled_weights = []
 
