@@ -2,10 +2,10 @@ import unittest
 
 from inferelator_ng.single_cell_puppeteer_workflow import create_puppet_workflow
 from inferelator_ng import tfa_workflow
-from inferelator_ng import regression
-from inferelator_ng import bbsr_python
-from inferelator_ng import elasticnet_python
-from inferelator_ng import amusr_regression
+from inferelator_ng.regression import base_regression
+from inferelator_ng.regression import bbsr_python
+from inferelator_ng.regression import elasticnet_python
+from inferelator_ng.regression import amusr_regression
 
 import pandas as pd
 

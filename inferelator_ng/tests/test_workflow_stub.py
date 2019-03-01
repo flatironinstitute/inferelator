@@ -4,7 +4,7 @@ artificial stubs for dependancies.
 """
 
 import unittest
-from .. import workflow
+from inferelator_ng import workflow
 import os
 
 my_dir = os.path.dirname(__file__)

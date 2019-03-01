@@ -3,9 +3,9 @@ import pandas as pd
 import pandas.util.testing as pdt
 import numpy as np
 from inferelator_ng.distributed.inferelator_mp import MPControl
-from inferelator_ng import bbsr_python
-from inferelator_ng import bayes_stats
-from inferelator_ng import regression
+from inferelator_ng.regression import bbsr_python
+from inferelator_ng.regression import bayes_stats
+from inferelator_ng.regression import base_regression
 
 my_dir = os.path.dirname(__file__)
 
@@ -167,7 +167,7 @@ class TestBBSRrunnerPython(unittest.TestCase):
         self.X = np.array([[0, 0], [0, 0]])
         self.Y = np.array([1, 2])
         betas = np.array([ 0.,  0.])
-        result = regression.predict_error_reduction(self.X, self.Y, betas)
+        result = base_regression.predict_error_reduction(self.X, self.Y, betas)
         self.assertTrue((result == [ 0.,  0.]).all())
 
     def test_two_genes_nonzero_clr_two_conditions_zero_gene1_positive_influence(self):

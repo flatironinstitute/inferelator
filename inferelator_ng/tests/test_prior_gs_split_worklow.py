@@ -4,7 +4,7 @@ artificial stubs for dependancies.
 """
 
 import unittest
-from inferelator_ng import prior_gs_split_workflow
+from inferelator_ng.preprocessing import prior_gs_split_workflow
 from inferelator_ng import workflow
 
 import os

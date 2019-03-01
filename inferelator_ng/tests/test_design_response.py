@@ -2,8 +2,8 @@ import unittest, os
 import pandas as pd
 import numpy as np
 import pdb
-from .. import design_response_translation
-from .. import utils
+from inferelator_ng.preprocessing import design_response_translation
+from inferelator_ng import utils
 
 my_dir = os.path.dirname(__file__)
 

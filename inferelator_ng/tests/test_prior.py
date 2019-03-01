@@ -1,5 +1,5 @@
 import unittest
-from .. import prior
+from inferelator_ng.preprocessing import prior
 import pandas as pd
 import os
 

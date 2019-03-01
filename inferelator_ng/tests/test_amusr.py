@@ -1,7 +1,7 @@
 import unittest
 import pandas as pd
 import numpy as np
-from inferelator_ng import amusr_regression
+from inferelator_ng.regression import amusr_regression
 from inferelator_ng import amusr_workflow
 from inferelator_ng.single_cell_puppeteer_workflow import create_puppet_workflow
 import numpy.testing as npt
