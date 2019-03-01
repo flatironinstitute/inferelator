@@ -1,7 +1,7 @@
 import numpy as np
 
 from inferelator_ng import utils
-from inferelator_ng import regression
+from inferelator_ng.regression import base_regression
 from inferelator_ng.distributed.inferelator_mp import MPControl
 from sklearn.linear_model import ElasticNetCV
 
@@ -50,8 +50,8 @@ def elastic_net(X, Y, params):
     if coef_nonzero.sum() > 0:
         x = X[:, coef_nonzero]
         utils.make_array_2d(Y)
-        betas = regression.recalculate_betas_from_selected(x, Y)
-        betas_resc = regression.predict_error_reduction(x, Y, betas)
+        betas = base_regression.recalculate_betas_from_selected(x, Y)
+        betas_resc = base_regression.predict_error_reduction(x, Y, betas)
         return dict(pp=coef_nonzero,
                     betas=betas,
                     betas_resc=betas_resc)
@@ -61,34 +61,26 @@ def elastic_net(X, Y, params):
                     betas_resc=np.zeros(K))
 
 
-class ElasticNet(regression.BaseRegression):
+class ElasticNet(base_regression.BaseRegression):
     params = ELASTICNET_PARAMETERS
 
-    def run(self):
-
+    def regress(self):
         """
         Execute Elastic Net
 
-        :return: pd.DataFrame [G x K], pd.DataFrame [G x K]
-            Returns the regression betas and beta error reductions for all threads if this is the master thread (rank 0)
-            Returns None, None if it's a subordinate thread
+        :return: list
+            Returns a list of regression results that base_regression's pileup_data can process
         """
 
         def regression_maker(regression_obj, j):
             level = 0 if j % 100 == 0 else 2
-            utils.Debug.vprint(regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G), level=level)
+            utils.Debug.vprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G), level=level)
             data = elastic_net(regression_obj.X.values, regression_obj.Y.iloc[j, :].values, regression_obj.params)
             data['ind'] = j
             return data
 
         dsk = {'j': list(range(self.G)), 'data': (regression_maker, self, 'j')}
-        run_data = MPControl.get(dsk, 'data', tell_children=False)
-
-        if MPControl.is_master:
-            return self.pileup_data(run_data)
-        else:
-            return None, None
-
+        return MPControl.get(dsk, 'data', tell_children=False)
 
 def patch_workflow(obj):
     """

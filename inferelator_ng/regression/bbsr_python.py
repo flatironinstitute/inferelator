@@ -2,44 +2,34 @@ import pandas as pd
 import numpy as np
 
 from inferelator_ng import utils
-from inferelator_ng import bayes_stats
-from inferelator_ng import regression
-from inferelator_ng import mi
+from inferelator_ng import default
+from inferelator_ng.regression import bayes_stats
+from inferelator_ng.regression import base_regression
+from inferelator_ng.regression import mi
 from inferelator_ng.distributed.inferelator_mp import MPControl
 
-# Default number of predictors to include in the model
-DEFAULT_nS = 10
-
-# Default weight for priors & Non-priors
-# If this is the same as no_prior_weight:
-#   Priors will be included in the pp matrix before the number of predictors is reduced to nS
-#   They won't get special treatment in the model though
-DEFAULT_prior_weight = 1
-DEFAULT_no_prior_weight = 1
-
-# Throw away the priors which have a CLR that is 0 before the number of predictors is reduced by BIC
-DEFAULT_filter_priors_for_clr = False
 
 
-class BBSR(regression.BaseRegression):
+
+class BBSR(base_regression.BaseRegression):
     # Bayseian correlation measurements
     clr_mat = None  # [G x K] float
 
     # Priors Data
     prior_mat = None  # [G x K] # numeric
-    filter_priors_for_clr = DEFAULT_filter_priors_for_clr  # bool
+    filter_priors_for_clr = default.DEFAULT_filter_priors_for_clr  # bool
 
     # Weights for Predictors (weights_mat is set with _calc_weight_matrix)
     weights_mat = None  # [G x K] numeric
-    prior_weight = DEFAULT_prior_weight  # numeric
-    no_prior_weight = DEFAULT_no_prior_weight  # numeric
+    prior_weight = default.DEFAULT_prior_weight  # numeric
+    no_prior_weight = default.DEFAULT_no_prior_weight  # numeric
 
     # Predictors to include in modeling (pp is set with _build_pp_matrix)
     pp = None  # [G x K] bool
-    nS = DEFAULT_nS  # int
+    nS = default.DEFAULT_nS  # int
 
-    def __init__(self, X, Y, clr_mat, prior_mat, nS=DEFAULT_nS, prior_weight=DEFAULT_prior_weight,
-                 no_prior_weight=DEFAULT_no_prior_weight, chunk=regression.DEFAULT_CHUNK):
+    def __init__(self, X, Y, clr_mat, prior_mat, nS=default.DEFAULT_nS, prior_weight=default.DEFAULT_prior_weight,
+                 no_prior_weight=default.DEFAULT_no_prior_weight):
         """
         Create a Regression object for Bayes Best Subset Regression
 
@@ -59,7 +49,7 @@ class BBSR(regression.BaseRegression):
             Weight of a predictor which doesn't have a prior
         """
 
-        super(BBSR, self).__init__(X, Y, chunk=chunk)
+        super(BBSR, self).__init__(X, Y)
 
         self.nS = nS
 
@@ -88,7 +78,7 @@ class BBSR(regression.BaseRegression):
 
         def regression_maker(r_obj, j):
             level = 0 if j % 100 == 0 else 2
-            utils.Debug.vprint(regression.PROGRESS_STR.format(gn=r_obj.genes[j], i=j, total=r_obj.G),
+            utils.Debug.vprint(base_regression.PROGRESS_STR.format(gn=r_obj.genes[j], i=j, total=r_obj.G),
                                level=level)
             data = bayes_stats.bbsr(r_obj.X.values,
                                     r_obj.Y.iloc[j, :].values,
@@ -143,7 +133,8 @@ class BBSR(regression.BaseRegression):
         return pp
 
     @staticmethod
-    def _calculate_weight_matrix(p_matrix, no_p_weight=DEFAULT_no_prior_weight, p_weight=DEFAULT_prior_weight):
+    def _calculate_weight_matrix(p_matrix, no_p_weight=default.DEFAULT_no_prior_weight,
+                                 p_weight=default.DEFAULT_prior_weight):
         """
         Create a weights matrix. Everywhere p_matrix is not set to 0, the weights matrix will have p_weight. Everywhere
         p_matrix is set to 0, the weights matrix will have no_p_weight
@@ -171,6 +162,11 @@ def patch_workflow(obj):
         obj.mi_driver = mi.MIDriver
     if not hasattr(obj, 'mi_sync_path'):
         obj.mi_sync_path = None
+    if not hasattr(obj, 'prior_weight'):
+        obj.prior_weight = default.DEFAULT_prior_weight
+    if not hasattr(obj, 'no_prior_weight'):
+        obj.no_prior_weight = default.DEFAULT_no_prior_weight
+
 
     def run_bootstrap(self, bootstrap):
         X = self.design.iloc[:, bootstrap]
@@ -180,6 +176,7 @@ def patch_workflow(obj):
         mi_matrix = None
         utils.Debug.vprint('Calculating betas using BBSR', level=0)
 
-        return BBSR(X, Y, clr_matrix, self.priors_data).run()
+        return BBSR(X, Y, clr_matrix, self.priors_data, prior_weight=self.prior_weight,
+                    no_prior_weight=self.no_prior_weight).run()
 
     obj.run_bootstrap = types.MethodType(run_bootstrap, obj)

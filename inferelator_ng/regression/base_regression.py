@@ -20,7 +20,7 @@ class BaseRegression(object):
     G = None  # int G
     K = None  # int K
 
-    def __init__(self, X, Y, chunk=25):
+    def __init__(self, X, Y):
         """
         Create a regression object and do basic data transforms
 
@@ -29,7 +29,6 @@ class BaseRegression(object):
         :param Y: pd.DataFrame [G x N]
             Response data
         """
-        self.chunk = chunk
 
         # Get the IDs and total count for the genes and predictors
         self.K = X.shape[0]
@@ -52,12 +51,19 @@ class BaseRegression(object):
             Returns None, None if it's a subordinate thread
         """
 
-        def regression_maker(regression_obj, j):
-            raise NotImplementedError
+        run_data = self.regress()
 
-        dsk = {'j': list(range(self.G)), 'data': (regression_maker, self, 'j')}
-        run_data = MPControl.get(dsk, 'data', tell_children=False)
-        return self.pileup_data(run_data)
+        if MPControl.is_master:
+            return self.pileup_data(run_data)
+        else:
+            return None, None
+
+    def regress(self):
+        """
+        Execute regression and return a list which can be provided to pileup_data
+        :return: list
+        """
+        raise NotImplementedError
 
     @staticmethod
     def _scale(df):
@@ -72,7 +78,11 @@ class BaseRegression(object):
     def pileup_data(self, run_data):
         """
         Take the completed run data and pack it up into a DataFrame of betas
-        :return: (pd.DataFrame [G x K], pd.DataFrame [G x K])
+
+        :param run_data: list
+            A list of regression result dicts ordered by gene. Each regression result should have `ind`, `pp`, `betas`
+            and `betas_resc` keys with the appropriate data.
+        :return betas, betas_rescale: (pd.DataFrame [G x K], pd.DataFrame [G x K])
         """
 
         # Create G x K arrays of 0s to populate with the regression data

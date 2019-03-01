@@ -8,8 +8,7 @@ from sklearn.linear_model import LinearRegression
 
 from inferelator_ng.distributed.inferelator_mp import MPControl
 from inferelator_ng import utils
-from inferelator_ng.utils import Validator as check
-from inferelator_ng import regression
+from inferelator_ng.regression import base_regression
 
 # Shadow built-in zip with itertools.izip if this is python2 (This puts out a memory dumpster fire)
 try:
@@ -180,7 +179,7 @@ class AMuSR_OneGene:
         return(W, S, B)
 
 
-class AMuSR_regression(regression.BaseRegression):
+class AMuSR_regression(base_regression.BaseRegression):
 
     X = None  # list(pd.DataFrame [N, K])
     Y = None  # list(pd.DataFrame [N, G])
@@ -281,27 +280,17 @@ class AMuSR_regression(regression.BaseRegression):
         prior = prior / prior.sum() * len(prior)
         return prior
 
-    def run(self):
-        """
-        Execute multitask (AMUSR)
-        :return:
-        """
-
-        run_data = self.regress()
-
-        if MPControl.is_master:
-            return self.pileup_data(run_data)
-        else:
-            return None, None
 
     def regress(self):
         """
+        Execute multitask (AMUSR)
 
-        :return:
+        :return: list
+            Returns a list of regression results that the amusr_regression pileup_data can process
         """
         def regression_maker(r_obj, j):
             level = 0 if j % 100 == 0 else 2
-            utils.Debug.vprint(regression.PROGRESS_STR.format(gn=r_obj.genes[j], i=j, total=r_obj.G),
+            utils.Debug.vprint(base_regression.PROGRESS_STR.format(gn=r_obj.genes[j], i=j, total=r_obj.G),
                                level=level)
 
             gene = r_obj.genes[j]
