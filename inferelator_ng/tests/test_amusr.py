@@ -1,7 +1,7 @@
 import unittest
 import pandas as pd
 import numpy as np
-from inferelator_ng import amusr_regression
+from inferelator_ng.regression import amusr_regression
 from inferelator_ng import amusr_workflow
 from inferelator_ng.single_cell_puppeteer_workflow import create_puppet_workflow
 import numpy.testing as npt
@@ -25,7 +25,7 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.tf_names = ["gene3", "gene6"]
         self.workflow = create_puppet_workflow(base_class=amusr_workflow.SingleCellMultiTask,
                                                result_processor=amusr_workflow.ResultsProcessorMultiTask)
-        self.workflow = self.workflow(None, 0, self.expr, self.meta, self.prior, self.gold_standard)
+        self.workflow = self.workflow(self.expr, self.meta, self.prior, self.gold_standard)
         self.workflow.tf_names = self.tf_names
         self.workflow.gene_list = self.gene_list
         self.workflow.create_output_dir = lambda *x: None
@@ -172,7 +172,7 @@ class TestAMuSRrunner(unittest.TestCase):
                pd.DataFrame(np.array([[1, 1], [2, 2], [3, 3]]).astype(float), columns=targets2)]
         priors = pd.DataFrame([[0, 1, 1], [1, 0, 1], [1, 0, 1]], index=targets, columns=tfs)
 
-        r = amusr_regression.AMuSR_regression(des, res, None, tfs=tfs, genes=targets, priors=priors)
+        r = amusr_regression.AMuSR_regression(des, res, tfs=tfs, genes=targets, priors=priors)
 
         out = [pd.DataFrame([['tf3', 'gene1', -1, 1], ['tf3', 'gene1', -1, 1]],
                             index=pd.MultiIndex(levels=[[0, 1], [0]], labels=[[0, 1], [0, 0]]),
@@ -184,5 +184,6 @@ class TestAMuSRrunner(unittest.TestCase):
                             index=pd.MultiIndex(levels=[[0, 1], [0]], labels=[[1], [0]]),
                             columns=['regulator', 'target', 'weights', 'resc_weights'])]
 
+        regress_data = r.regress()
         for i in range(len(targets)):
-            pdt.assert_frame_equal(pd.concat(r.regress(i)), out[i], check_dtype=False)
+            pdt.assert_frame_equal(pd.concat(regress_data[i]), out[i], check_dtype=False)

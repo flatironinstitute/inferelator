@@ -1,9 +1,10 @@
-import itertools
-import tempfile
 import os
 import numpy as np
 import pandas as pd
+
+from inferelator_ng.distributed.inferelator_mp import MPControl
 from inferelator_ng import utils
+from inferelator_ng.utils import Validator as check
 
 # Number of discrete bins for mutual information calculation
 DEFAULT_NUM_BINS = 10
@@ -14,40 +15,26 @@ CLR_DDOF = 1
 # Log type for MI calculations. np.log2 gives results in bits; np.log gives results in nats
 DEFAULT_LOG_TYPE = np.log
 
-# Multiprocessing chunk size
-DEFAULT_CHUNK = 2000
-
 # KVS keys for multiprocessing
-COUNT_KEY = 'micount'
-PILEUP_DATA_KEY = 'mi_pileup'
-FINAL_MI_DATA_KEY = 'mi_final'
 SYNC_CLR_KEY = 'post_clr'
-SYNC_MI_KEY = 'post_mi'
 
 
 class MIDriver:
     bins = DEFAULT_NUM_BINS
-    kvs = None
 
-    def __init__(self, bins=DEFAULT_NUM_BINS, kvs=None, sync_in_tmp_path=None):
+    def __init__(self, bins=DEFAULT_NUM_BINS, sync_in_tmp_path=None):
         """
         :param bins: int
             Number of bins for discretizing continuous variables
-        :param kvs: KVSController
-            KVSController object for interprocess communication
         :param sync_in_tmp_path: path
             Path to a temp file directory to use for synchronizing processes
             This uses the temp directory for DATA only. Process communication is still done with KVS.
-            If KVS is None, this does nothing.
         """
 
-        if sync_in_tmp_path is not None:
-            assert os.access(sync_in_tmp_path, os.W_OK), "Directory {di} not writable".format(di=sync_in_tmp_path)
+        assert check.argument_path(sync_in_tmp_path, allow_none=True, access=os.W_OK)
 
         self.bins = bins
-        self.kvs = kvs
         self.temp_dir = sync_in_tmp_path
-
 
     def run(self, x_df, y_df, bins=None, logtype=DEFAULT_LOG_TYPE):
         """
@@ -61,21 +48,21 @@ class MIDriver:
             CLR and MI DataFrames
         """
 
+        assert check.indexes_align((x_df.columns, y_df.columns))
+
         if bins is not None:
             self.bins = bins
 
-        mi = mutual_information(y_df, x_df, self.bins, kvs=self.kvs, temp_dir=self.temp_dir, logtype=logtype)
-        mi_bg = mutual_information(x_df, x_df, self.bins, kvs=self.kvs, temp_dir=self.temp_dir, logtype=logtype)
+        mi = mutual_information(y_df, x_df, self.bins, temp_dir=self.temp_dir, logtype=logtype)
+        mi_bg = mutual_information(x_df, x_df, self.bins, temp_dir=self.temp_dir, logtype=logtype)
         clr = calc_mixed_clr(utils.df_set_diag(mi, 0), utils.df_set_diag(mi_bg, 0))
 
-        if self.kvs is not None:
-            self.kvs.sync_processes(pref=SYNC_CLR_KEY)
+        MPControl.sync_processes(pref=SYNC_CLR_KEY)
 
         return clr, mi
 
 
-def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, temp_dir=None, chunk=DEFAULT_CHUNK):
-
+def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
     """
     Calculate the mutual information matrix between two data matrices, where the columns are equivalent conditions
 
@@ -87,12 +74,14 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, temp_dir=
         Number of bins to discretize continuous data into for the generation of a contingency table
     :param logtype: np.log func
         Which type of log function should be used (log2 results in MI bits, log results in MI nats, log10... is weird)
+    :param temp_dir: path
+        Path to write temp files for multiprocessing
 
-    :return mi: pd.DataFrame (m1 x m2)
+    :return mi: pd.DataFramae (m1 x m2)
         The mutual information between variables m1 and m2
     """
-    assert X.shape[1] == Y.shape[1]
-    assert (X.columns == Y.columns).all()
+
+    assert check.indexes_align((X.columns, Y.columns))
 
     # Create dense output matrix and copy the inputs
     mi_r = X.index
@@ -105,87 +94,11 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, kvs=None, temp_dir=
     X = _make_array_discrete(X, bins, axis=1).transpose()
     Y = _make_array_discrete(Y, bins, axis=1).transpose()
 
-    # If there is no KVS object, just run locally on one core
-    if kvs is None:
-        mi = build_mi_array(X, Y, bins, logtype=logtype)
-    # If there is a KVS object, run distributed and give the results to everyone
-    elif temp_dir is None:
-        mi = mi_through_kvs(X, Y, bins, kvs, logtype=logtype, chunk=chunk)
-    else:
-        mi = mi_through_dir(X, Y, bins, kvs, temp_dir, logtype=logtype, chunk=chunk)
-
-    return pd.DataFrame(mi, index=mi_r, columns=mi_c)
-
-def mi_through_kvs(X, Y, bins, kvs, logtype=DEFAULT_LOG_TYPE, chunk=DEFAULT_CHUNK):
-    # Run MI calculations on everything that an ownCheck gives to this process and stash it in KVS
-    oc = kvs.own_check(chunk=chunk, kvs_key=COUNT_KEY)
-    kvs.put(PILEUP_DATA_KEY, build_mi_array(X, Y, bins, logtype=logtype, oc=oc))
-
-    # Block here until mi pileup is complete and then get the final mi matrix from mi_final
-    if kvs.is_master:
-        mi = np.full((X.shape[1], Y.shape[1]), np.nan, dtype=np.dtype(float))
-        for _ in range(kvs.tasks):
-            mi_two = kvs.get(PILEUP_DATA_KEY)
-            update = ~np.isnan(mi_two)
-            mi[update] = mi_two[update]
-        kvs.put(FINAL_MI_DATA_KEY, mi)
-    else:
-        mi = kvs.view(FINAL_MI_DATA_KEY)
-
-    # Block here until all the processes have mi_final and then tear down the KVS data
-    kvs.sync_processes(pref=SYNC_MI_KEY)
-    kvs.master_remove_key(kvs_key=COUNT_KEY)
-    kvs.master_remove_key(kvs_key=FINAL_MI_DATA_KEY)
-
-    return mi
+    # Build the MI matrix
+    return pd.DataFrame(build_mi_array(X, Y, bins, logtype=logtype, temp_dir=temp_dir), index=mi_r, columns=mi_c)
 
 
-def mi_through_dir(X, Y, bins, kvs, temp_dir, logtype=DEFAULT_LOG_TYPE, chunk=DEFAULT_CHUNK):
-    # Do MI calculations locally
-    local_mi = build_mi_array(X, Y, bins, logtype=logtype, oc=kvs.own_check(chunk=chunk, kvs_key=COUNT_KEY))
-
-    # Write these MI calculations to a temp file and put that filename on KVS
-    temp_fd, temp_name = tempfile.mkstemp(prefix="mi", dir=temp_dir)
-    with os.fdopen(temp_fd, "wb") as temp:
-        np.savetxt(temp, local_mi, delimiter="\t")
-    kvs.put(PILEUP_DATA_KEY, temp_name)
-
-    # Pile up the resulting data
-    if kvs.is_master:
-        # Read in each temp file, put it into a master MI array, and then delete the temp file
-        mi = np.full((X.shape[1], Y.shape[1]), np.nan, dtype=np.dtype(float))
-        for _ in range(kvs.tasks):
-            mi_tmp_path = kvs.get(PILEUP_DATA_KEY)
-            with open(mi_tmp_path, mode="r") as temp:
-                mi_two = np.loadtxt(temp, delimiter="\t")
-            os.remove(mi_tmp_path)
-            update = ~np.isnan(mi_two)
-            mi[update] = mi_two[update]
-
-        # Write the complete MI array to a temp file and put that filename on KVS
-        final_fd, final_name = tempfile.mkstemp(prefix="mi", dir=temp_dir)
-        with os.fdopen(final_fd, "wb") as temp:
-            np.savetxt(temp, mi, delimiter="\t")
-        kvs.put(FINAL_MI_DATA_KEY, final_name)
-    # Get the complete MI array filename from KVS and read it in
-    else:
-        mi_tmp_path = kvs.view(FINAL_MI_DATA_KEY)
-        with open(mi_tmp_path, mode="r") as temp:
-            mi = np.loadtxt(temp, delimiter="\t")
-
-    # Block here until all the processes have mi_final and then tear down the KVS data
-    kvs.sync_processes(pref=SYNC_MI_KEY)
-    kvs.master_remove_key(kvs_key=COUNT_KEY)
-    kvs.master_remove_key(kvs_key=FINAL_MI_DATA_KEY)
-
-    # Delete the complete MI array temp file
-    if kvs.is_master:
-        os.remove(final_name)
-
-    return mi
-
-
-def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, oc=None):
+def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
     """
     Calculate MI into an array initialized with NaNs
 
@@ -197,19 +110,26 @@ def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, oc=None):
         The total number of bins that were used to make the arrays discrete
     :param logtype: np.log func
         Which log function to use (log2 gives bits, ln gives nats)
-    :param oc: ownCheck generator
-        The multiprocessing controller from KVS. Tells this process what to calculate.
-        If None, calculate the entire array
+    :param temp_dir: path
+        Path to write temp files for multiprocessing
     :return mi: np.ndarray (m1 x m2)
-        Returns the mutual information calculated by this process.
-        If oc isn't None, this array will be np.NaNs for all values not calculated
+        Returns the mutual information array
     """
+
     m1, m2 = X.shape[1], Y.shape[1]
-    mi = np.full((m1, m2), np.nan, dtype=np.dtype(float))
-    for i, j in itertools.product(range(m1), range(m2)):
-        if oc is None or next(oc):
-            ctable = _make_table(X[:, i], Y[:, j], bins)
-            mi[i, j] = _calc_mi(ctable, logtype=logtype)
+
+    # Define the function which calculates MI for each variable in X against every variable in Y
+    def mi_maker(i):
+        return [_calc_mi(_make_table(X[:, i], Y[:, j], bins), logtype=logtype) for j in range(m2)]
+
+    # Send the MI build to the multiprocessing controller
+    dsk = {'i': list(range(m1)), 'mi': (mi_maker, 'i')}
+    mi_list = MPControl.get(dsk, 'mi', tmp_file_path=temp_dir)
+
+    # Convert the list of lists to an array
+    mi = np.array(mi_list)
+    assert (m1, m2) == mi.shape
+
     return mi
 
 
@@ -288,6 +208,9 @@ def _make_table(x, y, num_bins):
     :return ctable: np.ndarray (num_bins x num_bins)
         Contingency table of variables X and Y
     """
+
+    assert len(x.shape) == 1
+    assert len(y.shape) == 1
 
     # The only fast way to do this is by reindexing the table as an index array
     reindex = x * num_bins + y

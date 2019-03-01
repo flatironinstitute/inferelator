@@ -2,10 +2,10 @@ import unittest, os
 import pandas as pd
 import pandas.util.testing as pdt
 import numpy as np
-from inferelator_ng import kvs_controller
-from inferelator_ng import bbsr_python
-from inferelator_ng import bayes_stats
-from inferelator_ng import regression
+from inferelator_ng.distributed.inferelator_mp import MPControl
+from inferelator_ng.regression import bbsr_python
+from inferelator_ng.regression import bayes_stats
+from inferelator_ng.regression import base_regression
 
 my_dir = os.path.dirname(__file__)
 
@@ -14,9 +14,8 @@ class TestBBSRrunnerPython(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(TestBBSRrunnerPython, self).__init__(*args, **kwargs)
         # Extra behavior: only run if KVSClient can reach the host:
-        self.kvs = None  # dummy value on failure
         try:
-            self.kvs = kvs_controller.KVSController()
+            MPControl.connect()
         except Exception as e:
             if str(e) == 'Missing host':
                 print('Test test_bbsr.py exiting since KVS host is not running')
@@ -27,20 +26,12 @@ class TestBBSRrunnerPython(unittest.TestCase):
         os.environ['SLURM_PROCID'] = str(0)   
         os.environ['SLURM_NTASKS'] = str(1)
 
-    def get_kvs(self):
-        result = self.kvs
-        if result is None:
-            self.fail("Test requires missing KVS host.")
-        return result
-
     def setUp(self):
         # Check for os.environ['SLURM_NTASKS']
-        self.rank = 0
         self.brd = bbsr_python.BBSR
     
     def run_bbsr(self):
-        kvs = self.get_kvs()
-        return self.brd(self.X, self.Y, self.clr, self.priors, kvs=kvs).run()
+        return self.brd(self.X, self.Y, self.clr, self.priors).run()
 
     def set_all_zero_priors(self):
         self.priors =  pd.DataFrame([[0, 0],[0, 0]], index = ['gene1', 'gene2'], columns = ['gene1', 'gene2'])
@@ -176,7 +167,7 @@ class TestBBSRrunnerPython(unittest.TestCase):
         self.X = np.array([[0, 0], [0, 0]])
         self.Y = np.array([1, 2])
         betas = np.array([ 0.,  0.])
-        result = regression.predict_error_reduction(self.X, self.Y, betas)
+        result = base_regression.predict_error_reduction(self.X, self.Y, betas)
         self.assertTrue((result == [ 0.,  0.]).all())
 
     def test_two_genes_nonzero_clr_two_conditions_zero_gene1_positive_influence(self):

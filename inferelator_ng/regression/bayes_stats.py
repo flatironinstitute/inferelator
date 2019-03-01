@@ -4,7 +4,7 @@ import math
 import scipy.special
 
 from inferelator_ng import utils
-from inferelator_ng import regression
+from inferelator_ng.regression import base_regression
 
 
 def bbsr(X, y, pp, weights, max_k):
@@ -34,7 +34,7 @@ def bbsr(X, y, pp, weights, max_k):
                     betas_resc=np.zeros(pp.shape[0]))
 
     # Subset data to desired predictors
-    pp_idx = regression.bool_to_index(pp)
+    pp_idx = base_regression.bool_to_index(pp)
     utils.Debug.vprint("Beginning regression with {pp_len} predictors".format(pp_len=len(pp_idx)), level=2)
 
     x = X[pp_idx, :].T
@@ -47,7 +47,7 @@ def bbsr(X, y, pp, weights, max_k):
 
     # Reduce predictors to max_k
     pp[pp_idx] = reduce_predictors(x, y, gprior, max_k)
-    pp_idx = regression.bool_to_index(pp)
+    pp_idx = base_regression.bool_to_index(pp)
 
     utils.Debug.vprint("Reduced to {pp_len} predictors".format(pp_len=len(pp_idx)), level=2)
 
@@ -57,7 +57,7 @@ def bbsr(X, y, pp, weights, max_k):
     utils.make_array_2d(gprior)
 
     betas = best_subset_regression(x, y, gprior)
-    betas_resc = regression.predict_error_reduction(x, y, betas)
+    betas_resc = base_regression.predict_error_reduction(x, y, betas)
 
     return dict(pp=pp,
                 betas=betas,
@@ -88,7 +88,7 @@ def best_subset_regression(x, y, gprior):
         return best_betas
 
     if best_combo.sum() > 0:
-        best_betas = regression.recalculate_betas_from_selected(x, y, best_combo)
+        best_betas = base_regression.recalculate_betas_from_selected(x, y, best_combo)
 
     return best_betas
 
@@ -162,7 +162,7 @@ def calc_all_expected_BIC(x, y, g, combinations, check_rank=True):
     for i in range(c):
 
         # Convert the boolean slice into an index
-        c_idx = regression.bool_to_index(combinations[:, i])
+        c_idx = base_regression.bool_to_index(combinations[:, i])
         k_included = len(c_idx)
 
         # Check for a null model

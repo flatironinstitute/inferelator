@@ -7,10 +7,10 @@ import numpy as np
 import pandas as pd
 
 from inferelator_ng import single_cell_workflow
-from inferelator_ng import results_processor
+from inferelator_ng.postprocessing import results_processor
 from inferelator_ng import utils
 from inferelator_ng import default
-from inferelator_ng import bbsr_python
+from inferelator_ng.regression import bbsr_python
 from inferelator_ng.utils import Validator as check
 
 # The variable names that get set in the main workflow, but need to get copied to the puppets
@@ -81,10 +81,9 @@ def create_puppet_workflow(base_class=single_cell_workflow.SingleCellWorkflow, r
 
         write_network = True
         network_file_name = None
+        initialize_mp = False
 
-        def __init__(self, kvs, rank, expr_data, meta_data, prior_data, gs_data):
-            self.kvs = kvs
-            self.rank = rank
+        def __init__(self, expr_data, meta_data, prior_data, gs_data):
             self.expression_matrix = expr_data
             self.meta_data = meta_data
             self.priors_data = prior_data
@@ -162,7 +161,7 @@ class PuppeteerWorkflow(object):
 
         # Create a new puppet workflow with the factory method and pass in data on instantiation
         puppet = create_puppet_workflow(base_class = self.puppet_class, result_processor = self.puppet_result_processor)
-        puppet = puppet(self.kvs, self.rank, expr_data, meta_data, priors_data, gold_standard)
+        puppet = puppet(expr_data, meta_data, priors_data, gold_standard)
 
         # Transfer the class variables necessary to get the puppet to dance (everything in SHARED_CLASS_VARIABLES)
         self.assign_class_vars(puppet)

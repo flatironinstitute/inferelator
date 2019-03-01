@@ -1,7 +1,7 @@
 import unittest
 import pandas as pd
 import numpy as np
-from inferelator_ng import mi
+from inferelator_ng.regression import mi
 
 
 class Test2By2(unittest.TestCase):
