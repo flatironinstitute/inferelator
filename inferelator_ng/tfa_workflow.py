@@ -4,10 +4,10 @@ Run BSubtilis Network Inference with TFA BBSR.
 
 import numpy as np
 from inferelator_ng import workflow
-from inferelator_ng import design_response_translation  # added python design_response
-from inferelator_ng.tfa import TFA
-from inferelator_ng.results_processor import ResultsProcessor
-from inferelator_ng import bbsr_python
+from inferelator_ng.preprocessing import design_response_translation  # added python design_response
+from inferelator_ng.preprocessing.tfa import TFA
+from inferelator_ng.postprocessing.results_processor import ResultsProcessor
+from inferelator_ng.regression import bbsr_python
 from inferelator_ng import utils
 from inferelator_ng import default
 

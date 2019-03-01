@@ -7,10 +7,10 @@ import numpy as np
 import pandas as pd
 
 from inferelator_ng import single_cell_workflow
-from inferelator_ng import results_processor
+from inferelator_ng.postprocessing import results_processor
 from inferelator_ng import utils
 from inferelator_ng import default
-from inferelator_ng import bbsr_python
+from inferelator_ng.regression import bbsr_python
 from inferelator_ng.utils import Validator as check
 
 # The variable names that get set in the main workflow, but need to get copied to the puppets

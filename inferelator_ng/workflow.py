@@ -8,7 +8,7 @@ code among different variants of the Inferelator workflow.
 from inferelator_ng import utils
 from inferelator_ng.utils import Validator as check
 from inferelator_ng import default
-from inferelator_ng.prior_gs_split_workflow import split_for_cv, remove_prior_circularity
+from inferelator_ng.preprocessing.prior_gs_split_workflow import split_for_cv, remove_prior_circularity
 
 from inferelator_ng.distributed.kvs_controller import KVSController
 from inferelator_ng.distributed.inferelator_mp import MPControl
