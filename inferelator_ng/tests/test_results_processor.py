@@ -2,6 +2,7 @@ import unittest
 from inferelator_ng import results_processor
 import pandas as pd
 import numpy as np
+import os
 
 class TestResultsProcessor(unittest.TestCase):
 
@@ -175,3 +176,11 @@ class TestResultsProcessor(unittest.TestCase):
         mean, median = results_processor.ResultsProcessor.mean_and_median([beta1, beta2])
         np.testing.assert_equal(mean, np.array([[ 1.5,  1.5],[ 1.5,  1.5]]))
         np.testing.assert_equal(median, np.array([[ 1.5, 1.5],[ 1.5, 1.5]]))
+
+    def test_plot_pr_curve(self):
+        file_name = "/tmp/pr_curve.pdf"
+        if os.path.exists(file_name):
+            os.remove(file_name)
+        results_processor.RankSummaryPR.plot_pr_curve([0, 1], [1, 0], "x", "/tmp", "pr_curve.pdf")
+        exists = os.path.exists(file_name)
+        self.assertTrue(exists)
