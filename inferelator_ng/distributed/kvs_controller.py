@@ -6,6 +6,7 @@ It also keeps track of a bunch of SLURM related stuff that was previously workfl
 
 from kvsstcp import KVSClient
 
+from inferelator_ng.distributed import AbstractController, process_dask_graph, process_dask_function_args
 from inferelator_ng.utils import Validator as check
 
 import os
@@ -33,10 +34,10 @@ PILEUP_DATA = "data_pileup"
 FINAL_DATA = "final_data"
 
 
-class KVSController:
+class KVSController(AbstractController):
 
     # An active KVSClient object
-    kvs_client = None
+    client = None
 
     # Set from SLURM environment variables
     rank = None  # int
@@ -57,7 +58,7 @@ class KVSController:
                      master_rank=kwargs.pop("master_rank", 0))
 
         # Connect to the host server by calling to KVSClient.__init__
-        cls.kvs_client = KVSClient(*args, **kwargs)
+        cls.client = KVSClient(*args, **kwargs)
 
     @classmethod
     def _get_env(cls, slurm_variables=SBATCH_VARS, suppress_warnings=False, master_rank=DEFAULT_MASTER):
@@ -81,14 +82,14 @@ class KVSController:
     @classmethod
     def own_check(cls, chunk=1, kvs_key='count'):
         if cls.is_master:
-            return ownCheck(cls.kvs_client, 0, chunk=chunk, kvs_key=kvs_key)
+            return ownCheck(cls.client, 0, chunk=chunk, kvs_key=kvs_key)
         else:
-            return ownCheck(cls.kvs_client, 1, chunk=chunk, kvs_key=kvs_key)
+            return ownCheck(cls.client, 1, chunk=chunk, kvs_key=kvs_key)
 
     @classmethod
     def master_remove_key(cls, kvs_key='count'):
         if cls.is_master:
-            cls.kvs_client.get(kvs_key)
+            cls.client.get(kvs_key)
 
     @classmethod
     def sync_processes(cls, pref="", value=True):
@@ -130,21 +131,21 @@ class KVSController:
         """
         Wrapper for KVSClient get
         """
-        return cls.kvs_client.get(key)
+        return cls.client.get(key)
 
     @classmethod
     def put_key(cls, key, value):
         """
         Wrapper for KVSClient put
         """
-        return cls.kvs_client.put(key, value)
+        return cls.client.put(key, value)
 
     @classmethod
     def view_key(cls, key):
         """
         Wrapper for KVSClient view
         """
-        return cls.kvs_client.view(key)
+        return cls.client.view(key)
 
     @classmethod
     def get(cls, dsk, result, chunk=25, tmp_file_path=None, tell_children=True):
@@ -170,57 +171,19 @@ class KVSController:
         assert check.argument_type(result, collections.Hashable)
         assert check.argument_integer(chunk, low=1, allow_none=False)
 
-        # If result points to a function tuple, start unpacking. Otherwise just return it
-        if isinstance(dsk[result], tuple):
-            func = dsk[result][0]
-        else:
-            return dsk[result]
+        func, map_args, iter_args, iter_product = process_dask_graph(dsk, result)
 
-        # If the function tuple is just a function, execute it and then return it
-        if len(dsk[result]) == 1:
+        if map_args is None:
             return func()
-        else:
-            func_args = dsk[result][1:]
-
-        # Unpack arguments and map anything that's got data in the graph
-        map_args = []
-        for arg in func_args:
-            try:
-                map_args.append(dsk[arg])
-            except (TypeError, KeyError):
-                map_args.append(arg)
-
-        # Find out which arguments should be iterated over
-        iter_args = [isinstance(arg, (tuple, list)) for arg in map_args]
-        iter_product = []
-
-        # If nothing is iterable, call the function and return it
-        if sum(iter_args) == 0:
+        elif iter_args is None:
             return func(*map_args)
-
-        # Put the iterables in a list
-        for iter_bool, arg in zip(iter_args, map_args):
-            if iter_bool:
-                iter_product.append(arg)
 
         # Set up the multiprocessing
         owncheck = cls.own_check(chunk=chunk, kvs_key=GET_COUNT)
         results = dict()
         for pos, iterated_args in enumerate(itertools.product(*iter_product)):
             if next(owncheck):
-                iter_arg_idx = 0
-                current_args = []
-
-                # Pack up this iteration's arguments into a list
-                for iter_bool, arg in zip(iter_args, map_args):
-                    if iter_bool:
-                        current_args.append(iterated_args[iter_arg_idx])
-                        iter_arg_idx += 1
-                    else:
-                        current_args.append(arg)
-
-                # Run the function
-                results[pos] = func(*current_args)
+                results[pos] = func(*process_dask_function_args(map_args, iter_args, iterated_args))
 
         # Process results and synchronize exit from the get call
         results = cls.process_results(results, tmp_file_path=tmp_file_path, tell_children=tell_children)
