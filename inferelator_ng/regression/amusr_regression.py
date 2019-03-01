@@ -290,8 +290,8 @@ class AMuSR_regression(base_regression.BaseRegression):
         """
         def regression_maker(r_obj, j):
             level = 0 if j % 100 == 0 else 2
-            utils.Debug.vprint(base_regression.PROGRESS_STR.format(gn=r_obj.genes[j], i=j, total=r_obj.G),
-                               level=level)
+            utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=r_obj.genes[j], i=j, total=r_obj.G),
+                                 level=level)
 
             gene = r_obj.genes[j]
             x, y, tasks = [], [], []

@@ -76,8 +76,8 @@ class BBSR(base_regression.BaseRegression):
 
         def regression_maker(r_obj, j):
             level = 0 if j % 100 == 0 else 2
-            utils.Debug.vprint(base_regression.PROGRESS_STR.format(gn=r_obj.genes[j], i=j, total=r_obj.G),
-                               level=level)
+            utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=r_obj.genes[j], i=j, total=r_obj.G),
+                                 level=level)
             data = bayes_stats.bbsr(r_obj.X.values,
                                     r_obj.Y.iloc[j, :].values,
                                     r_obj.pp.iloc[j, :].values,

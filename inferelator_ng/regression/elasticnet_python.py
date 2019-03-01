@@ -74,7 +74,7 @@ class ElasticNet(base_regression.BaseRegression):
 
         def regression_maker(regression_obj, j):
             level = 0 if j % 100 == 0 else 2
-            utils.Debug.vprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G), level=level)
+            utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G), level=level)
             data = elastic_net(regression_obj.X.values, regression_obj.Y.iloc[j, :].values, regression_obj.params)
             data['ind'] = j
             return data

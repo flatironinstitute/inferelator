@@ -51,6 +51,10 @@ class Debug:
         cls.print_level(*args, **kwargs)
 
     @classmethod
+    def allprint(cls, *args, **kwargs):
+        cls.print_level(*args, **kwargs)
+
+    @classmethod
     def warn(cls, *args, **kwargs):
         cls.vprint(*args, level=cls.levels["v"], **kwargs)
 
@@ -80,7 +84,7 @@ class Validator(object):
     """
 
     @staticmethod
-    def argument_numeric(arg, low=None, high=None, allow_none=False, types=(int,float)):
+    def argument_numeric(arg, low=None, high=None, allow_none=False, types=(int, float)):
         """
         Validate an input argument as being numeric (either an int or a float). Also check bounds if set.
         :param arg:
@@ -176,7 +180,6 @@ class Validator(object):
         else:
             return True
 
-
     @staticmethod
     def argument_type(arg, arg_type, allow_none=False):
         if allow_none and arg is None:
@@ -240,7 +243,6 @@ class Validator(object):
         else:
             return True
 
-
     @staticmethod
     def arguments_not_none(args, num_none=None):
         """
@@ -261,6 +263,7 @@ class Validator(object):
             raise ValueError("{num} arguments are not None; only {nnum} are allowed".format(num=n_not_none,
                                                                                             nnum=num_none))
         return True
+
 
 def df_from_tsv(file_like, has_index=True):
     "Read a tsv file or buffer with headers and row ids into a pandas dataframe."
