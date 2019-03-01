@@ -9,8 +9,6 @@ from inferelator_ng.regression import mi
 from inferelator_ng.distributed.inferelator_mp import MPControl
 
 
-
-
 class BBSR(base_regression.BaseRegression):
     # Bayseian correlation measurements
     clr_mat = None  # [G x K] float
@@ -166,7 +164,6 @@ def patch_workflow(obj):
         obj.prior_weight = default.DEFAULT_prior_weight
     if not hasattr(obj, 'no_prior_weight'):
         obj.no_prior_weight = default.DEFAULT_no_prior_weight
-
 
     def run_bootstrap(self, bootstrap):
         X = self.design.iloc[:, bootstrap]
