@@ -191,6 +191,15 @@ class Validator(object):
             raise ValueError("Argument {arg} must be of type {typ}".format(arg=arg, typ=arg_type))
 
     @staticmethod
+    def argument_callable(arg, allow_none=False):
+        if allow_none and arg is None:
+            return True
+        elif callable(arg):
+            return True
+        else:
+            raise ValueError("Argument {arg} must be callable".format(arg=arg))
+
+    @staticmethod
     def dataframes_align(frame_iterable, allow_none=False, check_order=True):
         if allow_none and any([f is None for f in frame_iterable]):
             return True
