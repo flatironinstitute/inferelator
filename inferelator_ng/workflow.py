@@ -286,7 +286,8 @@ class WorkflowBase(object):
         Set a default output_dir if nothing is set. Create the path if it doesn't exist.
         """
         if self.output_dir is None:
-            self.output_dir = os.path.join(self.input_dir, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+            new_path = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+            self.output_dir = os.path.expanduser(os.path.join(self.input_dir, new_path))
         try:
             os.makedirs(self.output_dir)
         except OSError:

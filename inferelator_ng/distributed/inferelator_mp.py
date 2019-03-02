@@ -1,13 +1,15 @@
+from inferelator_ng.distributed import AbstractController
 from inferelator_ng.distributed.kvs_controller import KVSController
 from inferelator_ng import utils
 
-class MPControl:
+
+class MPControl(AbstractController):
     """
     This is the multiprocessing controller
     """
 
     # Which multiprocessing engine to use
-    multiprocess_engine = KVSController
+    client = KVSController
 
     # Relevant external state booleans
     is_master = False
@@ -15,17 +17,17 @@ class MPControl:
 
     @classmethod
     def set_multiprocess_engine(cls, engine):
-        cls.multiprocess_engine = engine
+        cls.client = engine
         return True
 
     @classmethod
     def connect(cls, *args, **kwargs):
         if cls.is_initialized:
             return True
-        connect_return = cls.multiprocess_engine.connect(*args, **kwargs)
+        connect_return = cls.client.connect(*args, **kwargs)
 
         # Set the process state
-        cls.is_master = cls.multiprocess_engine.is_master
+        cls.is_master = cls.client.is_master
         cls.is_initialized = True
 
         # Also tell Debug if we're the master process
@@ -34,10 +36,13 @@ class MPControl:
         return connect_return
 
     @classmethod
-    def get(cls, *args, **kwargs):
-        return cls.multiprocess_engine.get(*args, **kwargs)
+    def map(cls, *args, **kwargs):
+        if not cls.is_initialized:
+            raise ConnectionError("Connect before calling map()")
+        return cls.client.map(*args, **kwargs)
 
     @classmethod
     def sync_processes(cls, *args, **kwargs):
-        return cls.multiprocess_engine.sync_processes(*args, **kwargs)
-
+        if not cls.is_initialized:
+            raise ConnectionError("Connect before calling sync_processes()")
+        return cls.client.sync_processes(*args, **kwargs)

@@ -72,15 +72,14 @@ class ElasticNet(base_regression.BaseRegression):
             Returns a list of regression results that base_regression's pileup_data can process
         """
 
-        def regression_maker(regression_obj, j):
+        def regression_maker(j):
             level = 0 if j % 100 == 0 else 2
-            utils.Debug.vprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G), level=level)
-            data = elastic_net(regression_obj.X.values, regression_obj.Y.iloc[j, :].values, regression_obj.params)
+            utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G), level=level)
+            data = elastic_net(self.X.values, self.Y.iloc[j, :].values, self.params)
             data['ind'] = j
             return data
 
-        dsk = {'j': list(range(self.G)), 'data': (regression_maker, self, 'j')}
-        return MPControl.get(dsk, 'data', tell_children=False)
+        return MPControl.map(regression_maker, range(self.G), tell_children=False)
 
 def patch_workflow(obj):
     """
