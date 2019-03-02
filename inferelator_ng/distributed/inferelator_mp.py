@@ -36,10 +36,10 @@ class MPControl(AbstractController):
         return connect_return
 
     @classmethod
-    def get(cls, *args, **kwargs):
+    def map(cls, *args, **kwargs):
         if not cls.is_initialized:
-            raise ConnectionError("Connect before calling get()")
-        return cls.client.get(*args, **kwargs)
+            raise ConnectionError("Connect before calling map()")
+        return cls.client.map(*args, **kwargs)
 
     @classmethod
     def sync_processes(cls, *args, **kwargs):
