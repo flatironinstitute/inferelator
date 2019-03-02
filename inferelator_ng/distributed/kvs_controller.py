@@ -6,13 +6,12 @@ It also keeps track of a bunch of SLURM related stuff that was previously workfl
 
 from kvsstcp import KVSClient
 
-from inferelator_ng.distributed import AbstractController, process_dask_graph, process_dask_function_args
+from inferelator_ng.distributed import AbstractController
 from inferelator_ng.utils import Validator as check
 
 import os
 import warnings
 import collections
-import itertools
 import tempfile
 import pickle
 
@@ -27,17 +26,17 @@ DEFAULT_MASTER = 0
 DEFAULT_WARNING = "SBATCH has not set ENV {var}. Setting {var} to {defa}."
 
 # KVS Keys to use
-GET_COUNT = "kvs_get"
+COUNT = "kvs_count"
 TMP_FILE_SYNC = "tmp_file_read"
-POST_GET_SYNC = "post_get"
+POST_SYNC = "post_sync"
 PILEUP_DATA = "data_pileup"
 FINAL_DATA = "final_data"
 
 
 class KVSController(AbstractController):
-
     # An active KVSClient object
     client = None
+    chunk = 25
 
     # Set from SLURM environment variables
     rank = None  # int
@@ -148,47 +147,42 @@ class KVSController(AbstractController):
         return cls.client.view(key)
 
     @classmethod
-    def get(cls, dsk, result, chunk=25, tmp_file_path=None, tell_children=True):
+    def map(cls, func, iterable, chunk=25, tmp_file_path=None, tell_children=True, **kwargs):
         """
-        Wrapper to handle multiprocessing data execution of very simple data pipelines
-        Only one layer will be executed
+        Map a function across an iterable and return a list of results
 
-        :param dsk: dict
-            A dask graph {key: (func, arg1, arg2, ...)}
-        :param result: key
-            The result that we want
+        :param func: function
+            Mappable function
+        :param iterable: iterable
+            Iterator
         :param chunk: int
-            The number of iterations to assign in blocks.
+            The number of iterations to assign in blocks
         :param tmp_file_path: path
             If this is not None, instead of putting data onto the KVS, data will be pickled to temp files and the
             path to the temp file will be put onto the KVS
         :param tell_children: bool
             If this is True, all processes will end up with the final data after assembly. If false, only the master
             will have the final data; others will return None
-        :return:
+        :return results: list
         """
 
-        assert check.argument_type(result, collections.Hashable)
-        assert check.argument_integer(chunk, low=1, allow_none=False)
+        assert check.argument_callable(func)
+        assert check.argument_type(iterable, collections.Iterable)
 
-        func, map_args, iter_args, iter_product = process_dask_graph(dsk, result)
-
-        if map_args is None:
-            return func()
-        elif iter_args is None:
-            return func(*map_args)
+        assert check.argument_integer(chunk, low=1, allow_none=True)
+        chunk = chunk if chunk is not None else cls.chunk
 
         # Set up the multiprocessing
-        owncheck = cls.own_check(chunk=chunk, kvs_key=GET_COUNT)
+        owncheck = cls.own_check(chunk=chunk, kvs_key=COUNT)
         results = dict()
-        for pos, iterated_args in enumerate(itertools.product(*iter_product)):
+        for pos, arg in enumerate(iterable):
             if next(owncheck):
-                results[pos] = func(*process_dask_function_args(map_args, iter_args, iterated_args))
+                results[pos] = func(arg)
 
         # Process results and synchronize exit from the get call
         results = cls.process_results(results, tmp_file_path=tmp_file_path, tell_children=tell_children)
-        cls.sync_processes(pref=POST_GET_SYNC)
-        cls.master_remove_key(kvs_key=GET_COUNT)
+        cls.sync_processes(pref=POST_SYNC)
+        cls.master_remove_key(kvs_key=COUNT)
         cls.master_remove_key(kvs_key=FINAL_DATA)
         return results
 
