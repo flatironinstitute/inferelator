@@ -11,6 +11,7 @@ class DaskController(AbstractController):
     client = None
     chunk = 25
     is_master = True
+    processes = 4
 
     @classmethod
     def connect(cls, *args, **kwargs):
@@ -18,10 +19,11 @@ class DaskController(AbstractController):
         Setup local cluster
         """
 
+        kwargs["n_workers"] = kwargs.pop("n_workers", cls.processes)
         kwargs["threads_per_worker"] = 1
         kwargs["processes"] = True
 
-        cls.client = distributed.Client(*args, **kwargs)
+        cls.client = distributed.Client(distributed.LocalCluster(*args, **kwargs))
         return True
 
     @classmethod
