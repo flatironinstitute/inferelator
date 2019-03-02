@@ -65,7 +65,7 @@ class BBSR(base_regression.BaseRegression):
         # Build a boolean matrix indicating which tfs should be used as predictors for regression for each gene
         self.pp = self._build_pp_matrix()
 
-    def run(self):
+    def regress(self):
         """
         Execute BBSR
 
@@ -74,25 +74,19 @@ class BBSR(base_regression.BaseRegression):
             Returns None, None if it's a subordinate thread
         """
 
-        def regression_maker(r_obj, j):
+        def regression_maker(j):
             level = 0 if j % 100 == 0 else 2
-            utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=r_obj.genes[j], i=j, total=r_obj.G),
+            utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G),
                                  level=level)
-            data = bayes_stats.bbsr(r_obj.X.values,
-                                    r_obj.Y.iloc[j, :].values,
-                                    r_obj.pp.iloc[j, :].values,
-                                    r_obj.weights_mat.iloc[j, :].values,
-                                    r_obj.nS)
+            data = bayes_stats.bbsr(self.X.values,
+                                    self.Y.iloc[j, :].values,
+                                    self.pp.iloc[j, :].values,
+                                    self.weights_mat.iloc[j, :].values,
+                                    self.nS)
             data['ind'] = j
             return data
 
-        dsk = {'j': list(range(self.G)), 'data': (regression_maker, self, 'j')}
-        run_data = MPControl.get(dsk, 'data', tell_children=False)
-
-        if MPControl.is_master:
-            return self.pileup_data(run_data)
-        else:
-            return None, None
+        return MPControl.map(regression_maker, range(self.G), tell_children=False)
 
     def _build_pp_matrix(self):
         """

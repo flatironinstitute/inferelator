@@ -119,12 +119,14 @@ def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
     m1, m2 = X.shape[1], Y.shape[1]
 
     # Define the function which calculates MI for each variable in X against every variable in Y
-    def mi_maker(i):
+    def mi_make(i):
+        if __debug__:
+            level = 2 if i % 1000 == 0 else 3
+            utils.Debug.allprint("MI [{i} / {total}]".format(i=i, total=m1), level=level)
         return [_calc_mi(_make_table(X[:, i], Y[:, j], bins), logtype=logtype) for j in range(m2)]
 
     # Send the MI build to the multiprocessing controller
-    dsk = {'i': list(range(m1)), 'mi': (mi_maker, 'i')}
-    mi_list = MPControl.get(dsk, 'mi', tmp_file_path=temp_dir)
+    mi_list = MPControl.map(mi_make, range(m1))
 
     # Convert the list of lists to an array
     mi = np.array(mi_list)

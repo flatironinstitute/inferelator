@@ -288,30 +288,29 @@ class AMuSR_regression(base_regression.BaseRegression):
         :return: list
             Returns a list of regression results that the amusr_regression pileup_data can process
         """
-        def regression_maker(r_obj, j):
+        def regression_maker(j):
             level = 0 if j % 100 == 0 else 2
-            utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=r_obj.genes[j], i=j, total=r_obj.G),
+            utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G),
                                  level=level)
 
-            gene = r_obj.genes[j]
+            gene = self.genes[j]
             x, y, tasks = [], [], []
 
-            if r_obj.remove_autoregulation:
-                tfs = [t for t in r_obj.tfs if t != gene]
+            if self.remove_autoregulation:
+                tfs = [t for t in self.tfs if t != gene]
             else:
-                tfs = r_obj.tfs
+                tfs = self.tfs
 
-            for k in range(r_obj.n_tasks):
-                if gene in r_obj.Y[k]:
-                    x.append(r_obj.X[k].loc[:, tfs].values)  # list([N, K])
-                    y.append(r_obj.Y[k].loc[:, gene].values.reshape(-1, 1))  # list([N, 1])
+            for k in range(self.n_tasks):
+                if gene in self.Y[k]:
+                    x.append(self.X[k].loc[:, tfs].values)  # list([N, K])
+                    y.append(self.Y[k].loc[:, gene].values.reshape(-1, 1))  # list([N, 1])
                     tasks.append(k)  # [T,]
 
-            prior = r_obj.format_prior(r_obj.priors, gene, tasks, r_obj.prior_weight)
+            prior = self.format_prior(self.priors, gene, tasks, self.prior_weight)
             return run_regression_EBIC(x, y, tfs, tasks, gene, prior)
 
-        dsk = {'j': list(range(self.G)), 'data': (regression_maker, self, 'j')}
-        return MPControl.get(dsk, 'data', tell_children=False)
+        return MPControl.map(regression_maker, range(self.G))
 
     def pileup_data(self, run_data):
 
