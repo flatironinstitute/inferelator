@@ -15,6 +15,12 @@ import collections
 import tempfile
 import pickle
 
+# Shadow built-in zip with itertools.izip if this is python2 (This puts out a memory dumpster fire)
+try:
+    from itertools import izip as zip
+except ImportError:
+    pass
+
 # SLURM environment variables
 SBATCH_VARS = dict(SLURM_PROCID=('rank', int, 0),
                    SLURM_NTASKS_PER_NODE=('cores', int, 1),
@@ -147,16 +153,14 @@ class KVSController(AbstractController):
         return cls.client.view(key)
 
     @classmethod
-    def map(cls, func, iterable, chunk=25, tmp_file_path=None, tell_children=True, **kwargs):
+    def map(cls, func, *args, **kwargs):
         """
-        Map a function across an iterable and return a list of results
+        Map a function across iterable(s) and return a list of results
 
         :param func: function
             Mappable function
-        :param iterable: iterable
-            Iterator
-        :param chunk: int
-            The number of iterations to assign in blocks
+        :param args: iterable
+            Iterator(s)
         :param tmp_file_path: path
             If this is not None, instead of putting data onto the KVS, data will be pickled to temp files and the
             path to the temp file will be put onto the KVS
@@ -166,18 +170,18 @@ class KVSController(AbstractController):
         :return results: list
         """
 
-        assert check.argument_callable(func)
-        assert check.argument_type(iterable, collections.Iterable)
+        tmp_file_path = kwargs.pop("tmp_file_path", None)
+        tell_children = kwargs.pop("tell_children", True)
 
-        assert check.argument_integer(chunk, low=1, allow_none=True)
-        chunk = chunk if chunk is not None else cls.chunk
+        assert check.argument_callable(func)
+        assert check.argument_list_type(args, collections.Iterable)
 
         # Set up the multiprocessing
-        owncheck = cls.own_check(chunk=chunk, kvs_key=COUNT)
+        owncheck = cls.own_check(chunk=cls.chunk, kvs_key=COUNT)
         results = dict()
-        for pos, arg in enumerate(iterable):
+        for pos, arg in enumerate(zip(*args)):
             if next(owncheck):
-                results[pos] = func(arg)
+                results[pos] = func(*arg)
 
         # Process results and synchronize exit from the get call
         results = cls.process_results(results, tmp_file_path=tmp_file_path, tell_children=tell_children)

@@ -1,10 +1,15 @@
 import collections
 
+# Maintain python 2 compatibility
+try:
+    from itertools import izip as zip
+except ImportError:
+    pass
+
 from inferelator_ng.distributed import AbstractController
 from inferelator_ng.utils import Validator as check
 
-from dask import distributed
-from toolz import partition_all
+from dask import distributed, compute, delayed
 
 
 class DaskController(AbstractController):
@@ -27,29 +32,39 @@ class DaskController(AbstractController):
         return True
 
     @classmethod
-    def map(cls, func, iterable, chunk=None, **kwargs):
+    def map(cls, func, *args, **kwargs):
         """
-        Map a function across an iterable and return a list of results
+        Map a function across iterable(s) and return a list of results
+
         :param func: function
             Mappable function
-        :param iterable: iterable
-            Iterator
+        :param args: iterable
+            Iterator(s)
         :param chunk: int
             The number of iterations to assign in blocks
         :return:
         """
 
         assert check.argument_callable(func)
-        assert check.argument_type(iterable, collections.Iterable)
-        assert check.argument_integer(chunk, low=1, allow_none=True)
-        chunk = chunk if chunk is not None else cls.chunk
+        assert check.argument_list_type(args, collections.Iterable)
 
         # Function that returns a list of mapped results for a chunk of data
-        def chunker(block):
-            return [func(individual) for individual in block]
+        # Each chunk is a list containing zip(*arg) elements with length cls.processes
+        def operate_on_chunk(block):
+            return [func(*individual) for individual in block]
+
+        # Function that takes a list of arguments and chunks it
+        def create_chunk(n, arg_list):
+            chunk_data = list(zip(*arg_list))
+            for s in range(int(len(chunk_data) / n) + 1):
+                yield chunk_data[s * n:min(s * n + n, len(chunk_data))]
 
         # Build Futures and then gather them into a nested list of results
-        future_list = cls.client.map(chunker, partition_all(chunk, iterable))
+        # future_list = [delayed(operate_on_chunk)(block) for block in create_chunk(cls.chunk, args)]
+        # nested_list = compute(*future_list, scheduler="distributed")
+
+        # Build Futures with map and then gather them into a nested list of results
+        future_list = cls.client.map(operate_on_chunk, create_chunk(cls.chunk, args))
         nested_list = cls.client.gather(future_list)
 
         # Flatten the list
@@ -64,5 +79,4 @@ class DaskController(AbstractController):
         """
         This is a thing for KVS. Just return True.
         """
-
         return True
