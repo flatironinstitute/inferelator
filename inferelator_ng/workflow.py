@@ -20,19 +20,29 @@ import pandas as pd
 import gzip
 import bz2
 
-
 class WorkflowBase(object):
-    # Common configuration parameters
+
+    # Paths to the input and output locations
     input_dir = None
+    output_dir = None
+
+    # Settings that will be used by pd.read_table to import data files
     file_format_settings = default.DEFAULT_PD_INPUT_SETTINGS
+    # A dict, keyed by file name, of settings to override the defaults in file_format_settings
+    # Used when input files are perhaps not processed into perfect TSVs
     file_format_overrides = dict()
+
+    # File names for each of the data files which can be used in the inference workflow
     expression_matrix_file = default.DEFAULT_EXPRESSION_FILE
     tf_names_file = default.DEFAULT_TFNAMES_FILE
     meta_data_file = default.DEFAULT_METADATA_FILE
     priors_file = default.DEFAULT_PRIORS_FILE
     gold_standard_file = default.DEFAULT_GOLDSTANDARD_FILE
-    output_dir = None
+
+    # The random seed for sampling, etc
     random_seed = default.DEFAULT_RANDOM_SEED
+
+    # The number of inference bootstraps to run
     num_bootstraps = default.DEFAULT_NUM_BOOTSTRAPS
 
     # Flags to control splitting priors into a prior/gold-standard set
@@ -52,10 +62,9 @@ class WorkflowBase(object):
     initialize_mp = True
     multiprocessing_controller = None
 
-    def __init__(self, initialize_mp=True):
+    def __init__(self):
         # Get environment variables
         self.get_environmentals()
-        self.initialize_mp = initialize_mp
 
     def initialize_multiprocessing(self):
         """
@@ -69,7 +78,7 @@ class WorkflowBase(object):
         """
         Load environmental variables into class variables
         """
-        for k, v in utils.slurm_envs().items():
+        for k, v in utils.slurm_envs(default.SBATCH_VARS_FOR_WORKFLOW).items():
             setattr(self, k, v)
 
     def startup(self):
@@ -201,7 +210,7 @@ class WorkflowBase(object):
 
     def input_path(self, filename, mode='r'):
         """
-        Join filename to input_dir
+        Join filename to input_dir and use the file open method that's appropriate for compressed files
         """
 
         if filename.endswith(".gz"):
