@@ -3,21 +3,23 @@ from __future__ import print_function
 import pandas as pd
 import os
 
-# Get the following environment variables
-# Workflow_variable_name, casting function, default (if the env isn't set or the casting fails for whatever reason)
-SBATCH_VARS = {'RUNDIR': ('output_dir', str, None),
-               'DATADIR': ('input_dir', str, None),
-               'SLURM_PROCID': ('rank', int, 0),
-               'SLURM_NTASKS_PER_NODE': ('cores', int, 1),
-               'SLURM_NTASKS': ('tasks', int, 1),
-               'SLURM_NODEID': ('node', int, 0),
-               'SLURM_JOB_NUM_NODES': ('num_nodes', int, 1)
-               }
+from inferelator_ng.default import SBATCH_VARS
 
 
-def slurm_envs():
+def slurm_envs(var_names=None):
+    """
+    Get environment variable names and return them as a dict
+    :param var_names: list
+        A list of environment variable names to get. Will throw an error if they're not keys in the SBATCH_VARS dict
+    :return envs: dict
+        A dict keyed by setattr variable name of the value (or default) from the environment variables
+    """
+    var_names = SBATCH_VARS.keys() if var_names is None else var_names
+    assert set(var_names).issubset(set(SBATCH_VARS.keys()))
+
     envs = {}
-    for os_var, (cv, mt, de) in SBATCH_VARS.items():
+    for cv in var_names:
+        os_var, mt, de = SBATCH_VARS[cv]
         try:
             val = mt(os.environ[os_var])
         except (KeyError, TypeError):
@@ -27,6 +29,10 @@ def slurm_envs():
 
 
 class Debug:
+    """
+    This class is for printing status messages to stdout
+    Just plain print doesn't work so well when there are multiple processes
+    """
     verbose_level = 0
     default_level = 1
 
@@ -43,6 +49,8 @@ class Debug:
     def set_verbose_level(cls, lvl):
         if isinstance(lvl, (int, float)):
             cls.verbose_level = lvl
+        elif lvl in cls.levels.keys():
+            cls.verbose_level = cls.levels[lvl]
 
     @classmethod
     def vprint(cls, *args, **kwargs):
@@ -197,7 +205,6 @@ class Validator(object):
         for a in arg:
             Validator.argument_type(a, arg_type, allow_none=allow_none)
         return True
-
 
     @staticmethod
     def argument_callable(arg, allow_none=False):
