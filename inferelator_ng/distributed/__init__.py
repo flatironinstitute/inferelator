@@ -4,8 +4,14 @@ from abc import abstractmethod
 
 
 class AbstractController:
+
+    # The object which handles the multiprocessing
     client = None
+
+    # Boolean to identify master processes where needed
     is_master = False
+
+    # The chunk sizes for calls to map
     chunk = 25
 
     @classmethod
