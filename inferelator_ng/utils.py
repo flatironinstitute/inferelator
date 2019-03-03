@@ -191,6 +191,15 @@ class Validator(object):
             raise ValueError("Argument {arg} must be of type {typ}".format(arg=arg, typ=arg_type))
 
     @staticmethod
+    def argument_list_type(arg, arg_type, allow_none=False):
+        if allow_none and arg is None:
+            return True
+        for a in arg:
+            Validator.argument_type(a, arg_type, allow_none=allow_none)
+        return True
+
+
+    @staticmethod
     def argument_callable(arg, allow_none=False):
         if allow_none and arg is None:
             return True
