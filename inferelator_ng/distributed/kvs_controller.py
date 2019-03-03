@@ -8,6 +8,8 @@ from kvsstcp import KVSClient
 
 from inferelator_ng.distributed import AbstractController
 from inferelator_ng.utils import Validator as check
+from inferelator_ng import utils
+from inferelator_ng import default
 
 import os
 import warnings
@@ -21,15 +23,11 @@ try:
 except ImportError:
     pass
 
-# SLURM environment variables
-SBATCH_VARS = dict(SLURM_PROCID=('rank', int, 0),
-                   SLURM_NTASKS_PER_NODE=('cores', int, 1),
-                   SLURM_NTASKS=('tasks', int, 1),
-                   SLURM_NODEID=('node', int, 0),
-                   SLURM_JOB_NUM_NODES=('num_nodes', int, 1))
+# KVS environment variables
+SBATCH_VARS_FOR_KVS = ["SLURM_PROCID", "SLURM_NTASKS_PER_NODE", "SLURM_NTASKS", "SLURM_NODEID", "SLURM_JOB_NUM_NODES"]
 
+# Which process is the boss
 DEFAULT_MASTER = 0
-DEFAULT_WARNING = "SBATCH has not set ENV {var}. Setting {var} to {defa}."
 
 # KVS Keys to use
 COUNT = "kvs_count"
@@ -59,26 +57,18 @@ class KVSController(AbstractController):
         """
 
         # Get local environment variables
-        cls._get_env(suppress_warnings=kwargs.pop("suppress_warnings", False),
-                     master_rank=kwargs.pop("master_rank", 0))
+        cls._get_env(master_rank=kwargs.pop("master_rank", DEFAULT_MASTER))
 
         # Connect to the host server by calling to KVSClient.__init__
         cls.client = KVSClient(*args, **kwargs)
 
     @classmethod
-    def _get_env(cls, slurm_variables=SBATCH_VARS, suppress_warnings=False, master_rank=DEFAULT_MASTER):
+    def _get_env(cls, master_rank=DEFAULT_MASTER):
         """
         Get the SLURM environment variables that are set by sbatch at runtime.
-        The default values mean multiprocessing won't work at all.
         """
-        for env_var, (class_var, func, default) in slurm_variables.items():
-            try:
-                val = func(os.environ[env_var])
-            except (KeyError, TypeError):
-                val = default
-                if not suppress_warnings:
-                    print(DEFAULT_WARNING.format(var=env_var, defa=default))
-            setattr(cls, class_var, val)
+        for k, v in utils.slurm_envs(default.SBATCH_VARS_FOR_KVS).items():
+            setattr(cls, k, v)
         if cls.rank == master_rank:
             cls.is_master = True
         else:
