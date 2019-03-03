@@ -121,8 +121,8 @@ def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
     # Define the function which calculates MI for each variable in X against every variable in Y
     def mi_make(i):
         if __debug__:
-            level = 2 if i % 1000 == 0 else 3
-            utils.Debug.allprint("MI [{i} / {total}]".format(i=i, total=m1), level=level)
+            level = 1 if i % 1000 == 0 else 3
+            utils.Debug.allprint("Mutual Information Calculation [{i} / {total}]".format(i=i, total=m1), level=level)
         return [_calc_mi(_make_table(X[:, i], Y[:, j], bins), logtype=logtype) for j in range(m2)]
 
     # Send the MI build to the multiprocessing controller
