@@ -10,7 +10,6 @@ from inferelator_ng.utils import Validator as check
 from inferelator_ng import default
 from inferelator_ng.preprocessing.prior_gs_split_workflow import split_for_cv, remove_prior_circularity
 
-from inferelator_ng.distributed.kvs_controller import KVSController
 from inferelator_ng.distributed.inferelator_mp import MPControl
 
 import numpy as np
@@ -50,8 +49,8 @@ class WorkflowBase(object):
     gold_standard = None  # gold standard dataframe [G x K]
 
     # Multiprocessing controller
-    intialize_mp = True
-    multiprocessing_controller = KVSController
+    initialize_mp = True
+    multiprocessing_controller = None
 
     def __init__(self, initialize_mp=True):
         # Get environment variables
@@ -60,9 +59,10 @@ class WorkflowBase(object):
 
     def initialize_multiprocessing(self):
         """
-        Override this if you want to use something besides KVS for multiprocessing.
+        Register the multiprocessing controller if set and run .connect()
         """
-        MPControl.set_multiprocess_engine(self.multiprocessing_controller)
+        if self.multiprocessing_controller is not None:
+            MPControl.set_multiprocess_engine(self.multiprocessing_controller)
         MPControl.connect()
 
     def get_environmentals(self):
