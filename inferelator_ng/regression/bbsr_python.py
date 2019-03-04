@@ -107,7 +107,7 @@ class BBSR(base_regression.BaseRegression):
         scatter_weights = DaskController.client.scatter(self.weights_mat.values, broadcast=True)
 
         future_list = [DaskController.client.submit(regression_maker, i, scatter_x, scatter_y, scatter_pp,
-                                                    scatter_weights, self.G, self.nS, self.genes)
+                                                    scatter_weights, self.G, self.genes, self.nS)
                        for i in range(self.G)]
 
         result_list = DaskController.client.gather(future_list)
