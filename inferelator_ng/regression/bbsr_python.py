@@ -94,11 +94,10 @@ class BBSR(base_regression.BaseRegression):
     def regress_dask(self):
         from inferelator_ng.distributed.dask_controller import DaskController
 
-        def regression_maker(j, x, y, pp, weights):
+        def regression_maker(j, x, y, pp, weights, total_g, g_names, nS):
             level = 0 if j % 100 == 0 else 2
-            utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G),
-                                 level=level)
-            data = bayes_stats.bbsr(x, y[j, :], pp[j, :], weights[j, :], self.nS)
+            utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=g_names[j], i=j, total=total_g), level=level)
+            data = bayes_stats.bbsr(x, y[j, :], pp[j, :], weights[j, :], nS)
             data['ind'] = j
             return data
 
@@ -108,7 +107,7 @@ class BBSR(base_regression.BaseRegression):
         scatter_weights = DaskController.client.scatter(self.weights_mat.values, broadcast=True)
 
         future_list = [DaskController.client.submit(regression_maker, i, scatter_x, scatter_y, scatter_pp,
-                                                    scatter_weights)
+                                                    scatter_weights, self.G, self.nS, self.genes)
                        for i in range(self.G)]
 
         result_list = DaskController.client.gather(future_list)
