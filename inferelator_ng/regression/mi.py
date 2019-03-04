@@ -95,11 +95,11 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
     Y = _make_array_discrete(Y, bins, axis=1).transpose()
 
     # Build the MI matrix
-    if str(MPControl.client) == "dask":
-        return pd.DataFrame(build_mi_array(X, Y, bins, logtype=logtype, temp_dir=temp_dir), index=mi_r,
+    if MPControl.client.name() == "dask":
+        return pd.DataFrame(build_mi_array_dask(X, Y, bins, logtype=logtype, temp_dir=temp_dir), index=mi_r,
                             columns=mi_c)
     else:
-        return pd.DataFrame(build_mi_array_dask(X, Y, bins, logtype=logtype, temp_dir=temp_dir), index=mi_r,
+        return pd.DataFrame(build_mi_array(X, Y, bins, logtype=logtype, temp_dir=temp_dir), index=mi_r,
                             columns=mi_c)
 
 
@@ -166,8 +166,8 @@ def build_mi_array_dask(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
         return [_calc_mi(_make_table(x[:, i], y[:, j], bins), logtype=logtype) for j in range(m2)]
 
     # Scatter X & Y to all workers and keep track of them as Futures
-    scatter_x = DaskController.client.scatter(X, broadcast=True)
-    scatter_y = DaskController.client.scatter(Y, broadcast=True)
+    [scatter_x] = DaskController.client.scatter([X], broadcast=True)
+    [scatter_y] = DaskController.client.scatter([Y], broadcast=True)
 
     # Build an asynchronous list of Futures for each calculation of mi_make
     future_list = [DaskController.client.submit(mi_make, i, scatter_x, scatter_y) for i in range(m1)]

@@ -74,7 +74,7 @@ class BBSR(base_regression.BaseRegression):
             Returns None, None if it's a subordinate thread
         """
 
-        if str(MPControl.client) == "dask":
+        if MPControl.client.name() == "dask":
             return regress_dask(self.X, self.Y, self.pp, self.weights_mat, self.G, self.genes, self.nS)
 
         def regression_maker(j):
@@ -178,7 +178,6 @@ def patch_workflow(obj):
 
 def regress_dask(X, Y, pp, weights_mat, G, genes, nS):
     from inferelator_ng.distributed.dask_controller import DaskController
-    from dask import delayed
 
     def regression_maker(j, x, y, pp, weights, total_g, g_names, nS):
         level = 0 if j % 100 == 0 else 2
@@ -192,11 +191,10 @@ def regress_dask(X, Y, pp, weights_mat, G, genes, nS):
     [scatter_pp] = DaskController.client.scatter([pp.values], broadcast=True)
     [scatter_weights] = DaskController.client.scatter([weights_mat.values], broadcast=True)
 
-    delay_list = [delayed(regression_maker)(regression_maker, i, scatter_x, scatter_y, scatter_pp, scatter_weights, G,
-                                            genes, nS)
-                  for i in range(G)]
+    future_list = [DaskController.client.submit(regression_maker, i, scatter_x, scatter_y, scatter_pp, scatter_weights,
+                                                G, genes, nS)
+                   for i in range(G)]
 
-    future_list = DaskController.client.compute(delay_list)
     result_list = DaskController.client.gather(future_list)
 
     DaskController.client.cancel(scatter_x)
