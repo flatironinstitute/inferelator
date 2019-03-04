@@ -1,6 +1,6 @@
-# inferelator_ng
+# inferelator_sc
 
-[![Travis](https://travis-ci.org/asistradition/inferelator_ng.svg?branch=master)](https://travis-ci.org/asistradition/inferelator_ng)
+[![Travis](https://travis-ci.org/flatironinstitute/inferelator_sc.svg?branch=master)](https://travis-ci.org/flatironinstitute/inferelator_sc)
 [![codecov](https://codecov.io/gh/asistradition/inferelator_ng/branch/master/graph/badge.svg)](https://codecov.io/gh/asistradition/inferelator_ng)
 
 The inferelator codebase for analyzing data one cell at a time. Currently includes [AMuSR](https://github.com/simonsfoundation/multitask_inferelator/tree/AMuSR/inferelator_ng) and elements of [InfereCLaDR](https://github.com/simonsfoundation/inferelator_ng/tree/InfereCLaDR). Proper citations will follow eventually.
