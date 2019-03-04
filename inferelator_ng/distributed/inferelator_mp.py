@@ -14,10 +14,11 @@ class MPControl(AbstractController):
     # Relevant external state booleans
     is_master = False
     is_initialized = False
+    is_dask = False
 
     @classmethod
-    def __str__(cls):
-        return "registry"
+    def name(cls):
+        return "multiprocessing_registry"
 
     @classmethod
     def set_multiprocess_engine(cls, engine):

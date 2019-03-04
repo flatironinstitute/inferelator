@@ -187,10 +187,10 @@ def regress_dask(X, Y, pp, weights_mat, G, genes, nS):
         data['ind'] = j
         return data
 
-    scatter_x = DaskController.client.scatter(X.values, broadcast=True)
-    scatter_y = DaskController.client.scatter(Y.values, broadcast=True)
-    scatter_pp = DaskController.client.scatter(pp.values, broadcast=True)
-    scatter_weights = DaskController.client.scatter(weights_mat.values, broadcast=True)
+    [scatter_x] = DaskController.client.scatter([X.values], broadcast=True)
+    [scatter_y] = DaskController.client.scatter([Y.values], broadcast=True)
+    [scatter_pp] = DaskController.client.scatter([pp.values], broadcast=True)
+    [scatter_weights] = DaskController.client.scatter([weights_mat.values], broadcast=True)
 
     delay_list = [delayed(regression_maker)(regression_maker, i, scatter_x, scatter_y, scatter_pp, scatter_weights, G,
                                             genes, nS)

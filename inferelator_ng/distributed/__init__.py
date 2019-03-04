@@ -16,7 +16,7 @@ class AbstractController:
 
     @classmethod
     @abstractmethod
-    def __str__(cls):
+    def name(cls):
         raise NotImplementedError
 
     @classmethod

@@ -21,7 +21,7 @@ class MultiprocessingController(AbstractController):
     processes = 4
 
     @classmethod
-    def __str__(cls):
+    def name(cls):
         return "multiprocessing"
 
     @classmethod

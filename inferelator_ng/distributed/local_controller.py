@@ -14,7 +14,7 @@ class LocalController(AbstractController):
     chunk = None
 
     @classmethod
-    def __str__(cls):
+    def name(cls):
         return "local"
 
     @classmethod

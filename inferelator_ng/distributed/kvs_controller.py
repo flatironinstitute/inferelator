@@ -51,7 +51,7 @@ class KVSController(AbstractController):
     is_master = False  # bool
 
     @classmethod
-    def __str__(cls):
+    def name(cls):
         return "kvs"
 
     @classmethod
