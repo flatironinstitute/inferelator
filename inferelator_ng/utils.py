@@ -1,6 +1,6 @@
 from __future__ import print_function
+
 import pandas as pd
-import numpy as np
 import os
 
 # Get the following environment variables
@@ -31,7 +31,7 @@ class Debug:
     default_level = 1
 
     silence_clients = True
-    rank = slurm_envs()['rank']
+    is_master = True
 
     levels = dict(silent=-1,
                   normal=0,
@@ -46,8 +46,12 @@ class Debug:
 
     @classmethod
     def vprint(cls, *args, **kwargs):
-        if cls.silence_clients and cls.rank != 0:
+        if cls.silence_clients and not cls.is_master:
             return
+        cls.print_level(*args, **kwargs)
+
+    @classmethod
+    def allprint(cls, *args, **kwargs):
         cls.print_level(*args, **kwargs)
 
     @classmethod
@@ -80,7 +84,7 @@ class Validator(object):
     """
 
     @staticmethod
-    def argument_numeric(arg, low=None, high=None, allow_none=False):
+    def argument_numeric(arg, low=None, high=None, allow_none=False, types=(int, float)):
         """
         Validate an input argument as being numeric (either an int or a float). Also check bounds if set.
         :param arg:
@@ -97,7 +101,7 @@ class Validator(object):
         if allow_none and arg is None:
             return True
 
-        if not isinstance(arg, (int, float)):
+        if not isinstance(arg, types):
             raise ValueError("Argument must be numeric ({arg}, {typ} provided) ".format(arg=arg, typ=type(arg)))
 
         if low is not None and Validator.argument_numeric(low) and arg < low:
@@ -106,6 +110,13 @@ class Validator(object):
             raise ValueError("Argument must be no more than {high}".format(high=high))
 
         return True
+
+    @staticmethod
+    def argument_integer(arg, low=None, high=None, allow_none=False):
+        """
+        Wrapper for argument_numeric which forces only integers
+        """
+        return Validator.argument_numeric(arg, low=low, high=high, allow_none=allow_none, types=int)
 
     @staticmethod
     def argument_enum(arg, enum_list, allow_none=False):
@@ -134,20 +145,40 @@ class Validator(object):
             return True
 
     @staticmethod
-    def argument_path(arg, allow_none=False, create_if_needed=False):
+    def argument_path(arg, allow_none=False, create_if_needed=False, access=None):
+        """
+        Check to see if a path exists
+        :param arg: str
+            Path to a target
+        :param allow_none: bool
+            Allow arg to be None
+        :param create_if_needed: bool
+            Create a folder with os.makedirs if the path doesn't exist
+        :param access:
+            Mode parameter to check access
+        :return:
+            Returns True if valid. Raises an exception otherwise
+        """
         if allow_none and arg is None:
             return True
 
-        if os.path.exists(arg):
-            return True
-        elif create_if_needed:
+        # If the path doesn't exist, create it or raise ValueError
+        if not os.path.exists(arg) and create_if_needed:
             try:
                 os.makedirs(arg)
             except OSError as err:
                 raise ValueError("Path {arg} does not exist and cant be created:\n{err}".format(arg=arg, err=str(err)))
-            return True
-        else:
+        elif not os.path.exists(arg):
             raise ValueError("Argument {arg} must be an existing path".format(arg=arg))
+
+        # If access is set, check and see if the permissions are OK and raise ValueError if not
+        if access is not None:
+            if os.access(arg, access):
+                return True
+            else:
+                raise ValueError("Path {arg} does not have permission {per}".format(arg=arg, per=access))
+        else:
+            return True
 
     @staticmethod
     def argument_type(arg, arg_type, allow_none=False):
@@ -158,6 +189,15 @@ class Validator(object):
             return True
         else:
             raise ValueError("Argument {arg} must be of type {typ}".format(arg=arg, typ=arg_type))
+
+    @staticmethod
+    def argument_callable(arg, allow_none=False):
+        if allow_none and arg is None:
+            return True
+        elif callable(arg):
+            return True
+        else:
+            raise ValueError("Argument {arg} must be callable".format(arg=arg))
 
     @staticmethod
     def dataframes_align(frame_iterable, allow_none=False, check_order=True):
@@ -212,7 +252,6 @@ class Validator(object):
         else:
             return True
 
-
     @staticmethod
     def arguments_not_none(args, num_none=None):
         """
@@ -233,6 +272,7 @@ class Validator(object):
             raise ValueError("{num} arguments are not None; only {nnum} are allowed".format(num=n_not_none,
                                                                                             nnum=num_none))
         return True
+
 
 def df_from_tsv(file_like, has_index=True):
     "Read a tsv file or buffer with headers and row ids into a pandas dataframe."

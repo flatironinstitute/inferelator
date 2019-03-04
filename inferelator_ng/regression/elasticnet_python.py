@@ -1,8 +1,8 @@
 import numpy as np
 
 from inferelator_ng import utils
-from inferelator_ng import regression
-from inferelator_ng import tfa_workflow
+from inferelator_ng.regression import base_regression
+from inferelator_ng.distributed.inferelator_mp import MPControl
 from sklearn.linear_model import ElasticNetCV
 
 ELASTICNET_PARAMETERS = dict(l1_ratio=[0.5, 0.7, 0.9],
@@ -50,8 +50,8 @@ def elastic_net(X, Y, params):
     if coef_nonzero.sum() > 0:
         x = X[:, coef_nonzero]
         utils.make_array_2d(Y)
-        betas = regression.recalculate_betas_from_selected(x, Y)
-        betas_resc = regression.predict_error_reduction(x, Y, betas)
+        betas = base_regression.recalculate_betas_from_selected(x, Y)
+        betas_resc = base_regression.predict_error_reduction(x, Y, betas)
         return dict(pp=coef_nonzero,
                     betas=betas,
                     betas_resc=betas_resc)
@@ -61,17 +61,25 @@ def elastic_net(X, Y, params):
                     betas_resc=np.zeros(K))
 
 
-class ElasticNet(regression.BaseRegression):
+class ElasticNet(base_regression.BaseRegression):
     params = ELASTICNET_PARAMETERS
 
-    def regress(self, idx):
-        return elastic_net(self.X.values, self.Y.ix[idx, :].values, self.params)
+    def regress(self):
+        """
+        Execute Elastic Net
 
+        :return: list
+            Returns a list of regression results that base_regression's pileup_data can process
+        """
 
-class ElasticNetRunner:
-    def run(self, X, Y, kvs):
-        return ElasticNet(X, Y, kvs).run()
+        def regression_maker(j):
+            level = 0 if j % 100 == 0 else 2
+            utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G), level=level)
+            data = elastic_net(self.X.values, self.Y.iloc[j, :].values, self.params)
+            data['ind'] = j
+            return data
 
+        return MPControl.map(regression_maker, range(self.G), tell_children=False)
 
 def patch_workflow(obj):
     """
@@ -86,7 +94,7 @@ def patch_workflow(obj):
         X = self.design.iloc[:, bootstrap]
         Y = self.response.iloc[:, bootstrap]
         utils.Debug.vprint('Calculating betas using MEN', level=0)
-        self.kvs.sync_processes("pre-bootstrap")
-        return ElasticNetRunner().run(X, Y, self.kvs)
+        MPControl.sync_processes("pre-bootstrap")
+        return ElasticNet(X, Y).run()
 
     obj.run_bootstrap = types.MethodType(run_bootstrap, obj)

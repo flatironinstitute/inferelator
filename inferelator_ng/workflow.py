@@ -8,7 +8,11 @@ code among different variants of the Inferelator workflow.
 from inferelator_ng import utils
 from inferelator_ng.utils import Validator as check
 from inferelator_ng import default
-from inferelator_ng.prior_gs_split_workflow import split_for_cv, remove_prior_circularity
+from inferelator_ng.preprocessing.prior_gs_split_workflow import split_for_cv, remove_prior_circularity
+
+from inferelator_ng.distributed.kvs_controller import KVSController
+from inferelator_ng.distributed.inferelator_mp import MPControl
+
 import numpy as np
 import os
 import datetime
@@ -45,23 +49,21 @@ class WorkflowBase(object):
     priors_data = None  # priors data dataframe [G x K]
     gold_standard = None  # gold standard dataframe [G x K]
 
-    # Hold the KVS information
-    rank = 0
-    kvs = None
-    tasks = None
+    # Multiprocessing controller
+    intialize_mp = True
+    multiprocessing_controller = KVSController
 
     def __init__(self, initialize_mp=True):
-        # Connect to KVS and get environment variables
-        if initialize_mp:
-            self.initialize_multiprocessing()
+        # Get environment variables
         self.get_environmentals()
+        self.initialize_mp = initialize_mp
 
     def initialize_multiprocessing(self):
         """
         Override this if you want to use something besides KVS for multiprocessing.
         """
-        from inferelator_ng.kvs_controller import KVSController
-        self.kvs = KVSController()
+        MPControl.set_multiprocess_engine(self.multiprocessing_controller)
+        MPControl.connect()
 
     def get_environmentals(self):
         """
@@ -74,6 +76,8 @@ class WorkflowBase(object):
         """
         Startup by preprocessing all data into a ready format for regression.
         """
+        if self.initialize_mp:
+            self.initialize_multiprocessing()
         self.startup_run()
         self.startup_finish()
 
@@ -207,7 +211,7 @@ class WorkflowBase(object):
         else:
             opener = open
 
-        return opener(os.path.abspath(os.path.join(self.input_dir, filename)), mode=mode)
+        return opener(os.path.abspath(os.path.expanduser(os.path.join(self.input_dir, filename))), mode=mode)
 
     def input_dataframe(self, filename, index_col=0):
         """
@@ -273,20 +277,17 @@ class WorkflowBase(object):
 
     def is_master(self):
         """
-        Return True if this is the rank-0 (master) thread
+        Return True if this is the master thread
         """
-
-        if self.rank == 0:
-            return True
-        else:
-            return False
+        return MPControl.is_master
 
     def create_output_dir(self):
         """
         Set a default output_dir if nothing is set. Create the path if it doesn't exist.
         """
         if self.output_dir is None:
-            self.output_dir = os.path.join(self.input_dir, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+            new_path = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+            self.output_dir = os.path.expanduser(os.path.join(self.input_dir, new_path))
         try:
             os.makedirs(self.output_dir)
         except OSError:

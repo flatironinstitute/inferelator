@@ -1,8 +1,7 @@
 import unittest
-from .. import tfa
+from inferelator_ng.preprocessing import tfa
 import pandas as pd
 import numpy as np
-import subprocess
 
 units_in_the_last_place_tolerance = 15
 class TestTFA(unittest.TestCase):

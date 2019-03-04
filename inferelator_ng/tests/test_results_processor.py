@@ -1,5 +1,5 @@
 import unittest
-from inferelator_ng import results_processor
+from inferelator_ng.postprocessing import results_processor
 import pandas as pd
 import numpy as np
 import os

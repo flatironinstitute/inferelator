@@ -4,10 +4,10 @@ Run BSubtilis Network Inference with TFA BBSR.
 
 import numpy as np
 from inferelator_ng import workflow
-from inferelator_ng import design_response_translation  # added python design_response
-from inferelator_ng.tfa import TFA
-from inferelator_ng.results_processor import ResultsProcessor
-from inferelator_ng import bbsr_python
+from inferelator_ng.preprocessing import design_response_translation  # added python design_response
+from inferelator_ng.preprocessing.tfa import TFA
+from inferelator_ng.postprocessing.results_processor import ResultsProcessor
+from inferelator_ng.regression import bbsr_python
 from inferelator_ng import utils
 from inferelator_ng import default
 
@@ -23,6 +23,9 @@ class TFAWorkFlow(workflow.WorkflowBase):
 
     # Regression implementation
     regression_type = bbsr_python
+
+    # TFA implementation
+    tfa_driver = TFA
 
     def run(self):
         """
@@ -74,7 +77,7 @@ class TFAWorkFlow(workflow.WorkflowBase):
         Compute Transcription Factor Activity
         """
         utils.Debug.vprint('Computing Transcription Factor Activity ... ')
-        TFA_calculator = TFA(self.priors_data, self.design, self.half_tau_response)
+        TFA_calculator = self.tfa_driver(self.priors_data, self.design, self.half_tau_response)
         self.design = TFA_calculator.compute_transcription_factor_activity()
         self.half_tau_response = None
 

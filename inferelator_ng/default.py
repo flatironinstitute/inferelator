@@ -65,3 +65,17 @@ DEFAULT_PREC = 0.5
 
 DEFAULT_CV_AXIS = 0
 DEFAULT_CV_RANDOM_SEED = 2001
+
+"""Defaults For BBSR"""
+# Default number of predictors to include in the model
+DEFAULT_nS = 10
+
+# Default weight for priors & Non-priors
+# If prior_weight is the same as no_prior_weight:
+#   Priors will be included in the pp matrix before the number of predictors is reduced to nS
+#   They won't get special treatment in the model though
+DEFAULT_prior_weight = 1
+DEFAULT_no_prior_weight = 1
+
+# Throw away the priors which have a CLR that is 0 before the number of predictors is reduced by BIC
+DEFAULT_filter_priors_for_clr = False

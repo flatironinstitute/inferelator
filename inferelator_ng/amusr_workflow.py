@@ -15,8 +15,8 @@ from inferelator_ng import utils
 from inferelator_ng import single_cell_puppeteer_workflow
 from inferelator_ng import single_cell_workflow
 from inferelator_ng import default
-from inferelator_ng import amusr_regression
-from inferelator_ng import results_processor
+from inferelator_ng.regression import amusr_regression
+from inferelator_ng.postprocessing import results_processor
 
 
 class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
