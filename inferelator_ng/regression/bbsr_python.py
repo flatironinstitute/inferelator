@@ -74,6 +74,9 @@ class BBSR(base_regression.BaseRegression):
             Returns None, None if it's a subordinate thread
         """
 
+        if str(MPControl.client) == "dask":
+            return self.regress_dask()
+
         def regression_maker(j):
             level = 0 if j % 100 == 0 else 2
             utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G),
@@ -87,6 +90,33 @@ class BBSR(base_regression.BaseRegression):
             return data
 
         return MPControl.map(regression_maker, range(self.G), tell_children=False)
+
+    def regress_dask(self):
+        from inferelator_ng.distributed.dask_controller import DaskController
+        def regression_maker(j, x, y, pp, weights):
+            level = 0 if j % 100 == 0 else 2
+            utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G),
+                                 level=level)
+            data = bayes_stats.bbsr(x, y, pp[j, :], weights[j, :], self.nS)
+            data['ind'] = j
+            return data
+
+        scatter_x = DaskController.client.scatter(self.X.values, broadcast=True)
+        scatter_pp = DaskController.client.scatter(self.pp.values, broadcast=True)
+        scatter_weights = DaskController.client.scatter(self.weights_mat.values, broadcast=True)
+
+        future_list = [DaskController.client.submit(regression_maker, i, scatter_x, self.Y.iloc[i, :].values,
+                                                    scatter_pp, scatter_weights)
+                       for i in range(self.G)]
+
+        result_list = DaskController.client.gather(future_list)
+
+        DaskController.client.cancel(scatter_x)
+        DaskController.client.cancel(scatter_pp)
+        DaskController.client.cancel(scatter_weights)
+        DaskController.client.cancel(future_list)
+
+        return result_list
 
     def _build_pp_matrix(self):
         """
