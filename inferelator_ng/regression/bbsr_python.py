@@ -93,50 +93,28 @@ class BBSR(base_regression.BaseRegression):
 
     def regress_dask(self):
         from inferelator_ng.distributed.dask_controller import DaskController
-        import itertools
-        import math
 
-        def regression_maker(j_chunk, x, y, pp, weights):
-            chunk_data = []
-            for i, j in enumerate(j_chunk):
-                level = 0 if j % 100 == 0 else 2
-                utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G),
-                                     level=level)
-                data = bayes_stats.bbsr(x, y[i, :], pp[j, :], weights[j, :], self.nS)
-                data['ind'] = j
-                chunk_data.append(data)
-            return chunk_data
-
-        def i_gen():
-            chunk = DaskController.chunk
-            for i in range(math.ceil(self.G / chunk)):
-                yield range(i*chunk, min((i+1) * chunk, self.G))
-
-        def y_gen():
-            chunk = DaskController.chunk
-            for i in range(math.ceil(self.G / chunk)):
-                start = i*chunk
-                stop = min((i+1) * chunk, self.G)
-                yield self.Y.iloc[start:stop, :].values
+        def regression_maker(j, x, y, pp, weights):
+            level = 0 if j % 100 == 0 else 2
+            utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G),
+                                 level=level)
+            data = bayes_stats.bbsr(x, y[j, :], pp[j, :], weights[j, :], self.nS)
+            data['ind'] = j
+            return data
 
         scatter_x = DaskController.client.scatter(self.X.values, broadcast=True)
+        scatter_y = DaskController.client.scatter(self.Y.values, broadcast=True)
         scatter_pp = DaskController.client.scatter(self.pp.values, broadcast=True)
         scatter_weights = DaskController.client.scatter(self.weights_mat.values, broadcast=True)
 
-        future_list = DaskController.client.map(regression_maker,
-                                                i_gen(),
-                                                itertools.repeat(scatter_x),
-                                                y_gen(),
-                                                itertools.repeat(scatter_pp),
-                                                itertools.repeat(scatter_weights))
+        future_list = [DaskController.client.submit(regression_maker, i, scatter_x, scatter_y, scatter_pp,
+                                                    scatter_weights)
+                       for i in range(self.G)]
 
-        nested_list = DaskController.client.gather(future_list)
-
-        result_list = []
-        for chunk in nested_list:
-            result_list.extend(chunk)
+        result_list = DaskController.client.gather(future_list)
 
         DaskController.client.cancel(scatter_x)
+        DaskController.client.cancel(scatter_y)
         DaskController.client.cancel(scatter_pp)
         DaskController.client.cancel(scatter_weights)
         DaskController.client.cancel(future_list)
