@@ -14,6 +14,10 @@ class LocalController(AbstractController):
     chunk = None
 
     @classmethod
+    def __str__(cls):
+        return "local"
+
+    @classmethod
     def connect(cls, *args, **kwargs):
         return True
 

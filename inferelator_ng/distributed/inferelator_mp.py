@@ -16,6 +16,10 @@ class MPControl(AbstractController):
     is_initialized = False
 
     @classmethod
+    def __str__(cls):
+        return "registry"
+
+    @classmethod
     def set_multiprocess_engine(cls, engine):
         cls.client = engine
         return True

@@ -19,6 +19,10 @@ class DaskController(AbstractController):
     processes = 4
 
     @classmethod
+    def __str__(cls):
+        return "dask"
+
+    @classmethod
     def connect(cls, *args, **kwargs):
         """
         Setup local cluster

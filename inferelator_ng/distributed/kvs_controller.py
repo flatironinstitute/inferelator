@@ -51,6 +51,10 @@ class KVSController(AbstractController):
     is_master = False  # bool
 
     @classmethod
+    def __str__(cls):
+        return "kvs"
+
+    @classmethod
     def connect(cls, *args, **kwargs):
         """
         Create a new KVS object with some object variables set to reflect the slurm environment

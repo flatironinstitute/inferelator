@@ -21,6 +21,10 @@ class MultiprocessingController(AbstractController):
     processes = 4
 
     @classmethod
+    def __str__(cls):
+        return "multiprocessing"
+
+    @classmethod
     def connect(cls, *args, **kwargs):
         cls.client = multiprocessing.Pool(processes=cls.processes, **kwargs)
         return True

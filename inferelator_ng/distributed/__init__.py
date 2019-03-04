@@ -16,6 +16,11 @@ class AbstractController:
 
     @classmethod
     @abstractmethod
+    def __str__(cls):
+        raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
     def connect(cls, *args, **kwargs):
         raise NotImplementedError
 
