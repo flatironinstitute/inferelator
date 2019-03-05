@@ -528,13 +528,13 @@ def regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remove_auto
     """
     from inferelator_ng.distributed.dask_controller import DaskController
 
-    def regression_maker(j, x_df, y_df, prior, tf):
+    def regression_maker(j, x_df, y, prior, tf):
         level = 0 if j % 100 == 0 else 2
         utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=genes[j], i=j, total=G),
                              level=level)
 
         gene = genes[j]
-        x, y, tasks = [], [], []
+        x, tasks = [], []
 
         if remove_autoregulation:
             tf = [t for t in tf if t != gene]
@@ -544,23 +544,29 @@ def regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remove_auto
         for k in range(n_tasks):
             if gene in Y[k]:
                 x.append(x_df[k].loc[:, tf].values)  # list([N, K])
-                y.append(y_df[k].loc[:, gene].values.reshape(-1, 1))  # list([N, 1])
                 tasks.append(k)  # [T,]
 
         prior = format_prior(prior, gene, tasks, prior_weight)
         return run_regression_EBIC(x, y, tfs, tasks, gene, prior)
 
+    def response_maker(y_df, i):
+        y = []
+        gene = genes[i]
+        for k in range(n_tasks):
+            if gene in Y[k]:
+                y.append(y_df[k].loc[:, gene].values.reshape(-1, 1))
+        return y
+
     [scatter_x] = DaskController.client.scatter([X], broadcast=True)
-    [scatter_y] = DaskController.client.scatter([Y], broadcast=True)
     [scatter_priors] = DaskController.client.scatter([priors], broadcast=True)
 
-    future_list = [DaskController.client.submit(regression_maker, i, scatter_x, scatter_y, scatter_priors, tfs)
+    future_list = [DaskController.client.submit(regression_maker, i, scatter_x, response_maker(Y, i), scatter_priors,
+                                                tfs)
                    for i in range(G)]
 
     result_list = DaskController.client.gather(future_list)
 
     DaskController.client.cancel(scatter_x)
-    DaskController.client.cancel(scatter_y)
     DaskController.client.cancel(scatter_priors)
     DaskController.client.cancel(future_list)
 
