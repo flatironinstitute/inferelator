@@ -189,5 +189,3 @@ class TestResultsProcessor(unittest.TestCase):
         file_name = None
         output_dir = None
 
-    def test_plot_pr_curve_plot(self):
-        np.testing.assert
