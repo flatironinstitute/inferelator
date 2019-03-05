@@ -182,7 +182,7 @@ def regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS):
     def regression_maker(j, x, y, pp, weights, total_g, g_names, nS):
         level = 0 if j % 100 == 0 else 2
         utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=g_names[j], i=j, total=total_g), level=level)
-        data = bayes_stats.bbsr(x, y[j, :], pp[j, :], weights[j, :], nS)
+        data = bayes_stats.bbsr(x, y, pp[j, :], weights[j, :], nS)
         data['ind'] = j
         return data
 
