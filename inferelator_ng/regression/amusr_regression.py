@@ -249,38 +249,6 @@ class AMuSR_regression(base_regression.BaseRegression):
 
         return (out)
 
-    def format_prior(self, priors, gene, tasks, prior_weight):
-        '''
-        Returns priors for one gene (numpy matrix TFs by tasks)
-        '''
-        if priors is None:
-            return None
-
-        if isinstance(priors, list):
-            priors_out = []
-            for k in tasks:
-                prior = priors[k]
-                prior = prior.loc[gene, :].replace(np.nan, 0)
-                priors_out.append(self.weight_prior(prior, prior_weight))
-            priors_out = np.transpose(np.asarray(priors_out))
-        else:
-            if gene in priors.index:
-                priors_out = np.tile(self.weight_prior(priors.loc[gene, :].values, prior_weight).reshape(-1, 1),
-                                     (1, len(tasks)))
-            else:
-                priors_out = np.zeros((priors.shape[1], len(tasks)))
-
-        return priors_out
-
-    @staticmethod
-    def weight_prior(prior, prior_weight):
-        prior = (prior != 0).astype(float)
-        prior /= prior_weight
-        prior[prior == 0] = 1.0
-        prior = prior / prior.sum() * len(prior)
-        return prior
-
-
     def regress(self):
         """
         Execute multitask (AMUSR)
@@ -288,6 +256,11 @@ class AMuSR_regression(base_regression.BaseRegression):
         :return: list
             Returns a list of regression results that the amusr_regression pileup_data can process
         """
+
+        if MPControl.name() == "dask":
+            return regress_dask(self.X, self.Y, self.priors, self.prior_weight, self.n_tasks, self.genes, self.tfs,
+                                self.G, remove_autoregulation=self.remove_autoregulation)
+
         def regression_maker(j):
             level = 0 if j % 100 == 0 else 2
             utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G),
@@ -307,7 +280,7 @@ class AMuSR_regression(base_regression.BaseRegression):
                     y.append(self.Y[k].loc[:, gene].values.reshape(-1, 1))  # list([N, 1])
                     tasks.append(k)  # [T,]
 
-            prior = self.format_prior(self.priors, gene, tasks, self.prior_weight)
+            prior = format_prior(self.priors, gene, tasks, self.prior_weight)
             return run_regression_EBIC(x, y, tfs, tasks, gene, prior)
 
         return MPControl.map(regression_maker, range(self.G))
@@ -442,6 +415,37 @@ def run_regression_EBIC(X, Y, TFs, tasks, gene, prior):
                 output[k] = final_weights(X[kx][:, nonzero], Y[kx], cTFs, gene)
     return(output)
 
+def format_prior(priors, gene, tasks, prior_weight):
+    '''
+    Returns priors for one gene (numpy matrix TFs by tasks)
+    '''
+    if priors is None:
+        return None
+
+    if isinstance(priors, list):
+        priors_out = []
+        for k in tasks:
+            prior = priors[k]
+            prior = prior.loc[gene, :].replace(np.nan, 0)
+            priors_out.append(weight_prior(prior, prior_weight))
+        priors_out = np.transpose(np.asarray(priors_out))
+    else:
+        if gene in priors.index:
+            priors_out = np.tile(weight_prior(priors.loc[gene, :].values, prior_weight).reshape(-1, 1),
+                                 (1, len(tasks)))
+        else:
+            priors_out = np.zeros((priors.shape[1], len(tasks)))
+
+    return priors_out
+
+
+def weight_prior(prior, prior_weight):
+    prior = (prior != 0).astype(float)
+    prior /= prior_weight
+    prior[prior == 0] = 1.0
+    prior = prior / prior.sum() * len(prior)
+    return prior
+
 
 def patch_workflow(obj):
     """
@@ -513,3 +517,51 @@ def filter_genes_on_tasks(list_of_indexes, task_expression_filter):
         raise ValueError("{v} is not an allowed task_expression_filter value".format(v=task_expression_filter))
 
     return filtered_genes
+
+
+def regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remove_autoregulation=True):
+    """
+    Execute multitask (AMUSR)
+
+    :return: list
+        Returns a list of regression results that the amusr_regression pileup_data can process
+    """
+    from inferelator_ng.distributed.dask_controller import DaskController
+
+    def regression_maker(j, x_df, y_df, prior, tf):
+        level = 0 if j % 100 == 0 else 2
+        utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=genes[j], i=j, total=G),
+                             level=level)
+
+        gene = genes[j]
+        x, y, tasks = [], [], []
+
+        if remove_autoregulation:
+            tf = [t for t in tf if t != gene]
+        else:
+            pass
+
+        for k in range(n_tasks):
+            if gene in Y[k]:
+                x.append(x_df[k].loc[:, tf].values)  # list([N, K])
+                y.append(y_df[k].loc[:, gene].values.reshape(-1, 1))  # list([N, 1])
+                tasks.append(k)  # [T,]
+
+        prior = format_prior(prior, gene, tasks, prior_weight)
+        return run_regression_EBIC(x, y, tfs, tasks, gene, prior)
+
+    [scatter_x] = DaskController.client.scatter([X], broadcast=True)
+    [scatter_y] = DaskController.client.scatter([Y], broadcast=True)
+    [scatter_priors] = DaskController.client.scatter([priors], broadcast=True)
+
+    future_list = [DaskController.client.submit(regression_maker, i, scatter_x, scatter_y, scatter_priors, tfs)
+                   for i in range(G)]
+
+    result_list = DaskController.client.gather(future_list)
+
+    DaskController.client.cancel(scatter_x)
+    DaskController.client.cancel(scatter_y)
+    DaskController.client.cancel(scatter_priors)
+    DaskController.client.cancel(future_list)
+
+    return result_list
