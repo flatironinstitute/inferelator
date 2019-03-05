@@ -77,7 +77,7 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
     :param temp_dir: path
         Path to write temp files for multiprocessing
 
-    :return mi: pd.DataFramae (m1 x m2)
+    :return mi: pd.DataFrame (m1 x m2)
         The mutual information between variables m1 and m2
     """
 
@@ -89,10 +89,6 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
 
     X = X.values
     Y = Y.values
-
-    # Discretize the input matrixes
-    X = _make_array_discrete(X, bins, axis=1).transpose()
-    Y = _make_array_discrete(Y, bins, axis=1).transpose()
 
     # Build the MI matrix
     if MPControl.client.name() == "dask":
@@ -120,6 +116,10 @@ def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
     :return mi: np.ndarray (m1 x m2)
         Returns the mutual information array
     """
+
+    # Discretize the input matrixes
+    X = _make_array_discrete(X.transpose(), bins, axis=0)
+    Y = _make_array_discrete(Y.transpose(), bins, axis=0)
 
     m1, m2 = X.shape[1], Y.shape[1]
 
@@ -157,6 +157,10 @@ def build_mi_array_dask(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
 
     # Import the Dask controller
     from inferelator_ng.distributed.dask_controller import DaskController
+
+    # Discretize the input matrixes
+    X = _make_array_discrete(X.transpose(), bins, axis=0)
+    Y = _make_array_discrete(Y.transpose(), bins, axis=0)
 
     m1, m2 = X.shape[1], Y.shape[1]
 
@@ -242,7 +246,7 @@ def _make_discrete(array, num_bins):
     arr_min = np.min(array)
     arr_max = np.max(array)
     eps_mod = max(np.finfo(float).eps, np.finfo(float).eps * (arr_max - arr_min))
-    disc_func = np.vectorize(lambda x: np.floor((x - arr_min) / (arr_max - arr_min + eps_mod) * num_bins))
+    disc_func = lambda x: np.floor((x - arr_min) / (arr_max - arr_min + eps_mod) * num_bins)
 
     # Apply the function to every value in the vector
     return disc_func(array).astype(np.dtype(int))
