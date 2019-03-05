@@ -188,4 +188,3 @@ class TestResultsProcessor(unittest.TestCase):
     def test_plot_pr_curve_file_name(self):
         file_name = None
         output_dir = None
-
