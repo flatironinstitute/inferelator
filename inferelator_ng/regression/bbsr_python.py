@@ -176,7 +176,7 @@ def patch_workflow(obj):
     obj.run_bootstrap = types.MethodType(run_bootstrap, obj)
 
 
-def regress_dask(X, Y, pp, weights_mat, G, genes, nS):
+def regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS):
     from inferelator_ng.distributed.dask_controller import DaskController
 
     def regression_maker(j, x, y, pp, weights, total_g, g_names, nS):
@@ -187,18 +187,18 @@ def regress_dask(X, Y, pp, weights_mat, G, genes, nS):
         return data
 
     [scatter_x] = DaskController.client.scatter([X.values], broadcast=True)
-    [scatter_y] = DaskController.client.scatter([Y.values], broadcast=True)
-    [scatter_pp] = DaskController.client.scatter([pp.values], broadcast=True)
+    #[scatter_y] = DaskController.client.scatter([Y.values], broadcast=True)
+    [scatter_pp] = DaskController.client.scatter([pp_mat.values], broadcast=True)
     [scatter_weights] = DaskController.client.scatter([weights_mat.values], broadcast=True)
 
-    future_list = [DaskController.client.submit(regression_maker, i, scatter_x, scatter_y, scatter_pp, scatter_weights,
-                                                G, genes, nS)
+    future_list = [DaskController.client.submit(regression_maker, i, scatter_x, Y.values[i, :], scatter_pp,
+                                                scatter_weights, G, genes, nS)
                    for i in range(G)]
 
     result_list = DaskController.client.gather(future_list)
 
     DaskController.client.cancel(scatter_x)
-    DaskController.client.cancel(scatter_y)
+    #DaskController.client.cancel(scatter_y)
     DaskController.client.cancel(scatter_pp)
     DaskController.client.cancel(scatter_weights)
     DaskController.client.cancel(future_list)
