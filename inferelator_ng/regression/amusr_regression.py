@@ -257,7 +257,7 @@ class AMuSR_regression(base_regression.BaseRegression):
             Returns a list of regression results that the amusr_regression pileup_data can process
         """
 
-        if MPControl.name() == "dask":
+        if MPControl.client.name() == "dask":
             return regress_dask(self.X, self.Y, self.priors, self.prior_weight, self.n_tasks, self.genes, self.tfs,
                                 self.G, remove_autoregulation=self.remove_autoregulation)
 
