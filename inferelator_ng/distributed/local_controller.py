@@ -38,3 +38,7 @@ class LocalController(AbstractController):
         assert check.argument_callable(func)
         assert check.argument_list_type(arg, collections.Iterable)
         return list(map(func, *arg))
+
+    @classmethod
+    def shutdown(cls):
+        return True

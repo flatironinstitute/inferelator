@@ -46,3 +46,7 @@ class MultiprocessingController(AbstractController):
         assert check.argument_callable(func)
         assert check.argument_list_type(args, collections.Iterable)
         return cls.client.map(func, *args, chunksize=cls.chunk)
+
+    @classmethod
+    def shutdown(cls):
+        return cls.client.close()

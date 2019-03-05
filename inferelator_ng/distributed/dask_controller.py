@@ -9,7 +9,7 @@ except ImportError:
 from inferelator_ng.distributed import AbstractController
 from inferelator_ng.utils import Validator as check
 
-from dask import distributed, compute, delayed
+from dask import distributed
 
 
 class DaskController(AbstractController):
@@ -17,6 +17,8 @@ class DaskController(AbstractController):
     chunk = 25
     is_master = True
     processes = 4
+
+    local_cluster = None
 
     @classmethod
     def name(cls):
@@ -32,8 +34,14 @@ class DaskController(AbstractController):
         kwargs["threads_per_worker"] = 1
         kwargs["processes"] = True
 
-        cls.client = distributed.Client(distributed.LocalCluster(*args, **kwargs))
+        cls.local_cluster = distributed.LocalCluster(*args, **kwargs)
+        cls.client = distributed.Client(cls.local_cluster)
         return True
+
+    @classmethod
+    def shutdown(cls):
+        cls.client.close()
+        cls.local_cluster.close()
 
     @classmethod
     def map(cls, func, *args, **kwargs):

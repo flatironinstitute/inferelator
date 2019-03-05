@@ -51,3 +51,7 @@ class MPControl(AbstractController):
         if not cls.is_initialized:
             raise ConnectionError("Connect before calling sync_processes()")
         return cls.client.sync_processes(*args, **kwargs)
+
+    @classmethod
+    def shutdown(cls):
+        return cls.client.shutdown() if cls.is_initialized else True

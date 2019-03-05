@@ -67,6 +67,10 @@ class KVSController(AbstractController):
         cls.client = KVSClient(*args, **kwargs)
 
     @classmethod
+    def shutdown(cls):
+        return cls.client.close()
+
+    @classmethod
     def _get_env(cls, master_rank=DEFAULT_MASTER):
         """
         Get the SLURM environment variables that are set by sbatch at runtime.

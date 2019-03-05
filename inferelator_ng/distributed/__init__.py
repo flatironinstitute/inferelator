@@ -33,3 +33,8 @@ class AbstractController:
     @abstractmethod
     def sync_processes(cls, *args, **kwargs):
         raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
+    def shutdown(cls):
+        raise NotImplementedError
