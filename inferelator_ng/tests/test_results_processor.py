@@ -184,3 +184,10 @@ class TestResultsProcessor(unittest.TestCase):
         results_processor.RankSummaryPR.plot_pr_curve([0, 1], [1, 0], "x", "/tmp", "pr_curve.pdf")
         exists = os.path.exists(file_name)
         self.assertTrue(exists)
+
+    def test_plot_pr_curve_file_name(self):
+        file_name = None
+        output_dir = None
+
+    def test_plot_pr_curve_plot(self):
+        np.testing.assert
