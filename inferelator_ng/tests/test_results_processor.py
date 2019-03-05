@@ -186,6 +186,4 @@ class TestResultsProcessor(unittest.TestCase):
         self.assertTrue(exists)
 
     def test_plot_pr_curve_file_name(self):
-        results_processor.RankSummaryPR.plot_pr_curve(file_name=None)
-        results_processor.RankSummaryPR.plot_pr_curve(output_dir=None)
-        results_processor.RankSummaryPR.plot_pr_curve(recall=0.7, precision=0.5)
+        results_processor.RankSummaryPR.plot_pr_curve(recall=0.7, precision=0.5, aupr=0.9, output_dir="/tmp", file_name="pr_curve.pdf")
