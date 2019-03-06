@@ -19,6 +19,7 @@ class DaskController(AbstractController):
     processes = 4
 
     local_cluster = None
+    local_dir = 'dask-worker-space'
 
     @classmethod
     def name(cls):
@@ -31,8 +32,9 @@ class DaskController(AbstractController):
         """
 
         kwargs["n_workers"] = kwargs.pop("n_workers", cls.processes)
-        kwargs["threads_per_worker"] = 1
-        kwargs["processes"] = True
+        kwargs["threads_per_worker"] = kwargs.pop("threads_per_worker", 1)
+        kwargs["processes"] = kwargs.pop("processes", True)
+        kwargs["local_dir"] = kwargs.pop("local_dir", cls.local_dir)
 
         cls.local_cluster = distributed.LocalCluster(*args, **kwargs)
         cls.client = distributed.Client(cls.local_cluster)
