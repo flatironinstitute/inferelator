@@ -192,7 +192,7 @@ def _make_discrete(array, num_bins):
     arr_min = np.min(array)
     arr_max = np.max(array)
     eps_mod = max(np.finfo(float).eps, np.finfo(float).eps * (arr_max - arr_min))
-    disc_func = np.vectorize(lambda x: np.floor((x - arr_min) / (arr_max - arr_min + eps_mod) * num_bins))
+    disc_func = lambda x: np.floor((x - arr_min) / (arr_max - arr_min + eps_mod) * num_bins)
 
     # Apply the function to every value in the vector
     return disc_func(array).astype(np.dtype(int))
