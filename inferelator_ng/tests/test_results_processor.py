@@ -191,3 +191,4 @@ class TestResultsProcessor(unittest.TestCase):
 
     def test_plot_pr_curve_file_name_none(self):
         results_processor.RankSummaryPR.plot_pr_curve(recall=0.3, precision=0.5, aupr=0.6, output_dir=None, file_name=None)
+        
