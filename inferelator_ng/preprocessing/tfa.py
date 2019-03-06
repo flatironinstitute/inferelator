@@ -76,6 +76,9 @@ class NoTFA:
         self.expression_matrix_halftau = expression_matrix_halftau
 
     def compute_transcription_factor_activity(self, allow_self_interactions_for_duplicate_prior_columns=True):
+
+        utils.Debug.vprint("Setting Activity to Expression Values", level=1)
+
         # Get the activity matrix with expression data only
         activity, _, _ = process_expression_into_activity(self.expression_matrix, self.prior)
 
