@@ -528,33 +528,34 @@ def regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remove_auto
     """
     from inferelator_ng.distributed.dask_controller import DaskController
 
-    def regression_maker(j, x_df, y, prior, tf):
+    def regression_maker(j, x_df, y_dict, prior, tf):
         level = 0 if j % 100 == 0 else 2
         utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=genes[j], i=j, total=G),
                              level=level)
 
         gene = genes[j]
-        x, tasks = [], []
+        x, y, tasks = [], [], []
 
         if remove_autoregulation:
             tf = [t for t in tf if t != gene]
         else:
             pass
 
-        for k in range(n_tasks):
-            if gene in y[k]:
-                x.append(x_df[k].loc[:, tf].values)  # list([N, K])
-                tasks.append(k)  # [T,]
+        for k in y_dict.keys():
+            x.append(x_df[k].loc[:, tf].values)  # list([N, K])
+            y.append(y_dict[k])
+            tasks.append(k)  # [T,]
 
+        del y_dict
         prior = format_prior(prior, gene, tasks, prior_weight)
         return run_regression_EBIC(x, y, tfs, tasks, gene, prior)
 
     def response_maker(y_df, i):
-        y = []
+        y = dict()
         gene = genes[i]
         for k in range(n_tasks):
             if gene in y_df[k]:
-                y.append(y_df[k].loc[:, gene].values.reshape(-1, 1))
+                y[i] = y_df[k].loc[:, gene].values.reshape(-1, 1)
         return y
 
     [scatter_x] = DaskController.client.scatter([X], broadcast=True)
