@@ -82,9 +82,9 @@ class BBSR(base_regression.BaseRegression):
             utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G),
                                  level=level)
             data = bayes_stats.bbsr(self.X.values,
-                                    self.Y.iloc[j, :].values,
-                                    self.pp.iloc[j, :].values,
-                                    self.weights_mat.iloc[j, :].values,
+                                    self.Y.iloc[j, :].values.flatten(),
+                                    self.pp.iloc[j, :].values.flatten(),
+                                    self.weights_mat.iloc[j, :].values.flatten(),
                                     self.nS)
             data['ind'] = j
             return data
@@ -182,7 +182,7 @@ def regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS):
     def regression_maker(j, x, y, pp, weights, total_g, g_names, nS):
         level = 0 if j % 100 == 0 else 2
         utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=g_names[j], i=j, total=total_g), level=level)
-        data = bayes_stats.bbsr(x, y, pp[j, :], weights[j, :], nS)
+        data = bayes_stats.bbsr(x, y, pp[j, :].flatten(), weights[j, :].flatten(), nS)
         data['ind'] = j
         return data
 
@@ -191,7 +191,7 @@ def regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS):
     [scatter_pp] = DaskController.client.scatter([pp_mat.values], broadcast=True)
     [scatter_weights] = DaskController.client.scatter([weights_mat.values], broadcast=True)
 
-    future_list = [DaskController.client.submit(regression_maker, i, scatter_x, Y.values[i, :], scatter_pp,
+    future_list = [DaskController.client.submit(regression_maker, i, scatter_x, Y.values[i, :].flatten(), scatter_pp,
                                                 scatter_weights, G, genes, nS)
                    for i in range(G)]
 
