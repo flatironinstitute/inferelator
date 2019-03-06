@@ -542,7 +542,7 @@ def regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remove_auto
             pass
 
         for k in range(n_tasks):
-            if gene in Y[k]:
+            if gene in y[k]:
                 x.append(x_df[k].loc[:, tf].values)  # list([N, K])
                 tasks.append(k)  # [T,]
 
@@ -553,7 +553,7 @@ def regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remove_auto
         y = []
         gene = genes[i]
         for k in range(n_tasks):
-            if gene in Y[k]:
+            if gene in y_df[k]:
                 y.append(y_df[k].loc[:, gene].values.reshape(-1, 1))
         return y
 
