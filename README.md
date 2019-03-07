@@ -1,4 +1,4 @@
-# inferelator_ng
+# inferelator_sc
 
 [![Travis](https://travis-ci.org/flatironinstitute/inferelator_sc.svg?branch=dev)](https://travis-ci.org/flatironinstitute/inferelator_sc)
 [![codecov](https://codecov.io/gh/flatironinstitute/inferelator_sc/branch/dev/graph/badge.svg)](https://codecov.io/gh/flatironinstitute/inferelator_sc)
