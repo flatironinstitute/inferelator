@@ -180,8 +180,8 @@ class TestResultsProcessor(unittest.TestCase):
 
     def test_plot_pr_curve(self):
         file_name = "/tmp/pr_curve.pdf"
-        if os.path.exists(file_name):
-            os.remove(file_name)
+        #if os.path.exists(file_name):
+        #    os.remove(file_name)
         results_processor.RankSummaryPR.plot_pr_curve([0, 1], [1, 0], "x", "/tmp", "pr_curve.pdf")
         exists = os.path.exists(file_name)
         self.assertTrue(exists)
@@ -191,4 +191,8 @@ class TestResultsProcessor(unittest.TestCase):
 
     def test_plot_pr_curve_file_name_none(self):
         results_processor.RankSummaryPR.plot_pr_curve(recall=0.3, precision=0.5, aupr=0.6, output_dir=None, file_name=None)
-        
+
+    def test_filter_to_left_size(self):
+        left = pd.DataFrame(np.array([[1, 1], [2, 2]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        right = pd.DataFrame(np.array([[0, 0], [2, 2]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        results_processor.RankSummaryPR.filter_to_left_size(left, right)
