@@ -199,5 +199,4 @@ class TestResultsProcessor(unittest.TestCase):
 
     def test_rank_geo_mean(self):
         rankable_data = pd.DataFrame(np.array([[0, 1, 2], [1, 2, 2], [3, 2, 1]]), ['gene1', 'gene2', 'gene3'], ['tf1', 'tf2', 'tf3'])
-        combine_conf = pd.DataFrame(np.array([[3, 3, 3], [0, 1, 2], [2, 3, 4]]))
         results_processor.RankSummaryPR.rank_geo_mean(rankable_data)
