@@ -528,6 +528,8 @@ def regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remove_auto
     """
     from inferelator_ng.distributed.dask_controller import DaskController
 
+    # Gets genes, n_tasks, prior_weight, and remove_autoregulation from regress_dask()
+    # Other arguments are passed in
     def regression_maker(j, x_df, y_list, prior, tf):
         level = 0 if j % 100 == 0 else 2
         utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=genes[j], i=j, total=G),
@@ -548,7 +550,7 @@ def regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remove_auto
 
         del y_list
         prior = format_prior(prior, gene, tasks, prior_weight)
-        return run_regression_EBIC(x, y, tfs, tasks, gene, prior)
+        return run_regression_EBIC(x, y, tf, tasks, gene, prior)
 
     def response_maker(y_df, i):
         y = []
