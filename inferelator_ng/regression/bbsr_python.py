@@ -177,7 +177,7 @@ def patch_workflow(obj):
 
 
 def regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS):
-    from inferelator_ng.distributed.dask_controller import DaskController
+    DaskController = MPControl.client
 
     def regression_maker(j, x, y, pp, weights, total_g, g_names, nS):
         level = 0 if j % 100 == 0 else 2

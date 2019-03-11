@@ -526,7 +526,8 @@ def regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remove_auto
     :return: list
         Returns a list of regression results that the amusr_regression pileup_data can process
     """
-    from inferelator_ng.distributed.dask_controller import DaskController
+
+    DaskController = MPControl.client
 
     # Gets genes, n_tasks, prior_weight, and remove_autoregulation from regress_dask()
     # Other arguments are passed in

@@ -156,7 +156,7 @@ def build_mi_array_dask(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
     """
 
     # Import the Dask controller
-    from inferelator_ng.distributed.dask_controller import DaskController
+    DaskController = MPControl.client
 
     # Discretize the input matrixes
     X = _make_array_discrete(X.transpose(), bins, axis=0)
