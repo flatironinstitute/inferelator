@@ -15,6 +15,7 @@ from dask_jobqueue import SLURMCluster
 DEFAULT_CORES = 20
 DEFAULT_MEM = '64GB'
 DEFAULT_INTERFACE = 'ib0'
+DEFAULT_LOCAL_DIR = '$TMPDIR'
 
 ENV_EXTRA = ['module purge',
              'module load python/intel/2.7.13',
@@ -41,12 +42,14 @@ class DaskSLURMController(AbstractController):
     queue = None
     project = None
     walltime = None
-    job_cpu = DEFAULT_CORES
     cores = DEFAULT_CORES
     processes = DEFAULT_CORES
+    memory = DEFAULT_MEM
+    job_cpu = DEFAULT_CORES
     job_mem = DEFAULT_MEM
     env_extra = ENV_EXTRA
     interface = DEFAULT_INTERFACE
+    local_directory = DEFAULT_LOCAL_DIR
 
     @classmethod
     def name(cls):
@@ -62,6 +65,7 @@ class DaskSLURMController(AbstractController):
         cls.local_cluster = SLURMCluster(queue=cls.queue, project=cls.project, walltime=cls.walltime,
                                          job_cpu=cls.job_cpu, cores=cls.cores, processes=cls.processes,
                                          job_mem=cls.job_mem, env_extra=cls.env_extra, interface=cls.interface,
+                                         local_directory=cls.local_directory, memory= cls.memory,
                                          memory_limit = cls.worker_memory_limit)
         cls.local_cluster.adapt(minimum=cls.minimum_cores, maximum=cls.maximum_cores, interval='1s')
         cls.client = distributed.Client(cls.local_cluster)
