@@ -230,10 +230,10 @@ class ResultsProcessor:
         return mean_data, median_data
 
 
-class RankSummaryPR(object):
+class RankSumming(object):
     """
     This class takes a data set that has some rankable values and a gold standard for which elements of that data set
-    are true and calculates confidences and precision-recall
+    are true and calculates confidence
     """
 
     # Filter methods to align gold standard and confidences
@@ -279,102 +279,6 @@ class RankSummaryPR(object):
                                                                                        self.gold_standard)
         self.aupr = self.calculate_aupr(self.recall, self.precision)
 
-    def recall_precision(self):
-        return self.recall, self.precision
-
-    def plottable_recall_precision(self):
-        return self.modify_pr(self.recall, self.precision)
-
-    def dataframe_recall_precision(self):
-        reverse_index = np.argsort(self.ranked_idx)
-        precision = pd.DataFrame(self.precision[reverse_index].reshape(self.filtered_confidences.shape),
-                                 index=self.filtered_confidences.index, columns=self.filtered_confidences.columns)
-        recall = pd.DataFrame(self.recall[reverse_index].reshape(self.filtered_confidences.shape),
-                              index=self.filtered_confidences.index, columns=self.filtered_confidences.columns)
-        return recall, precision
-
-    def output_pr_curve_pdf(self, output_dir, file_name="pr_curve.pdf"):
-        if output_dir is None:
-            return False
-        else:
-            recall, precision = self.modify_pr(self.recall, self.precision)
-            self.plot_pr_curve(recall, precision, self.aupr, output_dir, file_name=file_name)
-
-    def combined_confidences(self):
-        return self.all_confidences
-
-    def confidence_ordered_generator(self, threshold=None, desc=True):
-        idx = self.sorted_confidence_index(threshold=threshold, desc=desc)
-        num_cols = len(self.all_confidences.columns)
-        for i in idx:
-            row_name = self.all_confidences.index[int(i / num_cols)]
-            column_name = self.all_confidences.columns[i % num_cols]
-            yield row_name, column_name, self.all_confidences.ix[row_name, column_name]
-
-    def sorted_confidence_index(self, threshold=None, desc=True):
-        conf_values = self.all_confidences.values
-        idx = np.argsort(conf_values, axis=None)
-        if threshold is None:
-            pass
-        elif 1 >= threshold >= 0:
-            drop_count = np.sum(conf_values.flatten() < threshold)
-            if drop_count > 0:
-                idx = idx[:(-1 * drop_count)]
-        else:
-            raise ValueError("Threshold must be between 0 and 1")
-
-        if desc:
-            return idx[::-1]
-        else:
-            return idx
-
-    def num_over_precision_threshold(self, threshold):
-        return np.sum(self.all_confidences.values >= self.precision_threshold(threshold), axis=None)
-
-    def num_over_recall_threshold(self, threshold):
-        return np.sum(self.all_confidences.values >= self.recall_threshold(threshold), axis=None)
-
-    def num_over_conf_threshold(self, threshold):
-        return np.sum(self.all_confidences.values >= threshold, axis=None)
-
-    def precision_threshold(self, threshold):
-        return self.find_pr_threshold(self.precision, threshold)
-
-    def recall_threshold(self, threshold):
-        return self.find_pr_threshold(self.recall, threshold)
-
-    def find_pr_threshold(self, pr, threshold):
-        if 1 >= threshold >= 0:
-            threshold_index = pr > threshold
-        else:
-            raise ValueError("Precision/recall threshold must be between 0 and 1")
-
-        # If there's nothing in the index return np.inf.
-        if np.sum(threshold_index) == 0:
-            return np.inf
-        else:
-            return np.min(self.filtered_confidences.values.flatten()[self.ranked_idx][threshold_index])
-
-    @staticmethod
-    def compute_combined_confidences(rankable_data, **kwargs):
-        """
-        Calculate combined confidences from rank sum
-        :param rankable_data: list(pd.DataFrame) R x [M x N]
-            List of dataframes which have the same axes and need to be rank summed
-        :return combine_conf: pd.DataFrame [M x N]
-        """
-
-        rank_method = kwargs.pop("rank_method", "sum")
-        assert check.argument_enum(rank_method, ("sum", "threshold_sum", "max", "geo_mean"))
-
-        if rank_method == "sum":
-            return RankSummaryPR.rank_sum(rankable_data)
-        elif rank_method == "threshold_sum":
-            return RankSummaryPR.rank_sum_threshold(rankable_data, data_threshold=kwargs.pop("data_threshold", 0.9))
-        elif rank_method == "max":
-            return RankSummaryPR.rank_max_value(rankable_data)
-        elif rank_method == "geo_mean":
-            return RankSummaryPR.rank_geo_mean(rankable_data)
 
     @staticmethod
     def rank_sum(rankable_data):
@@ -498,6 +402,112 @@ class RankSummaryPR(object):
         min_element = min(combine_conf.values.flatten())
         combine_conf = (combine_conf - min_element) / (combine_conf.size - min_element)
         return combine_conf
+
+
+class RankSummaryPR(RankSumming):
+    """
+    This class extends RankSumming and calculates precision-recall
+    """
+
+    def recall_precision(self):
+        return self.recall, self.precision
+
+    def plottable_recall_precision(self):
+        return self.modify_pr(self.recall, self.precision)
+
+    def dataframe_recall_precision(self):
+        reverse_index = np.argsort(self.ranked_idx)
+        precision = pd.DataFrame(self.precision[reverse_index].reshape(self.filtered_confidences.shape),
+                                 index=self.filtered_confidences.index, columns=self.filtered_confidences.columns)
+        recall = pd.DataFrame(self.recall[reverse_index].reshape(self.filtered_confidences.shape),
+                              index=self.filtered_confidences.index, columns=self.filtered_confidences.columns)
+        return recall, precision
+
+    def output_pr_curve_pdf(self, output_dir, file_name="pr_curve.pdf"):
+        if output_dir is None:
+            return False
+        else:
+            recall, precision = self.modify_pr(self.recall, self.precision)
+            self.plot_pr_curve(recall, precision, self.aupr, output_dir, file_name=file_name)
+
+    def combined_confidences(self):
+        return self.all_confidences
+
+    def confidence_ordered_generator(self, threshold=None, desc=True):
+        idx = self.sorted_confidence_index(threshold=threshold, desc=desc)
+        num_cols = len(self.all_confidences.columns)
+        for i in idx:
+            row_name = self.all_confidences.index[int(i / num_cols)]
+            column_name = self.all_confidences.columns[i % num_cols]
+            yield row_name, column_name, self.all_confidences.ix[row_name, column_name]
+
+    def sorted_confidence_index(self, threshold=None, desc=True):
+        conf_values = self.all_confidences.values
+        idx = np.argsort(conf_values, axis=None)
+        if threshold is None:
+            pass
+        elif 1 >= threshold >= 0:
+            drop_count = np.sum(conf_values.flatten() < threshold)
+            if drop_count > 0:
+                idx = idx[:(-1 * drop_count)]
+        else:
+            raise ValueError("Threshold must be between 0 and 1")
+
+        if desc:
+            return idx[::-1]
+        else:
+            return idx
+
+    def num_over_precision_threshold(self, threshold):
+        return np.sum(self.all_confidences.values >= self.precision_threshold(threshold), axis=None)
+
+    def num_over_recall_threshold(self, threshold):
+        return np.sum(self.all_confidences.values >= self.recall_threshold(threshold), axis=None)
+
+    def num_over_conf_threshold(self, threshold):
+        return np.sum(self.all_confidences.values >= threshold, axis=None)
+
+    def precision_threshold(self, threshold):
+        return self.find_pr_threshold(self.precision, threshold)
+
+    def recall_threshold(self, threshold):
+        return self.find_pr_threshold(self.recall, threshold)
+
+    def find_pr_threshold(self, pr, threshold):
+        if 1 >= threshold >= 0:
+            threshold_index = pr > threshold
+        else:
+            raise ValueError("Precision/recall threshold must be between 0 and 1")
+
+        # If there's nothing in the index return np.inf.
+        if np.sum(threshold_index) == 0:
+            return np.inf
+        else:
+            return np.min(self.filtered_confidences.values.flatten()[self.ranked_idx][threshold_index])
+
+    @staticmethod
+    def compute_combined_confidences(rankable_data, **kwargs):
+        """
+        Calculate combined confidences from rank sum
+        :param rankable_data: list(pd.DataFrame) R x [M x N]
+            List of dataframes which have the same axes and need to be rank summed
+        :return combine_conf: pd.DataFrame [M x N]
+        """
+
+        rank_method = kwargs.pop("rank_method", "sum")
+        assert check.argument_enum(rank_method, ("sum", "threshold_sum", "max", "geo_mean"))
+        assert check.argument_type(rankable_data, list, allow_none=False)
+
+        if rank_method == "sum":
+            return RankSummaryPR.rank_sum(rankable_data)
+        elif rank_method == "threshold_sum":
+            return RankSummaryPR.rank_sum_threshold(rankable_data, data_threshold=kwargs.pop("data_threshold", 0.9))
+        elif rank_method == "max":
+            return RankSummaryPR.rank_max_value(rankable_data)
+        elif rank_method == "geo_mean":
+            return RankSummaryPR.rank_geo_mean(rankable_data)
+
+
 
     @staticmethod
     def calculate_precision_recall(conf, gold):
