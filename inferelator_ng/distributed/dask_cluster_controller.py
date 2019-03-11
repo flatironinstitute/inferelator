@@ -15,7 +15,7 @@ from inferelator_ng.distributed import AbstractController
 import dask
 from dask import distributed
 from distributed.utils import format_bytes
-from dask_jobqueue import SLURMCluster
+from dask_jobqueue import SLURMCluster, JobQueueCluster
 from dask_jobqueue.slurm import slurm_format_bytes_ceil
 
 DEFAULT_CORES = 20
@@ -91,7 +91,7 @@ class NYUSLURMCluster(SLURMCluster):
 
         logger.debug("Job script: \n %s" % self.job_script())
 
-    @property
+    @JobQueueCluster.worker_process_memory
     def worker_process_memory(self):
         if self.memory_limit is None:
             memory_limit = self.worker_memory / self.worker_processes
