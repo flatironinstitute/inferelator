@@ -14,13 +14,15 @@ from inferelator_ng.distributed import AbstractController
 
 import dask
 from dask import distributed
+from distributed.utils import format_bytes
 from dask_jobqueue import SLURMCluster
 from dask_jobqueue.slurm import slurm_format_bytes_ceil
 
 DEFAULT_CORES = 20
-DEFAULT_MEM = '64GB'
+DEFAULT_MEM = '62GB'
 DEFAULT_INTERFACE = 'ib0'
 DEFAULT_LOCAL_DIR = '$TMPDIR'
+DEFAULT_WALLTIME = '1:00:00'
 
 ENV_EXTRA = ['module purge',
              'module load python/intel/2.7.13',
@@ -29,13 +31,11 @@ ENV_EXTRA = ['module purge',
              'export OPENBLAS_NUM_THREADS=1',
              'export NUMEXPR_NUM_THREADS=1']
 
-JOB_EXTRA = ['--nodes 1', '--ntasks-per-node 20']
-
 
 # Overriding SLURMCluster to fix the hardcoded shit NYU hates
 class NYUSLURMCluster(SLURMCluster):
     def __init__(self, queue=None, project=None, walltime=None, job_cpu=None, job_mem=None, job_extra=None,
-                 config_name='slurm', **kwargs):
+                 config_name='slurm', memory_limit=None, **kwargs):
         if queue is None:
             queue = dask.config.get('jobqueue.%s.queue' % config_name)
         if project is None:
@@ -48,6 +48,8 @@ class NYUSLURMCluster(SLURMCluster):
             job_mem = dask.config.get('jobqueue.%s.job-mem' % config_name)
         if job_extra is None:
             job_extra = dask.config.get('jobqueue.%s.job-extra' % config_name)
+
+        self.memory_limit = memory_limit
 
         super(SLURMCluster, self).__init__(config_name=config_name, **kwargs)
 
@@ -89,6 +91,18 @@ class NYUSLURMCluster(SLURMCluster):
 
         logger.debug("Job script: \n %s" % self.job_script())
 
+    @property
+    def worker_process_memory(self):
+        if self.memory_limit is None:
+            memory_limit = self.worker_memory / self.worker_processes
+        elif self.memory_limit == 0:
+            return 0
+        else:
+            memory_limit = self.memory_limit
+        mem = format_bytes(memory_limit)
+        mem = mem.replace(' ', '')
+        return mem
+
 
 class DaskSLURMController(AbstractController):
     is_master = True
@@ -106,7 +120,7 @@ class DaskSLURMController(AbstractController):
 
     queue = None
     project = None
-    walltime = None
+    walltime = DEFAULT_WALLTIME
     cores = DEFAULT_CORES
     processes = DEFAULT_CORES
     memory = DEFAULT_MEM
