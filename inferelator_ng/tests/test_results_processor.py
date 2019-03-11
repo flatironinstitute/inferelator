@@ -182,6 +182,17 @@ class TestResultsProcessor(unittest.TestCase):
 
 # csg test start here
 
+    def test_save_network_to_tsv(self):
+        rankable_data = [pd.DataFrame(np.array([[2.0, 4.0], [6.0, 8.0]]))]
+        gold_standard = pd.DataFrame(np.array([[0, 1], [1, 1]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        pr_calc = results_processor.RankSummaryPR(rankable_data, gold_standard)
+        priors = pd.DataFrame(np.array([[1.0, 2.0], [0, 1.0]]), ['gene1', 'gene2'], ['cond1', 'cond2'])
+        results_processor.ResultsProcessor.save_network_to_tsv(pr_calc, priors, output_dir=None,
+                                                               confidence_threshold=0.1,
+                                                               output_file_name='network_output',
+                                                               beta_threshold=None,
+                                                               extra_columns=None)
+
     def test_compute_combined_confidences(self):
         rankable_data = [pd.DataFrame(np.array([[1.0, 2.0], [3.0, 4.0]])), pd.DataFrame(np.array([[5.0, 6.0], [7.0, 8.0]]))]
         rankable_data = results_processor.RankSummaryPR.compute_combined_confidences(rankable_data)
@@ -242,8 +253,9 @@ class TestResultsProcessor(unittest.TestCase):
     def test_rank_sum_threshold_zeros(self):
         rankable_data = [pd.DataFrame(np.array([[0, 0], [0, 0]]))]
         combine_conf = results_processor.RankSumming.rank_sum_threshold(rankable_data)
-        if any(np.isnan(combine_conf)):
-            raise Exception("combined_conf contains NaNs")
+        with self.assertRaises(ValueError):
+            if any(np.isnan(combine_conf)):
+                raise ValueError("combined_conf contains NaNs")
 
     def test_rank_max_value_increasing(self):
         rankable_data = [pd.DataFrame(np.array([[2.0, 4.0], [6.0, 8.0]]))]
@@ -268,8 +280,9 @@ class TestResultsProcessor(unittest.TestCase):
     def test_rank_max_value_zero(self):
         rankable_data = [pd.DataFrame(np.array([[0, 0], [0, 0]]))]
         combine_conf = results_processor.RankSumming.rank_max_value(rankable_data)
-        if any(np.isnan(combine_conf)):
-            raise Exception("combined_conf contains NaNs")
+        with self.assertRaises(ValueError):
+            if any(np.isnan(combine_conf)):
+                raise ValueError("combined_conf contains NaNs")
 
     def test_rank_geo_mean_increasing(self):
         rankable_data = [pd.DataFrame(np.array([[2.0, 4.0], [6.0, 8.0]]))]
@@ -294,8 +307,9 @@ class TestResultsProcessor(unittest.TestCase):
     def test_rank_geo_mean_zeros(self):
         rankable_data = [pd.DataFrame(np.array([[0, 0], [0, 0]]))]
         combine_conf = results_processor.RankSumming.rank_geo_mean(rankable_data)
-        if any(np.isnan(combine_conf)):
-            raise Exception("combined_conf contains NaNs")
+        with self.assertRaises(ValueError):
+            if any(np.isnan(combine_conf)):
+                raise ValueError("combined_conf contains NaNs")
 
     def test_filter_to_left_size(self):
         left = pd.DataFrame(np.array([[1, 1], [2, 2]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
