@@ -178,24 +178,13 @@ class TestResultsProcessor(unittest.TestCase):
         np.testing.assert_equal(mean, np.array([[ 1.5,  1.5],[ 1.5,  1.5]]))
         np.testing.assert_equal(median, np.array([[ 1.5, 1.5],[ 1.5, 1.5]]))
 
-    def test_plot_pr_curve(self):
-        file_name = "/tmp/pr_curve.pdf"
-        #if os.path.exists(file_name):
-        #    os.remove(file_name)
-        results_processor.RankSummaryPR.plot_pr_curve([0, 1], [1, 0], "x", "/tmp", "pr_curve.pdf")
-        exists = os.path.exists(file_name)
-        self.assertTrue(exists)
 
-    def test_plot_pr_curve_file_name(self):
-        results_processor.RankSummaryPR.plot_pr_curve(recall=0.7, precision=0.5, aupr=0.9, output_dir="/tmp", file_name="pr_curve.pdf")
 
-    def test_plot_pr_curve_file_name_none(self):
-        results_processor.RankSummaryPR.plot_pr_curve(recall=0.3, precision=0.5, aupr=0.6, output_dir=None, file_name=None)
+# csg test start here
 
-    def test_filter_to_left_size(self):
-        left = pd.DataFrame(np.array([[1, 1], [2, 2]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        right = pd.DataFrame(np.array([[0, 0], [2, 2]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        results_processor.RankSummaryPR.filter_to_left_size(left, right)
+    def test_compute_combined_confidences(self):
+        rankable_data = [pd.DataFrame(np.array([[1.0, 2.0], [3.0, 4.0]])), pd.DataFrame(np.array([[5.0, 6.0], [7.0, 8.0]]))]
+        rankable_data = results_processor.RankSummaryPR.compute_combined_confidences(rankable_data)
 
     def test_rank_sum_increasing(self):
         rankable_data = [pd.DataFrame(np.array([[2.0, 4.0], [6.0, 8.0]]))]
@@ -216,6 +205,11 @@ class TestResultsProcessor(unittest.TestCase):
         rankable_data = [pd.DataFrame(np.array([[-2.0, 4.0], [-6.0, 8.0]]))]
         combine_conf = results_processor.RankSummaryPR.rank_sum(rankable_data)
         np.testing.assert_array_almost_equal(combine_conf, np.array([[0.333333, 0.666667], [0.0, 1.0]]), 5)
+
+    def test_rank_sum_zeros(self):
+        rankable_data = [pd.DataFrame(np.array([[0, 0], [0, 0]]))]
+        combine_conf = results_processor.RankSumming.rank_sum(rankable_data)
+        np.testing.assert_array_equal(combine_conf, np.array([[0, 0], [0, 0]]))
 
     def test_rank_sum_threshold_increasing(self):
         rankable_data = [pd.DataFrame(np.array([[2.0, 4.0], [6.0, 8.0]]))]
@@ -245,6 +239,12 @@ class TestResultsProcessor(unittest.TestCase):
         np.testing.assert_array_almost_equal(combine_conf, np.array([[0.0, 0.75], [0.0, 1.0]]), 5)
         # | computed_solution - true_solution | < \epsilon = O(1e-6)
 
+    def test_rank_sum_threshold_zeros(self):
+        rankable_data = [pd.DataFrame(np.array([[0, 0], [0, 0]]))]
+        combine_conf = results_processor.RankSumming.rank_sum_threshold(rankable_data)
+        if any(np.isnan(combine_conf)):
+            raise Exception("combined_conf contains NaNs")
+
     def test_rank_max_value_increasing(self):
         rankable_data = [pd.DataFrame(np.array([[2.0, 4.0], [6.0, 8.0]]))]
         combine_conf = results_processor.RankSummaryPR.rank_max_value(rankable_data)
@@ -265,6 +265,12 @@ class TestResultsProcessor(unittest.TestCase):
         combine_conf = results_processor.RankSummaryPR.rank_max_value(rankable_data)
         np.testing.assert_array_almost_equal(combine_conf, np.array([[0.0, 0.6], [0.0, 1.0]]), 5)
 
+    def test_rank_max_value_zero(self):
+        rankable_data = [pd.DataFrame(np.array([[0, 0], [0, 0]]))]
+        combine_conf = results_processor.RankSumming.rank_max_value(rankable_data)
+        if any(np.isnan(combine_conf)):
+            raise Exception("combined_conf contains NaNs")
+
     def test_rank_geo_mean_increasing(self):
         rankable_data = [pd.DataFrame(np.array([[2.0, 4.0], [6.0, 8.0]]))]
         combine_conf = results_processor.RankSummaryPR.rank_geo_mean(rankable_data)
@@ -284,3 +290,28 @@ class TestResultsProcessor(unittest.TestCase):
         rankable_data = [pd.DataFrame(np.array([[-2.0, 4.0], [-6.0, 8.0]]))]
         combine_conf = results_processor.RankSummaryPR.rank_geo_mean(rankable_data)
         np.testing.assert_array_almost_equal(combine_conf, np.array([[0.333333, 0.666667], [0.0, 1.0]]), 5)
+
+    def test_rank_geo_mean_zeros(self):
+        rankable_data = [pd.DataFrame(np.array([[0, 0], [0, 0]]))]
+        combine_conf = results_processor.RankSumming.rank_geo_mean(rankable_data)
+        if any(np.isnan(combine_conf)):
+            raise Exception("combined_conf contains NaNs")
+
+    def test_filter_to_left_size(self):
+        left = pd.DataFrame(np.array([[1, 1], [2, 2]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        right = pd.DataFrame(np.array([[0, 0], [2, 2]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        results_processor.RankSummaryPR.filter_to_left_size(left, right)
+
+    def test_plot_pr_curve(self):
+        file_name = "/tmp/pr_curve.pdf"
+        #if os.path.exists(file_name):
+        #    os.remove(file_name)
+        results_processor.RankSummaryPR.plot_pr_curve([0, 1], [1, 0], "x", "/tmp", "pr_curve.pdf")
+        exists = os.path.exists(file_name)
+        self.assertTrue(exists)
+
+    def test_plot_pr_curve_file_name(self):
+        results_processor.RankSummaryPR.plot_pr_curve(recall=0.7, precision=0.5, aupr=0.9, output_dir="/tmp", file_name="pr_curve.pdf")
+
+    def test_plot_pr_curve_file_name_none(self):
+        results_processor.RankSummaryPR.plot_pr_curve(recall=0.3, precision=0.5, aupr=0.6, output_dir=None, file_name=None)
