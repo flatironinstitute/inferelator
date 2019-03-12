@@ -195,7 +195,8 @@ class TestResultsProcessor(unittest.TestCase):
 
     def test_compute_combined_confidences(self):
         rankable_data = [pd.DataFrame(np.array([[1.0, 2.0], [3.0, 4.0]])), pd.DataFrame(np.array([[5.0, 6.0], [7.0, 8.0]]))]
-        rankable_data = results_processor.RankSummaryPR.compute_combined_confidences(rankable_data)
+        kwargs = {'data_threshold': 0.9}
+        rankable_data = results_processor.RankSummaryPR.compute_combined_confidences(rankable_data, **kwargs)
 
     def test_rank_sum_increasing(self):
         rankable_data = [pd.DataFrame(np.array([[2.0, 4.0], [6.0, 8.0]]))]
