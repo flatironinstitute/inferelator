@@ -111,6 +111,7 @@ class DaskSLURMController(AbstractController):
     # Dask controller variables
 
     worker_memory_limit = 0
+    control_adaptive = False
     minimum_cores = 20
     maximum_cores = 200
 
@@ -144,7 +145,12 @@ class DaskSLURMController(AbstractController):
                                             job_mem=cls.job_mem, env_extra=cls.env_extra, interface=cls.interface,
                                             local_directory=cls.local_directory, memory=cls.memory,
                                             memory_limit=cls.worker_memory_limit)
-        cls.local_cluster.adapt(minimum=cls.minimum_cores, maximum=cls.maximum_cores, interval='1s')
+
+        if cls.control_adaptive:
+            cls.local_cluster.adapt(minimum=cls.minimum_cores, maximum=cls.maximum_cores, interval='1s')
+        else:
+            cls.local_cluster.scale_up(cls.maximum_cores)
+            
         cls.client = distributed.Client(cls.local_cluster)
 
         return True
