@@ -27,3 +27,4 @@ class TestElasticNet(unittest.TestCase):
                              random_state=99,
                              selection='random')
         elasticnet_python.elastic_net(X, Y, params)
+
