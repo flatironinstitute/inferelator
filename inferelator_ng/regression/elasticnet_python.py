@@ -1,5 +1,5 @@
 import numpy as np
-
+from inferelator_ng.utils import Validator as check
 from inferelator_ng import utils
 from inferelator_ng.regression import base_regression
 from inferelator_ng.distributed.inferelator_mp import MPControl
@@ -33,9 +33,13 @@ def elastic_net(X, Y, params):
     :param params: dict
     :return:
     """
+    assert check.argument_type(X, np.ndarray)
+    assert check.argument_type(Y, np.ndarray)
+
     (K, N) = X.shape
     X = X.T  # Make X into [N, K]
     Y = Y.flatten()  # Make Y into [N, ]
+
 
     # Fit the linear model using the elastic net
     model = ElasticNetCV(**params).fit(X, Y)
