@@ -49,11 +49,10 @@ class NYUSLURMCluster(SLURMCluster):
         if job_extra is None:
             job_extra = dask.config.get('jobqueue.%s.job-extra' % config_name)
 
-        self.memory_limit = memory_limit
-
         super(SLURMCluster, self).__init__(config_name=config_name, **kwargs)
 
-        self.fix_command_args()
+        if memory_limit is not None and memory_limit == 0:
+            self.memory_limit_0()
 
         # Always ask for only one task
         header_lines = []
@@ -94,7 +93,7 @@ class NYUSLURMCluster(SLURMCluster):
         logger.debug("Job script: \n %s" % self.job_script())
 
     # This is the worst thing I've ever written
-    def fix_command_args(self):
+    def memory_limit_0(self):
         cargs = self._command_template.split("--")
         new_cargs = []
         for carg in cargs:
