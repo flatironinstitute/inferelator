@@ -116,6 +116,7 @@ class DaskSLURMController(AbstractController):
     control_adaptive = False
     minimum_cores = 20
     maximum_cores = 200
+    allowed_failures = 10
 
     # SLURM specific variables
 
@@ -160,6 +161,7 @@ class DaskSLURMController(AbstractController):
             if sleep_time % 60 == 0:
                 print("Awaiting workers ({sleep_time} seconds elapsed)".format(sleep_time=sleep_time))
 
+        cls.local_cluster.scheduler.allowed_failures = cls.allowed_failures
         cls.client = distributed.Client(cls.local_cluster)
 
         return True
