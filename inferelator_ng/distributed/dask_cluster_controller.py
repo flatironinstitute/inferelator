@@ -1,5 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
+import time
+
 # Maintain python 2 compatibility
 try:
     from itertools import izip as zip
@@ -150,7 +152,14 @@ class DaskSLURMController(AbstractController):
             cls.local_cluster.adapt(minimum=cls.minimum_cores, maximum=cls.maximum_cores, interval='1s')
         else:
             cls.local_cluster.scale_up(cls.maximum_cores)
-            
+
+        sleep_time = 0
+        while cls.local_cluster._count_active_workers() == 0:
+            time.sleep(1)
+            sleep_time += 1
+            if sleep_time % 60 == 0:
+                print("Awaiting workers ({sleep_time} seconds elapsed)".format(sleep_time=sleep_time))
+
         cls.client = distributed.Client(cls.local_cluster)
 
         return True
