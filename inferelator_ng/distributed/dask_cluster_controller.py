@@ -53,6 +53,8 @@ class NYUSLURMCluster(SLURMCluster):
 
         super(SLURMCluster, self).__init__(config_name=config_name, **kwargs)
 
+        self.fix_command_args()
+
         # Always ask for only one task
         header_lines = []
         # SLURM header build
@@ -91,18 +93,15 @@ class NYUSLURMCluster(SLURMCluster):
 
         logger.debug("Job script: \n %s" % self.job_script())
 
-    @JobQueueCluster.worker_process_memory
-    def worker_process_memory(self):
-        if self.memory_limit is None:
-            memory_limit = self.worker_memory / self.worker_processes
-        elif self.memory_limit == 0:
-            return 0
-        else:
-            memory_limit = self.memory_limit
-        mem = format_bytes(memory_limit)
-        mem = mem.replace(' ', '')
-        return mem
-
+    # This is the worst thing I've ever written
+    def fix_command_args(self):
+        cargs = self._command_template.split("--")
+        new_cargs = []
+        for carg in cargs:
+            if carg.startswith("memory-limit"):
+                carg = "memory-limit 0 "
+            new_cargs.append(carg)
+        self._command_template = "--".join(new_cargs)
 
 class DaskSLURMController(AbstractController):
     is_master = True
