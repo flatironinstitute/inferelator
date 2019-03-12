@@ -193,9 +193,24 @@ class TestResultsProcessor(unittest.TestCase):
                                                                beta_threshold=None,
                                                                extra_columns=None)
 
-    def test_compute_combined_confidences(self):
+    def test_compute_combined_confidences_rank_method_sum(self):
         rankable_data = [pd.DataFrame(np.array([[1.0, 2.0], [3.0, 4.0]])), pd.DataFrame(np.array([[5.0, 6.0], [7.0, 8.0]]))]
-        kwargs = {'data_threshold': 0.9}
+        kwargs = {"rank_method": "sum"}
+        rankable_data = results_processor.RankSummaryPR.compute_combined_confidences(rankable_data, **kwargs)
+
+    def test_compute_combined_confidences_rank_method_sum_threshold(self):
+        rankable_data = [pd.DataFrame(np.array([[1.0, 2.0], [3.0, 4.0]])), pd.DataFrame(np.array([[5.0, 6.0], [7.0, 8.0]]))]
+        kwargs = {"rank_method": "threshold_sum", "data_threshold": 0.9}
+        rankable_data = results_processor.RankSummaryPR.compute_combined_confidences(rankable_data, **kwargs)
+
+    def test_compute_combined_confidences_rank_method_max_value(self):
+        rankable_data = [pd.DataFrame(np.array([[1.0, 2.0], [3.0, 4.0]])), pd.DataFrame(np.array([[5.0, 6.0], [7.0, 8.0]]))]
+        kwargs = {"rank_method": "max"}
+        rankable_data = results_processor.RankSummaryPR.compute_combined_confidences(rankable_data, **kwargs)
+
+    def test_compute_combined_confidences_rank_method_geo_mean(self):
+        rankable_data = [pd.DataFrame(np.array([[1.0, 2.0], [3.0, 4.0]])), pd.DataFrame(np.array([[5.0, 6.0], [7.0, 8.0]]))]
+        kwargs = {"rank_method": "geo_mean"}
         rankable_data = results_processor.RankSummaryPR.compute_combined_confidences(rankable_data, **kwargs)
 
     def test_rank_sum_increasing(self):
