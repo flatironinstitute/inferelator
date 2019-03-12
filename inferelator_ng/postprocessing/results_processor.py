@@ -125,7 +125,7 @@ class ResultsProcessor:
         if output_dir is None or output_file_name is None:
             return False
 
-        header = ['regulator', 'target', 'combined_confidences', 'prior', 'gold.standard', 'precision', 'recall']
+        header = ['regulator', 'target', 'combined_confidences', 'prior', 'gold_standard', 'precision', 'recall']
         if extra_columns is not None:
             header += [k for k in sorted(extra_columns.keys())]
 
