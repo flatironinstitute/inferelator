@@ -165,7 +165,7 @@ def predict_error_reduction(x, y, betas):
     Predict the error reduction from each predictor
     :param x: np.ndarray [n x k]
     :param y: np.ndarray [n x 1]
-    :param betas: list [k]
+    :param betas: np.ndarray [k x 1]
     :return: np.ndarray [k,]
     """
     (n, k) = x.shape
