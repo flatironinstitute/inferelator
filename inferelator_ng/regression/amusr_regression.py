@@ -527,6 +527,7 @@ def regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remove_auto
         Returns a list of regression results that the amusr_regression pileup_data can process
     """
 
+    from dask import distributed
     DaskController = MPControl.client
 
     # Gets genes, n_tasks, prior_weight, and remove_autoregulation from regress_dask()
@@ -551,7 +552,7 @@ def regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remove_auto
 
         del y_list
         prior = format_prior(prior, gene, tasks, prior_weight)
-        return run_regression_EBIC(x, y, tf, tasks, gene, prior)
+        return j, run_regression_EBIC(x, y, tf, tasks, gene, prior)
 
     def response_maker(y_df, i):
         y = []
@@ -568,10 +569,13 @@ def regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remove_auto
                                                 tfs)
                    for i in range(G)]
 
-    result_list = DaskController.client.gather(future_list)
+    # Collect results as they finish instead of waiting for all workers to be done
+    result_list = [None] * len(future_list)
+    for finished_future, (j, result_data) in distributed.as_completed(future_list, with_results=True):
+        result_list[j] = result_data
+        finished_future.cancel()
 
     DaskController.client.cancel(scatter_x)
     DaskController.client.cancel(scatter_priors)
-    DaskController.client.cancel(future_list)
 
     return result_list
