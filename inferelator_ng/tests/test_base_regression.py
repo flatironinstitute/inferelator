@@ -35,9 +35,15 @@ class TestBaseRegression(unittest.TestCase):
         # len(pp_idx) == 1
         x = np.array([[0, 0, 0], [1, 1, 1], [2, 2, 2], [3, 3, 3], [4, 4, 4]])
         y = np.array([0, 1, 0, 1, 0])
-        betas = [0, 1, 2]
+        betas = np.array([0, 1, 2])
         error_reduction = base_regression.predict_error_reduction(x, y, betas)
         np.testing.assert_array_almost_equal(error_reduction, np.array([-62.33, 0.0, 0.0]), 2)
 
-
+    def test_predict_error_reduction(self):
+        # len(pp_idx) != 1
+        x = np.array([[0, 0, 0], [1, 1, 1], [2, 2, 2], [3, 3, 3], [4, 4, 4]])
+        y = np.array([0, 1, 0, 1, 0])
+        betas = np.array([1, 1, 2])
+        error_reduction = base_regression.predict_error_reduction(x, y, betas)
+        np.testing.assert_array_almost_equal(error_reduction, np.array([-133.333, -133.333, -133.333]), 2)
 
