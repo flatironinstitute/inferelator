@@ -37,7 +37,7 @@ class TestBaseRegression(unittest.TestCase):
         y = np.array([0, 1, 0, 1, 0])
         betas = [0, 1, 2]
         error_reduction = base_regression.predict_error_reduction(x, y, betas)
-        np.testing.assert_array_almost_equal(error_reduction, np.array([-75.0, 0.0, 0.0]), 2)
+        np.testing.assert_array_almost_equal(error_reduction, np.array([-62.33, 0.0, 0.0]), 2)
 
 
 
