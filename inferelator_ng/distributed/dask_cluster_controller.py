@@ -179,18 +179,6 @@ class DaskSLURMController(AbstractController):
 
     @classmethod
     def map(cls, func, *args, **kwargs):
-        """
-        Map a function across iterable(s) and return a list of results
-
-        :param func: function
-            Mappable function
-        :param args: iterable
-            Iterator(s)
-        :param chunk: int
-            The number of iterations to assign in blocks
-        :return:
-        """
-
         raise NotImplementedError
 
     @classmethod
