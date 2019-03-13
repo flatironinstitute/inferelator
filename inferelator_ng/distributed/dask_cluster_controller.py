@@ -16,8 +16,8 @@ from inferelator_ng.distributed import AbstractController
 
 import dask
 from dask import distributed
-from distributed.utils import format_bytes
-from dask_jobqueue import SLURMCluster, JobQueueCluster
+
+from dask_jobqueue import SLURMCluster
 from dask_jobqueue.slurm import slurm_format_bytes_ceil
 
 DEFAULT_CORES = 20
@@ -110,13 +110,18 @@ class DaskSLURMController(AbstractController):
     client = None
     local_cluster = None
 
-    # Dask controller variables
+    ## Dask controller variables ##
 
+    # If 0, turn off the memory nanny
     worker_memory_limit = 0
+    allowed_failures = 10
+
+    # Controls for the adaptive parameter
     control_adaptive = False
     minimum_cores = 20
     maximum_cores = 200
-    allowed_failures = 10
+    interval = "1s"
+    wait_count = 5
 
     # SLURM specific variables
 
@@ -150,7 +155,8 @@ class DaskSLURMController(AbstractController):
                                             memory_limit=cls.worker_memory_limit)
 
         if cls.control_adaptive:
-            cls.local_cluster.adapt(minimum=cls.minimum_cores, maximum=cls.maximum_cores, interval='1s')
+            cls.local_cluster.adapt(minimum=cls.minimum_cores, maximum=cls.maximum_cores, interval=cls.interval,
+                                    wait_count=cls.wait_count)
         else:
             cls.local_cluster.scale_up(cls.maximum_cores)
 
