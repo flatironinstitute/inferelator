@@ -2,28 +2,36 @@ from inferelator_ng.distributed import AbstractController
 from inferelator_ng.distributed.kvs_controller import KVSController
 from inferelator_ng import utils
 
+# Python 2/3 compatible string checking
+try:
+    basestring
+except NameError:
+    basestring = str
 
 class MPControl(AbstractController):
     """
-    This is the multiprocessing controller
+    This is the multiprocessing controller. It is a pass-through for the method-specific multiprocessing implementations
+    A multiprocessing implementation can be registered here and then used throughout the inferelator
     """
 
-    # Which multiprocessing engine to use
-    client = KVSController
+    _class_name = "multiprocessing_registry"
+    client = None
 
     # Relevant external state booleans
     is_master = False
     is_initialized = False
-    is_dask = False
-
-    @classmethod
-    def name(cls):
-        return "multiprocessing_registry"
 
     @classmethod
     def set_multiprocess_engine(cls, engine):
+
+        if isinstance(engine, basestring):
+            if engine == "dask-cluster":
+                from inferelator_ng.distributed.dask_cluster_controller import DaskSLURMController
+                cls.client = DaskSLURMController
+            elif engine == "kvs":
+                from inferelator_ng.distributed.kvs_controller import KVSController
+
         cls.client = engine
-        return True
 
     @classmethod
     def connect(cls, *args, **kwargs):

@@ -33,6 +33,10 @@ ENV_EXTRA = ['module purge',
              'export OPENBLAS_NUM_THREADS=1',
              'export NUMEXPR_NUM_THREADS=1']
 
+DEFAULT_MIN_CORES = 20
+DEFAULT_MAX_CORES = 200
+DEFAULT_ADAPT_INTERVAL = "1s"
+DEFAULT_ADAPT_WAIT_COUNT = 5
 
 # Overriding SLURMCluster to fix the hardcoded shit NYU hates
 class NYUSLURMCluster(SLURMCluster):
@@ -105,12 +109,15 @@ class NYUSLURMCluster(SLURMCluster):
         self._command_template = "--".join(new_cargs)
 
 class DaskSLURMController(AbstractController):
-    is_master = True
 
+    _class_name = "dask"
+    is_master = True
     client = None
-    local_cluster = None
 
     ## Dask controller variables ##
+
+    # The dask cluster object
+    local_cluster = None
 
     # If 0, turn off the memory nanny
     worker_memory_limit = 0
@@ -118,10 +125,10 @@ class DaskSLURMController(AbstractController):
 
     # Controls for the adaptive parameter
     control_adaptive = False
-    minimum_cores = 20
-    maximum_cores = 200
-    interval = "1s"
-    wait_count = 5
+    minimum_cores = DEFAULT_MIN_CORES
+    maximum_cores = DEFAULT_MAX_CORES
+    interval = DEFAULT_ADAPT_INTERVAL
+    wait_count = DEFAULT_ADAPT_WAIT_COUNT
 
     # SLURM specific variables
 
@@ -138,16 +145,11 @@ class DaskSLURMController(AbstractController):
     local_directory = DEFAULT_LOCAL_DIR
 
     @classmethod
-    def name(cls):
-        return "dask"
-
-    @classmethod
     def connect(cls, *args, **kwargs):
         """
         Setup local cluster
         """
 
-        # It is necessary to properly configure ~/.config/dask/jobqueue.yaml prior to running this
         cls.local_cluster = NYUSLURMCluster(queue=cls.queue, project=cls.project, walltime=cls.walltime,
                                             job_cpu=cls.job_cpu, cores=cls.cores, processes=cls.processes,
                                             job_mem=cls.job_mem, env_extra=cls.env_extra, interface=cls.interface,
@@ -158,7 +160,8 @@ class DaskSLURMController(AbstractController):
             cls.local_cluster.adapt(minimum=cls.minimum_cores, maximum=cls.maximum_cores, interval=cls.interval,
                                     wait_count=cls.wait_count)
         else:
-            cls.local_cluster.scale_up(cls.maximum_cores)
+            cls.local_cluster.adapt(minimum=cls.maximum_cores, maximum=cls.maximum_cores, interval=cls.interval,
+                                    wait_count=cls.wait_count)
 
         sleep_time = 0
         while cls.local_cluster._count_active_workers() == 0:
