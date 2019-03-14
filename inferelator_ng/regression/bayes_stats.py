@@ -244,6 +244,7 @@ def ssr(x, y, beta):
     :param beta: np.ndarray
     :return: float
     """
+    assert x.shape[1] == beta.shape[0]
 
     resid = y - np.dot(x, beta)
     return (resid * resid).sum()
@@ -257,6 +258,7 @@ def combo_index(n):
     :return: np.array
         [n x 2^n] array of bool
     """
+    assert n >= 0
 
     return np.array(list(itertools.product([False, True], repeat=n))).T
 
@@ -271,6 +273,7 @@ def select_index(n, r=2):
     :return: np.arrap
         [n x n!/(r!(n-r)!)] array of bool
     """
+    assert n >= 0
 
     combos = int(math.factorial(n) / (math.factorial(r) * math.factorial(n - r)))
     idx = np.array(list(itertools.combinations(range(n), r)))
