@@ -4,6 +4,7 @@ import copy
 
 from inferelator_ng import utils
 from inferelator_ng.distributed.inferelator_mp import MPControl
+from inferelator_ng.utils import Validator as check
 
 DEFAULT_CHUNK = 25
 PROGRESS_STR = "Regression on {gn} [{i} / {total}]"
@@ -168,6 +169,8 @@ def predict_error_reduction(x, y, betas):
     :param betas: np.ndarray [k x 1]
     :return: np.ndarray [k,]
     """
+    assert check.argument_type(betas, np.ndarray)
+
     (n, k) = x.shape
     pp_idx = index_of_nonzeros(betas).tolist()
 
