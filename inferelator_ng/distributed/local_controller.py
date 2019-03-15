@@ -9,13 +9,12 @@ from inferelator_ng.utils import Validator as check
 
 
 class LocalController(AbstractController):
+
+    _controller_name = "local"
+
     client = None
     is_master = True
     chunk = None
-
-    @classmethod
-    def name(cls):
-        return "local"
 
     @classmethod
     def connect(cls, *args, **kwargs):

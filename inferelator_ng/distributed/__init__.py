@@ -4,7 +4,6 @@ from abc import abstractmethod
 
 
 class AbstractController:
-
     # The object which handles the multiprocessing
     client = None
 
@@ -15,15 +14,16 @@ class AbstractController:
     chunk = 25
 
     # The name of this controller
-    _class_name = "abstract_controller"
+    _controller_name = None
 
     @classmethod
     def name(cls):
         """
         This returns the _class_name which all subclasses should define
         """
-
-        return cls._class_name
+        if cls._controller_name is None:
+            raise NameError("Controller name has not been defined")
+        return cls._controller_name
 
     @classmethod
     @abstractmethod

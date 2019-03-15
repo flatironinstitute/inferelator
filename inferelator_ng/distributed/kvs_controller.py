@@ -15,7 +15,12 @@ import os
 import warnings
 import collections
 import tempfile
-import pickle
+
+# Use cPickle in python 2
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 
 # Shadow built-in zip with itertools.izip if this is python2 (This puts out a memory dumpster fire)
 try:
@@ -38,9 +43,11 @@ FINAL_DATA = "final_data"
 
 
 class KVSController(AbstractController):
+
     # An active KVSClient object
     client = None
     chunk = 25
+    _controller_name = "kvs"
 
     # Set from SLURM environment variables
     rank = None  # int
@@ -49,10 +56,6 @@ class KVSController(AbstractController):
     cores = None  # int
     num_nodes = None  # int
     is_master = False  # bool
-
-    @classmethod
-    def name(cls):
-        return "kvs"
 
     @classmethod
     def connect(cls, *args, **kwargs):

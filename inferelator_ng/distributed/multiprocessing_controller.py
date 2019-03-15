@@ -11,6 +11,7 @@ from inferelator_ng.utils import Validator as check
 
 
 class MultiprocessingController(AbstractController):
+    _controller_name = "multiprocessing"
     client = None
     is_master = True
 
@@ -19,10 +20,6 @@ class MultiprocessingController(AbstractController):
 
     # Num processes
     processes = 4
-
-    @classmethod
-    def name(cls):
-        return "multiprocessing"
 
     @classmethod
     def connect(cls, *args, **kwargs):

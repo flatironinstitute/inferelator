@@ -1,24 +1,18 @@
 from __future__ import absolute_import, division, print_function
-
 import time
+
+import dask
+from dask import distributed
+from dask_jobqueue import SLURMCluster
+from dask_jobqueue.slurm import slurm_format_bytes_ceil
+
+from inferelator_ng.distributed import AbstractController
 
 # Maintain python 2 compatibility
 try:
     from itertools import izip as zip
 except ImportError:
     pass
-
-import logging
-
-logger = logging.getLogger(__name__)
-
-from inferelator_ng.distributed import AbstractController
-
-import dask
-from dask import distributed
-
-from dask_jobqueue import SLURMCluster
-from dask_jobqueue.slurm import slurm_format_bytes_ceil
 
 DEFAULT_CORES = 20
 DEFAULT_MEM = '62GB'
@@ -37,6 +31,7 @@ DEFAULT_MIN_CORES = 20
 DEFAULT_MAX_CORES = 200
 DEFAULT_ADAPT_INTERVAL = "1s"
 DEFAULT_ADAPT_WAIT_COUNT = 5
+
 
 # Overriding SLURMCluster to fix the hardcoded shit NYU hates
 class NYUSLURMCluster(SLURMCluster):
@@ -96,8 +91,6 @@ class NYUSLURMCluster(SLURMCluster):
         # Declare class attribute that shall be overridden
         self.job_header = '\n'.join(header_lines)
 
-        logger.debug("Job script: \n %s" % self.job_script())
-
     # This is the worst thing I've ever written
     def memory_limit_0(self):
         cargs = self._command_template.split("--")
@@ -108,9 +101,9 @@ class NYUSLURMCluster(SLURMCluster):
             new_cargs.append(carg)
         self._command_template = "--".join(new_cargs)
 
-class DaskSLURMController(AbstractController):
 
-    _class_name = "dask"
+class DaskSLURMController(AbstractController):
+    _controller_name = "dask"
     is_master = True
     client = None
 
