@@ -5,8 +5,8 @@ from sklearn.utils.extmath import randomized_svd
 
 from inferelator_ng import utils
 
-class TFA:
 
+class TruncatedSVDTFA:
     """
     TFA calculates transcription factor activity using matrix pseudoinverse
 
@@ -33,7 +33,7 @@ class TFA:
         self.expression_matrix = expression_matrix
         self.expression_matrix_halftau = expression_matrix_halftau
 
-    def compute_transcription_factor_activity(self, allow_self_interactions_for_duplicate_prior_columns = True):
+    def compute_transcription_factor_activity(self, allow_self_interactions_for_duplicate_prior_columns=True):
         # Find TFs that have non-zero columns in the priors matrix
         non_zero_tfs = pd.Index(self.prior.columns[(self.prior != 0).any(axis=0)])
         # Delete tfs that have neither prior information nor expression
@@ -43,7 +43,7 @@ class TFA:
         if len(delete_tfs) > 0:
             message = "{num} TFs are removed from activity (no expression or prior exists)".format(num=len(delete_tfs))
             utils.Debug.vprint(message, level=0)
-            self.prior = self.prior.drop(delete_tfs, axis = 1)
+            self.prior = self.prior.drop(delete_tfs, axis=1)
 
         # Create activity dataframe with values set by default to the transcription factor's expression
         # Create an empty dataframe [K x G]
@@ -73,41 +73,36 @@ class TFA:
 
         # Set the activity of non-zero tfs to the pseudoinverse of the prior matrix times the expression
         if len(non_zero_tfs) > 0:
-            #TSVD TESTING
-            def TSVD_simple(P,X,k):
-                #TSVD
-                U, Sigma, VT = randomized_svd(P, n_components=k, random_state=1)
-                # S = np.diagflat(Sigma)
-                # P_k = np.mat(U)*np.mat(S)*np.mat(VT)
-                # A_k = linalg.pinv2(P_k)*X
-                Sigma_inv = [0 if s==0 else 1./s for s in Sigma]
-                S_inv = np.diagflat(Sigma_inv)
-                #A_k := P_k_inv*X
-                A_k = np.transpose(np.mat(VT))*np.mat(S_inv)*np.transpose(np.mat(U))*np.mat(X)
-                return A_k
-
-            def GCV(P,X,biggest):
-                GCVect = []
-                m = len(P)
-                if biggest == 0:
-                    biggest = m
-                for k in range(1,biggest):
-                    #Solve PA=X for A using GCV for parameter selection
-                    A_k = TSVD_simple(P,X,k)
-                    Res = linalg.norm(P*A_k-X,2)
-                    GCVk = (Res/(m-k))**2
-                    GCVect.append(GCVk)
-                GCVal = GCVect.index(min(GCVect)) + 1
-                print(GCVal)
-                return {'val':GCVal,'vect':GCVect}
-
             P = np.mat(self.prior[non_zero_tfs])
             X = np.matrix(self.expression_matrix_halftau)
-            print('Running TSVD...')
-            k_val = GCV(P,X,0)['val']
-            A_k = TSVD_simple(P,X,k_val)
+            utils.Debug.vprint('Running TSVD...', level=1)
+            k_val = gcv(P, X, 0)['val']
+            A_k = tsvd_simple(P, X, k_val)
 
-            activity.loc[non_zero_tfs,:] = np.matrix(A_k)
-            #activity.loc[non_zero_tfs,:] = np.matrix(linalg.pinv2(self.prior[non_zero_tfs])) * np.matrix(self.expression_matrix_halftau)
+            activity.loc[non_zero_tfs, :] = np.matrix(A_k)
 
         return activity
+
+
+def tsvd_simple(P, X, k):
+    U, Sigma, VT = randomized_svd(P, n_components=k, random_state=1)
+    Sigma_inv = [0 if s == 0 else 1. / s for s in Sigma]
+    S_inv = np.diagflat(Sigma_inv)
+    A_k = np.transpose(np.mat(VT)) * np.mat(S_inv) * np.transpose(np.mat(U)) * np.mat(X)
+    return A_k
+
+
+def gcv(P, X, biggest):
+    GCVect = []
+    m = len(P)
+    if biggest == 0:
+        biggest = m
+    for k in range(1, biggest):
+        # Solve PA=X for A using GCV for parameter selection
+        A_k = tsvd_simple(P, X, k)
+        Res = linalg.norm(P * A_k - X, 2)
+        GCVk = (Res / (m - k)) ** 2
+        GCVect.append(GCVk)
+    GCVal = GCVect.index(min(GCVect)) + 1
+    utils.Debug.vprint("GCVal: {GCVal}".format(GCVal=GCVal), level=2)
+    return {'val': GCVal, 'vect': GCVect}
