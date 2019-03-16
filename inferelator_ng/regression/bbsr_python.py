@@ -185,7 +185,7 @@ def regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS):
         utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=genes[j], i=j, total=G), level=level)
         data = bayes_stats.bbsr(x, y, pp[j, :].flatten(), weights[j, :].flatten(), nS)
         data['ind'] = j
-        return data
+        return j, data
 
     [scatter_x] = DaskController.client.scatter([X.values], broadcast=True)
     [scatter_pp] = DaskController.client.scatter([pp_mat.values], broadcast=True)
