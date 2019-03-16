@@ -21,7 +21,7 @@ DEFAULT_LOCAL_DIR = '$TMPDIR'
 DEFAULT_WALLTIME = '1:00:00'
 
 ENV_EXTRA = ['module purge',
-             'module load python/intel/2.7.13',
+             'module load python/intel/2.7.12',
              'module load gcc/6.3.0',
              'export MKL_NUM_THREADS=1',
              'export OPENBLAS_NUM_THREADS=1',
