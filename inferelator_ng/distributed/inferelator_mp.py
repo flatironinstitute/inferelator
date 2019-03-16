@@ -57,7 +57,7 @@ class MPControl(AbstractController):
                 cls.client = LocalController
             else:
                 raise ValueError("Engine {eng_str} unknown".format(eng_str=engine))
-        elif isinstance(engine, AbstractController):
+        elif issubclass(engine, AbstractController):
             cls.client = engine
         else:
             raise ValueError("Engine must be provided as a string for lookup or an implemented Controller class object")
