@@ -12,7 +12,7 @@ class TFA:
         Parameters
     --------
     prior: pd.dataframe
-        binary or numeric g by t matrix stating existence of gene-TF interactions. 
+        binary or numeric g by t matrix stating existence of gene-TF interactions.
         g: gene, t: TF.
 
     expression_matrix: pd.dataframe
@@ -22,10 +22,37 @@ class TFA:
         normalized expression matrix for time series.
 
     allow_self_interactions_for_duplicate_prior_columns=True: boolean
-        If True, TFs that are identical to other columns in the prior matrix 
+        If True, TFs that are identical to other columns in the prior matrix
         do not have their self-interactios removed from the prior
         and therefore will have the same activities as their duplicate tfs.
     """
+    #TSVD TESTING
+    def TSVD_simple(P,X,k):
+        #TSVD
+        U, Sigma, VT = randomized_svd(P, n_components=k, random_state=1)
+        # S = np.diagflat(Sigma)
+        # P_k = np.mat(U)*np.mat(S)*np.mat(VT)
+        # A_k = linalg.pinv2(P_k)*X
+        Sigma_inv = [0 if s==0 else 1./s for s in Sigma]
+        S_inv = np.diagflat(Sigma_inv)
+        #A_k := P_k_inv*X
+        A_k = np.transpose(np.mat(VT))*np.mat(S_inv)*np.transpose(np.mat(U))*np.mat(X)
+        return A_k
+
+    def GCV(P,X,biggest):
+        GCVect = []
+        m = len(P)
+        if biggest == 0:
+            biggest = m
+        for k in range(1,biggest):
+            #Solve PA=X for A using GCV for parameter selection
+            A_k = TSVD_simple(P,X,k)
+            Res = linalg.norm(P*A_k-X,2)
+            GCVk = (Res/(m-k))**2
+            GCVect.append(GCVk)
+        GCVal = GCVect.index(min(GCVect)) + 1
+        print(GCVal)
+        return {'val':GCVal,'vect':GCVect}
 
     def __init__(self, prior, expression_matrix, expression_matrix_halftau):
         self.prior = prior
@@ -45,8 +72,12 @@ class TFA:
             self.prior = self.prior.drop(delete_tfs, axis = 1)
 
         # Create activity dataframe with values set by default to the transcription factor's expression
-        # Create a dataframe [K x N] with the expression values as defaults
-        activity = self.expression_matrix.reindex(self.prior.columns)
+        # Create an empty dataframe [K x G]
+        activity = pd.DataFrame(0.0, index=self.prior.columns, columns=self.expression_matrix.columns)
+
+        # Populate with expression values as a default
+        add_default_activity = self.prior.columns.intersection(self.expression_matrix.index)
+        activity.loc[add_default_activity, :] = self.expression_matrix.loc[add_default_activity, :]
 
         # Find all non-zero TFs that are duplicates of any other non-zero tfs
         is_duplicated = self.prior[non_zero_tfs].transpose().duplicated(keep=False)
@@ -68,18 +99,13 @@ class TFA:
 
         # Set the activity of non-zero tfs to the pseudoinverse of the prior matrix times the expression
         if len(non_zero_tfs) > 0:
-            activity.loc[non_zero_tfs,:] = np.matrix(linalg.pinv2(self.prior[non_zero_tfs])) * np.matrix(self.expression_matrix_halftau)
+            P = np.mat(self.prior[non_zero_tfs])
+            X = np.matrix(self.expression_matrix_halftau)
+            print('Running TSVD...')
+            k_val = GCV(P,X,0)['val']
+            A_k = TSVD_simple(P,X,k_val)
 
-        activity_nas = activity.isna().any(axis=0)
-        if activity_nas.sum() > 0:
-            lose_tfs = activity_nas.index[activity_nas].tolist()
-            utils.Debug.vprint("Dropping TFs with NaN values: {drop}".format(drop=" ".join(lose_tfs)))
-            activity = activity.dropna(axis=0)
+            activity.loc[non_zero_tfs,:] = np.matrix(A_k)
+            #activity.loc[non_zero_tfs,:] = np.matrix(linalg.pinv2(self.prior[non_zero_tfs])) * np.matrix(self.expression_matrix_halftau)
 
         return activity
-
-            
-
-
-
-
