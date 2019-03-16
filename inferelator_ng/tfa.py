@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from scipy import linalg
+from sklearn.utils.extmath import randomized_svd
 
 from inferelator_ng import utils
 
@@ -26,33 +27,6 @@ class TFA:
         do not have their self-interactios removed from the prior
         and therefore will have the same activities as their duplicate tfs.
     """
-    #TSVD TESTING
-    def TSVD_simple(P,X,k):
-        #TSVD
-        U, Sigma, VT = randomized_svd(P, n_components=k, random_state=1)
-        # S = np.diagflat(Sigma)
-        # P_k = np.mat(U)*np.mat(S)*np.mat(VT)
-        # A_k = linalg.pinv2(P_k)*X
-        Sigma_inv = [0 if s==0 else 1./s for s in Sigma]
-        S_inv = np.diagflat(Sigma_inv)
-        #A_k := P_k_inv*X
-        A_k = np.transpose(np.mat(VT))*np.mat(S_inv)*np.transpose(np.mat(U))*np.mat(X)
-        return A_k
-
-    def GCV(P,X,biggest):
-        GCVect = []
-        m = len(P)
-        if biggest == 0:
-            biggest = m
-        for k in range(1,biggest):
-            #Solve PA=X for A using GCV for parameter selection
-            A_k = TSVD_simple(P,X,k)
-            Res = linalg.norm(P*A_k-X,2)
-            GCVk = (Res/(m-k))**2
-            GCVect.append(GCVk)
-        GCVal = GCVect.index(min(GCVect)) + 1
-        print(GCVal)
-        return {'val':GCVal,'vect':GCVect}
 
     def __init__(self, prior, expression_matrix, expression_matrix_halftau):
         self.prior = prior
@@ -99,6 +73,34 @@ class TFA:
 
         # Set the activity of non-zero tfs to the pseudoinverse of the prior matrix times the expression
         if len(non_zero_tfs) > 0:
+        #TSVD TESTING
+        def TSVD_simple(P,X,k):
+            #TSVD
+            U, Sigma, VT = randomized_svd(P, n_components=k, random_state=1)
+            # S = np.diagflat(Sigma)
+            # P_k = np.mat(U)*np.mat(S)*np.mat(VT)
+            # A_k = linalg.pinv2(P_k)*X
+            Sigma_inv = [0 if s==0 else 1./s for s in Sigma]
+            S_inv = np.diagflat(Sigma_inv)
+            #A_k := P_k_inv*X
+            A_k = np.transpose(np.mat(VT))*np.mat(S_inv)*np.transpose(np.mat(U))*np.mat(X)
+            return A_k
+
+        def GCV(P,X,biggest):
+            GCVect = []
+            m = len(P)
+            if biggest == 0:
+                biggest = m
+            for k in range(1,biggest):
+                #Solve PA=X for A using GCV for parameter selection
+                A_k = TSVD_simple(P,X,k)
+                Res = linalg.norm(P*A_k-X,2)
+                GCVk = (Res/(m-k))**2
+                GCVect.append(GCVk)
+            GCVal = GCVect.index(min(GCVect)) + 1
+            print(GCVal)
+            return {'val':GCVal,'vect':GCVect}
+
             P = np.mat(self.prior[non_zero_tfs])
             X = np.matrix(self.expression_matrix_halftau)
             print('Running TSVD...')

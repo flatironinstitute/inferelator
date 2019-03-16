@@ -24,9 +24,6 @@ class TFAWorkFlow(workflow.WorkflowBase):
     # Regression implementation
     regression_type = bbsr_python
 
-    # TFA implementation
-    tfa_driver = TFA
-
     def run(self):
         """
         Execute workflow, after all configuration.
@@ -77,7 +74,7 @@ class TFAWorkFlow(workflow.WorkflowBase):
         Compute Transcription Factor Activity
         """
         utils.Debug.vprint('Computing Transcription Factor Activity ... ')
-        TFA_calculator = self.tfa_driver(self.priors_data, self.design, self.half_tau_response)
+        TFA_calculator = TFA(self.priors_data, self.design, self.half_tau_response)
         self.design = TFA_calculator.compute_transcription_factor_activity()
         self.half_tau_response = None
 

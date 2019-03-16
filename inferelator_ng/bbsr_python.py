@@ -82,15 +82,12 @@ class BBSR(regression.BaseRegression):
         """
         Execute BBSR on a specific index
 
-        :param idx: int
-            Integer corresponding to row (gene) which should be modeled from the response data
-        :return: dict
-            Passes return from bayes_stats.bbsr, which is: dict(pp, betas, betas_resc)
+        :return: Passes return from bayes_stats.bbsr to the base regression class
         """
         return bayes_stats.bbsr(self.X.values,
-                                self.Y.iloc[idx, :].values,
-                                self.pp.iloc[idx, :].values,
-                                self.weights_mat.iloc[idx, :].values,
+                                self.Y.ix[idx, :].values,
+                                self.pp.ix[idx, :].values,
+                                self.weights_mat.ix[idx, :].values,
                                 self.nS)
 
     def _build_pp_matrix(self):
