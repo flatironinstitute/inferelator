@@ -177,28 +177,31 @@ def patch_workflow(obj):
 
 
 def regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS):
+    from dask import distributed
     DaskController = MPControl.client
 
-    def regression_maker(j, x, y, pp, weights, total_g, g_names, nS):
+    def regression_maker(j, x, y, pp, weights):
         level = 0 if j % 100 == 0 else 2
-        utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=g_names[j], i=j, total=total_g), level=level)
+        utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=genes[j], i=j, total=G), level=level)
         data = bayes_stats.bbsr(x, y, pp[j, :].flatten(), weights[j, :].flatten(), nS)
         data['ind'] = j
         return data
 
     [scatter_x] = DaskController.client.scatter([X.values], broadcast=True)
-    #[scatter_y] = DaskController.client.scatter([Y.values], broadcast=True)
     [scatter_pp] = DaskController.client.scatter([pp_mat.values], broadcast=True)
     [scatter_weights] = DaskController.client.scatter([weights_mat.values], broadcast=True)
 
     future_list = [DaskController.client.submit(regression_maker, i, scatter_x, Y.values[i, :].flatten(), scatter_pp,
-                                                scatter_weights, G, genes, nS)
+                                                scatter_weights)
                    for i in range(G)]
 
-    result_list = DaskController.client.gather(future_list)
+    # Collect results as they finish instead of waiting for all workers to be done
+    result_list = [None] * len(future_list)
+    for finished_future, (j, result_data) in distributed.as_completed(future_list, with_results=True):
+        result_list[j] = result_data
+        finished_future.cancel()
 
     DaskController.client.cancel(scatter_x)
-    #DaskController.client.cancel(scatter_y)
     DaskController.client.cancel(scatter_pp)
     DaskController.client.cancel(scatter_weights)
     DaskController.client.cancel(future_list)
