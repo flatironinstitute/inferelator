@@ -239,9 +239,9 @@ def _matrix_full_rank(mat, tol=1e-10):
 def ssr(x, y, beta):
     """
     Sum of squared residuals (Y - XB)
-    :param x: np.ndarray
-    :param y: np.ndarray
-    :param beta: np.ndarray
+    :param x: np.ndarray [N x M]
+    :param y: np.ndarray [N x P]
+    :param beta: np.ndarray [M x P]
     :return: float
     """
     assert x.shape[1] == beta.shape[0]
