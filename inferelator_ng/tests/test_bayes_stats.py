@@ -43,13 +43,11 @@ class TestBayesStats(unittest.TestCase):
     #
 
     def test_best_combo_idx(self):
-        x = np.array([[0, 1, 2], [0, 0, 1], [1, 1, 1]])
-        bic = np.array([1, 0, 1, 0])
+        x = np.array([[0, 1, 2, 3], [0, 0, 1, 1], [1, 1, 1, 1]])
+        bic = np.array([1, 0, 1, 0], dtype=np.dtype(float))
         combo = np.array([[1, 0, 1, 0], [1, 1, 1, 1], [0, 1, 2, 3]])
         result = bayes_stats._best_combo_idx(x, bic, combo)
-        with self.assertRaises(ValueError):
-            if any(np.isinf(result)):
-                raise ValueError("best_combo BIC is infinity")
+        np.testing.assert_array_equal(result, 3)
 
     def test_matrix_full_rank(self):
         mat = np.array([[0, 1, 2], [1, 2, 3], [0, 1, 1]])
