@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import os
 
+
 class TestBayesStats(unittest.TestCase):
 
     def test_bbsr(self):
@@ -33,8 +34,30 @@ class TestBayesStats(unittest.TestCase):
         #max_k = 2
         #result = bayes_stats.reduce_predictors(x, y, gprior, max_k)
         #np.testing.assert_array_equal(result, np.array([True, True, True]))
+   # def test_best_subset_regression(self):
+    #
+
+
+
+   # def test_calc_rate(self):
+    #
+
+    def test_best_combo_idx(self):
+        x = np.array([[0, 1, 2], [0, 0, 1], [1, 1, 1]])
+        bic = np.array([1, 0, 1, 0])
+        combo = np.array([[1, 0, 1, 0], [1, 1, 1, 1], [0, 1, 2, 3]])
+        result = bayes_stats._best_combo_idx(x, bic, combo)
+        with self.assertRaises(ValueError):
+            if any(np.isinf(result)):
+                raise ValueError("best_combo BIC is infinity")
+
+    def test_matrix_full_rank(self):
+        mat = np.array([[0, 1, 2], [1, 2, 3], [0, 1, 1]])
+        result = bayes_stats._matrix_full_rank(mat)
+        np.testing.assert_array_equal(result, True)
 
     def test_ssr(self):
+        # if x is a N x M array, then beta must be a M x P array, then y must be a N x P array
         x = np.array([[1, 0, 4, 3, 2], [1, 1, 2, 2, 3]])
         y = np.array([[1, 1], [1, 2]])
         beta = np.array([[1, 2], [2, 3], [1, 1], [1, 2], [0, 1]])
