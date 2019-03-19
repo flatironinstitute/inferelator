@@ -87,10 +87,11 @@ class TFA:
                 return A_k
 
             def GCV(P,X,biggest):
+                #Make into a 'map' call so this is vectorized
                 GCVect = []
                 m = len(P)
                 if biggest == 0:
-                    biggest = m
+                    biggest = np.linalg.matrix_rank(P)
                 for k in range(1,biggest):
                     #Solve PA=X for A using GCV for parameter selection
                     A_k = TSVD_simple(P,X,k)
