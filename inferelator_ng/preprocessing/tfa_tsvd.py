@@ -1,9 +1,11 @@
+import itertools
 import numpy as np
 import pandas as pd
 from scipy import linalg
 from sklearn.utils.extmath import randomized_svd
 
 from inferelator_ng import utils
+from inferelator_ng.distributed.inferelator_mp import MPControl
 
 
 class TruncatedSVDTFA:
@@ -78,6 +80,7 @@ class TruncatedSVDTFA:
             utils.Debug.vprint('Running TSVD...', level=1)
             k_val = gcv(P, X, 0)['val']
             A_k = tsvd_simple(P, X, k_val)
+            
 
             activity.loc[non_zero_tfs, :] = np.matrix(A_k)
 
@@ -92,17 +95,50 @@ def tsvd_simple(P, X, k):
     return A_k
 
 
-def gcv(P, X, biggest):
-    GCVect = []
+def gcv(P,X,biggest):
+    #Make into a 'map' call so this is vectorized
     m = len(P)
     if biggest == 0:
-        biggest = m
-    for k in range(1, biggest):
-        # Solve PA=X for A using GCV for parameter selection
-        A_k = tsvd_simple(P, X, k)
-        Res = linalg.norm(P * A_k - X, 2)
-        GCVk = (Res / (m - k)) ** 2
-        GCVect.append(GCVk)
+        biggest = np.linalg.matrix_rank(P)
+
+    if MPControl.name() == "dask":
+        GCVect = gcv_dask(P, X, biggest, m)
+    else:
+        num_iter = biggest - 1
+        GCVect = MPControl.map(calculate_gcval, itertools.repeat(P, num_iter), itertools.repeat(X, num_iter),
+                               range(1, biggest), itertools.repeat(m, num_iter))
+
     GCVal = GCVect.index(min(GCVect)) + 1
-    utils.Debug.vprint("GCVal: {GCVal}".format(GCVal=GCVal), level=2)
-    return {'val': GCVal, 'vect': GCVect}
+    return {'val':GCVal,'vect':GCVect}
+
+
+def calculate_gcval(P, X, k, m):
+    utils.Debug.vprint("TSVD: {k} / {i}".format(k=k, i=min(P.shape)), level=2)
+    A_k = tsvd_simple(P, X, k)
+    Res = linalg.norm(P * A_k - X, 2)
+    return (Res / (m - k)) ** 2
+
+
+def gcv_dask(P, X, biggest, m):
+    from dask import distributed
+    DaskController = MPControl.client
+
+    def gcv_maker(P, X, k, m):
+        return k, calculate_gcval(P, X, k, m)
+
+    [scatter_p] = DaskController.client.scatter([P], broadcast=True)
+    [scatter_x] = DaskController.client.scatter([X], broadcast=True)
+    future_list = [DaskController.client.submit(gcv_maker, scatter_p, scatter_x, i, m)
+                   for i in range(1, biggest)]
+
+    # Collect results as they finish instead of waiting for all workers to be done
+    result_list = [None] * len(future_list)
+    for finished_future, (j, result_data) in distributed.as_completed(future_list, with_results=True):
+        result_list[j] = result_data
+        finished_future.cancel()
+
+    DaskController.client.cancel(scatter_x)
+    DaskController.client.cancel(scatter_p)
+    DaskController.client.cancel(future_list)
+
+    return result_list
