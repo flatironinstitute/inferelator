@@ -134,7 +134,7 @@ def gcv_dask(P, X, biggest, m):
     # Collect results as they finish instead of waiting for all workers to be done
     result_list = [None] * len(future_list)
     for finished_future, (j, result_data) in distributed.as_completed(future_list, with_results=True):
-        result_list[j] = result_data
+        result_list[j - 1] = result_data
         finished_future.cancel()
 
     DaskController.client.cancel(scatter_x)
