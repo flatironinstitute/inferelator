@@ -23,6 +23,15 @@ class MPControl(AbstractController):
     is_initialized = False
 
     @classmethod
+    def name(cls):
+        """
+        This returns the _class_name which all subclasses should define
+        """
+        if cls.client is None:
+            raise NameError("No client has been set")
+        return cls.client.name()
+
+    @classmethod
     def set_multiprocess_engine(cls, engine):
         """
         Register the multiprocessing engine to use
