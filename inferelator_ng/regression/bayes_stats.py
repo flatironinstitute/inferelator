@@ -178,7 +178,7 @@ def calc_all_expected_BIC(x, y, g, combinations, check_rank=True):
                               xty[c_idx],
                               gprior[:, c_idx][c_idx, :],
                               check_rank=check_rank)
-            if np.isfinite(rate):
+            if np.isfinite(rate) and rate > 0:
                 bic[i] = n * (np.log(rate) - digamma_shape) + k_included * np.log(n)
             else:
                 raise np.linalg.LinAlgError

@@ -77,7 +77,7 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
     :param temp_dir: path
         Path to write temp files for multiprocessing
 
-    :return mi: pd.DataFramae (m1 x m2)
+    :return mi: pd.DataFrame (m1 x m2)
         The mutual information between variables m1 and m2
     """
 
@@ -90,17 +90,18 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
     X = X.values
     Y = Y.values
 
-    # Discretize the input matrixes
-    X = _make_array_discrete(X, bins, axis=1).transpose()
-    Y = _make_array_discrete(Y, bins, axis=1).transpose()
-
     # Build the MI matrix
-    return pd.DataFrame(build_mi_array(X, Y, bins, logtype=logtype, temp_dir=temp_dir), index=mi_r, columns=mi_c)
+    if MPControl.client.name() == "dask":
+        return pd.DataFrame(build_mi_array_dask(X, Y, bins, logtype=logtype, temp_dir=temp_dir), index=mi_r,
+                            columns=mi_c)
+    else:
+        return pd.DataFrame(build_mi_array(X, Y, bins, logtype=logtype, temp_dir=temp_dir), index=mi_r,
+                            columns=mi_c)
 
 
 def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
     """
-    Calculate MI into an array initialized with NaNs
+    Calculate MI into an array
 
     :param X: np.ndarray (n x m1)
         Discrete array of bins
@@ -116,21 +117,74 @@ def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
         Returns the mutual information array
     """
 
+    # Discretize the input matrixes
+    X = _make_array_discrete(X.transpose(), bins, axis=0)
+    Y = _make_array_discrete(Y.transpose(), bins, axis=0)
+
     m1, m2 = X.shape[1], Y.shape[1]
 
     # Define the function which calculates MI for each variable in X against every variable in Y
     def mi_make(i):
-        if __debug__:
-            level = 2 if i % 1000 == 0 else 3
-            utils.Debug.allprint("MI [{i} / {total}]".format(i=i, total=m1), level=level)
         return [_calc_mi(_make_table(X[:, i], Y[:, j], bins), logtype=logtype) for j in range(m2)]
 
     # Send the MI build to the multiprocessing controller
-    mi_list = MPControl.map(mi_make, range(m1))
+    mi_list = MPControl.map(mi_make, range(m1), tmp_file_path=temp_dir)
 
     # Convert the list of lists to an array
     mi = np.array(mi_list)
-    assert (m1, m2) == mi.shape
+    assert (m1, m2) == mi.shape, "Array {sh} produced [({m1}, {m2}) expected]".format(sh=mi.shape, m1=m1, m2=m2)
+
+    return mi
+
+
+def build_mi_array_dask(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
+    """
+    Calculate MI into an array with dask (the naive map is very inefficient)
+
+    :param X: np.ndarray (n x m1)
+        Discrete array of bins
+    :param Y: np.ndarray (n x m2)
+        Discrete array of bins
+    :param bins: int
+        The total number of bins that were used to make the arrays discrete
+    :param logtype: np.log func
+        Which log function to use (log2 gives bits, ln gives nats)
+    :param temp_dir: path
+        Does nothing
+    :return mi: np.ndarray (m1 x m2)
+        Returns the mutual information array
+    """
+
+    # Import the Dask controller
+    DaskController = MPControl.client
+
+    # Discretize the input matrixes
+    X = _make_array_discrete(X.transpose(), bins, axis=0)
+    Y = _make_array_discrete(Y.transpose(), bins, axis=0)
+
+    m1, m2 = X.shape[1], Y.shape[1]
+
+    def mi_make(i, x, y):
+        level = 1 if i % 1000 == 0 else 3
+        utils.Debug.allprint("Mutual Information Calculation [{i} / {total}]".format(i=i, total=m1), level=level)
+        return [_calc_mi(_make_table(x[:, i], y[:, j], bins), logtype=logtype) for j in range(m2)]
+
+    # Scatter X & Y to all workers and keep track of them as Futures
+    [scatter_x] = DaskController.client.scatter([X], broadcast=True)
+    [scatter_y] = DaskController.client.scatter([Y], broadcast=True)
+
+    # Build an asynchronous list of Futures for each calculation of mi_make
+    future_list = [DaskController.client.submit(mi_make, i, scatter_x, scatter_y) for i in range(m1)]
+    mi_list = DaskController.client.gather(future_list)
+
+    # Clean up worker data by cancelling all the Futures
+    DaskController.client.cancel(scatter_x)
+    DaskController.client.cancel(scatter_y)
+    DaskController.client.cancel(future_list)
+
+    # Convert the list of lists to an array
+    mi = np.array(mi_list)
+    assert (m1, m2) == mi.shape, "Array {sh} produced [({m1}, {m2}) expected]".format(sh=mi.shape, m1=m1, m2=m2)
 
     return mi
 

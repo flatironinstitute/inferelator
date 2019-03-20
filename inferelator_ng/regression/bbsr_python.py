@@ -74,14 +74,17 @@ class BBSR(base_regression.BaseRegression):
             Returns None, None if it's a subordinate thread
         """
 
+        if MPControl.client.name() == "dask":
+            return regress_dask(self.X, self.Y, self.pp, self.weights_mat, self.G, self.genes, self.nS)
+
         def regression_maker(j):
             level = 0 if j % 100 == 0 else 2
             utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G),
                                  level=level)
             data = bayes_stats.bbsr(self.X.values,
-                                    self.Y.iloc[j, :].values,
-                                    self.pp.iloc[j, :].values,
-                                    self.weights_mat.iloc[j, :].values,
+                                    self.Y.iloc[j, :].values.flatten(),
+                                    self.pp.iloc[j, :].values.flatten(),
+                                    self.weights_mat.iloc[j, :].values.flatten(),
                                     self.nS)
             data['ind'] = j
             return data
@@ -171,3 +174,36 @@ def patch_workflow(obj):
                     no_prior_weight=self.no_prior_weight).run()
 
     obj.run_bootstrap = types.MethodType(run_bootstrap, obj)
+
+
+def regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS):
+    from dask import distributed
+    DaskController = MPControl.client
+
+    def regression_maker(j, x, y, pp, weights):
+        level = 0 if j % 100 == 0 else 2
+        utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=genes[j], i=j, total=G), level=level)
+        data = bayes_stats.bbsr(x, y, pp[j, :].flatten(), weights[j, :].flatten(), nS)
+        data['ind'] = j
+        return j, data
+
+    [scatter_x] = DaskController.client.scatter([X.values], broadcast=True)
+    [scatter_pp] = DaskController.client.scatter([pp_mat.values], broadcast=True)
+    [scatter_weights] = DaskController.client.scatter([weights_mat.values], broadcast=True)
+
+    future_list = [DaskController.client.submit(regression_maker, i, scatter_x, Y.values[i, :].flatten(), scatter_pp,
+                                                scatter_weights)
+                   for i in range(G)]
+
+    # Collect results as they finish instead of waiting for all workers to be done
+    result_list = [None] * len(future_list)
+    for finished_future, (j, result_data) in distributed.as_completed(future_list, with_results=True):
+        result_list[j] = result_data
+        finished_future.cancel()
+
+    DaskController.client.cancel(scatter_x)
+    DaskController.client.cancel(scatter_pp)
+    DaskController.client.cancel(scatter_weights)
+    DaskController.client.cancel(future_list)
+
+    return result_list

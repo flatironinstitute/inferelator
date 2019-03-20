@@ -11,6 +11,7 @@ from inferelator_ng.utils import Validator as check
 
 
 class MultiprocessingController(AbstractController):
+    _controller_name = "multiprocessing"
     client = None
     is_master = True
 
@@ -30,9 +31,19 @@ class MultiprocessingController(AbstractController):
         return True
 
     @classmethod
-    def map(cls, func, arg, chunk=None, **kwargs):
+    def map(cls, func, *args, **kwargs):
+        """
+        Map a function across iterable(s) and return a list of results
+
+        :param func: function
+            Mappable function
+        :param args: iterable
+            Iterator(s)
+        """
         assert check.argument_callable(func)
-        assert check.argument_type(arg, collections.Iterable)
-        assert check.argument_integer(chunk, low=1, allow_none=True)
-        chunk = chunk if chunk is not None else cls.chunk
-        return list(cls.client.imap(func, arg, chunksize=chunk))
+        assert check.argument_list_type(args, collections.Iterable)
+        return cls.client.map(func, *args, chunksize=cls.chunk)
+
+    @classmethod
+    def shutdown(cls):
+        return cls.client.close()

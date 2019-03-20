@@ -5,6 +5,24 @@ Mostly I did this so I could easily reuse defaults and change them to match my d
 Don't look at me like that.
 """
 
+"""Defaults for Multiprocessing"""
+
+DEFAULT_MULTIPROCESSING_ENGINE = "kvs"
+DEFAULT_PROCESS_COUNT = 4
+
+"""Default Environmental Variable Lookup"""
+
+# This is a dict, keyed by the class setattr variable name, of tuples (env name, coercion function, default value)
+SBATCH_VARS = dict(output_dir=('RUNDIR', str, None),
+                   input_dir=('DATADIR', str, None),
+                   rank=('SLURM_PROCID', int, 0),
+                   cores=('SLURM_NTASKS_PER_NODE', int, 1),
+                   tasks=('SLURM_NTASKS', int, 1),
+                   node=('SLURM_NODEID', int, 0),
+                   num_nodes=('SLURM_JOB_NUM_NODES', int, 1))
+
+SBATCH_VARS_FOR_KVS = ["rank", "cores", "tasks", "node", "num_nodes"]
+SBATCH_VARS_FOR_WORKFLOW = ["output_dir", "input_dir"]
 
 """Default Data File Settings"""
 
@@ -15,13 +33,11 @@ DEFAULT_METADATA_FILE = "meta_data.tsv"
 DEFAULT_PRIORS_FILE = "gold_standard.tsv"
 DEFAULT_GOLDSTANDARD_FILE = "gold_standard.tsv"
 
-
 """Default WorkflowBase Parameters"""
 DEFAULT_RANDOM_SEED = 42
 DEFAULT_NUM_BOOTSTRAPS = 2
 DEFAULT_GS_SPLIT_RATIO = None
 DEFAULT_GS_SPLIT_AXIS = 0
-
 
 """Default TFAWorkflow Parameters"""
 DEFAULT_DELTMIN = 0
