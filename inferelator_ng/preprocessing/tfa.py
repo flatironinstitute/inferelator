@@ -68,12 +68,7 @@ class TFA:
         return activity
 
 
-class NoTFA:
-
-    def __init__(self, prior, expression_matrix, expression_matrix_halftau):
-        self.prior = prior
-        self.expression_matrix = expression_matrix
-        self.expression_matrix_halftau = expression_matrix_halftau
+class NoTFA(TFA):
 
     def compute_transcription_factor_activity(self, allow_self_interactions_for_duplicate_prior_columns=True):
         # Get the activity matrix with expression data only
