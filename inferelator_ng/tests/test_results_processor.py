@@ -2,6 +2,7 @@ import unittest
 from inferelator_ng.postprocessing import results_processor
 import pandas as pd
 import numpy as np
+import os
 
 class TestResultsProcessor(unittest.TestCase):
 
@@ -103,6 +104,7 @@ class TestResultsProcessor(unittest.TestCase):
         np.testing.assert_equal(thresholded_mat.values,
             np.array([[1,0],[1,1]]))
 
+
 ####################
 
 # TODO: Fix the following three tests so that they have unique and correct precision recall values
@@ -175,3 +177,171 @@ class TestResultsProcessor(unittest.TestCase):
         mean, median = results_processor.ResultsProcessor.mean_and_median([beta1, beta2])
         np.testing.assert_equal(mean, np.array([[ 1.5,  1.5],[ 1.5,  1.5]]))
         np.testing.assert_equal(median, np.array([[ 1.5, 1.5],[ 1.5, 1.5]]))
+
+
+
+# csg test start here
+
+    def test_save_network_to_tsv(self):
+        rankable_data = [pd.DataFrame(np.array([[2.0, 4.0], [6.0, 8.0]]))]
+        gold_standard = pd.DataFrame(np.array([[0, 1], [1, 1]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        pr_calc = results_processor.RankSummaryPR(rankable_data, gold_standard)
+        priors = pd.DataFrame(np.array([[1.0, 2.0], [0, 1.0]]), ['gene1', 'gene2'], ['cond1', 'cond2'])
+        results_processor.ResultsProcessor.save_network_to_tsv(pr_calc, priors, output_dir=None,
+                                                               confidence_threshold=0.1,
+                                                               output_file_name='network_output',
+                                                               beta_threshold=None,
+                                                               extra_columns=None)
+
+    def test_compute_combined_confidences_rank_method_sum(self):
+        rankable_data = [pd.DataFrame(np.array([[1.0, 2.0], [3.0, 4.0]])), pd.DataFrame(np.array([[5.0, 6.0], [7.0, 8.0]]))]
+        kwargs = {"rank_method": "sum"}
+        rankable_data = results_processor.RankSummaryPR.compute_combined_confidences(rankable_data, **kwargs)
+
+    def test_compute_combined_confidences_rank_method_sum_threshold(self):
+        rankable_data = [pd.DataFrame(np.array([[1.0, 2.0], [3.0, 4.0]])), pd.DataFrame(np.array([[5.0, 6.0], [7.0, 8.0]]))]
+        kwargs = {"rank_method": "threshold_sum", "data_threshold": 0.9}
+        rankable_data = results_processor.RankSummaryPR.compute_combined_confidences(rankable_data, **kwargs)
+
+    def test_compute_combined_confidences_rank_method_max_value(self):
+        rankable_data = [pd.DataFrame(np.array([[1.0, 2.0], [3.0, 4.0]])), pd.DataFrame(np.array([[5.0, 6.0], [7.0, 8.0]]))]
+        kwargs = {"rank_method": "max"}
+        rankable_data = results_processor.RankSummaryPR.compute_combined_confidences(rankable_data, **kwargs)
+
+    def test_compute_combined_confidences_rank_method_geo_mean(self):
+        rankable_data = [pd.DataFrame(np.array([[1.0, 2.0], [3.0, 4.0]])), pd.DataFrame(np.array([[5.0, 6.0], [7.0, 8.0]]))]
+        kwargs = {"rank_method": "geo_mean"}
+        rankable_data = results_processor.RankSummaryPR.compute_combined_confidences(rankable_data, **kwargs)
+
+    def test_rank_sum_increasing(self):
+        rankable_data = [pd.DataFrame(np.array([[2.0, 4.0], [6.0, 8.0]]))]
+        combine_conf = results_processor.RankSummaryPR.rank_sum(rankable_data)
+        np.testing.assert_array_almost_equal(combine_conf, np.array([[0.0, 0.333333], [0.666667, 1.000000]]), 5)
+
+    def test_rank_sum_decreasing(self):
+        rankable_data = [pd.DataFrame(np.array([[8.0, 6.0], [4.0, 2.0]]))]
+        combine_conf = results_processor.RankSummaryPR.rank_sum(rankable_data)
+        np.testing.assert_array_almost_equal(combine_conf, np.array([[1.0, 0.666667], [0.333333, 0.0]]), 5)
+
+    def test_rank_sum_random(self):
+        rankable_data = [pd.DataFrame(np.array([[3.0, 2.0], [1.0, 4.0]]))]
+        combine_conf = results_processor.RankSummaryPR.rank_sum(rankable_data)
+        np.testing.assert_array_almost_equal(combine_conf, np.array([[0.666667, 0.333333], [0.0, 1.0]]), 5)
+
+    def test_rank_sum_negative(self):
+        rankable_data = [pd.DataFrame(np.array([[-2.0, 4.0], [-6.0, 8.0]]))]
+        combine_conf = results_processor.RankSummaryPR.rank_sum(rankable_data)
+        np.testing.assert_array_almost_equal(combine_conf, np.array([[0.333333, 0.666667], [0.0, 1.0]]), 5)
+
+    def test_rank_sum_zeros(self):
+        rankable_data = [pd.DataFrame(np.array([[0, 0], [0, 0]]))]
+        combine_conf = results_processor.RankSumming.rank_sum(rankable_data)
+        np.testing.assert_array_equal(combine_conf, np.array([[0, 0], [0, 0]]))
+
+    def test_rank_sum_threshold_increasing(self):
+        rankable_data = [pd.DataFrame(np.array([[2.0, 4.0], [6.0, 8.0]]))]
+        #pd.set_option('precision',16)
+        combine_conf = results_processor.RankSummaryPR.rank_sum_threshold(rankable_data)
+        np.testing.assert_array_almost_equal(combine_conf, np.array([[0.0, 0.333333], [0.666667, 1.000000]]), 5)
+        # | computed_solution - true_solution | < \epsilon = O(1e-6)
+
+    def test_rank_sum_threshold_decreasing(self):
+        rankable_data = [pd.DataFrame(np.array([[8.0, 6.0], [4.0, 2.0]]))]
+        #pd.set_option('precision',16)
+        combine_conf = results_processor.RankSummaryPR.rank_sum_threshold(rankable_data)
+        np.testing.assert_array_almost_equal(combine_conf, np.array([[1.0, 0.666667], [0.333333, 0.0]]), 5)
+        # | computed_solution - true_solution | < \epsilon = O(1e-6)
+
+    def test_rank_sum_threshold_random(self):
+        rankable_data = [pd.DataFrame(np.array([[3.0, 2.0], [1.0, 4.0]]))]
+        #pd.set_option('precision',16)
+        combine_conf = results_processor.RankSummaryPR.rank_sum_threshold(rankable_data)
+        np.testing.assert_array_almost_equal(combine_conf, np.array([[0.666667, 0.333333], [0.0, 1.0]]), 5)
+        # | computed_solution - true_solution | < \epsilon = O(1e-6)
+
+    def test_rank_sum_threshold_negative(self):
+        rankable_data = [pd.DataFrame(np.array([[-2.0, 4.0], [-6.0, 8.0]]))]
+        #pd.set_option('precision',16)
+        combine_conf = results_processor.RankSummaryPR.rank_sum_threshold(rankable_data)
+        np.testing.assert_array_almost_equal(combine_conf, np.array([[0.0, 0.75], [0.0, 1.0]]), 5)
+        # | computed_solution - true_solution | < \epsilon = O(1e-6)
+
+    def test_rank_sum_threshold_zeros(self):
+        rankable_data = [pd.DataFrame(np.array([[0, 0], [0, 0]]))]
+        combine_conf = results_processor.RankSumming.rank_sum_threshold(rankable_data)
+        with self.assertRaises(ValueError):
+            if any(np.isnan(combine_conf)):
+                raise ValueError("combined_conf contains NaNs")
+
+    def test_rank_max_value_increasing(self):
+        rankable_data = [pd.DataFrame(np.array([[2.0, 4.0], [6.0, 8.0]]))]
+        combine_conf = results_processor.RankSummaryPR.rank_max_value(rankable_data)
+        np.testing.assert_array_almost_equal(combine_conf, np.array([[0.0, 0.333333], [0.666667, 1.000000]]), 5)
+
+    def test_rank_max_value_decreasing(self):
+        rankable_data = [pd.DataFrame(np.array([[8.0, 6.0], [4.0, 2.0]]))]
+        combine_conf = results_processor.RankSummaryPR.rank_max_value(rankable_data)
+        np.testing.assert_array_almost_equal(combine_conf, np.array([[1.0, 0.666667], [0.333333, 0.0]]), 5)
+
+    def test_rank_max_value_random(self):
+        rankable_data = [pd.DataFrame(np.array([[3.0, 2.0], [1.0, 4.0]]))]
+        combine_conf = results_processor.RankSummaryPR.rank_max_value(rankable_data)
+        np.testing.assert_array_almost_equal(combine_conf, np.array([[0.666667, 0.333333], [0.0, 1.0]]), 5)
+
+    def test_rank_max_value_negative(self):
+        rankable_data = [pd.DataFrame(np.array([[-2.0, 4.0], [-6.0, 8.0]]))]
+        combine_conf = results_processor.RankSummaryPR.rank_max_value(rankable_data)
+        np.testing.assert_array_almost_equal(combine_conf, np.array([[0.0, 0.6], [0.0, 1.0]]), 5)
+
+    def test_rank_max_value_zero(self):
+        rankable_data = [pd.DataFrame(np.array([[0, 0], [0, 0]]))]
+        combine_conf = results_processor.RankSumming.rank_max_value(rankable_data)
+        with self.assertRaises(ValueError):
+            if any(np.isnan(combine_conf)):
+                raise ValueError("combined_conf contains NaNs")
+
+    def test_rank_geo_mean_increasing(self):
+        rankable_data = [pd.DataFrame(np.array([[2.0, 4.0], [6.0, 8.0]]))]
+        combine_conf = results_processor.RankSummaryPR.rank_geo_mean(rankable_data)
+        np.testing.assert_array_almost_equal(combine_conf, np.array([[0.0, 0.333333], [0.666667, 1.000000]]), 5)
+
+    def test_rank_geo_mean_decreasing(self):
+        rankable_data = [pd.DataFrame(np.array([[8.0, 6.0], [4.0, 2.0]]))]
+        combine_conf = results_processor.RankSummaryPR.rank_geo_mean(rankable_data)
+        np.testing.assert_array_almost_equal(combine_conf, np.array([[1.0, 0.666667], [0.333333, 0.0]]), 5)
+
+    def test_rank_geo_mean_random(self):
+        rankable_data = [pd.DataFrame(np.array([[3.0, 2.0], [1.0, 4.0]]))]
+        combine_conf = results_processor.RankSummaryPR.rank_geo_mean(rankable_data)
+        np.testing.assert_array_almost_equal(combine_conf, np.array([[0.666667, 0.333333], [0.0, 1.0]]), 5)
+
+    def test_rank_geo_mean_negative(self):
+        rankable_data = [pd.DataFrame(np.array([[-2.0, 4.0], [-6.0, 8.0]]))]
+        combine_conf = results_processor.RankSummaryPR.rank_geo_mean(rankable_data)
+        np.testing.assert_array_almost_equal(combine_conf, np.array([[0.333333, 0.666667], [0.0, 1.0]]), 5)
+
+    def test_rank_geo_mean_zeros(self):
+        rankable_data = [pd.DataFrame(np.array([[0, 0], [0, 0]]))]
+        combine_conf = results_processor.RankSumming.rank_geo_mean(rankable_data)
+        with self.assertRaises(ValueError):
+            if any(np.isnan(combine_conf)):
+                raise ValueError("combined_conf contains NaNs")
+
+    def test_filter_to_left_size(self):
+        left = pd.DataFrame(np.array([[1, 1], [2, 2]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        right = pd.DataFrame(np.array([[0, 0], [2, 2]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        results_processor.RankSummaryPR.filter_to_left_size(left, right)
+
+    def test_plot_pr_curve(self):
+        file_name = "/tmp/pr_curve.pdf"
+        #if os.path.exists(file_name):
+        #    os.remove(file_name)
+        results_processor.RankSummaryPR.plot_pr_curve([0, 1], [1, 0], "x", "/tmp", "pr_curve.pdf")
+        exists = os.path.exists(file_name)
+        self.assertTrue(exists)
+
+    def test_plot_pr_curve_file_name(self):
+        results_processor.RankSummaryPR.plot_pr_curve(recall=0.7, precision=0.5, aupr=0.9, output_dir="/tmp", file_name="pr_curve.pdf")
+
+    def test_plot_pr_curve_file_name_none(self):
+        results_processor.RankSummaryPR.plot_pr_curve(recall=0.3, precision=0.5, aupr=0.6, output_dir=None, file_name=None)

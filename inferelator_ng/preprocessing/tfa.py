@@ -12,7 +12,7 @@ class TFA:
         Parameters
     --------
     prior: pd.dataframe
-        binary or numeric g by t matrix stating existence of gene-TF interactions. 
+        binary or numeric g by t matrix stating existence of gene-TF interactions.
         g: gene, t: TF.
 
     expression_matrix: pd.dataframe
@@ -22,7 +22,7 @@ class TFA:
         normalized expression matrix for time series.
 
     allow_self_interactions_for_duplicate_prior_columns=True: boolean
-        If True, TFs that are identical to other columns in the prior matrix 
+        If True, TFs that are identical to other columns in the prior matrix
         do not have their self-interactios removed from the prior
         and therefore will have the same activities as their duplicate tfs.
     """
@@ -71,6 +71,8 @@ class TFA:
 class NoTFA(TFA):
 
     def compute_transcription_factor_activity(self, allow_self_interactions_for_duplicate_prior_columns=True):
+        utils.Debug.vprint("Setting Activity to Expression Values", level=1)
+
         # Get the activity matrix with expression data only
         activity, _, _ = process_expression_into_activity(self.expression_matrix, self.prior)
 
