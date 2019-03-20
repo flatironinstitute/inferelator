@@ -211,7 +211,7 @@ def _best_combo_idx(x, bic, combo):
     """
     Find the lowest BIC combination that comes from a nonsingular xTx
     :param x: [n x k]
-    :param bic: [c,]
+    :param bic: [c,] array of floats
     :param combo: [k x c]
     :return:
     """
