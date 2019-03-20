@@ -9,6 +9,9 @@ from inferelator_ng.utils import Validator as check
 
 
 class LocalController(AbstractController):
+
+    _controller_name = "local"
+
     client = None
     is_master = True
     chunk = None
@@ -22,7 +25,19 @@ class LocalController(AbstractController):
         return True
 
     @classmethod
-    def map(cls, func, arg, **kwargs):
+    def map(cls, func, *arg, **kwargs):
+        """
+        Map a function across iterable(s) and return a list of results
+
+        :param func: function
+            Mappable function
+        :param args: iterable
+            Iterator(s)
+        """
         assert check.argument_callable(func)
-        assert check.argument_type(arg, collections.Iterable)
-        return list(map(func, arg))
+        assert check.argument_list_type(arg, collections.Iterable)
+        return list(map(func, *arg))
+
+    @classmethod
+    def shutdown(cls):
+        return True

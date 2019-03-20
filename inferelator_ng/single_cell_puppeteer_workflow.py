@@ -81,6 +81,7 @@ def create_puppet_workflow(base_class=single_cell_workflow.SingleCellWorkflow, r
 
         write_network = True
         network_file_name = None
+        pr_curve_file_name = None
         initialize_mp = False
 
         def __init__(self, expr_data, meta_data, prior_data, gs_data):
@@ -100,11 +101,12 @@ def create_puppet_workflow(base_class=single_cell_workflow.SingleCellWorkflow, r
                 results = result_processor(betas, rescaled_betas, filter_method=self.gold_standard_filter_method)
                 if self.write_network:
                     results.network_file_name = self.network_file_name
+                    results.pr_curve_file_name = self.pr_curve_file_name
                     network_file_path = self.output_dir
                 else:
                     results.network_file_name = None
+                    results.pr_curve_file_name = None
                     network_file_path = None
-                results.pr_curve_file_name = None
                 results.confidence_file_name = None
                 results.threshold_file_name = None
                 results.write_task_files = False
@@ -174,6 +176,7 @@ class PuppeteerWorkflow(object):
 
         # Tell the puppet what to name stuff (if write_network is False then no output will be produced)
         puppet.network_file_name = "network_s{seed}.tsv".format(seed=seed)
+        puppet.pr_curve_file_name = "pr_curve_s{seed}.pdf".format(seed=seed)
         return puppet
 
     def assign_class_vars(self, obj):
@@ -301,6 +304,7 @@ class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
                 puppet = self.new_puppet(self.expression_matrix.iloc[:, nidx], self.meta_data.iloc[nidx, :], seed=seed)
                 if self.write_network:
                     puppet.network_file_name = "network_{size}_s{seed}.tsv".format(size=s_ratio, seed=seed)
+                    puppet.pr_curve_file_name = "pr_curve_{size}_s{seed}.pdf".format(size=s_ratio, seed=seed)
                 puppet.run()
                 size_aupr = (s_ratio, len(nidx), seed, puppet.aupr, puppet.n_interact, puppet.precision_interact)
                 aupr_data.extend(size_aupr)
@@ -394,6 +398,7 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
             puppet = self.new_puppet(local_expr_data.iloc[:, idx], local_meta_data.iloc[idx, :], seed)
             if self.write_network:
                 puppet.network_file_name = "network_drop_{drop}_s{seed}.tsv".format(drop=r_name, seed=seed)
+                puppet.pr_curve_file_name = "pr_curve_{drop}_s{seed}.pdf".format(drop=r_name, seed=seed)
             puppet.run()
             drop_data = (r_name, seed, puppet.aupr, puppet.n_interact, puppet.precision_interact)
             aupr_data.append(drop_data)

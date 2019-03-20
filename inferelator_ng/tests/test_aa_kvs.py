@@ -21,4 +21,4 @@ os.environ["KVSSTCP_PORT"] = port
 os.remove(temp_file_name)
 
 class TestKVSConnect(Test2By2):
-    kvs_controller.KVSController.connect(suppress_warnings=True)
+    kvs_controller.KVSController.connect()
