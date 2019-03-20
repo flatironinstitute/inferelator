@@ -34,13 +34,27 @@ class TestBayesStats(unittest.TestCase):
         #max_k = 2
         #result = bayes_stats.reduce_predictors(x, y, gprior, max_k)
         #np.testing.assert_array_equal(result, np.array([True, True, True]))
+
+
    # def test_best_subset_regression(self):
     #
 
+  #  def test_calc_all_expected_BIC(self):
+  #      x = np.array([[1, 0, 1, 0], [0, 1, 1, 1], [0, 1, 1, 0], [0, 0, 0, 1]])
+  #      y = np.array([1, 0, 2, 3])
+   #     g = np.array([0, 1, 2, 3])
+     #   combinations = np.array([[True, False, True, True], [True, False, False, True]])
+   #     result = bayes_stats.calc_all_expected_BIC(x, y, g, combinations)
 
-
-   # def test_calc_rate(self):
-    #
+    def test_calc_rate(self):
+        x = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+        y = np.array([[1, 2, 3], [0, 1, 1], [1, 1, 1], [1, 0, 1]])
+        xtx = np.dot(x.T, x)  # [k x k]
+        xty = np.dot(x.T, y)  # [k x 1]
+        gprior = np.array([[1, 1, 1, 1], [1, 0, 1, 0], [0, 0, 1, 1], [1, 0, 1, 1]])
+        result = bayes_stats._calc_rate(x, y, xtx, xty, gprior)
+        np.testing.assert_array_equal(result, np.array([[1.5, 1.5, 2.5], [1.5, 2.5, 3.5],
+                                                        [2.5, 3.5, 5.5]]))
 
     def test_best_combo_idx(self):
         x = np.array([[0, 1, 2, 3], [0, 0, 1, 1], [1, 1, 1, 1]])
