@@ -1,3 +1,5 @@
+from __future__ import division
+
 import itertools
 import numpy as np
 import pandas as pd
@@ -5,8 +7,10 @@ from scipy import linalg
 from sklearn.utils.extmath import randomized_svd
 
 from inferelator_ng import utils
+from inferelator_ng import default
 from inferelator_ng.distributed.inferelator_mp import MPControl
 
+DEFAULT_TSVD_POWER_NORMALIZER = "QR"
 
 class TruncatedSVDTFA:
     """
@@ -79,16 +83,16 @@ class TruncatedSVDTFA:
             X = np.matrix(self.expression_matrix_halftau)
             utils.Debug.vprint('Running TSVD...', level=1)
             k_val = gcv(P, X, 0)['val']
+            utils.Debug.vprint('Selected {k} dimensions for TSVD'.format(k=k_val), level=1)
             A_k = tsvd_simple(P, X, k_val)
-            
-
             activity.loc[non_zero_tfs, :] = np.matrix(A_k)
 
         return activity
 
 
-def tsvd_simple(P, X, k):
-    U, Sigma, VT = randomized_svd(P, n_components=k, random_state=1)
+def tsvd_simple(P, X, k, seed=default.DEFAULT_RANDOM_SEED, power_iteration_normalizer=DEFAULT_TSVD_POWER_NORMALIZER):
+    U, Sigma, VT = randomized_svd(P, n_components=k, random_state=seed,
+                                  power_iteration_normalizer=power_iteration_normalizer)
     Sigma_inv = [0 if s == 0 else 1. / s for s in Sigma]
     S_inv = np.diagflat(Sigma_inv)
     A_k = np.transpose(np.mat(VT)) * np.mat(S_inv) * np.transpose(np.mat(U)) * np.mat(X)
