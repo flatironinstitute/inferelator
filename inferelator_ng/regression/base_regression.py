@@ -222,4 +222,5 @@ def bool_to_index(arr):
     :param arr: np.ndarray
     :return: np.ndarray
     """
+    assert check.argument_type(arr, np.ndarray)
     return np.where(arr)[0]
