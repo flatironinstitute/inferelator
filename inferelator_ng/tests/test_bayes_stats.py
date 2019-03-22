@@ -32,10 +32,10 @@ class TestBayesStats(unittest.TestCase):
                            [False,  True, False,  True, False,  True, False,  True, False,
                             True, False,  True, False,  True, False,  True]])
         result = bayes_stats.calc_all_expected_BIC(x, y, gprior, combos)
-        np.testing.assert_array_almost_equal(result, np.array([1.3118, 8.1682, 8.1682, 9.7776, 8.1682,
-                                                               9.7776, 9.7776, 11.387, 8.1682, 9.7776,
-                                                               9.7776, 11.387, 9.7776, 11.387, 11.387,
-                                                               12.9965]), 4)
+        np.testing.assert_array_almost_equal(result, np.array([1.3118, 9.57, 9.57, 11.1795, 9.57,
+                                                               11.1795, 11.1795, 12.7889, 9.57, 11.1795,
+                                                               11.1795, 12.7889, 11.1795, 12.7889, 12.7889,
+                                                               14.3983]), 4)
 
     def test_reduce_predictors(self):
         # test for k = max_k
@@ -62,7 +62,7 @@ class TestBayesStats(unittest.TestCase):
         combinations = np.array([[True, False, True, True], [True, False, False, True], [True, False, True, False],
                                  [True, True, True, False]])
         result = bayes_stats.calc_all_expected_BIC(x, y, g, combinations)
-        np.testing.assert_array_almost_equal(result, np.array([12.9965, 8.1682, 11.387, 9.7776]), 4)
+        np.testing.assert_array_almost_equal(result, np.array([14.3983, 9.57, 12.7889, 11.1795]), 4)
 
     def test_calc_rate(self):
         x = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
