@@ -75,7 +75,7 @@ def best_subset_regression(x, y, gprior):
         Weighted priors [k x 1]
     :return:
     """
-
+    print("best_subset_regression passed x=" + str(x) + " and y=" + str(y) + " and gprior=" + str(gprior))
     (n, k) = x.shape
     combos = combo_index(k)
 
