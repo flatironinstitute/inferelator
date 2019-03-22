@@ -75,7 +75,6 @@ def best_subset_regression(x, y, gprior):
         Weighted priors [k x 1]
     :return:
     """
-    print("best_subset_regression passed x=" + str(x) + " and y=" + str(y) + " and gprior=" + str(gprior))
     (n, k) = x.shape
     combos = combo_index(k)
 
@@ -140,7 +139,6 @@ def calc_all_expected_BIC(x, y, g, combinations, check_rank=True):
     :return: np.ndarray [c,]
         Array of BICs corresponding to each combination
     """
-
     (n, k) = x.shape
     c = combinations.shape[1]
 
@@ -149,18 +147,16 @@ def calc_all_expected_BIC(x, y, g, combinations, check_rank=True):
     assert k == combinations.shape[0]
 
     # Precalculate xTx and xTy
-    digamma_shape = scipy.special.digamma(n / 2)
+    digamma_shape = scipy.special.digamma(n / 2.0)
     xtx = np.dot(x.T, x)  # [k x k]
     xty = np.dot(x.T, y)  # [k x 1]
 
     # Calculate the g-prior
-    gprior = np.repeat(np.sqrt(1 / (g + 1)), k, axis=1)
+    gprior = np.repeat(np.sqrt(1.0 / (g + 1.0)), k, axis=1)
     gprior = np.multiply(gprior, gprior.T)
-
     bic = np.zeros(c, dtype=np.dtype(float))
 
     for i in range(c):
-
         # Convert the boolean slice into an index
         c_idx = base_regression.bool_to_index(combinations[:, i])
         k_included = len(c_idx)
@@ -184,7 +180,6 @@ def calc_all_expected_BIC(x, y, g, combinations, check_rank=True):
                 raise np.linalg.LinAlgError
         except np.linalg.LinAlgError:
             bic[i] = np.inf
-
     return bic
 
 
