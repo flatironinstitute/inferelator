@@ -1,8 +1,6 @@
 import unittest
 from inferelator_ng.regression import bayes_stats
-import pandas as pd
 import numpy as np
-import os
 
 
 class TestBayesStats(unittest.TestCase):
@@ -15,36 +13,56 @@ class TestBayesStats(unittest.TestCase):
         weights = np.array([1, 0, 2, 1, 5])
         max_k = 10
         result = bayes_stats.bbsr(X, y, pp, weights, max_k)
+        pp = np.array([0, 1, 1, 1, 0])
+        betas = np.array([0.0, 0.0, 0.0])
+        betas_resc = np.array([0.0, 0.0, 0.0])
+        dict = {'pp':pp, 'betas':betas, 'betas_resc':betas_resc}
+        np.testing.assert_equal(result, dict)
 
+    def test_best_subset_regression(self):
+        x = np.array([[1, 0, 1, 0], [0, 1, 1, 1], [0, 1, 1, 0], [0, 0, 0, 1], [1, 1, 1, 1]])
+        y = np.array([1, 0, 2, 3, 1])
+        gprior = np.array([[0, 1, 2, 3]])
+        combos = np.array([[False, False, False, False, False, False, False, False,  True,
+                            True,  True,  True,  True,  True,  True,  True],
+                           [False, False, False, False,  True,  True,  True,  True, False,
+                            False, False, False,  True,  True,  True,  True],
+                           [False, False,  True,  True, False, False,  True,  True, False,
+                            False,  True,  True, False, False,  True,  True],
+                           [False,  True, False,  True, False,  True, False,  True, False,
+                            True, False,  True, False,  True, False,  True]])
+        result = bayes_stats.calc_all_expected_BIC(x, y, gprior, combos)
+        np.testing.assert_array_almost_equal(result, np.array([1.3118, 8.1682, 8.1682, 9.7776, 8.1682,
+                                                               9.7776, 9.7776, 11.387, 8.1682, 9.7776,
+                                                               9.7776, 11.387, 9.7776, 11.387, 11.387,
+                                                               12.9965]), 4)
 
     def test_reduce_predictors(self):
         # test for k = max_k
         x = np.array([[1, 0, 1], [2, 1, 1], [1, 2, 3], [1, 1, 1]])
         y = np.array([1, 1, 0, 1])
-        gprior = np.array([3, 2, 1])
+        gprior = np.array([[3, 2, 1]])
         max_k = 3
         result = bayes_stats.reduce_predictors(x, y, gprior, max_k)
         np.testing.assert_array_equal(result, np.array([True, True, True]))
 
-    #def test_reduce_predictors_max_k_greater_than(self):
+    def test_reduce_predictors_max_k_greater_than(self):
         # test for k > max_k
-     #   x = np.array([[1, 0, 1], [2, 1, 1], [1, 2, 3], [1, 1, 1]])
-      #  y = np.array([1, 1, 0, 1])
-       # gprior = np.array([3, 2, 1])
-        #max_k = 2
-        #result = bayes_stats.reduce_predictors(x, y, gprior, max_k)
-        #np.testing.assert_array_equal(result, np.array([True, True, True]))
+        x = np.array([[1, 0, 1], [2, 1, 1], [1, 2, 3], [1, 1, 1]])
+        y = np.array([1, 1, 0, 1])
+        gprior = np.array([[3, 2, 1]])
+        max_k = 2
+        result = bayes_stats.reduce_predictors(x, y, gprior, max_k)
+        np.testing.assert_array_equal(result, np.array([True, True, False]))
 
-
-   # def test_best_subset_regression(self):
-    #
-
-  #  def test_calc_all_expected_BIC(self):
-  #      x = np.array([[1, 0, 1, 0], [0, 1, 1, 1], [0, 1, 1, 0], [0, 0, 0, 1]])
-  #      y = np.array([1, 0, 2, 3])
-   #     g = np.array([0, 1, 2, 3])
-     #   combinations = np.array([[True, False, True, True], [True, False, False, True]])
-   #     result = bayes_stats.calc_all_expected_BIC(x, y, g, combinations)
+    def test_calc_all_expected_BIC(self):
+        x = np.array([[1, 0, 1, 0], [0, 1, 1, 1], [0, 1, 1, 0], [0, 0, 0, 1], [1, 1, 1, 1]])
+        y = np.array([1, 0, 2, 3, 1])
+        g = np.array([[0, 1, 2, 3]])
+        combinations = np.array([[True, False, True, True], [True, False, False, True], [True, False, True, False],
+                                 [True, True, True, False]])
+        result = bayes_stats.calc_all_expected_BIC(x, y, g, combinations)
+        np.testing.assert_array_almost_equal(result, np.array([12.9965, 8.1682, 11.387, 9.7776]), 4)
 
     def test_calc_rate(self):
         x = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
