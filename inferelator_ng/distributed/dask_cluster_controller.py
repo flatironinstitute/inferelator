@@ -153,8 +153,7 @@ class DaskSLURMController(AbstractController):
             cls.local_cluster.adapt(minimum=cls.minimum_cores, maximum=cls.maximum_cores, interval=cls.interval,
                                     wait_count=cls.wait_count)
         else:
-            cls.local_cluster.adapt(minimum=cls.maximum_cores, maximum=cls.maximum_cores, interval=cls.interval,
-                                    wait_count=cls.wait_count)
+            cls.local_cluster.scale_up(cls.maximum_cores)
 
         sleep_time = 0
         while cls.local_cluster._count_active_workers() == 0:
