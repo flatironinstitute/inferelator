@@ -31,7 +31,7 @@ class TestBayesStats(unittest.TestCase):
                             False,  True,  True, False, False,  True,  True],
                            [False,  True, False,  True, False,  True, False,  True, False,
                             True, False,  True, False,  True, False,  True]])
-        result = bayes_stats.calc_all_expected_BIC(x, y, gprior, combos)
+        result = bayes_stats.best_subset_regression(x, y, gprior, combos)
         np.testing.assert_array_almost_equal(result, np.array([1.3118, 9.57, 9.57, 11.1795, 9.57,
                                                                11.1795, 11.1795, 12.7889, 9.57, 11.1795,
                                                                11.1795, 12.7889, 11.1795, 12.7889, 12.7889,
