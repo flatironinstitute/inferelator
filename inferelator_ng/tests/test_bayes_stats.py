@@ -23,15 +23,7 @@ class TestBayesStats(unittest.TestCase):
         x = np.array([[1, 0, 1, 0], [0, 1, 1, 1], [0, 1, 1, 0], [0, 0, 0, 1], [1, 1, 1, 1]])
         y = np.array([1, 0, 2, 3, 1])
         gprior = np.array([[0, 1, 2, 3]])
-        combos = np.array([[False, False, False, False, False, False, False, False,  True,
-                            True,  True,  True,  True,  True,  True,  True],
-                           [False, False, False, False,  True,  True,  True,  True, False,
-                            False, False, False,  True,  True,  True,  True],
-                           [False, False,  True,  True, False, False,  True,  True, False,
-                            False,  True,  True, False, False,  True,  True],
-                           [False,  True, False,  True, False,  True, False,  True, False,
-                            True, False,  True, False,  True, False,  True]])
-        result = bayes_stats.best_subset_regression(x, y, gprior, combos)
+        result = bayes_stats.best_subset_regression(x, y, gprior)
         np.testing.assert_array_almost_equal(result, np.array([1.3118, 9.57, 9.57, 11.1795, 9.57,
                                                                11.1795, 11.1795, 12.7889, 9.57, 11.1795,
                                                                11.1795, 12.7889, 11.1795, 12.7889, 12.7889,
