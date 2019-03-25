@@ -63,11 +63,11 @@ class TestNoController(TestMPControl):
         MPControl.connect()
 
     def test_map(self):
-        with self.assertRaises(ConnectionError):
+        with self.assertRaises(RuntimeError):
             MPControl.map(math_function, *self.map_test_data)
 
     def test_sync(self):
-        with self.assertRaises(ConnectionError):
+        with self.assertRaises(RuntimeError):
             MPControl.sync_processes()
 
     def test_name(self):

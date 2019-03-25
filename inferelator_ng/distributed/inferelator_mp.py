@@ -100,7 +100,7 @@ class MPControl(AbstractController):
         Map using the `.map()` implementation in the multiprocessing engine
         """
         if not cls.is_initialized:
-            raise ConnectionError("Connect before calling map()")
+            raise RuntimeError("Connect before calling map()")
         return cls.client.map(*args, **kwargs)
 
     @classmethod
@@ -112,7 +112,7 @@ class MPControl(AbstractController):
         This is necessary for KVS; other engines will just return True
         """
         if not cls.is_initialized:
-            raise ConnectionError("Connect before calling sync_processes()")
+            raise RuntimeError("Connect before calling sync_processes()")
         return cls.client.sync_processes(*args, **kwargs)
 
     @classmethod
