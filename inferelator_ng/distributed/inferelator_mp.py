@@ -122,9 +122,10 @@ class MPControl(AbstractController):
         """
 
         if cls.is_initialized:
-            client = cls.client.shutdown()
+            client_off = cls.client.shutdown()
             cls.is_initialized = False
+            cls.client = None
         else:
-            client = True
+            client_off = True
 
-        return client
+        return client_off
