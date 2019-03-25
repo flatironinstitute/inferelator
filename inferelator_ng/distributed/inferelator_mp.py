@@ -120,4 +120,11 @@ class MPControl(AbstractController):
         """
         Gracefully shut down the multiprocessing engine by calling `.shutdown()`
         """
-        return cls.client.shutdown() if cls.is_initialized else True
+
+        if cls.is_initialized:
+            client = cls.client.shutdown()
+            cls.is_initialized = False
+        else:
+            client = True
+
+        return client
