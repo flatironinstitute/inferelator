@@ -19,6 +19,36 @@ class TestBayesStats(unittest.TestCase):
         dict = {'pp':pp, 'betas':betas, 'betas_resc':betas_resc}
         np.testing.assert_equal(result, dict)
 
+    def test_bbsr(self):
+        # test when pp.sum() == 0
+        X = np.array([[1, 0, 0], [2, 1, 0], [1, 1, 1], [0, 0, 1], [2, 1, 2]])
+        y = np.array([0, 1, 0])
+        pp = np.array([0, 0, 0, 0, 0])
+        weights = np.array([1, 0, 2, 1, 5])
+        max_k = 10
+        result = bayes_stats.bbsr(X, y, pp, weights, max_k)
+        pp = np.array([True, True, True, True, True])
+        betas = np.array([0.0, 0.0, 0.0, 0.0, 0.0])
+        betas_resc = np.array([0.0, 0.0, 0.0, 0.0, 0.0])
+        dict = {'pp':pp, 'betas':betas, 'betas_resc':betas_resc}
+        np.testing.assert_equal(result, dict)
+
+    def test_bbsr(self):
+        # test when betas and betas_resc are not zero
+        X = np.array([[1, 3, 1], [2, 1, 0], [1, 10, 5], [2, 6, 1], [2, 1, 8]])
+        y = np.array([2, 1, 4])
+        pp = np.array([10, 3, 1, 5, 4])
+        weights = np.array([10, 10, 10, 10, 10])
+        max_k = 3
+        result = bayes_stats.bbsr(X, y, pp, weights, max_k)
+        pp = np.array([1, 0, 0, 1, 1])
+        betas = ([0.0, 0.0, 0.53623188])
+        betas_resc = ([0.0, 0.0, 0.83820926])
+        check = {'pp':pp, 'betas':betas, 'betas_resc':betas_resc}
+        for component in check.keys():
+            for idx in range(0, len(check[component])):
+                np.testing.assert_array_almost_equal(result[component][idx], check[component][idx], 2)
+
     def test_best_subset_regression(self):
         x = np.array([[1, 0, 1, 0], [0, 1, 1, 1], [0, 1, 1, 0], [0, 0, 0, 1], [1, 1, 1, 1]])
         y = np.array([1, 0, 2, 3, 1])
