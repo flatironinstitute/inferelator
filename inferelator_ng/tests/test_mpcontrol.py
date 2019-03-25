@@ -129,7 +129,7 @@ class TestDaskLocalMPController(TestMPControl):
         cls.tempdir = tempfile.mkdtemp()
         MPControl.shutdown()
         MPControl.set_multiprocess_engine(cls.name)
-        MPControl.connect(local_dir=cls.tempdir)
+        MPControl.connect(local_dir=cls.tempdir, n_workers=1)
 
     @classmethod
     def tearDownClass(cls):
