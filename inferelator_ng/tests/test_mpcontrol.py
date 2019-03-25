@@ -150,38 +150,37 @@ class TestMultiprocessingMPController(TestMPControl):
         self.assertTrue(MPControl.sync_processes())
 
 
-if __name__ == '__main__':
-    @unittest.skipIf(not TEST_DASK, "Dask not installed")
-    class TestDaskLocalMPController(TestMPControl):
-        name = "dask-local"
-        client_name = "dask"
-        tempdir = None
+@unittest.skipIf(not TEST_DASK, "Dask not installed")
+class TestDaskLocalMPController(TestMPControl):
+    name = "dask-local"
+    client_name = "dask"
+    tempdir = None
 
-        @classmethod
-        def setUpClass(cls):
-            cls.tempdir = tempfile.mkdtemp()
-            MPControl.shutdown()
-            MPControl.set_multiprocess_engine(cls.name)
-            MPControl.connect(local_dir=cls.tempdir, n_workers=1)
+    @classmethod
+    def setUpClass(cls):
+        cls.tempdir = tempfile.mkdtemp()
+        MPControl.shutdown()
+        MPControl.set_multiprocess_engine(cls.name)
+        MPControl.connect(local_dir=cls.tempdir, n_workers=1)
 
-        @classmethod
-        def tearDownClass(cls):
-            super(TestDaskLocalMPController, cls).tearDownClass()
-            if cls.tempdir is not None:
-                shutil.rmtree(cls.tempdir)
+    @classmethod
+    def tearDownClass(cls):
+        super(TestDaskLocalMPController, cls).tearDownClass()
+        if cls.tempdir is not None:
+            shutil.rmtree(cls.tempdir)
 
-        def test_dask_local_connect(self):
-            self.assertTrue(MPControl.is_initialized)
+    def test_dask_local_connect(self):
+        self.assertTrue(MPControl.is_initialized)
 
-        def test_dask_local_name(self):
-            self.assertEqual(MPControl.name(), self.client_name)
+    def test_dask_local_name(self):
+        self.assertEqual(MPControl.name(), self.client_name)
 
-        def test_dask_local_map(self):
-            with self.assertRaises(NotImplementedError):
-                MPControl.map(math_function, *self.map_test_data)
+    def test_dask_local_map(self):
+        with self.assertRaises(NotImplementedError):
+            MPControl.map(math_function, *self.map_test_data)
 
-        def test_dask_local_sync(self):
-            self.assertTrue(MPControl.sync_processes())
+    def test_dask_local_sync(self):
+        self.assertTrue(MPControl.sync_processes())
 
-        def test_dask_local_workers_running(self):
-            self.assertTrue(os.path.isfile(os.path.join(self.tempdir, "global.lock")))
+    def test_dask_local_workers_running(self):
+        self.assertTrue(os.path.isfile(os.path.join(self.tempdir, "global.lock")))
