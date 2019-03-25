@@ -170,8 +170,8 @@ def build_mi_array_dask(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
         return [_calc_mi(_make_table(x[:, i], y[:, j], bins), logtype=logtype) for j in range(m2)]
 
     # Scatter X & Y to all workers and keep track of them as Futures
-    [scatter_x] = DaskController.client.scatter([X], broadcast=True)
-    [scatter_y] = DaskController.client.scatter([Y], broadcast=True)
+    [scatter_x] = DaskController.client.scatter([X])
+    [scatter_y] = DaskController.client.scatter([Y])
 
     # Build an asynchronous list of Futures for each calculation of mi_make
     future_list = [DaskController.client.submit(mi_make, i, scatter_x, scatter_y) for i in range(m1)]

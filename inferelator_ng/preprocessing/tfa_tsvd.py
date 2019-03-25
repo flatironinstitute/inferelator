@@ -130,8 +130,8 @@ def gcv_dask(P, X, biggest, m):
     def gcv_maker(P, X, k, m):
         return k, calculate_gcval(P, X, k, m)
 
-    [scatter_p] = DaskController.client.scatter([P], broadcast=True)
-    [scatter_x] = DaskController.client.scatter([X], broadcast=True)
+    [scatter_p] = DaskController.client.scatter([P])
+    [scatter_x] = DaskController.client.scatter([X])
     future_list = [DaskController.client.submit(gcv_maker, scatter_p, scatter_x, i, m)
                    for i in range(1, biggest)]
 
