@@ -3,7 +3,7 @@ MultiprocessingController runs everything through a multiprocessing Pool
 This requires pathos because the default multiprocessing serializes with cPickle
 """
 
-import pathos.multiprocessing as multiprocessing
+import pathos
 import collections
 
 from inferelator_ng.distributed import AbstractController
@@ -23,7 +23,7 @@ class MultiprocessingController(AbstractController):
 
     @classmethod
     def connect(cls, *args, **kwargs):
-        cls.client = multiprocessing.Pool(processes=cls.processes, **kwargs)
+        cls.client = pathos.multiprocessing.ProcessPool(processes=cls.processes, **kwargs)
         return True
 
     @classmethod
