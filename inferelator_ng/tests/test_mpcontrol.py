@@ -253,8 +253,20 @@ class TestDaskHPCMPController(TestMPControl):
     def test_dask_cluster_sync(self):
         self.assertTrue(MPControl.sync_processes())
 
-    def test_dask_cluster_workers_running(self):
-        self.assertTrue(os.path.isfile(os.path.join(self.tempdir, "global.lock")))
-
     def test_memory_0_hack(self):
-        pass
+        old_command = "dask-worker tcp://scheduler:port --memory-limit=4e9 --nthreads 1 --nprocs 20"
+        new_command = "dask-worker tcp://scheduler:port --memory-limit 0 --nthreads 1 --nprocs 20"
+        self.assertEqual(new_command, dask_cluster_controller.memory_limit_0(old_command))
+        old_command_2 = "dask-worker tcp://scheduler:port --nthreads 1 --nprocs 20 --memory-limit=4e9"
+        new_command_2 = "dask-worker tcp://scheduler:port --nthreads 1 --nprocs 20 --memory-limit 0 "
+        self.assertEqual(new_command_2, dask_cluster_controller.memory_limit_0(old_command_2))
+
+    def test_nyu_hack(self):
+        old_header = "\n".join(['export MKL_NUM_THREADS=1', 'export OPENBLAS_NUM_THREADS=1',
+                                'export NUMEXPR_NUM_THREADS=1', '#SBATCH --cpus-per-task=20'])
+        new_header = "\n".join(['export MKL_NUM_THREADS=1', 'export OPENBLAS_NUM_THREADS=1',
+                                'export NUMEXPR_NUM_THREADS=1', '#SBATCH --nodes=1', '#SBATCH --ntasks-per-node=1',
+                                '#SBATCH --cpus-per-task=20'])
+        self.assertEqual(new_header,
+                         dask_cluster_controller.fix_header_for_nyu(old_header,
+                                                                    dask_cluster_controller.DEFAULT_NYU_HEADER))
