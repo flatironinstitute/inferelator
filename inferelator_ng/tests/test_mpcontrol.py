@@ -115,9 +115,11 @@ class TestLocalController(TestMPControl):
 class TestKVSMPController(TestMPControl):
     server = None
     name = "kvs"
+    temp_dir = None
 
     @classmethod
     def setUpClass(cls):
+        cls.temp_dir = tempfile.mkdtemp()
         cls.server = kvsstcp.KVSServer("", 0)
         MPControl.shutdown()
         MPControl.set_multiprocess_engine(cls.name)
@@ -128,12 +130,22 @@ class TestKVSMPController(TestMPControl):
         super(TestKVSMPController, cls).tearDownClass()
         if cls.server is not None:
             cls.server.shutdown()
+        if cls.temp_dir is not None:
+            shutil.rmtree(cls.temp_dir)
 
     def test_kvs_connect(self):
         self.assertTrue(MPControl.is_initialized)
 
     def test_kvs_map(self):
         test_result = MPControl.map(math_function, *self.map_test_data)
+        self.assertListEqual(test_result, self.map_test_expect)
+
+    def test_kvs_map_distribute(self):
+        test_result = MPControl.map(math_function, *self.map_test_data, tell_children=True)
+        self.assertListEqual(test_result, self.map_test_expect)
+
+    def test_kvs_map_by_file(self):
+        test_result = MPControl.map(math_function, *self.map_test_data, tell_children=True, tmp_file_path=self.temp_dir)
         self.assertListEqual(test_result, self.map_test_expect)
 
     def test_kvs_sync(self):
