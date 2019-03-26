@@ -16,11 +16,20 @@ except ImportError:
 
 try:
     from dask import distributed
-    from inferelator_ng.distributed import dask_cluster_controller, dask_local_controller
+    from inferelator_ng.distributed import dask_local_controller
 
-    TEST_DASK = True
+    TEST_DASK_LOCAL = True
 except ImportError:
-    TEST_DASK = False
+    TEST_DASK_LOCAL = False
+
+try:
+    from dask import distributed
+    import dask_jobqueue
+    from inferelator_ng.distributed import dask_cluster_controller
+
+    TEST_DASK_CLUSTER = True
+except ImportError:
+    TEST_DASK_CLUSTER = False
 
 try:
     import pathos
@@ -152,7 +161,7 @@ class TestMultiprocessingMPController(TestMPControl):
         self.assertTrue(MPControl.sync_processes())
 
 
-@unittest.skipIf(not TEST_DASK, "Dask not installed")
+@unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
 class TestDaskLocalMPController(TestMPControl):
     name = "dask-local"
     client_name = "dask"
@@ -185,7 +194,7 @@ class TestDaskLocalMPController(TestMPControl):
         self.assertTrue(MPControl.sync_processes())
 
 
-@unittest.skipIf(not TEST_DASK, "Dask not installed")
+@unittest.skipIf(not TEST_DASK_CLUSTER, "Dask not installed")
 class TestDaskHPCMPController(TestMPControl):
     name = "dask-cluster"
     client_name = "dask"
