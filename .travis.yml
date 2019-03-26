@@ -13,6 +13,7 @@ install:
   - pip install pathos
   - pip install dask
   - pip install dask[distributed]
+  - pip install dask_jobqueue
 script:
   - git clone https://github.com/simonsfoundation/kvsstcp
   - export PYTHONPATH=$PYTHONPATH:$(pwd)/kvsstcp
