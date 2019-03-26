@@ -210,7 +210,7 @@ class TestDaskHPCMPController(TestMPControl):
         # And then bind it so that it works in py27 right
         def fake_cluster(*args, **kwargs):
             replace_args = dict()
-            replace_args["n_workers"] = kwargs.pop("n_workers", 1)
+            replace_args["n_workers"] = kwargs.pop("n_workers", 0)
             replace_args["threads_per_worker"] = kwargs.pop("threads_per_worker", 1)
             replace_args["processes"] = kwargs.pop("processes", True)
             replace_args["local_dir"] = kwargs.pop("local_directory", None)
