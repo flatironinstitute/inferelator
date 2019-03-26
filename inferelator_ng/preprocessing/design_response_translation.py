@@ -1,3 +1,5 @@
+from __future__ import division
+
 from inferelator_ng import utils
 import pandas as pd
 import numpy as np
@@ -140,15 +142,20 @@ class PythonDRDriver:
         self.included[idx] = True
         self.included[prev_idx] = True
 
-        diff = self.exp_data[:, idx] - self.exp_data[:, prev_idx]
-        resp = float(self.tau) / float(prev_delt) * diff + self.exp_data[:, prev_idx]
+        resp, half_resp = self._calculate_ts_response(self.exp_data, self.tau, prev_delt, idx, prev_idx)
 
         self.design = np.hstack((self.design, self.exp_data[:, prev_idx].reshape(-1, 1)))
         self.response = np.hstack((self.response, resp.reshape(-1, 1)))
 
         if self.return_half_tau:
-            half_resp = float(self.tau) / 2 / float(prev_delt) * diff + self.exp_data[:, prev_idx]
             self.response_half = np.hstack((self.response_half, half_resp.reshape(-1, 1)))
+
+    @staticmethod
+    def _calculate_ts_response(exp_data, tau, prev_delt, idx, prev_idx):
+        diff = exp_data[:, idx] - exp_data[:, prev_idx]
+        resp = float(tau) / float(prev_delt) * diff + exp_data[:, prev_idx]
+        half_resp = float(tau) / 2 / float(prev_delt) * diff + exp_data[:, prev_idx]
+        return resp, half_resp
 
     def _process_groups(self):
         """
