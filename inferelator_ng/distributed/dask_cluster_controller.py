@@ -1,10 +1,8 @@
 from __future__ import absolute_import, division, print_function
 import time
 
-import dask
 from dask import distributed
 from dask_jobqueue import SLURMCluster
-from dask_jobqueue.slurm import slurm_format_bytes_ceil
 
 from inferelator_ng.distributed import AbstractController
 
@@ -34,6 +32,7 @@ DEFAULT_ADAPT_WAIT_COUNT = 5
 
 DEFAULT_NYU_HEADER = ['#SBATCH --nodes=1', '#SBATCH --ntasks-per-node=1']
 
+
 # This is the worst thing I've ever written
 def memory_limit_0(command_template):
     cargs = command_template.split("--")
@@ -43,6 +42,7 @@ def memory_limit_0(command_template):
             carg = "memory-limit 0 "
         newer_better_command_args.append(carg)
     return "--".join(newer_better_command_args)
+
 
 # Or maybe this is?
 def fix_header_for_nyu(header, new_lines):
@@ -55,7 +55,17 @@ def fix_header_for_nyu(header, new_lines):
     return "\n".join(newer_better_header)
 
 
-class DaskSLURMController(AbstractController):
+class DaskHPCClusterController(AbstractController):
+    """
+    The DaskHPCClusterController launches a HPC cluster and connects as a client. By default it uses the SLURM workload
+    manager, but other workload managers may be used.
+    #TODO: test drop-in replacement of other managers
+
+    Many of the cluster-specific options are taken from class variables that can be set prior to calling .connect().
+    #TODO: eventually figure out how to get rid of the ugly monkeypatching hacks for command headers
+
+    The map functionality is deliberately not implemented; dask-specific multiprocessing functions are used instead
+    """
     _controller_name = "dask"
     is_master = True
     client = None
@@ -96,10 +106,10 @@ class DaskSLURMController(AbstractController):
     @classmethod
     def connect(cls, *args, **kwargs):
         """
-        Setup local cluster
+        Setup slurm cluster
         """
 
-        # Create a local cluster with all the various class settings
+        # Create a slurm cluster with all the various class settings
         cls.local_cluster = cls.cluster_controller_class(queue=cls.queue, project=cls.project, walltime=cls.walltime,
                                                          job_cpu=cls.job_cpu, cores=cls.cores, processes=cls.processes,
                                                          job_mem=cls.job_mem, env_extra=cls.env_extra,

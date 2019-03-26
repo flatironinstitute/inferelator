@@ -2,8 +2,10 @@ import unittest
 import tempfile
 import os
 import shutil
+import types
 from inferelator_ng.distributed.inferelator_mp import MPControl
 
+# Run tests only when the associated packages are installed
 try:
     from kvsstcp import kvsstcp
     from inferelator_ng.distributed import kvs_controller
@@ -13,7 +15,7 @@ except ImportError:
     TEST_KVS = False
 
 try:
-    import dask.distributed as distributed
+    from dask import distributed
     from inferelator_ng.distributed import dask_cluster_controller, dask_local_controller
 
     TEST_DASK = True
@@ -161,7 +163,7 @@ class TestDaskLocalMPController(TestMPControl):
         cls.tempdir = tempfile.mkdtemp()
         MPControl.shutdown()
         MPControl.set_multiprocess_engine(cls.name)
-        MPControl.connect(local_dir=cls.tempdir, n_workers=1)
+        MPControl.connect(local_dir=cls.tempdir, n_workers=0)
 
     @classmethod
     def tearDownClass(cls):
@@ -182,5 +184,68 @@ class TestDaskLocalMPController(TestMPControl):
     def test_dask_local_sync(self):
         self.assertTrue(MPControl.sync_processes())
 
-    def test_dask_local_workers_running(self):
+
+@unittest.skipIf(not TEST_DASK, "Dask not installed")
+class TestDaskHPCMPController(TestMPControl):
+    name = "dask-cluster"
+    client_name = "dask"
+    tempdir = None
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tempdir = tempfile.mkdtemp()
+        MPControl.shutdown()
+        MPControl.set_multiprocess_engine(cls.name)
+
+        # Create a wrapper for LocalCluster so that the HPC controller can be tested locally
+        # And then bind it so that it works in py27 right
+        def fake_cluster(*args, **kwargs):
+            replace_args = dict()
+            replace_args["n_workers"] = kwargs.pop("n_workers", 1)
+            replace_args["threads_per_worker"] = kwargs.pop("threads_per_worker", 1)
+            replace_args["processes"] = kwargs.pop("processes", True)
+            replace_args["local_dir"] = kwargs.pop("local_directory", None)
+
+            clust = distributed.LocalCluster(**replace_args)
+            clust._active_worker_n = 0
+
+            def _count_active_workers(self):
+                val = self._active_worker_n
+                self._active_worker_n += 1
+                return val
+
+            clust._count_active_workers = types.MethodType(_count_active_workers, clust)
+            return clust
+
+        MPControl.client.cluster_controller_class = types.MethodType(fake_cluster, MPControl.client)
+        MPControl.client.worker_memory_limit = '1gb'
+        MPControl.client.minimum_cores = 0
+        MPControl.client.maximum_cores = 0
+        MPControl.client.hack_cluster_controller_for_NYU = False
+        MPControl.client.local_directory = cls.tempdir
+        MPControl.connect()
+
+    @classmethod
+    def tearDownClass(cls):
+        super(TestDaskHPCMPController, cls).tearDownClass()
+        if cls.tempdir is not None:
+            shutil.rmtree(cls.tempdir)
+
+    def test_dask_cluster_connect(self):
+        self.assertTrue(MPControl.is_initialized)
+
+    def test_dask_cluster_name(self):
+        self.assertEqual(MPControl.name(), self.client_name)
+
+    def test_dask_cluster_map(self):
+        with self.assertRaises(NotImplementedError):
+            MPControl.map(math_function, *self.map_test_data)
+
+    def test_dask_cluster_sync(self):
+        self.assertTrue(MPControl.sync_processes())
+
+    def test_dask_cluster_workers_running(self):
         self.assertTrue(os.path.isfile(os.path.join(self.tempdir, "global.lock")))
+
+    def test_memory_0_hack(self):
+        pass
