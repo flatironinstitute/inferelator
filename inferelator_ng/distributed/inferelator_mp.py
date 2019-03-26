@@ -50,8 +50,8 @@ class MPControl(AbstractController):
 
         if isinstance(engine, basestring):
             if engine == "dask-cluster":
-                from inferelator_ng.distributed.dask_cluster_controller import DaskSLURMController
-                cls.client = DaskSLURMController
+                from inferelator_ng.distributed.dask_cluster_controller import DaskHPCClusterController
+                cls.client = DaskHPCClusterController
             elif engine == "dask-local":
                 from inferelator_ng.distributed.dask_local_controller import DaskController
                 cls.client = DaskController
