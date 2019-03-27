@@ -18,14 +18,24 @@ class TFAWorkFlow(workflow.WorkflowBase):
     delTmax = default.DEFAULT_DELTMAX
     tau = default.DEFAULT_TAU
 
-    # Result processing parameters
-    gold_standard_filter_method = default.DEFAULT_GS_FILTER_METHOD
+    # Regression data
+    design = None
+    response = None
+    half_tau_response = None
 
     # Regression implementation
     regression_type = bbsr_python
 
     # TFA implementation
     tfa_driver = TFA
+
+    # Design-Response Driver implementation
+    drd_driver = design_response_translation.PythonDRDriver
+
+    # Result Processor implementation
+    result_processor_driver = ResultsProcessor
+    # Result processing parameters
+    gold_standard_filter_method = default.DEFAULT_GS_FILTER_METHOD
 
     def run(self):
         """
@@ -87,16 +97,15 @@ class TFAWorkFlow(workflow.WorkflowBase):
         """
         if self.is_master():
             self.create_output_dir()
-            self.results_processor = ResultsProcessor(betas, rescaled_betas,
-                                                      filter_method=self.gold_standard_filter_method)
-            self.results_processor.summarize_network(self.output_dir, gold_standard, priors)
+            rp = self.result_processor_driver(betas, rescaled_betas, filter_method=self.gold_standard_filter_method)
+            rp.summarize_network(self.output_dir, gold_standard, priors)
 
     def compute_common_data(self):
         """
         Compute common data structures like design and response matrices.
         """
         self.filter_expression_and_priors()
-        drd = design_response_translation.PythonDRDriver(return_half_tau=True)
+        drd = self.drd_driver(return_half_tau=True)
         utils.Debug.vprint('Creating design and response matrix ... ')
         drd.delTmin, drd.delTmax, drd.tau = self.delTmin, self.delTmax, self.tau
         self.design, self.response, self.half_tau_response = drd.run(self.expression_matrix, self.meta_data)
