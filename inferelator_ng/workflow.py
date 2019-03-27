@@ -228,7 +228,7 @@ class WorkflowBase(object):
         kwargs['header'] = kwargs.pop('header', 0)
 
         file_settings = self.file_format_settings.copy()
-        file_settings = file_settings.update(kwargs)
+        file_settings.update(kwargs)
         if filename in self.file_format_overrides:
             file_settings.update(self.file_format_overrides[filename])
 
