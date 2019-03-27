@@ -68,7 +68,7 @@ class TestWorkflow(unittest.TestCase):
         with self.assertRaises(NotImplementedError):
             self.workflow.run()
         with self.assertRaises(NotImplementedError):
-            self.workflow.emit_results()
+            self.workflow.emit_results(None, None, None, None)
 
     def test_append_path(self):
         self.workflow.append_to_path('input_dir', 'test')
