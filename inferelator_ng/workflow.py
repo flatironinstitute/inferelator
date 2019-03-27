@@ -224,14 +224,19 @@ class WorkflowBase(object):
         Read a file in as a pandas dataframe
         """
 
+        # Set defaults for index_col and header
         kwargs['index_col'] = kwargs.pop('index_col', 0)
         kwargs['header'] = kwargs.pop('header', 0)
 
+        # Use any kwargs for this function and any file settings from default
         file_settings = self.file_format_settings.copy()
         file_settings.update(kwargs)
+
+        # Update the file settings with anything that's in file-specific overrides
         if filename in self.file_format_overrides:
             file_settings.update(self.file_format_overrides[filename])
 
+        # Load a dataframe
         return pd.read_csv(self.input_path(filename), **file_settings)
 
     def append_to_path(self, var_name, to_append):
@@ -268,7 +273,8 @@ class WorkflowBase(object):
         if len(keeper_regulators) == 0 or len(expressed_targets) == 0:
             raise ValueError("Filtering will result in a priors with at least one axis of 0 length")
 
-        self.priors_data = self.priors_data.loc[expressed_targets, keeper_regulators]
+        self.priors_data = self.priors_data.reindex(expressed_targets, axis=0)
+        self.priors_data = self.priors_data.reindex(keeper_regulators, axis=1)
         self.priors_data = pd.DataFrame.fillna(self.priors_data, 0)
 
     def get_bootstraps(self):
