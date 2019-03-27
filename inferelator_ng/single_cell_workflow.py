@@ -3,7 +3,6 @@ Run Single Cell Network Inference
 """
 import pandas as pd
 import numpy as np
-import types
 
 from inferelator_ng import utils
 from inferelator_ng import tfa_workflow
@@ -26,22 +25,8 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
     # Preprocessing workflow holder
     preprocessing_workflow = list()
 
-    # TFA modification flags
-    modify_activity_from_metadata = default.DEFAULT_MODIFY_TFA_FROM_METADATA
-    metadata_expression_lookup = default.DEFAULT_METADATA_FOR_TFA_ADJUSTMENT
-    gene_list_lookup = default.DEFAULT_GENE_LIST_LOOKUP_COLUMN
-
     # Shuffle priors for a negative control
     shuffle_prior_axis = None
-
-    def read_metadata(self, file=None):
-        # If the metadata is embedded in the expression matrix, extract it
-        # Otherwise call the super read_metadata
-        if self.extract_metadata_from_expression_matrix:
-            self.meta_data = self.expression_matrix.loc[:, self.expression_matrix_metadata].copy()
-            self.expression_matrix = self.expression_matrix.drop(self.expression_matrix_metadata, axis=1)
-        else:
-            super(SingleCellWorkflow, self).read_metadata(file=file)
 
     def startup_finish(self):
         # If the expression matrix is [G x N], transpose it for preprocessing
@@ -52,6 +37,15 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
         self.single_cell_normalize()
         self.filter_expression_and_priors()
         self.compute_activity()
+
+    def read_metadata(self, file=None):
+        # If the metadata is embedded in the expression matrix, extract it
+        # Otherwise call the super read_metadata
+        if self.extract_metadata_from_expression_matrix:
+            self.meta_data = self.expression_matrix.loc[:, self.expression_matrix_metadata].copy()
+            self.expression_matrix = self.expression_matrix.drop(self.expression_matrix_metadata, axis=1)
+        else:
+            super(SingleCellWorkflow, self).read_metadata(file=file)
 
     def filter_expression_and_priors(self):
         # Transpose the expression matrix to convert from [N x G] to [G x N]
@@ -117,45 +111,6 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
         self.design = TFA_calculator.compute_transcription_factor_activity()
         self.response = self.expression_matrix
         self.expression_matrix = None
-
-        if self.modify_activity_from_metadata:
-            self.apply_metadata_to_activity()
-
-    def apply_metadata_to_activity(self):
-        """
-        Set design values according to metadata
-        :return:
-        """
-
-        utils.Debug.vprint('Modifying Transcription Factor Activity ... ')
-
-        # Get the genotypes from the metadata and map them to expression data names
-        self.meta_data[self.metadata_expression_lookup] = self.meta_data[self.metadata_expression_lookup].str.upper()
-        genotypes = self.meta_data[self.metadata_expression_lookup].unique().tolist()
-        if self.gene_list is not None:
-            genes = self.gene_list.loc[self.gene_list[self.gene_list_lookup].isin(genotypes), :]
-        else:
-            genes = self.design.index.isin(genotypes)
-
-        # Convert the dataframe into a dict that can be used with pd.df.map()
-        gene_map = dict(zip(genes[self.gene_list_lookup].tolist(), genes[self.gene_list_index].tolist()))
-
-        # Replace the genotypes with the gene name to modify
-        self.meta_data[self.metadata_expression_lookup] = self.meta_data[self.metadata_expression_lookup].map(gene_map)
-
-        # Map the replacement function back into the design matrix
-        for idx, row in self.meta_data.iterrows():
-            if pd.isnull(row[self.metadata_expression_lookup]):
-                continue
-            try:
-                new_value = self.tfa_adj_func(row[self.metadata_expression_lookup])
-                self.design.loc[row[self.metadata_expression_lookup], idx] = new_value
-            except KeyError:
-                # KeyError occurs when the modification we want to perform is on a row that's been trimmed
-                continue
-
-    def tfa_adj_func(self, gene):
-        return self.design.loc[gene, :].min()
 
     def add_preprocess_step(self, fun, **kwargs):
         self.preprocessing_workflow.append((fun, kwargs))
