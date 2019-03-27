@@ -128,8 +128,7 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
 
     def read_genes(self):
 
-        with self.input_path(self.gene_list_file) as genefh:
-            self.gene_list = pd.read_table(genefh, **self.file_format_settings)
+        self.gene_list = pd.read_csv(self.input_path(self.gene_list_file), **self.file_format_settings)
 
     def compute_activity(self):
         """
