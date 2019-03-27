@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from inferelator_ng.single_cell_workflow import SingleCellWorkflow
-from inferelator_ng import single_cell
+from inferelator_ng.preprocessing import single_cell
 
 my_dir = os.path.dirname(__file__)
 

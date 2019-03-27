@@ -1,6 +1,6 @@
 import unittest
 
-from inferelator_ng.single_cell_puppeteer_workflow import create_puppet_workflow
+from inferelator_ng.crossvalidation_workflow import create_puppet_workflow
 from inferelator_ng import tfa_workflow
 from inferelator_ng.regression import base_regression
 from inferelator_ng.regression import bbsr_python
