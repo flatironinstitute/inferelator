@@ -131,10 +131,14 @@ class WorkflowBase(object):
         """
         Read tf names file into tf_names
         """
-        if file is None:
-            file = self.tf_names_file
 
-        tfs = self.input_dataframe(file, index_col=None)
+        # Load the class variable if no file is passed
+        file = self.tf_names_file if file is None else file
+
+        # Read in a dataframe with no header or index
+        tfs = self.input_dataframe(file, header=None, index_col=None)
+
+        # Cast the dataframe into a list
         assert tfs.shape[1] == 1
         self.tf_names = tfs.values.flatten().tolist()
 
@@ -208,31 +212,27 @@ class WorkflowBase(object):
         utils.Debug.vprint("Selected prior {pr} and gold standard {gs}".format(pr=self.priors_data.shape,
                                                                                gs=self.gold_standard.shape), level=0)
 
-    def input_path(self, filename, mode='r'):
+    def input_path(self, filename):
         """
-        Join filename to input_dir and use the file open method that's appropriate for compressed files
+        Join filename to input_dir
         """
 
-        if filename.endswith(".gz"):
-            opener = gzip.open
-        elif filename.endswith(".bz2"):
-            opener = bz2.BZ2File
-        else:
-            opener = open
+        return os.path.abspath(os.path.expanduser(os.path.join(self.input_dir, filename)))
 
-        return opener(os.path.abspath(os.path.expanduser(os.path.join(self.input_dir, filename))), mode=mode)
-
-    def input_dataframe(self, filename, index_col=0):
+    def input_dataframe(self, filename, **kwargs):
         """
         Read a file in as a pandas dataframe
         """
 
+        kwargs['index_col'] = kwargs.pop('index_col', 0)
+        kwargs['header'] = kwargs.pop('header', 0)
+
         file_settings = self.file_format_settings.copy()
+        file_settings = file_settings.update(kwargs)
         if filename in self.file_format_overrides:
             file_settings.update(self.file_format_overrides[filename])
 
-        with self.input_path(filename) as fh:
-            return pd.read_table(fh, index_col=index_col, **file_settings)
+        return pd.read_csv(self.input_path(filename), **file_settings)
 
     def append_to_path(self, var_name, to_append):
         """
@@ -240,7 +240,8 @@ class WorkflowBase(object):
         """
         path = getattr(self, var_name, None)
         if path is None:
-            raise ValueError("Cannot append to None")
+            raise ValueError("Cannot append {to_append} to {var_name} (Which is None)".format(to_append=to_append,
+                                                                                              var_name=var_name))
         setattr(self, var_name, os.path.join(path, to_append))
 
     @staticmethod
