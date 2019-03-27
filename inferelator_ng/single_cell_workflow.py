@@ -6,7 +6,7 @@ import numpy as np
 
 from inferelator_ng import utils
 from inferelator_ng import tfa_workflow
-from inferelator_ng import single_cell
+from inferelator_ng.preprocessing import single_cell
 from inferelator_ng import default
 
 
