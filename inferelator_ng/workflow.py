@@ -50,6 +50,7 @@ class WorkflowBase(object):
     split_gold_standard_for_crossvalidation = False
     cv_split_ratio = default.DEFAULT_GS_SPLIT_RATIO
     cv_split_axis = default.DEFAULT_GS_SPLIT_AXIS
+    shuffle_prior_axis = None
 
     # Computed data structures [G: Genes, K: Predictors, N: Conditions
     expression_matrix = None  # expression_matrix dataframe [G x N]
@@ -212,6 +213,28 @@ class WorkflowBase(object):
         utils.Debug.vprint("Selected prior {pr} and gold standard {gs}".format(pr=self.priors_data.shape,
                                                                                gs=self.gold_standard.shape), level=0)
 
+    def shuffle_priors(self):
+        """
+        Shuffle prior labels if shuffle_prior_axis is set
+        """
+
+        if self.shuffle_prior_axis is None:
+            return None
+        elif self.shuffle_prior_axis == 0:
+            # Shuffle index (genes) in the priors_data
+            utils.Debug.vprint("Randomly shuffling prior [{sh}] gene data".format(sh=self.priors_data.shape))
+            prior_index = self.priors_data.index.tolist()
+            self.priors_data = self.priors_data.sample(frac=1, axis=0, random_state=self.random_seed)
+            self.priors_data.index = prior_index
+        elif self.shuffle_prior_axis == 1:
+            # Shuffle columns (TFs) in the priors_data
+            utils.Debug.vprint("Randomly shuffling prior [{sh}] TF data".format(sh=self.priors_data.shape))
+            prior_index = self.priors_data.columns.tolist()
+            self.priors_data = self.priors_data.sample(frac=1, axis=1, random_state=self.random_seed)
+            self.priors_data.columns = prior_index
+        else:
+            raise ValueError("shuffle_prior_axis must be 0 or 1")
+
     def input_path(self, filename):
         """
         Join filename to input_dir
@@ -276,6 +299,8 @@ class WorkflowBase(object):
         self.priors_data = self.priors_data.reindex(expressed_targets, axis=0)
         self.priors_data = self.priors_data.reindex(keeper_regulators, axis=1)
         self.priors_data = pd.DataFrame.fillna(self.priors_data, 0)
+
+        self.shuffle_priors()
 
     def get_bootstraps(self):
         """

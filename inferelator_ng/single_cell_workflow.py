@@ -34,20 +34,14 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
     # Shuffle priors for a negative control
     shuffle_prior_axis = None
 
-    def startup_run(self):
-        self.set_regression_type()
-
-        # If the metadata is embedded in the expression matrix, monkeypatch a new read_metadata() function in
-        # to properly extract it
+    def read_metadata(self, file=None):
+        # If the metadata is embedded in the expression matrix, extract it
+        # Otherwise call the super read_metadata
         if self.extract_metadata_from_expression_matrix:
-            def read_metadata(self):
-                self.meta_data = self.expression_matrix.loc[:, self.expression_matrix_metadata].copy()
-                self.expression_matrix = self.expression_matrix.drop(self.expression_matrix_metadata, axis=1)
-
-            self.read_metadata = types.MethodType(read_metadata, self)
-
-        # Load the usual data files for inferelator regression
-        self.get_data()
+            self.meta_data = self.expression_matrix.loc[:, self.expression_matrix_metadata].copy()
+            self.expression_matrix = self.expression_matrix.drop(self.expression_matrix_metadata, axis=1)
+        else:
+            super(SingleCellWorkflow, self).read_metadata(file=file)
 
     def startup_finish(self):
         # If the expression matrix is [G x N], transpose it for preprocessing
@@ -78,25 +72,6 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
         self.align_priors_and_expression()
         self.shuffle_priors()
 
-    def shuffle_priors(self):
-        # Shuffle priors based on an axis
-        if self.shuffle_prior_axis is None:
-            pass
-        elif self.shuffle_prior_axis == 0:
-            # Shuffle index (genes) in the priors_data
-            utils.Debug.vprint("Randomly shuffling prior [{sh}] gene data".format(sh=self.priors_data.shape))
-            prior_index = self.priors_data.index.tolist()
-            self.priors_data = self.priors_data.sample(frac=1, axis=0, random_state=self.random_seed)
-            self.priors_data.index = prior_index
-        elif self.shuffle_prior_axis == 1:
-            # Shuffle columns (TFs) in the priors_data
-            utils.Debug.vprint("Randomly shuffling prior [{sh}] TF data".format(sh=self.priors_data.shape))
-            prior_index = self.priors_data.columns.tolist()
-            self.priors_data = self.priors_data.sample(frac=1, axis=1, random_state=self.random_seed)
-            self.priors_data.columns = prior_index
-        else:
-            raise ValueError("shuffle_prior_axis must be 0 or 1")
-
     def align_priors_and_expression(self):
         # Make sure that the priors align to the expression matrix
         self.priors_data = self.priors_data.reindex(index=self.expression_matrix.index).fillna(value=0)
@@ -116,19 +91,22 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
                                                                                     self.meta_data,
                                                                                     count_minimum=self.count_minimum)
 
-        if self.expression_matrix.isnull().values.any():
+        if np.sum(~np.isfinite(self.expression_matrix.values), axis=None) > 0:
             raise ValueError("NaN values are present prior to normalization in the expression matrix")
 
         for sc_function, sc_kwargs in self.preprocessing_workflow:
             sc_kwargs['random_seed'] = self.random_seed
             self.expression_matrix, self.meta_data = sc_function(self.expression_matrix, self.meta_data, **sc_kwargs)
 
-        if self.expression_matrix.isnull().values.any():
+        if np.sum(~np.isfinite(self.expression_matrix.values), axis=None) > 0:
             raise ValueError("NaN values have been introduced into the expression matrix by normalization")
 
     def read_genes(self):
+        """
+        Read in a list of genes which should be modeled for network inference
+        """
 
-        self.gene_list = pd.read_csv(self.input_path(self.gene_list_file), **self.file_format_settings)
+        self.gene_list = self.input_dataframe(self.gene_list_file)
 
     def compute_activity(self):
         """
