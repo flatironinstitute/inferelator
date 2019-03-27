@@ -4,13 +4,57 @@ artificial stubs for dependancies.
 """
 
 import unittest
-from inferelator_ng import workflow
 import os
+import numpy as np
+
+from inferelator_ng import workflow
+from inferelator_ng.distributed.inferelator_mp import MPControl
 
 my_dir = os.path.dirname(__file__)
 
-class StubWorkflow(workflow.WorkflowBase):
 
+class TestWorkflowStartup(unittest.TestCase):
+
+    def setUp(self):
+        self.workflow = workflow.WorkflowBase()
+        self.workflow.input_dir = os.path.join(my_dir, "../../data/dream4")
+
+    def tearDown(self):
+        del self.workflow
+
+    def test_load_expression(self):
+        self.workflow.read_expression()
+        self.assertEqual(self.workflow.expression_matrix.shape, (100, 421))
+        np.testing.assert_allclose(self.workflow.expression_matrix.sum().sum(), 13507.22145160)
+
+    def test_load_tf_names(self):
+        self.workflow.read_tfs()
+        self.assertEqual(len(self.workflow.tf_names), 100)
+        tf_names = list(map(lambda x: "G" + str(x), list(range(1, 101))))
+        self.assertListEqual(self.workflow.tf_names, tf_names)
+
+    def test_load_metadata(self):
+        self.workflow.read_metadata()
+        self.assertEqual(self.workflow.meta_data.shape, (421, 5))
+
+    def test_multiprocessing_init(self):
+        MPControl.shutdown()
+        self.workflow.multiprocessing_controller = "local"
+        self.workflow.initialize_multiprocessing()
+        self.assertTrue(MPControl.is_initialized)
+
+    def test_abstractness(self):
+        with self.assertRaises(NotImplementedError):
+            self.workflow.startup()
+        with self.assertRaises(NotImplementedError):
+            self.workflow.startup_run()
+        with self.assertRaises(NotImplementedError):
+            self.workflow.startup_finish()
+        with self.assertRaises(NotImplementedError):
+            self.workflow.run()
+
+
+class StubWorkflow(workflow.WorkflowBase):
     """
     Artificial work flow for logic testing.
     """
@@ -47,13 +91,14 @@ class StubWorkflow(workflow.WorkflowBase):
         for p in priors:
             test.assertEqual(p.names, names)
 
+
 class StubBootstrap(object):
 
     def __init__(self, name):
         self.name = name
 
-class StubPrior(object):
 
+class StubPrior(object):
     """
     Completely artificial prior object shell implementation.
     """
@@ -70,6 +115,7 @@ class StubPrior(object):
 
     def combine_bootstrap_results(self, workflow, results):
         self.bootstrap_results = results
+
 
 class TestWorkflowStub(unittest.TestCase):
 
@@ -91,4 +137,3 @@ class TestWorkflowStub(unittest.TestCase):
         self.assertEqual(work.meta_data.shape, (421, 5))
         self.assertEqual(set(work.meta_data.columns.tolist()),
                          set(['condName', 'del.t', 'is1stLast', 'isTs', 'prevCol']))
-
