@@ -310,7 +310,7 @@ class WorkflowBase(object):
         random_state = np.random.RandomState(seed=self.random_seed)
         return random_state.choice(col_range, size=(self.num_bootstraps, self.response.shape[1])).tolist()
 
-    def emit_results(self):
+    def emit_results(self, betas, rescaled_betas, gold_standard, priors):
         """
         Output result report(s) for workflow run.
         """
