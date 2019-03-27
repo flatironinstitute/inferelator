@@ -151,3 +151,15 @@ class TestWorkflow(unittest.TestCase):
         self.assertTrue(os.path.exists(self.workflow.output_dir))
         os.rmdir(self.workflow.output_dir)
         os.rmdir(temp_dir)
+
+    def test_shuffle_prior_labels(self):
+        self.workflow.shuffle_prior_axis = 0
+        self.workflow.set_gold_standard_and_priors()
+        np.testing.assert_array_almost_equal_nulp(self.workflow.priors_data.values, self.workflow.gold_standard.values)
+        self.workflow.shuffle_priors()
+        self.assertTrue(all(self.workflow.priors_data.columns == self.workflow.gold_standard.columns))
+        self.assertTrue(all(self.workflow.priors_data.index == self.workflow.gold_standard.index))
+        with self.assertRaises(AssertionError):
+            np.testing.assert_array_almost_equal_nulp(self.workflow.priors_data.values,
+                                                      self.workflow.gold_standard.values)
+
