@@ -44,6 +44,14 @@ class TestWorkflow(unittest.TestCase):
         self.workflow.read_metadata()
         self.assertEqual(self.workflow.meta_data.shape, (421, 5))
 
+    def test_get_data(self):
+        self.workflow.get_data()
+        self.assertTrue(self.workflow.expression_matrix is not None)
+        self.assertTrue(self.workflow.priors_data is not None)
+        self.assertTrue(self.workflow.gold_standard is not None)
+        self.assertTrue(self.workflow.tf_names is not None)
+        self.assertTrue(self.workflow.meta_data is not None)
+
     def test_multiprocessing_init(self):
         MPControl.shutdown()
         self.workflow.multiprocessing_controller = "local"
@@ -143,4 +151,3 @@ class TestWorkflow(unittest.TestCase):
         self.assertTrue(os.path.exists(self.workflow.output_dir))
         os.rmdir(self.workflow.output_dir)
         os.rmdir(temp_dir)
-
