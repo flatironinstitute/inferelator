@@ -143,7 +143,7 @@ class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, crossvalidati
     result_processor_driver = ResultsProcessorMultiTask
 
     # Workflow type for task processing
-    puppet_class = single_cell_workflow.SingleCellWorkflow
+    cv_workflow_type = single_cell_workflow.SingleCellWorkflow
 
     def startup_finish(self):
         # If the expression matrix is [G x N], transpose it for preprocessing
