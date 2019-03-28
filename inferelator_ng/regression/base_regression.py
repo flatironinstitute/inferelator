@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import copy
 
-from inferelator_ng import utils
+from inferelator_ng import utils, default
 from inferelator_ng.distributed.inferelator_mp import MPControl
 
 DEFAULT_CHUNK = 25
@@ -117,6 +117,32 @@ class BaseRegression(object):
         return d_len, b_avg, null_m
 
 
+class RegressionWorkflow(object):
+    """
+    RegressionWorkflow implements run_regression and run_bootstrap
+    Each regression method needs to extend this to implement run_bootstrap (and also run_regression if necessary)
+    """
+    random_seed = default.DEFAULT_RANDOM_SEED
+    num_bootstraps = default.DEFAULT_NUM_BOOTSTRAPS
+
+    def run_regression(self):
+        betas = []
+        rescaled_betas = []
+
+        for idx, bootstrap in enumerate(self.get_bootstraps()):
+            utils.Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps), level=0)
+            np.random.seed(self.random_seed + idx)
+            current_betas, current_rescaled_betas = self.run_bootstrap(bootstrap)
+            if self.is_master():
+                betas.append(current_betas)
+                rescaled_betas.append(current_rescaled_betas)
+
+        return betas, rescaled_betas
+
+    def run_bootstrap(self, bootstrap):
+        raise NotImplementedError
+
+
 def recalculate_betas_from_selected(x, y, idx=None):
     """
     Estimate betas from a selected subset of predictors
@@ -150,7 +176,6 @@ def recalculate_betas_from_selected(x, y, idx=None):
         beta_hat = np.linalg.solve(np.dot(x.T, x), np.dot(x.T, y))
     else:
         beta_hat = np.zeros(len(idx), dtype=np.dtype(float))
-
 
     # Use the index array to write beta-hats
     # This yields the same size result matrix as number of predictors in x
@@ -191,7 +216,6 @@ def predict_error_reduction(x, y, betas):
             beta_hat = np.linalg.solve(np.dot(x_leaveout.T, x_leaveout), np.dot(x_leaveout.T, y))
         except np.linalg.LinAlgError:
             beta_hat = np.zeros(len(leave_out), dtype=np.dtype(float))
-
 
         # Calculate the variance of the residuals for the new estimated betas
         ss_leaveout = sigma_squared(x_leaveout, y, beta_hat)

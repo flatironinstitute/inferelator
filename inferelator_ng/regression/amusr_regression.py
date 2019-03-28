@@ -447,14 +447,10 @@ def weight_prior(prior, prior_weight):
     return prior
 
 
-def patch_workflow(obj):
+class AMUSRRegressionWorkflow(base_regression.RegressionWorkflow):
     """
-    Add AMuSR regression into a TFAWorkflow object
-
-    :param obj: TFAWorkflow
+    Add AMuSR regression into a workflow object
     """
-
-    import types
 
     def run_regression(self):
 
@@ -484,9 +480,6 @@ def patch_workflow(obj):
         regress = AMuSR_regression(x, y, tfs=self.regulators, genes=self.targets, priors=self.priors_data,
                                    prior_weight=self.prior_weight)
         return regress.run()
-
-    obj.run_regression = types.MethodType(run_regression, obj)
-    obj.run_bootstrap = types.MethodType(run_bootstrap, obj)
 
 
 def filter_genes_on_tasks(list_of_indexes, task_expression_filter):
