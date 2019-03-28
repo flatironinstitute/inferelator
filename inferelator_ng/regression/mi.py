@@ -34,6 +34,7 @@ class MIDriver:
         """
 
         assert check.argument_path(sync_in_tmp_path, allow_none=True, access=os.W_OK)
+        assert check.argument_integer(bins, allow_none=False)
 
         self.bins = bins
         self.temp_dir = sync_in_tmp_path
@@ -50,7 +51,12 @@ class MIDriver:
             CLR and MI DataFrames
         """
 
+        assert check.argument_integer(bins, allow_none=True)
         assert check.indexes_align((x_df.columns, y_df.columns))
+        assert x_df.shape[0] > 0
+        assert x_df.shape[1] > 0
+        assert y_df.shape[0] > 0
+        assert y_df.shape[1] > 0
 
         if bins is not None:
             self.bins = bins
