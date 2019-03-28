@@ -57,5 +57,7 @@ class TestSingleCellWorkflow(unittest.TestCase):
     def test_preprocessing_nan_post(self):
         self.workflow.expression_matrix = test_count_data - 1
         self.workflow.add_preprocess_step(single_cell.log2_data)
-        with self.assertRaises(ValueError):
-            self.workflow.single_cell_normalize()
+        with np.warnings.catch_warnings():
+            np.warnings.filterwarnings('ignore')
+            with self.assertRaises(ValueError):
+                self.workflow.single_cell_normalize()
