@@ -127,7 +127,7 @@ class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
                     puppet.pr_curve_file_name = "pr_curve_{size}_s{seed}.pdf".format(size=s_ratio, seed=seed)
                 puppet.run()
                 size_aupr = (s_ratio, len(nidx), seed, puppet.aupr, puppet.n_interact, puppet.precision_interact)
-                aupr_data.extend(size_aupr)
+                aupr_data.append(size_aupr)
                 if self.is_master():
                     self.csv_writer.writerow(size_aupr)
         return aupr_data
@@ -154,7 +154,7 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
         :return:
         """
         # Run the modeling on all data
-        aupr_data = [self.auprs_for_index("all_dropout", pd.Series(True, index=self.meta_data.index))]
+        aupr_data = self.auprs_for_index("all_dropout", pd.Series(True, index=self.meta_data.index))
 
         if self.drop_column is None:
             return aupr_data
@@ -171,8 +171,8 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
         """
         # Run the modeling on all data with resizing
         drop_in_sizing = int(self.sample_batches_to_size / len(self.factor_indexes))
-        aupr_data = [self.auprs_for_index("all_dropin", pd.Series(True, index=self.meta_data.index),
-                                          sample_size=drop_in_sizing)]
+        aupr_data = self.auprs_for_index("all_dropin", pd.Series(True, index=self.meta_data.index),
+                                         sample_size=drop_in_sizing)
 
         if self.drop_column is None:
             return aupr_data
