@@ -24,6 +24,9 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, cross
     stratified_batch_lookup = default.DEFAULT_METADATA_FOR_BATCH_CORRECTION
     sample_with_replacement = True
 
+    cv_workflow_type = single_cell_workflow.SingleCellWorkflow
+    cv_regression_type = "bbsr"
+
     def run(self):
         np.random.seed(self.random_seed)
         self.startup()
