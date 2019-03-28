@@ -7,8 +7,10 @@ import os
 import types
 import numpy as np
 
+from inferelator_ng import workflow
 from inferelator_ng import tfa_workflow
 from inferelator_ng.preprocessing import tfa
+from inferelator_ng.regression.base_regression import RegressionWorkflow
 
 my_dir = os.path.dirname(__file__)
 
@@ -21,13 +23,10 @@ class FakeDRD:
         return expr, expr, expr
 
 
-class FakeRegression:
-    @staticmethod
-    def patch_workflow(obj):
-        def run_bootstrap(self, bootstrap):
-            return True
+class FakeRegression(RegressionWorkflow):
 
-        obj.run_bootstrap = types.MethodType(run_bootstrap, obj)
+    def run_bootstrap(self, bootstrap):
+        return True
 
 
 class FakeResultProcessor:
@@ -42,7 +41,8 @@ class FakeResultProcessor:
 class TestTFAWorkflow(unittest.TestCase):
 
     def setUp(self):
-        self.workflow = tfa_workflow.TFAWorkFlow()
+        self.workflow = workflow.create_inferelator_workflow(regression=None,
+                                                             workflow=tfa_workflow.TFAWorkFlow)()
         self.workflow.input_dir = os.path.join(my_dir, "../../data/dream4")
         self.workflow.get_data()
 
@@ -64,6 +64,17 @@ class TestTFAWorkflow(unittest.TestCase):
     def test_abstractness(self):
         with self.assertRaises(NotImplementedError):
             self.workflow.run_bootstrap([])
+
+class TestTFAWorkflowRegression(unittest.TestCase):
+
+    def setUp(self):
+        self.workflow = workflow.create_inferelator_workflow(regression=FakeRegression,
+                                                             workflow=tfa_workflow.TFAWorkFlow)()
+        self.workflow.input_dir = os.path.join(my_dir, "../../data/dream4")
+        self.workflow.get_data()
+
+    def tearDown(self):
+        del self.workflow
 
     def test_regression(self):
         self.workflow.regression_type = FakeRegression
