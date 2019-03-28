@@ -79,9 +79,9 @@ class PuppeteerWorkflow(object):
     csv_header = []  # list[]
     output_file_name = "aupr.tsv"  # str
 
-    puppet_regression_type = base_regression.RegressionWorkflow
-    puppet_class = workflow.WorkflowBase
-    puppet_result_processor = NoOutputRP
+    cv_regression_type = base_regression.RegressionWorkflow
+    cv_workflow_type = workflow.WorkflowBase
+    cv_result_processor_type = NoOutputRP
 
     def create_writer(self):
         """
@@ -113,9 +113,9 @@ class PuppeteerWorkflow(object):
             priors_data = self.priors_data
 
         # Create a new puppet workflow with the factory method and pass in data on instantiation
-        puppet = create_puppet_workflow(base_class=self.puppet_class,
-                                        regression_class=self.puppet_regression_type,
-                                        result_processor_class=self.puppet_result_processor)
+        puppet = create_puppet_workflow(base_class=self.cv_workflow_type,
+                                        regression_class=self.cv_regression_type,
+                                        result_processor_class=self.cv_result_processor_type)
         puppet = puppet(expr_data, meta_data, priors_data, gold_standard)
 
         # Transfer the class variables necessary to get the puppet to dance (everything in SHARED_CLASS_VARIABLES)
@@ -148,7 +148,10 @@ class PuppeteerWorkflow(object):
 def create_puppet_workflow(regression_class=base_regression.RegressionWorkflow,
                            base_class=workflow.WorkflowBase,
                            result_processor_class=NoOutputRP):
-    class PuppetClass(regression_class, base_class):
+
+    puppet_parent = workflow.create_inferelator_workflow(regression=regression_class, workflow=base_class)
+
+    class PuppetClass(puppet_parent):
         """
         Standard workflow except it takes all the data as references to __init__ instead of as filenames on disk or
         as environment variables, and returns the model AUPR and edge counts without writing files (unless told to)
@@ -159,7 +162,6 @@ def create_puppet_workflow(regression_class=base_regression.RegressionWorkflow,
         pr_curve_file_name = None
         initialize_mp = False
         result_processor_driver = result_processor_class
-        regression_type = regression_class
 
         def __init__(self, expr_data, meta_data, prior_data, gs_data):
             self.expression_matrix = expr_data
