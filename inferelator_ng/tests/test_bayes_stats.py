@@ -93,12 +93,28 @@ class TestBayesStats(unittest.TestCase):
         np.testing.assert_array_equal(result, np.array([[1.5, 1.5, 2.5], [1.5, 2.5, 3.5],
                                                         [2.5, 3.5, 5.5]]))
 
+    def test_calc_rate_lin_alg_error(self):
+        x = np.array([[1, 2, 3], [2, 4, 6], [4, 8, 12], [8, 16, 24]])
+        y = np.array([[1, 2, 3], [0, 1, 1], [1, 1, 1], [1, 0, 1]])
+        xtx = np.dot(x.T, x)  # [k x k]
+        xty = np.dot(x.T, y)  # [k x 1]
+        gprior = np.array([[1, 1, 1, 1], [1, 0, 1, 0], [0, 0, 1, 1], [1, 0, 1, 1]])
+        with self.assertRaises(np.linalg.LinAlgError):
+            bayes_stats._calc_rate(x, y, xtx, xty, gprior)
+
     def test_best_combo_idx(self):
         x = np.array([[0, 1, 2, 3], [0, 0, 1, 1], [1, 1, 1, 1]])
         bic = np.array([1, 0, 1, 0], dtype=np.dtype(float))
         combo = np.array([[1, 0, 1, 0], [1, 1, 1, 1], [0, 1, 2, 3]])
         result = bayes_stats._best_combo_idx(x, bic, combo)
         np.testing.assert_array_equal(result, 3)
+
+    def test_best_combo_idx_lin_alg_error(self):
+        x = np.array([[1, 2, 3, 4], [2, 4, 6, 8], [4, 8, 12, 16]])
+        bic = np.array([0, 0, 0, 0], dtype=np.dtype(float))
+        combo = np.array([[1, 0, 1, 0], [1, 1, 1, 1], [0, 1, 2, 3]])
+        with self.assertRaises(np.linalg.LinAlgError):
+            bayes_stats._best_combo_idx(x, bic, combo)
 
     def test_matrix_full_rank(self):
         mat = np.array([[0, 1, 2], [1, 2, 3], [0, 1, 1]])
