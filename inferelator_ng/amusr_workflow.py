@@ -142,6 +142,9 @@ class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, crossvalidati
     # Multi-task result processor
     result_processor_driver = ResultsProcessorMultiTask
 
+    # Workflow type for task processing
+    puppet_class = single_cell_workflow.SingleCellWorkflow
+
     def startup_finish(self):
         # If the expression matrix is [G x N], transpose it for preprocessing
         if not self.expression_matrix_columns_are_genes:

@@ -79,7 +79,8 @@ class PuppeteerWorkflow(object):
     csv_header = []  # list[]
     output_file_name = "aupr.tsv"  # str
 
-    puppet_class = single_cell_workflow.SingleCellWorkflow
+    puppet_regression_type = base_regression.RegressionWorkflow
+    puppet_class = workflow.WorkflowBase
     puppet_result_processor = NoOutputRP
 
     def create_writer(self):
@@ -113,7 +114,7 @@ class PuppeteerWorkflow(object):
 
         # Create a new puppet workflow with the factory method and pass in data on instantiation
         puppet = create_puppet_workflow(base_class=self.puppet_class,
-                                        regression_class=self.regression_type,
+                                        regression_class=self.puppet_regression_type,
                                         result_processor_class=self.puppet_result_processor)
         puppet = puppet(expr_data, meta_data, priors_data, gold_standard)
 
@@ -141,6 +142,7 @@ class PuppeteerWorkflow(object):
                 utils.Debug.vprint("Variable {var} set to child".format(var=varname), level=2)
             except AttributeError:
                 utils.Debug.vprint("Variable {var} not assigned to parent".format(var=varname))
+
 
 # Factory method to spit out a puppet workflow
 def create_puppet_workflow(regression_class=base_regression.RegressionWorkflow,
