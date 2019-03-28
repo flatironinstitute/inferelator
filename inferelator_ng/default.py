@@ -26,7 +26,7 @@ SBATCH_VARS_FOR_WORKFLOW = ["output_dir", "input_dir"]
 
 """Default Data File Settings"""
 
-DEFAULT_PD_INPUT_SETTINGS = dict(sep="\t", header=0)
+DEFAULT_PD_INPUT_SETTINGS = dict(sep="\t")
 DEFAULT_EXPRESSION_FILE = "expression.tsv"
 DEFAULT_TFNAMES_FILE = "tf_names.tsv"
 DEFAULT_METADATA_FILE = "meta_data.tsv"

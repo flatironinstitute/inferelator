@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from inferelator_ng.regression import amusr_regression
 from inferelator_ng import amusr_workflow
-from inferelator_ng.single_cell_puppeteer_workflow import create_puppet_workflow
+from inferelator_ng.crossvalidation_workflow import create_puppet_workflow
 import numpy.testing as npt
 import pandas.util.testing as pdt
 
@@ -24,7 +24,8 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.gene_list = pd.DataFrame({"SystematicName": ["gene1", "gene2", "gene3", "gene4", "gene7", "gene6"]})
         self.tf_names = ["gene3", "gene6"]
         self.workflow = create_puppet_workflow(base_class=amusr_workflow.SingleCellMultiTask,
-                                               result_processor=amusr_workflow.ResultsProcessorMultiTask)
+                                               regression_class=amusr_regression.AMUSRRegressionWorkflow,
+                                               result_processor_class=amusr_workflow.ResultsProcessorMultiTask)
         self.workflow = self.workflow(self.expr, self.meta, self.prior, self.gold_standard)
         self.workflow.tf_names = self.tf_names
         self.workflow.gene_list = self.gene_list

@@ -50,8 +50,8 @@ class MPControl(AbstractController):
 
         if isinstance(engine, basestring):
             if engine == "dask-cluster":
-                from inferelator_ng.distributed.dask_cluster_controller import DaskSLURMController
-                cls.client = DaskSLURMController
+                from inferelator_ng.distributed.dask_cluster_controller import DaskHPCClusterController
+                cls.client = DaskHPCClusterController
             elif engine == "dask-local":
                 from inferelator_ng.distributed.dask_local_controller import DaskController
                 cls.client = DaskController
@@ -100,7 +100,7 @@ class MPControl(AbstractController):
         Map using the `.map()` implementation in the multiprocessing engine
         """
         if not cls.is_initialized:
-            raise ConnectionError("Connect before calling map()")
+            raise RuntimeError("Connect before calling map()")
         return cls.client.map(*args, **kwargs)
 
     @classmethod
@@ -112,7 +112,7 @@ class MPControl(AbstractController):
         This is necessary for KVS; other engines will just return True
         """
         if not cls.is_initialized:
-            raise ConnectionError("Connect before calling sync_processes()")
+            raise RuntimeError("Connect before calling sync_processes()")
         return cls.client.sync_processes(*args, **kwargs)
 
     @classmethod
@@ -120,4 +120,12 @@ class MPControl(AbstractController):
         """
         Gracefully shut down the multiprocessing engine by calling `.shutdown()`
         """
-        return cls.client.shutdown() if cls.is_initialized else True
+
+        if cls.is_initialized:
+            client_off = cls.client.shutdown()
+            cls.is_initialized = False
+            cls.client = None
+        else:
+            client_off = True
+
+        return client_off

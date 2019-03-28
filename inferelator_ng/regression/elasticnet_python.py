@@ -85,14 +85,11 @@ class ElasticNet(base_regression.BaseRegression):
 
         return MPControl.map(regression_maker, range(self.G), tell_children=False)
 
-def patch_workflow(obj):
-    """
-    Add elasticnet regression into a TFAWorkflow object
 
-    :param obj: TFAWorkflow
+class ElasticNetWorkflow(base_regression.RegressionWorkflow):
     """
-
-    import types
+    Add elasticnet regression into a workflow object
+    """
 
     def run_bootstrap(self, bootstrap):
         X = self.design.iloc[:, bootstrap]
@@ -100,5 +97,3 @@ def patch_workflow(obj):
         utils.Debug.vprint('Calculating betas using MEN', level=0)
         MPControl.sync_processes("pre-bootstrap")
         return ElasticNet(X, Y).run()
-
-    obj.run_bootstrap = types.MethodType(run_bootstrap, obj)

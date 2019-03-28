@@ -1,6 +1,7 @@
 import unittest
-from inferelator_ng import single_cell
-from inferelator_ng.single_cell_puppeteer_workflow import create_puppet_workflow
+from inferelator_ng.single_cell_workflow import SingleCellWorkflow
+from inferelator_ng.preprocessing import single_cell
+from inferelator_ng.crossvalidation_workflow import create_puppet_workflow
 import numpy as np
 import pandas as pd
 
@@ -19,7 +20,8 @@ class SingleCellTestCase(unittest.TestCase):
         self.gold_standard = self.prior.copy()
         self.gene_list = pd.DataFrame({"SystematicName":["gene1", "gene2", "gene3", "gene4", "gene7", "gene6"]})
         self.tf_names = ["gene3", "gene6"]
-        self.workflow = create_puppet_workflow()(self.expr, self.meta, self.prior, self.gold_standard)
+        self.workflow = create_puppet_workflow(base_class=SingleCellWorkflow)(self.expr, self.meta, self.prior,
+                                                                              self.gold_standard)
 
 
 class SingleCellPreprocessTest(SingleCellTestCase):

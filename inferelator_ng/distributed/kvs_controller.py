@@ -225,7 +225,7 @@ class KVSController(AbstractController):
                     pileup_results.update(cls.get_key(PILEUP_DATA))
                 else:
                     temp_name = cls.get_key(PILEUP_DATA)
-                    with open(temp_name, mode="r") as temp:
+                    with open(temp_name, mode="rb") as temp:
                         pileup_results.update(pickle.load(temp))
                     os.remove(temp_name)
 
@@ -252,7 +252,7 @@ class KVSController(AbstractController):
             if tell_children and tmp_file_path is None:
                 pileup_list = cls.view_key(FINAL_DATA)
             elif tell_children:
-                with open(cls.view_key(FINAL_DATA), "r") as temp:
+                with open(cls.view_key(FINAL_DATA), "rb") as temp:
                     pileup_list = pickle.load(temp)
             else:
                 pileup_list = cls.view_key(FINAL_DATA)

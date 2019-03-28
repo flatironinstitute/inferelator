@@ -1,7 +1,5 @@
 import pandas as pd
 import numpy as np
-import itertools
-import shutil
 
 from inferelator_ng.default import DEFAULT_METADATA_FOR_BATCH_CORRECTION
 from inferelator_ng.default import DEFAULT_RANDOM_SEED
@@ -103,73 +101,6 @@ def normalize_sizes_within_batch(expression_matrix, meta_data, **kwargs):
     return expression_matrix.divide(umi['umi_mod'], axis=0), meta_data
 
 
-def normalize_multiBatchNorm(expression_matrix, meta_data, **kwargs):
-    """
-    Normalize as multiBatchNorm from the R package scran
-    :param expression_matrix: pd.DataFrame
-    :param meta_data: pd.DataFrame
-    :param batch_factor_column: str
-        Which meta data column should be used to determine batches
-    :param minimum_mean: int
-        Minimum mean expression of a gene when considering if it should be included in the correction factor calc
-    :return expression_matrix, meta_data: pd.DataFrame, pd.DataFrame
-    """
-
-    utils.Debug.vprint('Normalizing by multiBatchNorm ... ')
-    kwargs, batch_factor_column = process_normalize_args(**kwargs)
-    minimum_mean = kwargs.pop('minimum_mean', 50)
-
-    # Calculate size-corrected average gene expression for each batch
-    size_corrected_avg = pd.DataFrame(columns=expression_matrix.columns)
-    for batch in meta_data[batch_factor_column].unique().tolist():
-        batch_df = expression_matrix.loc[meta_data[batch_factor_column] == batch, :]
-
-        # Get UMI counts for each cell
-        umi = batch_df.sum(axis=1)
-        size_correction_factor = umi / umi.mean()
-
-        # Get the mean size-corrected count values for this batch
-        batch_df = batch_df.divide(size_correction_factor, axis=0).mean(axis=0).to_frame().transpose()
-        batch_df.index = pd.Index([batch])
-
-        # Append to the dataframe
-        size_corrected_avg = size_corrected_avg.append(batch_df)
-
-    # Calculate median ratios
-    inter_batch_coefficients = []
-    for b1, b2 in itertools.combinations_with_replacement(size_corrected_avg.index.tolist(), r=2):
-        # Get the mean size-corrected count values for this batch pair
-        b1_series, b2_series = size_corrected_avg.loc[b1, :], size_corrected_avg.loc[b2, :]
-        b1_sum, b2_sum = b1_series.sum(), b2_series.sum()
-
-        # calcAverage
-        combined_keep_index = ((b1_series / b1_sum + b2_series / b2_sum) / 2 * (b1_sum + b2_sum) / 2) > minimum_mean
-        coeff = (b2_series.loc[combined_keep_index] / b1_series.loc[combined_keep_index]).median()
-
-        # Keep track of the median ratios
-        inter_batch_coefficients.append((b1, b2, coeff))
-        inter_batch_coefficients.append((b2, b1, 1 / coeff))
-
-    inter_batch_coefficients = pd.DataFrame(inter_batch_coefficients, columns=["batch1", "batch2", "coeff"])
-    inter_batch_minimum = inter_batch_coefficients.loc[inter_batch_coefficients["coeff"].idxmin(), :]
-
-    min_batch = inter_batch_minimum["batch2"]
-
-    # Apply the correction factor to all the data batch-wise. Do this with numpy because pandas is a glacier.
-    normed_expression = np.ndarray((0, expression_matrix.shape[1]), dtype=np.dtype(float))
-    normed_meta = pd.DataFrame(columns=meta_data.columns)
-
-    for i, row in inter_batch_coefficients.loc[inter_batch_coefficients["batch2"] == min_batch, :].iterrows():
-        select_rows = meta_data[batch_factor_column] == row["batch1"]
-        umi = expression_matrix.loc[select_rows, :].sum(axis=1)
-        size_correction_factor = umi / umi.mean() / row["coeff"]
-        corrected_df = expression_matrix.loc[select_rows, :].divide(size_correction_factor, axis=0).values
-        normed_expression = np.vstack((normed_expression, corrected_df))
-        normed_meta = pd.concat([normed_meta, meta_data.loc[select_rows, :]])
-
-    return pd.DataFrame(normed_expression, index=normed_meta.index, columns=expression_matrix.columns), normed_meta
-
-
 def impute_magic_expression(expression_matrix, meta_data, **kwargs):
     """
     Use MAGIC (van Dijk et al Cell, 2018, 10.1016/j.cell.2018.05.061) to impute data
@@ -189,37 +120,6 @@ def impute_magic_expression(expression_matrix, meta_data, **kwargs):
         imputed.to_csv(output_file, sep="\t")
 
     return imputed, meta_data
-
-
-def impute_on_batches(expression_matrix, meta_data, **kwargs):
-    """
-    Run imputation on separate batches
-    :param expression_matrix: pd.DataFrame
-    :param meta_data: pd.DataFrame
-    :param impute_method: func
-        An imputation function from inferelator_ng.single_cell
-    :param random_seed: int
-        Random seed to put into the imputation method
-    :param batch_factor_column: str
-        Which meta data column should be used to determine batches
-    :return expression_matrix, meta_data: pd.DataFrame, pd.DataFrame
-    """
-
-    # Extract random_seed, batch_factor_column, and impute method for use. Extract and eat output_file.
-    kwargs, batch_factor_column = process_normalize_args(**kwargs)
-    kwargs, random_seed, _ = process_impute_args(**kwargs)
-    impute_method = kwargs.pop('impute_method', impute_magic_expression)
-
-    batches = meta_data[batch_factor_column].unique().tolist()
-    bc_expression = np.ndarray((0, expression_matrix.shape[1]), dtype=np.dtype(float))
-    bc_meta = pd.DataFrame(columns=meta_data.columns)
-    for batch in batches:
-        rows = meta_data[batch_factor_column] == batch
-        batch_corrected, _ = impute_method(expression_matrix.loc[rows, :], None, random_seed=random_seed, **kwargs)
-        bc_expression = np.vstack((bc_expression, batch_corrected))
-        bc_meta = pd.concat([bc_meta, meta_data.loc[rows, :]])
-        random_seed += 1
-    return pd.DataFrame(bc_expression, index=bc_meta.index, columns=expression_matrix.columns), bc_meta
 
 
 def log10_data(expression_matrix, meta_data, **kwargs):

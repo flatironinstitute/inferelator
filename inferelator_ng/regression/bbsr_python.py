@@ -144,23 +144,15 @@ class BBSR(base_regression.BaseRegression):
         return weights_mat.mask(p_matrix != 0, other=p_weight)
 
 
-def patch_workflow(obj):
+class BBSRRegressionWorkflow(base_regression.RegressionWorkflow):
     """
-    Add BBSR regression into a TFAWorkflow object
-
-    :param obj: TFAWorkflow
+    Add BBSR regression into a workflow object
     """
 
-    import types
-
-    if not hasattr(obj, 'mi_driver'):
-        obj.mi_driver = mi.MIDriver
-    if not hasattr(obj, 'mi_sync_path'):
-        obj.mi_sync_path = None
-    if not hasattr(obj, 'prior_weight'):
-        obj.prior_weight = default.DEFAULT_prior_weight
-    if not hasattr(obj, 'no_prior_weight'):
-        obj.no_prior_weight = default.DEFAULT_no_prior_weight
+    mi_driver = mi.MIDriver
+    mi_sync_path = None
+    prior_weight = default.DEFAULT_prior_weight
+    no_prior_weight = default.DEFAULT_no_prior_weight
 
     def run_bootstrap(self, bootstrap):
         X = self.design.iloc[:, bootstrap]
@@ -172,8 +164,6 @@ def patch_workflow(obj):
 
         return BBSR(X, Y, clr_matrix, self.priors_data, prior_weight=self.prior_weight,
                     no_prior_weight=self.no_prior_weight).run()
-
-    obj.run_bootstrap = types.MethodType(run_bootstrap, obj)
 
 
 def regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS):
