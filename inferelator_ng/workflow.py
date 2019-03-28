@@ -404,3 +404,19 @@ def create_inferelator_workflow(regression=RegressionWorkflow, workflow=Workflow
         regression_type = regression_class
 
     return RegressWorkflow
+
+
+def inferelator_workflow(regression=RegressionWorkflow, workflow=WorkflowBase):
+    """
+    Create and instantiate a workflow
+
+    :param regression: RegressionWorkflow subclass
+        A class object which implements the run_regression and run_bootstrap methods for a specific regression strategy
+    :param workflow: WorkflowBase subclass
+        A class object which implements the necessary data loading and preprocessing to create design & response data
+        for the regression strategy, and then the postprocessing to turn regression betas into a network
+    :return RegressWorkflow:
+        This returns an initialized object which is the multi-inheritance result of both the regression workflow and
+        the preprocessing/postprocessing workflow
+    """
+    return create_inferelator_workflow(regression=regression, workflow=workflow)()
