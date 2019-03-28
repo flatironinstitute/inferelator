@@ -161,7 +161,6 @@ def create_puppet_workflow(regression_class=base_regression.RegressionWorkflow,
         network_file_name = None
         pr_curve_file_name = None
         initialize_mp = False
-        result_processor_driver = result_processor_class
 
         def __init__(self, expr_data, meta_data, prior_data, gs_data):
             self.expression_matrix = expr_data
@@ -177,8 +176,7 @@ def create_puppet_workflow(regression_class=base_regression.RegressionWorkflow,
 
         def emit_results(self, betas, rescaled_betas, gold_standard, priors):
             if self.is_master():
-                results = self.result_processor_driver(betas, rescaled_betas,
-                                                       filter_method=self.gold_standard_filter_method)
+                results = result_processor_class(betas, rescaled_betas, filter_method=self.gold_standard_filter_method)
                 if self.write_network:
                     results.network_file_name = self.network_file_name
                     results.pr_curve_file_name = self.pr_curve_file_name
