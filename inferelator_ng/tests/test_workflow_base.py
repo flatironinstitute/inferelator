@@ -8,6 +8,7 @@ import tempfile
 import numpy as np
 
 from inferelator_ng import workflow
+from inferelator_ng.regression.base_regression import RegressionWorkflow
 from inferelator_ng.distributed.inferelator_mp import MPControl
 
 my_dir = os.path.dirname(__file__)
@@ -176,3 +177,39 @@ class TestWorkflow(unittest.TestCase):
             np.testing.assert_array_almost_equal_nulp(self.workflow.priors_data.values,
                                                       self.workflow.gold_standard.values)
 
+
+class TestWorkflowFactory(unittest.TestCase):
+
+    def test_base(self):
+        worker = workflow.inferelator_workflow(regression=None, workflow=workflow.WorkflowBase)
+        with self.assertRaises(NotImplementedError):
+            worker.run()
+
+    def test_bbsr(self):
+        from inferelator_ng.regression.bbsr_python import BBSRRegressionWorkflow
+        worker = workflow.inferelator_workflow(regression="bbsr", workflow=workflow.WorkflowBase)
+        self.assertTrue(isinstance(worker, BBSRRegressionWorkflow))
+
+    def test_elasticnet(self):
+        from inferelator_ng.regression.elasticnet_python import ElasticNetWorkflow
+        worker = workflow.inferelator_workflow(regression="elasticnet", workflow=workflow.WorkflowBase)
+        self.assertTrue(isinstance(worker, ElasticNetWorkflow))
+
+    def test_amusr(self):
+        from inferelator_ng.regression.amusr_regression import AMUSRRegressionWorkflow
+        worker = workflow.inferelator_workflow(regression="amusr", workflow=workflow.WorkflowBase)
+        self.assertTrue(isinstance(worker, AMUSRRegressionWorkflow))
+
+    def test_bad_string(self):
+        with self.assertRaises(ValueError):
+            worker = workflow.inferelator_workflow(regression="restlne", workflow=workflow.WorkflowBase)
+
+    def test_tfa(self):
+        from inferelator_ng.tfa_workflow import TFAWorkFlow
+        worker = workflow.inferelator_workflow(regression=RegressionWorkflow, workflow="tfa")
+        self.assertTrue(isinstance(worker, TFAWorkFlow))
+
+    def test_singlecell(self):
+        from inferelator_ng.single_cell_workflow import SingleCellWorkflow
+        worker = workflow.inferelator_workflow(regression=RegressionWorkflow, workflow="single-cell")
+        self.assertTrue(isinstance(worker, SingleCellWorkflow))
