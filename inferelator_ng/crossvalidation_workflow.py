@@ -1,6 +1,14 @@
+from __future__ import print_function, unicode_literals
+
+import os
+import csv
+
 from inferelator_ng import utils, default
+from inferelator_ng.regression import base_regression
 from inferelator_ng.postprocessing import results_processor
+from inferelator_ng import single_cell_workflow
 from inferelator_ng import workflow
+
 
 class NoOutputRP(results_processor.ResultsProcessor):
     """
@@ -51,9 +59,94 @@ class NoOutputRP(results_processor.ResultsProcessor):
 
         return pr_calc.aupr, num_conf, num_prec
 
+
+# The variable names that get set in the main workflow, but need to get copied to the puppets
+SHARED_CLASS_VARIABLES = ['tf_names', 'gene_list', 'num_bootstraps', 'modify_activity_from_metadata',
+                          'metadata_expression_lookup', 'gene_list_lookup', 'mi_sync_path', 'count_minimum',
+                          'gold_standard_filter_method', 'split_priors_for_gold_standard', 'cv_split_ratio',
+                          'split_gold_standard_for_crossvalidation', 'cv_split_axis', 'preprocessing_workflow',
+                          'shuffle_prior_axis', 'write_network', 'output_dir', 'tfa_driver', 'drd_driver',
+                          'result_processor_driver']
+
+
+class PuppeteerWorkflow(object):
+    """
+    This class contains the methods to create new child Workflow objects
+    It does not extend WorkflowBase because I hate keeping track of multiinheritance patterns
+    """
+    write_network = True  # bool
+    csv_writer = None  # csv.csvwriter
+    csv_header = []  # list[]
+    output_file_name = "aupr.tsv"  # str
+
+    puppet_class = single_cell_workflow.SingleCellWorkflow
+    puppet_result_processor = NoOutputRP
+
+    def create_writer(self):
+        """
+        Create a CSVWriter and stash it in self.writer
+        """
+
+        if self.is_master():
+            self.create_output_dir()
+            self.csv_writer = csv.writer(open(os.path.join(self.output_dir, self.output_file_name),
+                                              mode="w", buffering=1), delimiter="\t", lineterminator="\n",
+                                         quoting=csv.QUOTE_NONE)
+            self.csv_writer.writerow(self.csv_header)
+
+    def new_puppet(self, expr_data, meta_data, seed=default.DEFAULT_RANDOM_SEED, priors_data=None, gold_standard=None):
+        """
+        Create a new puppet workflow to run the inferelator
+        :param expr_data: pd.DataFrame [G x N]
+        :param meta_data: pd.DataFrame [N x ?]
+        :param seed: int
+        :param priors_data: pd.DataFrame [G x K]
+        :param gold_standard: pd.DataFrame [G x K]
+        :return puppet:
+        """
+
+        # Unless told otherwise, use the master priors and master gold standard
+        if gold_standard is None:
+            gold_standard = self.gold_standard
+        if priors_data is None:
+            priors_data = self.priors_data
+
+        # Create a new puppet workflow with the factory method and pass in data on instantiation
+        puppet = create_puppet_workflow(base_class=self.puppet_class,
+                                        regression_class=self.regression_type,
+                                        result_processor_class=self.puppet_result_processor)
+        puppet = puppet(expr_data, meta_data, priors_data, gold_standard)
+
+        # Transfer the class variables necessary to get the puppet to dance (everything in SHARED_CLASS_VARIABLES)
+        self.assign_class_vars(puppet)
+
+        # Set the random seed into the puppet
+        puppet.random_seed = seed
+
+        # Make sure that the puppet knows the correct orientation of the expression matrix
+        puppet.expression_matrix_columns_are_genes = False
+
+        # Tell the puppet what to name stuff (if write_network is False then no output will be produced)
+        puppet.network_file_name = "network_s{seed}.tsv".format(seed=seed)
+        puppet.pr_curve_file_name = "pr_curve_s{seed}.pdf".format(seed=seed)
+        return puppet
+
+    def assign_class_vars(self, obj):
+        """
+        Transfer class variables from this object to a target object
+        """
+        for varname in SHARED_CLASS_VARIABLES:
+            try:
+                setattr(obj, varname, getattr(self, varname))
+                utils.Debug.vprint("Variable {var} set to child".format(var=varname), level=2)
+            except AttributeError:
+                utils.Debug.vprint("Variable {var} not assigned to parent".format(var=varname))
+
 # Factory method to spit out a puppet workflow
-def create_puppet_workflow(base_class=workflow.WorkflowBase, result_processor=NoOutputRP):
-    class PuppetClass(base_class):
+def create_puppet_workflow(regression_class=base_regression.RegressionWorkflow,
+                           base_class=workflow.WorkflowBase,
+                           result_processor_class=NoOutputRP):
+    class PuppetClass(regression_class, base_class):
         """
         Standard workflow except it takes all the data as references to __init__ instead of as filenames on disk or
         as environment variables, and returns the model AUPR and edge counts without writing files (unless told to)
@@ -63,6 +156,8 @@ def create_puppet_workflow(base_class=workflow.WorkflowBase, result_processor=No
         network_file_name = None
         pr_curve_file_name = None
         initialize_mp = False
+        result_processor_driver = result_processor_class
+        regression_type = regression_class
 
         def __init__(self, expr_data, meta_data, prior_data, gs_data):
             self.expression_matrix = expr_data
@@ -78,7 +173,8 @@ def create_puppet_workflow(base_class=workflow.WorkflowBase, result_processor=No
 
         def emit_results(self, betas, rescaled_betas, gold_standard, priors):
             if self.is_master():
-                results = result_processor(betas, rescaled_betas, filter_method=self.gold_standard_filter_method)
+                results = self.result_processor_driver(betas, rescaled_betas,
+                                                       filter_method=self.gold_standard_filter_method)
                 if self.write_network:
                     results.network_file_name = self.network_file_name
                     results.pr_curve_file_name = self.pr_curve_file_name
@@ -90,7 +186,7 @@ def create_puppet_workflow(base_class=workflow.WorkflowBase, result_processor=No
                 results.confidence_file_name = None
                 results.threshold_file_name = None
                 results.write_task_files = False
-                results.tasks_names = getattr(self, "tasks_names", None) # For multitask
+                results.tasks_names = getattr(self, "tasks_names", None)  # For multitask
                 results = results.summarize_network(network_file_path, gold_standard, priors)
                 self.aupr, self.n_interact, self.precision_interact = results
             else:
