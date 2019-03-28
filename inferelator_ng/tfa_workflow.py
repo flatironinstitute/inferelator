@@ -7,7 +7,6 @@ from inferelator_ng import workflow
 from inferelator_ng.preprocessing import design_response_translation  # added python design_response
 from inferelator_ng.preprocessing.tfa import TFA
 from inferelator_ng.postprocessing.results_processor import ResultsProcessor
-from inferelator_ng.regression import bbsr_python
 from inferelator_ng import utils
 from inferelator_ng import default
 
@@ -22,9 +21,6 @@ class TFAWorkFlow(workflow.WorkflowBase):
     design = None
     response = None
     half_tau_response = None
-
-    # Regression implementation
-    regression_type = bbsr_python
 
     # TFA implementation
     tfa_driver = TFA
@@ -55,29 +51,14 @@ class TFAWorkFlow(workflow.WorkflowBase):
         self.emit_results(betas, rescaled_betas, self.gold_standard, self.priors_data)
 
     def startup_run(self):
-        self.set_regression_type()
         self.get_data()
 
     def startup_finish(self):
         self.compute_common_data()
         self.compute_activity()
 
-    def set_regression_type(self):
-        self.regression_type.patch_workflow(self)
-
     def run_regression(self):
-        betas = []
-        rescaled_betas = []
-
-        for idx, bootstrap in enumerate(self.get_bootstraps()):
-            utils.Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps), level=0)
-            np.random.seed(self.random_seed + idx)
-            current_betas, current_rescaled_betas = self.run_bootstrap(bootstrap)
-            if self.is_master():
-                betas.append(current_betas)
-                rescaled_betas.append(current_rescaled_betas)
-
-        return betas, rescaled_betas
+        raise NotImplementedError
 
     def run_bootstrap(self, bootstrap):
         raise NotImplementedError

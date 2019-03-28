@@ -4,11 +4,13 @@ Base implementation for high level workflow.
 The goal of this design is to make it easy to share
 code among different variants of the Inferelator workflow.
 """
+from __future__ import unicode_literals, print_function
 
 from inferelator_ng import utils
 from inferelator_ng.utils import Validator as check
 from inferelator_ng import default
 from inferelator_ng.preprocessing.prior_gs_split_workflow import split_for_cv, remove_prior_circularity
+from inferelator_ng.regression.base_regression import RegressionWorkflow
 
 from inferelator_ng.distributed.inferelator_mp import MPControl
 
@@ -17,11 +19,14 @@ import os
 import datetime
 import pandas as pd
 
-import gzip
-import bz2
+# Python 2/3 compatible string checking
+try:
+    basestring
+except NameError:
+    basestring = str
+
 
 class WorkflowBase(object):
-
     # Paths to the input and output locations
     input_dir = None
     output_dir = None
@@ -333,3 +338,66 @@ class WorkflowBase(object):
             os.makedirs(self.output_dir)
         except OSError:
             pass
+
+
+def create_inferelator_workflow(regression=RegressionWorkflow, workflow=WorkflowBase):
+    """
+    This is the factory method to create workflow ckasses that combine preprocessing and postprocessing (from workflow)
+    with a regression method (from regression)
+
+    :param regression: RegressionWorkflow subclass
+        A class object which implements the run_regression and run_bootstrap methods for a specific regression strategy
+    :param workflow: WorkflowBase subclass
+        A class object which implements the necessary data loading and preprocessing to create design & response data
+        for the regression strategy, and then the postprocessing to turn regression betas into a network
+    :return RegressWorkflow:
+        This returns an uninstantiated class which is the multi-inheritance result of both the regression workflow and
+        the preprocessing/postprocessing workflow
+    """
+
+    # Decide which preprocessing/postprocessing workflow to use
+    # String arguments are parsed for convenience in the run script
+    if isinstance(workflow, basestring):
+        if workflow == "base":
+            workflow_class = WorkflowBase
+        elif workflow == "tfa":
+            from inferelator_ng.tfa_workflow import TFAWorkFlow
+            workflow_class = TFAWorkFlow
+        elif workflow == "amusr":
+            from inferelator_ng.amusr_workflow import SingleCellMultiTask
+            workflow_class = SingleCellMultiTask
+        else:
+            raise ValueError("{val} is not a string that can be mapped to a workflow class".format(val=workflow))
+    # Or just use a workflow class directly
+    elif issubclass(workflow, WorkflowBase):
+        workflow_class = workflow
+    else:
+        raise ValueError("Workflow must be a string that maps to a workflow class or an actual workflow class")
+
+    # Decide which regression workflow to use
+    # Return just the workflow if regression is set to None
+    if regression is None:
+        return workflow_class
+    # String arguments are parsed for convenience in the run script
+    elif isinstance(regression, basestring):
+        if regression == "bbsr":
+            from inferelator_ng.regression.bbsr_python import BBSRRegressionWorkflow
+            regression_class = BBSRRegressionWorkflow
+        elif regression == "elasticnet":
+            from inferelator_ng.regression.elasticnet_python import ElasticNetWorkflow
+            regression_class = ElasticNetWorkflow
+        elif regression == "amusr":
+            from inferelator_ng.regression.amusr_regression import AMUSRRegressionWorkflow
+            regression_class = AMUSRRegressionWorkflow
+        else:
+            raise ValueError("{val} is not a string that can be mapped to a regression class".format(val=regression))
+    # Or just use a regression class directly
+    elif issubclass(regression, RegressionWorkflow):
+        regression_class = regression
+    else:
+        raise ValueError("Regression must be a string that maps to a regression class or an actual regression class")
+
+    class RegressWorkflow(regression_class, workflow_class):
+        regression_type = regression_class
+
+    return RegressWorkflow
