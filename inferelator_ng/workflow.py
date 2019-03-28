@@ -366,6 +366,9 @@ def create_inferelator_workflow(regression=RegressionWorkflow, workflow=Workflow
         elif workflow == "amusr":
             from inferelator_ng.amusr_workflow import SingleCellMultiTask
             workflow_class = SingleCellMultiTask
+        elif workflow == "single-cell":
+            from inferelator_ng.single_cell_workflow import SingleCellWorkflow
+            workflow_class = SingleCellWorkflow
         else:
             raise ValueError("{val} is not a string that can be mapped to a workflow class".format(val=workflow))
     # Or just use a workflow class directly
