@@ -1,8 +1,5 @@
 from __future__ import print_function
 
-import os
-import csv
-
 import numpy as np
 import pandas as pd
 
@@ -10,94 +7,10 @@ from inferelator_ng import single_cell_workflow
 from inferelator_ng import crossvalidation_workflow
 from inferelator_ng import utils
 from inferelator_ng import default
-from inferelator_ng.regression import bbsr_python
 from inferelator_ng.utils import Validator as check
 
-# The variable names that get set in the main workflow, but need to get copied to the puppets
-SHARED_CLASS_VARIABLES = ['tf_names', 'gene_list', 'num_bootstraps', 'modify_activity_from_metadata',
-                          'metadata_expression_lookup', 'gene_list_lookup', 'mi_sync_path', 'count_minimum',
-                          'gold_standard_filter_method', 'split_priors_for_gold_standard', 'cv_split_ratio',
-                          'split_gold_standard_for_crossvalidation', 'cv_split_axis', 'preprocessing_workflow',
-                          'shuffle_prior_axis', 'write_network', 'output_dir', 'tfa_driver']
 
-
-class PuppeteerWorkflow(object):
-    """
-    This class contains the methods to create new child Workflow objects
-    It does not extend WorkflowBase because I hate keeping track of multiinheritance patterns
-    """
-    write_network = True  # bool
-    csv_writer = None  # csv.csvwriter
-    csv_header = []  # list[]
-    output_file_name = "aupr.tsv"  # str
-
-    puppet_class = single_cell_workflow.SingleCellWorkflow
-    puppet_result_processor = crossvalidation_workflow.NoOutputRP
-    regression_type = bbsr_python
-
-    def create_writer(self):
-        """
-        Create a CSVWriter and stash it in self.writer
-        """
-
-        if self.is_master():
-            self.create_output_dir()
-            self.csv_writer = csv.writer(open(os.path.join(self.output_dir, self.output_file_name),
-                                              mode="w", buffering=1), delimiter="\t", lineterminator="\n",
-                                         quoting=csv.QUOTE_NONE)
-            self.csv_writer.writerow(self.csv_header)
-
-    def new_puppet(self, expr_data, meta_data, seed=default.DEFAULT_RANDOM_SEED, priors_data=None, gold_standard=None):
-        """
-        Create a new puppet workflow to run the inferelator
-        :param expr_data: pd.DataFrame [G x N]
-        :param meta_data: pd.DataFrame [N x ?]
-        :param seed: int
-        :param priors_data: pd.DataFrame [G x K]
-        :param gold_standard: pd.DataFrame [G x K]
-        :return puppet:
-        """
-
-        # Unless told otherwise, use the master priors and master gold standard
-        if gold_standard is None:
-            gold_standard = self.gold_standard
-        if priors_data is None:
-            priors_data = self.priors_data
-
-        # Create a new puppet workflow with the factory method and pass in data on instantiation
-        puppet = crossvalidation_workflow.create_puppet_workflow(base_class=self.puppet_class,
-                                                                 result_processor=self.puppet_result_processor)
-        puppet = puppet(expr_data, meta_data, priors_data, gold_standard)
-
-        # Transfer the class variables necessary to get the puppet to dance (everything in SHARED_CLASS_VARIABLES)
-        self.assign_class_vars(puppet)
-
-        # Set the random seed into the puppet
-        puppet.random_seed = seed
-
-        # Make sure that the puppet knows the correct orientation of the expression matrix
-        puppet.expression_matrix_columns_are_genes = False
-
-        # Tell the puppet what to name stuff (if write_network is False then no output will be produced)
-        puppet.network_file_name = "network_s{seed}.tsv".format(seed=seed)
-        puppet.pr_curve_file_name = "pr_curve_s{seed}.pdf".format(seed=seed)
-        return puppet
-
-    def assign_class_vars(self, obj):
-        """
-        Transfer class variables from this object to a target object
-        """
-        for varname in SHARED_CLASS_VARIABLES:
-            try:
-                setattr(obj, varname, getattr(self, varname))
-                utils.Debug.vprint("Variable {var} set to child".format(var=varname), level=2)
-            except AttributeError:
-                utils.Debug.vprint("Variable {var} not assigned to parent".format(var=varname))
-
-        self.regression_type.patch_workflow(obj)
-
-
-class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, PuppeteerWorkflow):
+class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, crossvalidation_workflow.PuppeteerWorkflow):
     seeds = default.DEFAULT_SEED_RANGE
 
     # Output TSV controllers
