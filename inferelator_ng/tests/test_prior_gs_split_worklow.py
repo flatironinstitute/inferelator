@@ -58,7 +58,7 @@ class TestPriorGoldStandardSplitWorkflowBaseStub(unittest.TestCase):
     def test_prior_half_size(self):
         # create and configure the work flow
         work = StubWorkflow()
-        work.input_dir = os.path.join(my_dir, "../../data/dream4_no_metadata_for_test_purposes")
+        work.input_dir = os.path.join(my_dir, "../../data/dream4")
         work.test_case = self
         work.cv_split_axis = None
         # run the workflow (validation tests in emit_results)
