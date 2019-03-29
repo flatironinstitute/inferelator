@@ -69,6 +69,7 @@ class TestAMuSRWorkflow(unittest.TestCase):
         rb3 = pd.DataFrame(np.array([[0.5, 0.5], [0.5, 0.5], [0.5, 0.5], [0.5, 0.5]]),
                            ["gene1", "gene2", "gene4", "gene6"], ["gene3", "gene6"])
         self.workflow.startup_finish()
+        self.workflow.gold_standard_filter_method = 'overlap'
         self.workflow.emit_results([[beta1, beta1], [beta2, beta2], [beta3, beta3]],
                                    [[rb1, rb1], [rb2, rb2], [rb3, rb3]],
                                    self.workflow.gold_standard,
