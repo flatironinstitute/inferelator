@@ -43,7 +43,7 @@ DEFAULT_GS_SPLIT_AXIS = 0
 DEFAULT_DELTMIN = 0
 DEFAULT_DELTMAX = 120
 DEFAULT_TAU = 45
-DEFAULT_GS_FILTER_METHOD = 'overlap'
+DEFAULT_GS_FILTER_METHOD = 'keep_all_gold_standard'
 
 """Default SingleCellWorkflow Parameters"""
 
