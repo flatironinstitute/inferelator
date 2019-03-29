@@ -153,6 +153,7 @@ class BBSRRegressionWorkflow(base_regression.RegressionWorkflow):
     mi_sync_path = None
     prior_weight = default.DEFAULT_prior_weight
     no_prior_weight = default.DEFAULT_no_prior_weight
+    bsr_feature_num = default.DEFAULT_nS
 
     def run_bootstrap(self, bootstrap):
         X = self.design.iloc[:, bootstrap]
@@ -163,7 +164,7 @@ class BBSRRegressionWorkflow(base_regression.RegressionWorkflow):
         utils.Debug.vprint('Calculating betas using BBSR', level=0)
 
         return BBSR(X, Y, clr_matrix, self.priors_data, prior_weight=self.prior_weight,
-                    no_prior_weight=self.no_prior_weight).run()
+                    no_prior_weight=self.no_prior_weight, nS=self.bsr_feature_num).run()
 
 
 def regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS):
