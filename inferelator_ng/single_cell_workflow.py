@@ -100,7 +100,7 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
         Read in a list of genes which should be modeled for network inference
         """
 
-        self.gene_list = self.input_dataframe(self.gene_list_file)
+        self.gene_list = self.input_dataframe(self.gene_list_file, index_col=None)
 
     def compute_activity(self):
         """
