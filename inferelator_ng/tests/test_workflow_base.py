@@ -202,9 +202,17 @@ class TestWorkflowFactory(unittest.TestCase):
         self.assertTrue(isinstance(worker, AMUSRRegressionWorkflow))
         self.assertTrue(isinstance(worker, SingleCellMultiTask))
 
-    def test_bad_string(self):
+    def test_bad_inputs(self):
         with self.assertRaises(ValueError):
             worker = workflow.inferelator_workflow(regression="restlne", workflow=workflow.WorkflowBase)
+        with self.assertRaises(ValueError):
+            worker = workflow.inferelator_workflow(regression=1, workflow=workflow.WorkflowBase)
+        with self.assertRaises(ValueError):
+            worker = workflow.inferelator_workflow(regression=RegressionWorkflow, workflow="restlne")
+        with self.assertRaises(ValueError):
+            worker = workflow.inferelator_workflow(regression=RegressionWorkflow, workflow=None)
+        with self.assertRaises(ValueError):
+            worker = workflow.inferelator_workflow(regression=RegressionWorkflow, workflow=1)
 
     def test_tfa(self):
         from inferelator_ng.tfa_workflow import TFAWorkFlow
