@@ -1,4 +1,5 @@
 from inferelator_ng import default
+import os
 
 # Maintain python 2 compatibility
 try:
@@ -10,8 +11,10 @@ from inferelator_ng.distributed import AbstractController
 
 from dask import distributed
 
-DEFAULT_LOCAL_DIR = '$TMPDIR'
-
+try:
+    DEFAULT_LOCAL_DIR = os.environ['TMPDIR']
+except KeyError:
+    DEFAULT_LOCAL_DIR = 'dask-worker-space'
 
 class DaskController(AbstractController):
     """

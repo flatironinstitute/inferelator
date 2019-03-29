@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division, print_function
 import time
+import os
 
 from dask import distributed
 from dask_jobqueue import SLURMCluster
@@ -15,7 +16,6 @@ except ImportError:
 DEFAULT_CORES = 20
 DEFAULT_MEM = '62GB'
 DEFAULT_INTERFACE = 'ib0'
-DEFAULT_LOCAL_DIR = '$TMPDIR'
 DEFAULT_WALLTIME = '1:00:00'
 
 ENV_EXTRA = ['module purge',
@@ -32,6 +32,10 @@ DEFAULT_ADAPT_WAIT_COUNT = 5
 
 DEFAULT_NYU_HEADER = ['#SBATCH --nodes=1', '#SBATCH --ntasks-per-node=1']
 
+try:
+    DEFAULT_LOCAL_DIR = os.environ['TMPDIR']
+except KeyError:
+    DEFAULT_LOCAL_DIR = 'dask-worker-space'
 
 # This is the worst thing I've ever written
 def memory_limit_0(command_template):
