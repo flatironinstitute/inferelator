@@ -98,6 +98,10 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
     X = X.values
     Y = Y.values
 
+    # Discretize the input matrixes
+    X = _make_array_discrete(X.transpose(), bins, axis=0)
+    Y = _make_array_discrete(Y.transpose(), bins, axis=0)
+
     # Build the MI matrix
     if MPControl.client.name() == "dask":
         return pd.DataFrame(build_mi_array_dask(X, Y, bins, logtype=logtype), index=mi_r, columns=mi_c)
@@ -124,14 +128,12 @@ def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
         Returns the mutual information array
     """
 
-    # Discretize the input matrixes
-    X = _make_array_discrete(X.transpose(), bins, axis=0)
-    Y = _make_array_discrete(Y.transpose(), bins, axis=0)
-
     m1, m2 = X.shape[1], Y.shape[1]
 
     # Define the function which calculates MI for each variable in X against every variable in Y
     def mi_make(i):
+        level = 2 if i % 1000 == 0 else 3
+        utils.Debug.allprint("Mutual Information Calculation [{i} / {total}]".format(i=i, total=m1), level=level)
         return [_calc_mi(_make_table(X[:, i], Y[:, j], bins), logtype=logtype) for j in range(m2)]
 
     # Send the MI build to the multiprocessing controller
@@ -163,29 +165,27 @@ def build_mi_array_dask(X, Y, bins, logtype=DEFAULT_LOG_TYPE):
     assert MPControl.name() == "dask"
 
     # Get a reference to the Dask controller
+    from dask import distributed
     dask_controller = MPControl.client
-
-    # Discretize the input matrixes
-    X = _make_array_discrete(X.transpose(), bins, axis=0)
-    Y = _make_array_discrete(Y.transpose(), bins, axis=0)
 
     m1, m2 = X.shape[1], Y.shape[1]
 
     def mi_make(i, x, y):
         level = 1 if i % 1000 == 0 else 3
         utils.Debug.allprint("Mutual Information Calculation [{i} / {total}]".format(i=i, total=m1), level=level)
-        return [_calc_mi(_make_table(x[:, i], y[:, j], bins), logtype=logtype) for j in range(m2)]
+        return i, [_calc_mi(_make_table(x, y[:, j], bins), logtype=logtype) for j in range(m2)]
 
-    # Scatter X & Y to some workers and keep track of them as Futures
-    [scatter_x] = dask_controller.client.scatter([X])
-    [scatter_y] = dask_controller.client.scatter([Y])
+    # Scatter Y to workers and keep track as Futures
+    [scatter_y] = dask_controller.client.scatter([Y], broadcast=True)
 
     # Build an asynchronous list of Futures for each calculation of mi_make
-    future_list = [dask_controller.client.submit(mi_make, i, scatter_x, scatter_y) for i in range(m1)]
-    mi_list = dask_controller.client.gather(future_list)
+    future_list = [dask_controller.client.submit(mi_make, i, X[:, i], scatter_y) for i in range(m1)]
+    mi_list = [None] * len(future_list)
+    for finished_future, (i, result_data) in distributed.as_completed(future_list, with_results=True):
+        mi_list[i] = result_data
+        finished_future.cancel()
 
     # Clean up worker data by cancelling all the Futures
-    dask_controller.client.cancel(scatter_x)
     dask_controller.client.cancel(scatter_y)
     dask_controller.client.cancel(future_list)
 
