@@ -197,8 +197,10 @@ class TestWorkflowFactory(unittest.TestCase):
 
     def test_amusr(self):
         from inferelator_ng.regression.amusr_regression import AMUSRRegressionWorkflow
-        worker = workflow.inferelator_workflow(regression="amusr", workflow=workflow.WorkflowBase)
+        from inferelator_ng.amusr_workflow import SingleCellMultiTask
+        worker = workflow.inferelator_workflow(regression="amusr", workflow="amusr")
         self.assertTrue(isinstance(worker, AMUSRRegressionWorkflow))
+        self.assertTrue(isinstance(worker, SingleCellMultiTask))
 
     def test_bad_string(self):
         with self.assertRaises(ValueError):
