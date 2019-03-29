@@ -5,12 +5,12 @@ This tutorial walks through a gene regulatory network example in yeast.
 
 Clone the codebase:
 ```
-git clone git@github.com:simonsfoundation/inferelator_ng.git
+git clone git@github.com:flatironinstitute/inferelator_sc.git
 ```
 
 Enter its top-level directory:
 ```
-cd inferelator_ng
+cd inferelator_sc
 ```
 
 ## 1) Prepare data
@@ -27,15 +27,8 @@ To install the python packages needed for the inferelator, run:
 pip install -r requirements.txt
 ```
 
-If you do not have R install, you can download it from https://www.r-project.org/
-
-To install the required R packages, run:
-```
-R -f inferelator_ng/R_code/packages.R
-```
-
 ## 3) Run workflow
-`bash inferelator_runner_slurmless.sh yeast_bbsr_workflow_runner.py`
+`python yeast_bbsr_workflow_runner.py`
 
 ## 4) Analyze output
 Look in the data/yeast folder for a time-stamped folder that will contain the predicted network as network.tsv and will contain a precision-recall curve as pr_curve.png. The AUPR should be ~0.2.
