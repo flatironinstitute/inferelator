@@ -14,6 +14,7 @@ from inferelator_ng.regression.base_regression import RegressionWorkflow
 
 from inferelator_ng.distributed.inferelator_mp import MPControl
 
+import inspect
 import numpy as np
 import os
 import datetime
@@ -372,7 +373,7 @@ def create_inferelator_workflow(regression=RegressionWorkflow, workflow=Workflow
         else:
             raise ValueError("{val} is not a string that can be mapped to a workflow class".format(val=workflow))
     # Or just use a workflow class directly
-    elif issubclass(workflow, WorkflowBase):
+    elif inspect.isclass(workflow) and issubclass(workflow, WorkflowBase):
         workflow_class = workflow
     else:
         raise ValueError("Workflow must be a string that maps to a workflow class or an actual workflow class")
@@ -395,7 +396,7 @@ def create_inferelator_workflow(regression=RegressionWorkflow, workflow=Workflow
         else:
             raise ValueError("{val} is not a string that can be mapped to a regression class".format(val=regression))
     # Or just use a regression class directly
-    elif issubclass(regression, RegressionWorkflow):
+    elif inspect.isclass(regression) and issubclass(regression, RegressionWorkflow):
         regression_class = regression
     else:
         raise ValueError("Regression must be a string that maps to a regression class or an actual regression class")
