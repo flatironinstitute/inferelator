@@ -50,7 +50,8 @@ class TestSingleCellWorkflow(unittest.TestCase):
         self.assertEqual(self.workflow.expression_matrix.shape, (4, 2))
 
     def test_preprocessing_nan_pre(self):
-        self.workflow.expression_matrix = test_count_data.append([np.nan, 0, np.nan])
+        self.workflow.expression_matrix = test_count_data
+        self.workflow.expression_matrix.iloc[0, 0] = np.nan
         with self.assertRaises(ValueError):
             self.workflow.single_cell_normalize()
 
