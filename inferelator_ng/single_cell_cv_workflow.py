@@ -141,11 +141,17 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
     stratified_sampling = True
     drop_column = None
 
+    model_dropouts = True
+    model_dropins = True
+
     def modeling_method(self, *args, **kwargs):
 
         self.factor_indexes = self.factor_singles()
-        auprs = self.auprs_for_condition_dropin()
-        auprs.extend(self.auprs_for_condition_dropout())
+        auprs = []
+        if self.model_dropins:
+            auprs.extend(self.auprs_for_condition_dropin())
+        if self.model_dropouts:
+            auprs.extend(self.auprs_for_condition_dropout())
         return auprs
 
     def auprs_for_condition_dropout(self):
@@ -166,7 +172,7 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
 
     def auprs_for_condition_dropin(self):
         """
-        Run modeling on all data, and then on data where each factor from `drop_column` has been removed one
+        Run modeling on all data, and then on data where each factor from `drop_column` is sampled separately
         :return:
         """
         # Run the modeling on all data with resizing
