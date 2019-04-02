@@ -127,6 +127,14 @@ class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, crossvalidati
     prior_weight = default.DEFAULT_prior_weight
     task_expression_filter = "intersection"
 
+    # Task-specific data
+    n_tasks = None
+    task_design = None
+    task_response = None
+    task_meta_data = None
+    task_bootstraps = None
+    tasks_names = None
+
     # Axis labels to keep
     targets = None
     regulators = None
@@ -136,17 +144,6 @@ class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, crossvalidati
 
     # Workflow type for task processing
     cv_workflow_type = single_cell_workflow.SingleCellWorkflow
-    
-    def __init__(self):
-        # Task-specific data
-        self.n_tasks = None
-        self.task_design = []
-        self.task_response = []
-        self.task_meta_data = []
-        self.task_bootstraps = []
-        self.tasks_names = []
-        
-        super(SingleCellMultiTask, self).__init__()
 
     def startup_finish(self):
         # If the expression matrix is [G x N], transpose it for preprocessing

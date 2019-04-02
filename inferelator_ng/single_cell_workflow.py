@@ -22,13 +22,11 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
     extract_metadata_from_expression_matrix = default.DEFAULT_EXTRACT_METADATA_FROM_EXPR  # bool
     expression_matrix_metadata = default.DEFAULT_EXPRESSION_MATRIX_METADATA  # str
 
+    # Preprocessing workflow holder
+    preprocessing_workflow = None
+
     # Shuffle priors for a negative control
     shuffle_prior_axis = None
-
-    def __init__(self):
-        # Preprocessing workflow holder
-        self.preprocessing_workflow = list()
-        super(SingleCellWorkflow, self).__init__()
 
     def startup_finish(self):
         # If the expression matrix is [G x N], transpose it for preprocessing
@@ -90,9 +88,10 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
         if np.sum(~np.isfinite(self.expression_matrix.values), axis=None) > 0:
             raise ValueError("NaN values are present prior to normalization in the expression matrix")
 
-        for sc_function, sc_kwargs in self.preprocessing_workflow:
-            sc_kwargs['random_seed'] = self.random_seed
-            self.expression_matrix, self.meta_data = sc_function(self.expression_matrix, self.meta_data, **sc_kwargs)
+        if self.preprocessing_workflow is not None:
+            for sc_func, sc_kwargs in self.preprocessing_workflow:
+                sc_kwargs['random_seed'] = self.random_seed
+                self.expression_matrix, self.meta_data = sc_func(self.expression_matrix, self.meta_data, **sc_kwargs)
 
         if np.sum(~np.isfinite(self.expression_matrix.values), axis=None) > 0:
             raise ValueError("NaN values have been introduced into the expression matrix by normalization")
@@ -115,4 +114,6 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
         self.expression_matrix = None
 
     def add_preprocess_step(self, fun, **kwargs):
+        if self.preprocessing_workflow is None:
+            self.preprocessing_workflow = []
         self.preprocessing_workflow.append((fun, kwargs))
