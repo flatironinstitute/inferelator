@@ -56,13 +56,6 @@ class TestBayesStats(unittest.TestCase):
         result = bayes_stats.best_subset_regression(x, y, gprior)
         np.testing.assert_array_almost_equal(result, np.array([0.0, 0.0, 0.0, 0.0]))
 
-    def test_best_subset_regression_lin_alg_error(self):
-        x = np.array([[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]])
-        y = np.array([0, 0, 0, 0, 0])
-        gprior = np.array([[0, 0, 0, 0]])
-        result = bayes_stats.best_subset_regression(x, y, gprior)
-        np.testing.assert_array_almost_equal(result, np.array([0.0, 0.0, 0.0, 0.0], dtype=np.dtype(float)))
-
     def test_reduce_predictors(self):
         # test for k = max_k
         x = np.array([[1, 0, 1], [2, 1, 1], [1, 2, 3], [1, 1, 1]])
