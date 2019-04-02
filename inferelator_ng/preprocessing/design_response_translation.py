@@ -84,10 +84,10 @@ class PythonDRDriver:
         # Construct empty arrays for the output data
         self.col_labels = []
         self.included = np.zeros((n, 1), dtype=bool)
-        self.design = np.zeros((k, 0), dtype=float)
-        self.response = np.zeros((k, 0), dtype=float)
+        self.design = []
+        self.response = []
         if self.return_half_tau:
-            self.response_half = np.zeros((k, 0), dtype=float)
+            self.response_half = []
 
         # Walk through all the conditions in the expression data
         for c, cc in enumerate(self.conds):
@@ -106,10 +106,10 @@ class PythonDRDriver:
             # Run anything that wasn't included initially in as a steady-state experiment
             self.static_exp(c)
 
-        self.design = pd.DataFrame(self.design, index=genes, columns=self.col_labels)
-        self.response = pd.DataFrame(self.response, index=genes, columns=self.col_labels)
+        self.design = pd.DataFrame(np.array(self.design), index=self.col_labels, columns=genes).transpose()
+        self.response = pd.DataFrame(np.array(self.response), index=self.col_labels, columns=genes).transpose()
         if self.return_half_tau:
-            self.response_half = pd.DataFrame(self.response_half, index=genes, columns=self.col_labels)
+            self.response_half = pd.DataFrame(np.array(self.response_half), index=self.col_labels, columns=genes).transpose()
 
         if self.return_half_tau:
             return self.design, self.response, self.response_half
@@ -123,11 +123,11 @@ class PythonDRDriver:
         """
         self.col_labels.append(self.conds[idx])
         self.included[idx] = True
-        self.design = np.hstack((self.design, self.exp_data[:, idx].reshape(-1, 1)))
-        self.response = np.hstack((self.response, self.exp_data[:, idx].reshape(-1, 1)))
+        self.design.append(self.exp_data[:, idx].flatten())
+        self.response.append(self.exp_data[:, idx].flatten())
 
         if self.return_half_tau:
-            self.response_half = np.hstack((self.response_half, self.exp_data[:, idx].reshape(-1, 1)))
+            self.response_half.append(self.exp_data[:, idx].flatten())
 
     def timecourse_exp(self, idx, prev_idx, prev_delt):
         """
@@ -144,11 +144,11 @@ class PythonDRDriver:
 
         resp, half_resp = self._calculate_ts_response(self.exp_data, self.tau, prev_delt, idx, prev_idx)
 
-        self.design = np.hstack((self.design, self.exp_data[:, prev_idx].reshape(-1, 1)))
-        self.response = np.hstack((self.response, resp.reshape(-1, 1)))
+        self.design.append(self.exp_data[:, prev_idx].flatten())
+        self.response.append(resp.flatten())
 
         if self.return_half_tau:
-            self.response_half = np.hstack((self.response_half, half_resp.reshape(-1, 1)))
+            self.response_half.append(half_resp.flatten())
 
     @staticmethod
     def _calculate_ts_response(exp_data, tau, prev_delt, idx, prev_idx):

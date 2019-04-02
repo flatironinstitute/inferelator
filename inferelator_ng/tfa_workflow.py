@@ -7,7 +7,6 @@ from inferelator_ng import workflow
 from inferelator_ng.preprocessing import design_response_translation  # added python design_response
 from inferelator_ng.preprocessing.tfa import TFA
 from inferelator_ng.postprocessing.results_processor import ResultsProcessor
-from inferelator_ng.regression import bbsr_python
 from inferelator_ng import utils
 from inferelator_ng import default
 
@@ -18,14 +17,21 @@ class TFAWorkFlow(workflow.WorkflowBase):
     delTmax = default.DEFAULT_DELTMAX
     tau = default.DEFAULT_TAU
 
-    # Result processing parameters
-    gold_standard_filter_method = default.DEFAULT_GS_FILTER_METHOD
-
-    # Regression implementation
-    regression_type = bbsr_python
+    # Regression data
+    design = None
+    response = None
+    half_tau_response = None
 
     # TFA implementation
     tfa_driver = TFA
+
+    # Design-Response Driver implementation
+    drd_driver = design_response_translation.PythonDRDriver
+
+    # Result Processor implementation
+    result_processor_driver = ResultsProcessor
+    # Result processing parameters
+    gold_standard_filter_method = default.DEFAULT_GS_FILTER_METHOD
 
     def run(self):
         """
@@ -45,29 +51,14 @@ class TFAWorkFlow(workflow.WorkflowBase):
         self.emit_results(betas, rescaled_betas, self.gold_standard, self.priors_data)
 
     def startup_run(self):
-        self.set_regression_type()
         self.get_data()
 
     def startup_finish(self):
         self.compute_common_data()
         self.compute_activity()
 
-    def set_regression_type(self):
-        self.regression_type.patch_workflow(self)
-
     def run_regression(self):
-        betas = []
-        rescaled_betas = []
-
-        for idx, bootstrap in enumerate(self.get_bootstraps()):
-            utils.Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps), level=0)
-            np.random.seed(self.random_seed + idx)
-            current_betas, current_rescaled_betas = self.run_bootstrap(bootstrap)
-            if self.is_master():
-                betas.append(current_betas)
-                rescaled_betas.append(current_rescaled_betas)
-
-        return betas, rescaled_betas
+        raise NotImplementedError
 
     def run_bootstrap(self, bootstrap):
         raise NotImplementedError
@@ -87,16 +78,15 @@ class TFAWorkFlow(workflow.WorkflowBase):
         """
         if self.is_master():
             self.create_output_dir()
-            self.results_processor = ResultsProcessor(betas, rescaled_betas,
-                                                      filter_method=self.gold_standard_filter_method)
-            self.results_processor.summarize_network(self.output_dir, gold_standard, priors)
+            rp = self.result_processor_driver(betas, rescaled_betas, filter_method=self.gold_standard_filter_method)
+            rp.summarize_network(self.output_dir, gold_standard, priors)
 
     def compute_common_data(self):
         """
         Compute common data structures like design and response matrices.
         """
         self.filter_expression_and_priors()
-        drd = design_response_translation.PythonDRDriver(return_half_tau=True)
+        drd = self.drd_driver(return_half_tau=True)
         utils.Debug.vprint('Creating design and response matrix ... ')
         drd.delTmin, drd.delTmax, drd.tau = self.delTmin, self.delTmax, self.tau
         self.design, self.response, self.half_tau_response = drd.run(self.expression_matrix, self.meta_data)

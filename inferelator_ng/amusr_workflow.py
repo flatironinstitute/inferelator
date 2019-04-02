@@ -12,7 +12,7 @@ except ImportError:
 import pandas as pd
 import numpy as np
 from inferelator_ng import utils
-from inferelator_ng import single_cell_puppeteer_workflow
+from inferelator_ng import crossvalidation_workflow
 from inferelator_ng import single_cell_workflow
 from inferelator_ng import default
 from inferelator_ng.regression import amusr_regression
@@ -116,15 +116,15 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
         return overall_pr_calc.aupr, stable_interactions, precision_interactions
 
 
-class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, single_cell_puppeteer_workflow.PuppeteerWorkflow):
+class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, crossvalidation_workflow.PuppeteerWorkflow):
     """
     Class that implements AMuSR multitask learning for single cell data
 
     Extends SingleCellWorkflow
     Inherits from PuppeteerWorkflow so that task preprocessing can be done more easily
     """
-    regression_type = amusr_regression
-    prior_weight = 1.
+
+    prior_weight = default.DEFAULT_prior_weight
     task_expression_filter = "intersection"
 
     # Task-specific data
@@ -138,6 +138,12 @@ class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, single_cell_p
     # Axis labels to keep
     targets = None
     regulators = None
+
+    # Multi-task result processor
+    result_processor_driver = ResultsProcessorMultiTask
+
+    # Workflow type for task processing
+    cv_workflow_type = single_cell_workflow.SingleCellWorkflow
 
     def startup_finish(self):
         # If the expression matrix is [G x N], transpose it for preprocessing
@@ -215,8 +221,8 @@ class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, single_cell_p
         """
         if self.is_master():
             self.create_output_dir()
-            rp = ResultsProcessorMultiTask(betas, rescaled_betas, filter_method=self.gold_standard_filter_method,
-                                           tasks_names=self.tasks_names)
+            rp = self.result_processor_driver(betas, rescaled_betas, filter_method=self.gold_standard_filter_method,
+                                              tasks_names=self.tasks_names)
             results = rp.summarize_network(self.output_dir, gold_standard, priors_data)
             self.aupr, self.n_interact, self.precision_interact = results
         else:

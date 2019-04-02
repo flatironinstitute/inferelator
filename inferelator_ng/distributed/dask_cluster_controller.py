@@ -1,10 +1,9 @@
 from __future__ import absolute_import, division, print_function
 import time
+import os
 
-import dask
 from dask import distributed
 from dask_jobqueue import SLURMCluster
-from dask_jobqueue.slurm import slurm_format_bytes_ceil
 
 from inferelator_ng.distributed import AbstractController
 
@@ -17,7 +16,6 @@ except ImportError:
 DEFAULT_CORES = 20
 DEFAULT_MEM = '62GB'
 DEFAULT_INTERFACE = 'ib0'
-DEFAULT_LOCAL_DIR = '$TMPDIR'
 DEFAULT_WALLTIME = '1:00:00'
 
 ENV_EXTRA = ['module purge',
@@ -32,82 +30,55 @@ DEFAULT_MAX_CORES = 200
 DEFAULT_ADAPT_INTERVAL = "1s"
 DEFAULT_ADAPT_WAIT_COUNT = 5
 
+DEFAULT_NYU_HEADER = ['#SBATCH --nodes=1', '#SBATCH --ntasks-per-node=1']
 
-# Overriding SLURMCluster to fix the hardcoded shit NYU hates
-class NYUSLURMCluster(SLURMCluster):
-    def __init__(self, queue=None, project=None, walltime=None, job_cpu=None, job_mem=None, job_extra=None,
-                 config_name='slurm', memory_limit=None, **kwargs):
-        if queue is None:
-            queue = dask.config.get('jobqueue.%s.queue' % config_name)
-        if project is None:
-            project = dask.config.get('jobqueue.%s.project' % config_name)
-        if walltime is None:
-            walltime = dask.config.get('jobqueue.%s.walltime' % config_name)
-        if job_cpu is None:
-            job_cpu = dask.config.get('jobqueue.%s.job-cpu' % config_name)
-        if job_mem is None:
-            job_mem = dask.config.get('jobqueue.%s.job-mem' % config_name)
-        if job_extra is None:
-            job_extra = dask.config.get('jobqueue.%s.job-extra' % config_name)
+try:
+    DEFAULT_LOCAL_DIR = os.environ['TMPDIR']
+except KeyError:
+    DEFAULT_LOCAL_DIR = 'dask-worker-space'
 
-        super(SLURMCluster, self).__init__(config_name=config_name, **kwargs)
-
-        if memory_limit is not None and memory_limit == 0:
-            self.memory_limit_0()
-
-        # Always ask for only one task
-        header_lines = []
-        # SLURM header build
-        if self.name is not None:
-            header_lines.append('#SBATCH -J %s' % self.name)
-        if self.log_directory is not None:
-            header_lines.append('#SBATCH -e %s/%s-%%J.err' %
-                                (self.log_directory, self.name or 'worker'))
-            header_lines.append('#SBATCH -o %s/%s-%%J.out' %
-                                (self.log_directory, self.name or 'worker'))
-        if queue is not None:
-            header_lines.append('#SBATCH -p %s' % queue)
-        if project is not None:
-            header_lines.append('#SBATCH -A %s' % project)
-
-        # Init resources, always 1 task,
-        # and then number of cpu is processes * threads if not set
-        header_lines.append('#SBATCH --nodes=1')
-        header_lines.append('#SBATCH --ntasks-per-node=1')
-        header_lines.append('#SBATCH --cpus-per-task=%d' % (job_cpu or self.worker_cores))
-        # Memory
-        memory = job_mem
-        if job_mem is None:
-            memory = slurm_format_bytes_ceil(self.worker_memory)
-        if memory is not None:
-            header_lines.append('#SBATCH --mem=%s' % memory)
-
-        if walltime is not None:
-            header_lines.append('#SBATCH -t %s' % walltime)
-        header_lines.extend(['#SBATCH %s' % arg for arg in job_extra])
-
-        header_lines.append('JOB_ID=${SLURM_JOB_ID%;*}')
-
-        # Declare class attribute that shall be overridden
-        self.job_header = '\n'.join(header_lines)
-
-    # This is the worst thing I've ever written
-    def memory_limit_0(self):
-        cargs = self._command_template.split("--")
-        new_cargs = []
-        for carg in cargs:
-            if carg.startswith("memory-limit"):
-                carg = "memory-limit 0 "
-            new_cargs.append(carg)
-        self._command_template = "--".join(new_cargs)
+# This is the worst thing I've ever written
+def memory_limit_0(command_template):
+    cargs = command_template.split("--")
+    newer_better_command_args = []
+    for carg in cargs:
+        if carg.startswith("memory-limit"):
+            carg = "memory-limit 0 "
+        newer_better_command_args.append(carg)
+    return "--".join(newer_better_command_args)
 
 
-class DaskSLURMController(AbstractController):
+# Or maybe this is?
+def fix_header_for_nyu(header, new_lines):
+    header_lines = header.split("\n")
+    newer_better_header = []
+    for head in header_lines:
+        if head.startswith("#SBATCH --cpus-per-task"):
+            newer_better_header.extend(new_lines)
+        newer_better_header.append(head)
+    return "\n".join(newer_better_header)
+
+
+class DaskHPCClusterController(AbstractController):
+    """
+    The DaskHPCClusterController launches a HPC cluster and connects as a client. By default it uses the SLURM workload
+    manager, but other workload managers may be used.
+    #TODO: test drop-in replacement of other managers
+
+    Many of the cluster-specific options are taken from class variables that can be set prior to calling .connect().
+    #TODO: eventually figure out how to get rid of the ugly monkeypatching hacks for command headers
+
+    The map functionality is deliberately not implemented; dask-specific multiprocessing functions are used instead
+    """
     _controller_name = "dask"
     is_master = True
     client = None
 
     ## Dask controller variables ##
+
+    # Cluster Controller
+    cluster_controller_class = SLURMCluster
+    hack_cluster_controller_for_NYU = True
 
     # The dask cluster object
     local_cluster = None
@@ -124,7 +95,6 @@ class DaskSLURMController(AbstractController):
     wait_count = DEFAULT_ADAPT_WAIT_COUNT
 
     # SLURM specific variables
-
     queue = None
     project = None
     walltime = DEFAULT_WALLTIME
@@ -140,20 +110,30 @@ class DaskSLURMController(AbstractController):
     @classmethod
     def connect(cls, *args, **kwargs):
         """
-        Setup local cluster
+        Setup slurm cluster
         """
 
-        cls.local_cluster = NYUSLURMCluster(queue=cls.queue, project=cls.project, walltime=cls.walltime,
-                                            job_cpu=cls.job_cpu, cores=cls.cores, processes=cls.processes,
-                                            job_mem=cls.job_mem, env_extra=cls.env_extra, interface=cls.interface,
-                                            local_directory=cls.local_directory, memory=cls.memory,
-                                            memory_limit=cls.worker_memory_limit)
+        # Create a slurm cluster with all the various class settings
+        cls.local_cluster = cls.cluster_controller_class(queue=cls.queue, project=cls.project, walltime=cls.walltime,
+                                                         job_cpu=cls.job_cpu, cores=cls.cores, processes=cls.processes,
+                                                         job_mem=cls.job_mem, env_extra=cls.env_extra,
+                                                         interface=cls.interface, local_directory=cls.local_directory,
+                                                         memory=cls.memory)
+
+        # Deactivate the worker memory nanny
+        if cls.worker_memory_limit == 0:
+            cls.local_cluster._command_template = memory_limit_0(cls.local_cluster._command_template)
+
+        # Rewrite the command headers so that the SLURM controller will work with the NYU prince cluster
+        if cls.hack_cluster_controller_for_NYU:
+            cls.local_cluster.job_header = fix_header_for_nyu(cls.local_cluster.job_header, DEFAULT_NYU_HEADER)
 
         if cls.control_adaptive:
             cls.local_cluster.adapt(minimum=cls.minimum_cores, maximum=cls.maximum_cores, interval=cls.interval,
                                     wait_count=cls.wait_count)
         else:
-            cls.local_cluster.scale_up(cls.maximum_cores)
+            cls.local_cluster.adapt(minimum=cls.maximum_cores, maximum=cls.maximum_cores, interval=cls.interval,
+                                    wait_count=cls.wait_count)
 
         sleep_time = 0
         while cls.local_cluster._count_active_workers() == 0:

@@ -35,7 +35,24 @@ class TFA:
     def compute_transcription_factor_activity(self, allow_self_interactions_for_duplicate_prior_columns=True):
 
         activity, self.prior, non_zero_tfs = process_expression_into_activity(self.expression_matrix, self.prior)
+        self.fix_self_interacting(non_zero_tfs, allow_duplicates=allow_self_interactions_for_duplicate_prior_columns)
 
+        # Set the activity of non-zero tfs to the pseudoinverse of the prior matrix times the expression
+        if len(non_zero_tfs) > 0:
+            activity.loc[non_zero_tfs, :] = np.matrix(linalg.pinv2(self.prior[non_zero_tfs])) * np.matrix(
+                self.expression_matrix_halftau)
+        else:
+            utils.Debug.vprint("No prior information for TFs exists. Using expression for TFA exclusively.", level=0)
+
+        activity_nas = activity.isna().any(axis=0)
+        if activity_nas.sum() > 0:
+            lose_tfs = activity_nas.index[activity_nas].tolist()
+            utils.Debug.vprint("Dropping TFs with NaN values: {drop}".format(drop=" ".join(lose_tfs)))
+            activity = activity.dropna(axis=0)
+
+        return activity
+
+    def fix_self_interacting(self, non_zero_tfs, allow_duplicates=True):
         # Find all non-zero TFs that are duplicates of any other non-zero tfs
         is_duplicated = self.prior[non_zero_tfs].transpose().duplicated(keep=False)
 
@@ -46,26 +63,13 @@ class TFA:
             duplicates = is_duplicated[is_duplicated].index.tolist()
 
             # If this flag is set to true, don't count duplicates as self-interacting when setting the diag to zero
-            if allow_self_interactions_for_duplicate_prior_columns:
+            if allow_duplicates:
                 self_interacting_tfs = self_interacting_tfs.difference(duplicates)
 
         # Set the diagonal of the matrix subset of self-interacting tfs to zero
         subset = self.prior.loc[self_interacting_tfs, self_interacting_tfs].values
         np.fill_diagonal(subset, 0)
         self.prior.at[self_interacting_tfs, self_interacting_tfs] = subset
-
-        # Set the activity of non-zero tfs to the pseudoinverse of the prior matrix times the expression
-        if len(non_zero_tfs) > 0:
-            activity.loc[non_zero_tfs, :] = np.matrix(linalg.pinv2(self.prior[non_zero_tfs])) * np.matrix(
-                self.expression_matrix_halftau)
-
-        activity_nas = activity.isna().any(axis=0)
-        if activity_nas.sum() > 0:
-            lose_tfs = activity_nas.index[activity_nas].tolist()
-            utils.Debug.vprint("Dropping TFs with NaN values: {drop}".format(drop=" ".join(lose_tfs)))
-            activity = activity.dropna(axis=0)
-
-        return activity
 
 
 class NoTFA(TFA):

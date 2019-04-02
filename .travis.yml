@@ -10,6 +10,11 @@ install:
   - pip install codecov
   - python setup.py install
   - pip install -r requirements.txt
+  - pip install dill
+  - pip install pathos
+  - pip install dask
+  - pip install dask[distributed]
+  - pip install dask_jobqueue
 script:
   - git clone https://github.com/simonsfoundation/kvsstcp
   - export PYTHONPATH=$PYTHONPATH:$(pwd)/kvsstcp

@@ -19,7 +19,7 @@ class TestBayesStats(unittest.TestCase):
         dict = {'pp':pp, 'betas':betas, 'betas_resc':betas_resc}
         np.testing.assert_equal(result, dict)
 
-    def test_bbsr(self):
+    def test_bbsr_2(self):
         # test when pp.sum() == 0
         X = np.array([[1, 0, 0], [2, 1, 0], [1, 1, 1], [0, 0, 1], [2, 1, 2]])
         y = np.array([0, 1, 0])
@@ -33,7 +33,7 @@ class TestBayesStats(unittest.TestCase):
         dict = {'pp':pp, 'betas':betas, 'betas_resc':betas_resc}
         np.testing.assert_equal(result, dict)
 
-    def test_bbsr(self):
+    def test_bbsr_3(self):
         # test when betas and betas_resc are not zero
         X = np.array([[1, 3, 1], [2, 1, 0], [1, 10, 5], [2, 6, 1], [2, 1, 8]])
         y = np.array([2, 1, 4])
@@ -55,6 +55,15 @@ class TestBayesStats(unittest.TestCase):
         gprior = np.array([[0, 1, 2, 3]])
         result = bayes_stats.best_subset_regression(x, y, gprior)
         np.testing.assert_array_almost_equal(result, np.array([0.0, 0.0, 0.0, 0.0]))
+
+    def test_best_subset_regression_lin_alg_error(self):
+        x = np.array([[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]])
+        y = np.array([0, 0, 0, 0, 0])
+        gprior = np.array([[0, 0, 0, 0]])
+        with np.warnings.catch_warnings():
+            np.warnings.filterwarnings('ignore')
+            result = bayes_stats.best_subset_regression(x, y, gprior)
+        np.testing.assert_array_almost_equal(result, np.array([0.0, 0.0, 0.0, 0.0], dtype=np.dtype(float)))
 
     def test_reduce_predictors(self):
         # test for k = max_k

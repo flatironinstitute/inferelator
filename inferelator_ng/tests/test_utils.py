@@ -3,6 +3,9 @@ from inferelator_ng import utils
 from inferelator_ng.utils import Validator as check
 from io import StringIO
 import pandas as pd
+import tempfile
+import shutil
+import os
 
 metadata_text_1 = u"""
 "isTs"\t"is1stLast"\t"prevCol"\t"del.t"\t"condName"
@@ -91,6 +94,20 @@ class TestValidator(unittest.TestCase):
             self.assertTrue(check.arguments_not_none((None, None, "A")))
         with self.assertRaises(ValueError):
             self.assertTrue(check.arguments_not_none((None, None, "A"), num_none=0))
+
+    def test_path(self):
+
+        temp_dir = tempfile.mkdtemp()
+        temp_test = os.path.join(temp_dir, "test_path")
+        with self.assertRaises(ValueError):
+            self.assertTrue(check.argument_path(temp_test, create_if_needed=False))
+        with self.assertRaises(ValueError):
+            self.assertTrue(check.argument_path(os.path.join("/dev/null", "super_test"), create_if_needed=True))
+        self.assertTrue(check.argument_path(temp_test, create_if_needed=True))
+        self.assertTrue(check.argument_path(temp_test, create_if_needed=False))
+        self.assertTrue(check.argument_path(temp_test, create_if_needed=False, access=os.W_OK))
+        self.assertTrue(check.argument_path(None, allow_none=True))
+        shutil.rmtree(temp_dir)
 
 if __name__ == '__main__':
     unittest.main()

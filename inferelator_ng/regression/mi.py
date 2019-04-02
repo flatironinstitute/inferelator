@@ -1,3 +1,5 @@
+from __future__ import division
+
 import os
 import numpy as np
 import pandas as pd
@@ -32,6 +34,7 @@ class MIDriver:
         """
 
         assert check.argument_path(sync_in_tmp_path, allow_none=True, access=os.W_OK)
+        assert check.argument_integer(bins, allow_none=False)
 
         self.bins = bins
         self.temp_dir = sync_in_tmp_path
@@ -48,7 +51,12 @@ class MIDriver:
             CLR and MI DataFrames
         """
 
+        assert check.argument_integer(bins, allow_none=True)
         assert check.indexes_align((x_df.columns, y_df.columns))
+        assert x_df.shape[0] > 0
+        assert x_df.shape[1] > 0
+        assert y_df.shape[0] > 0
+        assert y_df.shape[1] > 0
 
         if bins is not None:
             self.bins = bins
@@ -90,10 +98,13 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
     X = X.values
     Y = Y.values
 
+    # Discretize the input matrixes
+    X = _make_array_discrete(X.transpose(), bins, axis=0)
+    Y = _make_array_discrete(Y.transpose(), bins, axis=0)
+
     # Build the MI matrix
     if MPControl.client.name() == "dask":
-        return pd.DataFrame(build_mi_array_dask(X, Y, bins, logtype=logtype, temp_dir=temp_dir), index=mi_r,
-                            columns=mi_c)
+        return pd.DataFrame(build_mi_array_dask(X, Y, bins, logtype=logtype), index=mi_r, columns=mi_c)
     else:
         return pd.DataFrame(build_mi_array(X, Y, bins, logtype=logtype, temp_dir=temp_dir), index=mi_r,
                             columns=mi_c)
@@ -117,14 +128,12 @@ def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
         Returns the mutual information array
     """
 
-    # Discretize the input matrixes
-    X = _make_array_discrete(X.transpose(), bins, axis=0)
-    Y = _make_array_discrete(Y.transpose(), bins, axis=0)
-
     m1, m2 = X.shape[1], Y.shape[1]
 
     # Define the function which calculates MI for each variable in X against every variable in Y
     def mi_make(i):
+        level = 2 if i % 1000 == 0 else 3
+        utils.Debug.allprint("Mutual Information Calculation [{i} / {total}]".format(i=i, total=m1), level=level)
         return [_calc_mi(_make_table(X[:, i], Y[:, j], bins), logtype=logtype) for j in range(m2)]
 
     # Send the MI build to the multiprocessing controller
@@ -137,7 +146,7 @@ def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
     return mi
 
 
-def build_mi_array_dask(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
+def build_mi_array_dask(X, Y, bins, logtype=DEFAULT_LOG_TYPE):
     """
     Calculate MI into an array with dask (the naive map is very inefficient)
 
@@ -149,38 +158,36 @@ def build_mi_array_dask(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
         The total number of bins that were used to make the arrays discrete
     :param logtype: np.log func
         Which log function to use (log2 gives bits, ln gives nats)
-    :param temp_dir: path
-        Does nothing
     :return mi: np.ndarray (m1 x m2)
         Returns the mutual information array
     """
 
-    # Import the Dask controller
-    DaskController = MPControl.client
+    assert MPControl.name() == "dask"
 
-    # Discretize the input matrixes
-    X = _make_array_discrete(X.transpose(), bins, axis=0)
-    Y = _make_array_discrete(Y.transpose(), bins, axis=0)
+    # Get a reference to the Dask controller
+    from dask import distributed
+    dask_controller = MPControl.client
 
     m1, m2 = X.shape[1], Y.shape[1]
 
     def mi_make(i, x, y):
         level = 1 if i % 1000 == 0 else 3
         utils.Debug.allprint("Mutual Information Calculation [{i} / {total}]".format(i=i, total=m1), level=level)
-        return [_calc_mi(_make_table(x[:, i], y[:, j], bins), logtype=logtype) for j in range(m2)]
+        return i, [_calc_mi(_make_table(x, y[:, j], bins), logtype=logtype) for j in range(m2)]
 
-    # Scatter X & Y to all workers and keep track of them as Futures
-    [scatter_x] = DaskController.client.scatter([X], broadcast=True)
-    [scatter_y] = DaskController.client.scatter([Y], broadcast=True)
+    # Scatter Y to workers and keep track as Futures
+    [scatter_y] = dask_controller.client.scatter([Y], broadcast=True)
 
     # Build an asynchronous list of Futures for each calculation of mi_make
-    future_list = [DaskController.client.submit(mi_make, i, scatter_x, scatter_y) for i in range(m1)]
-    mi_list = DaskController.client.gather(future_list)
+    future_list = [dask_controller.client.submit(mi_make, i, X[:, i], scatter_y) for i in range(m1)]
+    mi_list = [None] * len(future_list)
+    for finished_future, (i, result_data) in distributed.as_completed(future_list, with_results=True):
+        mi_list[i] = result_data
+        finished_future.cancel()
 
     # Clean up worker data by cancelling all the Futures
-    DaskController.client.cancel(scatter_x)
-    DaskController.client.cancel(scatter_y)
-    DaskController.client.cancel(future_list)
+    dask_controller.client.cancel(scatter_y)
+    dask_controller.client.cancel(future_list)
 
     # Convert the list of lists to an array
     mi = np.array(mi_list)
@@ -223,10 +230,10 @@ def _make_array_discrete(array, num_bins, axis=0):
     return np.apply_along_axis(_make_discrete, arr=array, axis=axis, num_bins=num_bins)
 
 
-def _make_discrete(array, num_bins):
+def _make_discrete(arr_vec, num_bins):
     """
     Takes a 1d array or vector and discretizes it into nonparametric bins
-    :param array: np.ndarray
+    :param arr_vec: np.ndarray
         1d array of continuous data
     :param num_bins: int
         Number of bins for data
@@ -235,21 +242,23 @@ def _make_discrete(array, num_bins):
     """
 
     # Sanity check
-    if not isinstance(array, list):
+    if not isinstance(arr_vec, list):
         try:
-            if array.shape[1] != 1:
+            if arr_vec.shape[1] != 1:
                 raise ValueError("make_discrete takes a 1d array")
         except IndexError:
             pass
 
     # Create a function to convert continuous values to discrete bins
-    arr_min = np.min(array)
-    arr_max = np.max(array)
+    arr_min = np.min(arr_vec)
+    arr_max = np.max(arr_vec)
     eps_mod = max(np.finfo(float).eps, np.finfo(float).eps * (arr_max - arr_min))
-    disc_func = lambda x: np.floor((x - arr_min) / (arr_max - arr_min + eps_mod) * num_bins)
+
+    def _disc_func(x):
+        return np.floor((x - arr_min) / (arr_max - arr_min + eps_mod) * num_bins)
 
     # Apply the function to every value in the vector
-    return disc_func(array).astype(np.dtype(int))
+    return _disc_func(arr_vec).astype(np.dtype(int))
 
 
 def _make_table(x, y, num_bins):

@@ -1,199 +1,16 @@
 from __future__ import print_function
 
-import os
-import csv
-
 import numpy as np
 import pandas as pd
 
 from inferelator_ng import single_cell_workflow
-from inferelator_ng.postprocessing import results_processor
+from inferelator_ng import crossvalidation_workflow
 from inferelator_ng import utils
 from inferelator_ng import default
-from inferelator_ng.regression import bbsr_python
 from inferelator_ng.utils import Validator as check
 
-# The variable names that get set in the main workflow, but need to get copied to the puppets
-SHARED_CLASS_VARIABLES = ['tf_names', 'gene_list', 'num_bootstraps', 'modify_activity_from_metadata',
-                          'metadata_expression_lookup', 'gene_list_lookup', 'mi_sync_path', 'count_minimum',
-                          'gold_standard_filter_method', 'split_priors_for_gold_standard', 'cv_split_ratio',
-                          'split_gold_standard_for_crossvalidation', 'cv_split_axis', 'preprocessing_workflow',
-                          'shuffle_prior_axis', 'write_network', 'output_dir', 'tfa_driver']
 
-
-class NoOutputRP(results_processor.ResultsProcessor):
-    """
-    Overload the existing results processor to return summary information and to only output files if specifically
-    instructed to do so
-    """
-
-    network_file_name = None
-    pr_curve_file_name = None
-    confidence_file_name = None
-    threshold_file_name = None
-
-    def summarize_network(self, output_dir, gold_standard, priors, confidence_threshold=default.DEFAULT_CONF,
-                          precision_threshold=default.DEFAULT_PREC):
-        """
-        Take the betas and rescaled beta_errors, construct a network, and test it against the gold standard
-        :param output_dir: str
-            Path to write files into. Don't write anything if this is None.
-        :param gold_standard: pd.DataFrame [G x K]
-            Gold standard to test the network against
-        :param priors: pd.DataFrame [G x K]
-            Prior data
-        :param confidence_threshold: float
-            Threshold for confidence scores
-        :param precision_threshold: float
-            Threshold for precision
-        :return aupr: float
-            Returns the AUPR calculated from the network and gold standard
-        :return num_conf: int
-            The number of interactions above the confidence threshold
-        :return num_prec: int
-            The number of interactions above the precision threshold
-        """
-
-        pr_calc = results_processor.RankSummaryPR(self.rescaled_betas, gold_standard, filter_method=self.filter_method)
-        beta_sign, beta_nonzero = self.summarize(self.betas)
-        beta_threshold = self.passes_threshold(beta_nonzero, len(self.betas), self.threshold)
-        resc_betas_mean, resc_betas_median = self.mean_and_median(self.rescaled_betas)
-        network_data = {'beta.sign.sum': beta_sign, 'var.exp.median': resc_betas_median}
-
-        utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=pr_calc.aupr), level=0)
-
-        # Plot PR curve & Output results to a TSV
-        self.write_output_files(pr_calc, output_dir, priors, beta_threshold, network_data)
-
-        num_conf = pr_calc.num_over_conf_threshold(confidence_threshold)
-        num_prec = pr_calc.num_over_precision_threshold(precision_threshold)
-
-        return pr_calc.aupr, num_conf, num_prec
-
-
-# Factory method to spit out a puppet workflow
-def create_puppet_workflow(base_class=single_cell_workflow.SingleCellWorkflow, result_processor=NoOutputRP):
-    class PuppetClass(base_class):
-        """
-        Standard workflow except it takes all the data as references to __init__ instead of as filenames on disk or
-        as environment variables, and returns the model AUPR and edge counts without writing files (unless told to)
-        """
-
-        write_network = True
-        network_file_name = None
-        pr_curve_file_name = None
-        initialize_mp = False
-
-        def __init__(self, expr_data, meta_data, prior_data, gs_data):
-            self.expression_matrix = expr_data
-            self.meta_data = meta_data
-            self.priors_data = prior_data
-            self.gold_standard = gs_data
-
-        def startup_run(self):
-            if self.split_priors_for_gold_standard:
-                self.split_priors_into_gold_standard()
-            elif self.split_gold_standard_for_crossvalidation:
-                self.cross_validate_gold_standard()
-
-        def emit_results(self, betas, rescaled_betas, gold_standard, priors):
-            if self.is_master():
-                results = result_processor(betas, rescaled_betas, filter_method=self.gold_standard_filter_method)
-                if self.write_network:
-                    results.network_file_name = self.network_file_name
-                    results.pr_curve_file_name = self.pr_curve_file_name
-                    network_file_path = self.output_dir
-                else:
-                    results.network_file_name = None
-                    results.pr_curve_file_name = None
-                    network_file_path = None
-                results.confidence_file_name = None
-                results.threshold_file_name = None
-                results.write_task_files = False
-                results.tasks_names = getattr(self, "tasks_names", None) # For multitask
-                results = results.summarize_network(network_file_path, gold_standard, priors)
-                self.aupr, self.n_interact, self.precision_interact = results
-            else:
-                self.aupr, self.n_interact, self.precision_interact = None, None, None
-
-    return PuppetClass
-
-class PuppeteerWorkflow(object):
-    """
-    This class contains the methods to create new child Workflow objects
-    It does not extend WorkflowBase because I hate keeping track of multiinheritance patterns
-    """
-    write_network = True  # bool
-    csv_writer = None  # csv.csvwriter
-    csv_header = []  # list[]
-    output_file_name = "aupr.tsv"  # str
-
-    puppet_class = single_cell_workflow.SingleCellWorkflow
-    puppet_result_processor = NoOutputRP
-    regression_type = bbsr_python
-
-    def create_writer(self):
-        """
-        Create a CSVWriter and stash it in self.writer
-        """
-
-        if self.is_master():
-            self.create_output_dir()
-            self.csv_writer = csv.writer(open(os.path.join(self.output_dir, self.output_file_name),
-                                              mode="w", buffering=1), delimiter="\t", lineterminator="\n",
-                                         quoting=csv.QUOTE_NONE)
-            self.csv_writer.writerow(self.csv_header)
-
-    def new_puppet(self, expr_data, meta_data, seed=default.DEFAULT_RANDOM_SEED, priors_data=None, gold_standard=None):
-        """
-        Create a new puppet workflow to run the inferelator
-        :param expr_data: pd.DataFrame [G x N]
-        :param meta_data: pd.DataFrame [N x ?]
-        :param seed: int
-        :param priors_data: pd.DataFrame [G x K]
-        :param gold_standard: pd.DataFrame [G x K]
-        :return puppet:
-        """
-
-        # Unless told otherwise, use the master priors and master gold standard
-        if gold_standard is None:
-            gold_standard = self.gold_standard
-        if priors_data is None:
-            priors_data = self.priors_data
-
-        # Create a new puppet workflow with the factory method and pass in data on instantiation
-        puppet = create_puppet_workflow(base_class = self.puppet_class, result_processor = self.puppet_result_processor)
-        puppet = puppet(expr_data, meta_data, priors_data, gold_standard)
-
-        # Transfer the class variables necessary to get the puppet to dance (everything in SHARED_CLASS_VARIABLES)
-        self.assign_class_vars(puppet)
-
-        # Set the random seed into the puppet
-        puppet.random_seed = seed
-
-        # Make sure that the puppet knows the correct orientation of the expression matrix
-        puppet.expression_matrix_columns_are_genes = False
-
-        # Tell the puppet what to name stuff (if write_network is False then no output will be produced)
-        puppet.network_file_name = "network_s{seed}.tsv".format(seed=seed)
-        puppet.pr_curve_file_name = "pr_curve_s{seed}.pdf".format(seed=seed)
-        return puppet
-
-    def assign_class_vars(self, obj):
-        """
-        Transfer class variables from this object to a target object
-        """
-        for varname in SHARED_CLASS_VARIABLES:
-            try:
-                setattr(obj, varname, getattr(self, varname))
-                utils.Debug.vprint("Variable {var} set to child".format(var=varname), level=2)
-            except AttributeError:
-                utils.Debug.vprint("Variable {var} not assigned to parent".format(var=varname))
-
-        self.regression_type.patch_workflow(obj)
-
-
-class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, PuppeteerWorkflow):
+class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, crossvalidation_workflow.PuppeteerWorkflow):
     seeds = default.DEFAULT_SEED_RANGE
 
     # Output TSV controllers
@@ -206,6 +23,9 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, Puppe
     stratified_sampling = False
     stratified_batch_lookup = default.DEFAULT_METADATA_FOR_BATCH_CORRECTION
     sample_with_replacement = True
+
+    cv_workflow_type = single_cell_workflow.SingleCellWorkflow
+    cv_regression_type = "bbsr"
 
     def run(self):
         np.random.seed(self.random_seed)
@@ -307,7 +127,7 @@ class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
                     puppet.pr_curve_file_name = "pr_curve_{size}_s{seed}.pdf".format(size=s_ratio, seed=seed)
                 puppet.run()
                 size_aupr = (s_ratio, len(nidx), seed, puppet.aupr, puppet.n_interact, puppet.precision_interact)
-                aupr_data.extend(size_aupr)
+                aupr_data.append(size_aupr)
                 if self.is_master():
                     self.csv_writer.writerow(size_aupr)
         return aupr_data
@@ -321,11 +141,17 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
     stratified_sampling = True
     drop_column = None
 
+    model_dropouts = True
+    model_dropins = True
+
     def modeling_method(self, *args, **kwargs):
 
         self.factor_indexes = self.factor_singles()
-        auprs = self.auprs_for_condition_dropin()
-        auprs.extend(self.auprs_for_condition_dropout())
+        auprs = []
+        if self.model_dropins:
+            auprs.extend(self.auprs_for_condition_dropin())
+        if self.model_dropouts:
+            auprs.extend(self.auprs_for_condition_dropout())
         return auprs
 
     def auprs_for_condition_dropout(self):
@@ -334,7 +160,7 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
         :return:
         """
         # Run the modeling on all data
-        aupr_data = [self.auprs_for_index("all_dropout", pd.Series(True, index=self.meta_data.index))]
+        aupr_data = self.auprs_for_index("all_dropout", pd.Series(True, index=self.meta_data.index))
 
         if self.drop_column is None:
             return aupr_data
@@ -346,13 +172,13 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
 
     def auprs_for_condition_dropin(self):
         """
-        Run modeling on all data, and then on data where each factor from `drop_column` has been removed one
+        Run modeling on all data, and then on data where each factor from `drop_column` is sampled separately
         :return:
         """
         # Run the modeling on all data with resizing
         drop_in_sizing = int(self.sample_batches_to_size / len(self.factor_indexes))
-        aupr_data = [self.auprs_for_index("all_dropin", pd.Series(True, index=self.meta_data.index),
-                                          sample_size=drop_in_sizing)]
+        aupr_data = self.auprs_for_index("all_dropin", pd.Series(True, index=self.meta_data.index),
+                                         sample_size=drop_in_sizing)
 
         if self.drop_column is None:
             return aupr_data

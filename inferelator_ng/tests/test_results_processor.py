@@ -3,6 +3,8 @@ from inferelator_ng.postprocessing import results_processor
 import pandas as pd
 import numpy as np
 import os
+import tempfile
+import shutil
 
 class TestResultsProcessor(unittest.TestCase):
 
@@ -329,15 +331,18 @@ class TestResultsProcessor(unittest.TestCase):
         results_processor.RankSummaryPR.filter_to_left_size(left, right)
 
     def test_plot_pr_curve(self):
-        file_name = "/tmp/pr_curve.pdf"
-        #if os.path.exists(file_name):
-        #    os.remove(file_name)
-        results_processor.RankSummaryPR.plot_pr_curve([0, 1], [1, 0], "x", "/tmp", "pr_curve.pdf")
-        exists = os.path.exists(file_name)
-        self.assertTrue(exists)
+        temp_dir = tempfile.mkdtemp()
+        file_name = os.path.join(temp_dir, "pr_curve.pdf")
+        results_processor.RankSummaryPR.plot_pr_curve([0, 1], [1, 0], "x", temp_dir, "pr_curve.pdf")
+        self.assertTrue(os.path.exists(file_name))
+        os.remove(file_name)
 
-    def test_plot_pr_curve_file_name(self):
-        results_processor.RankSummaryPR.plot_pr_curve(recall=0.7, precision=0.5, aupr=0.9, output_dir="/tmp", file_name="pr_curve.pdf")
+        results_processor.RankSummaryPR.plot_pr_curve(recall=[0, 1], precision=[1, 0], aupr=0.9, output_dir=temp_dir,
+                                                      file_name="pr_curve.pdf")
+        self.assertTrue(os.path.exists(file_name))
+        os.remove(file_name)
 
-    def test_plot_pr_curve_file_name_none(self):
-        results_processor.RankSummaryPR.plot_pr_curve(recall=0.3, precision=0.5, aupr=0.6, output_dir=None, file_name=None)
+        results_processor.RankSummaryPR.plot_pr_curve(recall=[0, 1], precision=[1, 0], aupr=0.9, output_dir=temp_dir,
+                                                      file_name=None)
+        self.assertFalse(os.path.exists(file_name))
+        shutil.rmtree(temp_dir)

@@ -4,24 +4,30 @@ Base implementation for high level workflow.
 The goal of this design is to make it easy to share
 code among different variants of the Inferelator workflow.
 """
+from __future__ import unicode_literals, print_function
 
 from inferelator_ng import utils
 from inferelator_ng.utils import Validator as check
 from inferelator_ng import default
 from inferelator_ng.preprocessing.prior_gs_split_workflow import split_for_cv, remove_prior_circularity
+from inferelator_ng.regression.base_regression import RegressionWorkflow
 
 from inferelator_ng.distributed.inferelator_mp import MPControl
 
+import inspect
 import numpy as np
 import os
 import datetime
 import pandas as pd
 
-import gzip
-import bz2
+# Python 2/3 compatible string checking
+try:
+    basestring
+except NameError:
+    basestring = str
+
 
 class WorkflowBase(object):
-
     # Paths to the input and output locations
     input_dir = None
     output_dir = None
@@ -50,6 +56,7 @@ class WorkflowBase(object):
     split_gold_standard_for_crossvalidation = False
     cv_split_ratio = default.DEFAULT_GS_SPLIT_RATIO
     cv_split_axis = default.DEFAULT_GS_SPLIT_AXIS
+    shuffle_prior_axis = None
 
     # Computed data structures [G: Genes, K: Predictors, N: Conditions
     expression_matrix = None  # expression_matrix dataframe [G x N]
@@ -131,10 +138,14 @@ class WorkflowBase(object):
         """
         Read tf names file into tf_names
         """
-        if file is None:
-            file = self.tf_names_file
 
-        tfs = self.input_dataframe(file, index_col=None)
+        # Load the class variable if no file is passed
+        file = self.tf_names_file if file is None else file
+
+        # Read in a dataframe with no header or index
+        tfs = self.input_dataframe(file, header=None, index_col=None)
+
+        # Cast the dataframe into a list
         assert tfs.shape[1] == 1
         self.tf_names = tfs.values.flatten().tolist()
 
@@ -208,31 +219,54 @@ class WorkflowBase(object):
         utils.Debug.vprint("Selected prior {pr} and gold standard {gs}".format(pr=self.priors_data.shape,
                                                                                gs=self.gold_standard.shape), level=0)
 
-    def input_path(self, filename, mode='r'):
+    def shuffle_priors(self):
         """
-        Join filename to input_dir and use the file open method that's appropriate for compressed files
+        Shuffle prior labels if shuffle_prior_axis is set
         """
 
-        if filename.endswith(".gz"):
-            opener = gzip.open
-        elif filename.endswith(".bz2"):
-            opener = bz2.BZ2File
+        if self.shuffle_prior_axis is None:
+            return None
+        elif self.shuffle_prior_axis == 0:
+            # Shuffle index (genes) in the priors_data
+            utils.Debug.vprint("Randomly shuffling prior [{sh}] gene data".format(sh=self.priors_data.shape))
+            prior_index = self.priors_data.index.tolist()
+            self.priors_data = self.priors_data.sample(frac=1, axis=0, random_state=self.random_seed)
+            self.priors_data.index = prior_index
+        elif self.shuffle_prior_axis == 1:
+            # Shuffle columns (TFs) in the priors_data
+            utils.Debug.vprint("Randomly shuffling prior [{sh}] TF data".format(sh=self.priors_data.shape))
+            prior_index = self.priors_data.columns.tolist()
+            self.priors_data = self.priors_data.sample(frac=1, axis=1, random_state=self.random_seed)
+            self.priors_data.columns = prior_index
         else:
-            opener = open
+            raise ValueError("shuffle_prior_axis must be 0 or 1")
 
-        return opener(os.path.abspath(os.path.expanduser(os.path.join(self.input_dir, filename))), mode=mode)
+    def input_path(self, filename):
+        """
+        Join filename to input_dir
+        """
 
-    def input_dataframe(self, filename, index_col=0):
+        return os.path.abspath(os.path.expanduser(os.path.join(self.input_dir, filename)))
+
+    def input_dataframe(self, filename, **kwargs):
         """
         Read a file in as a pandas dataframe
         """
 
+        # Set defaults for index_col and header
+        kwargs['index_col'] = kwargs.pop('index_col', 0)
+        kwargs['header'] = kwargs.pop('header', 0)
+
+        # Use any kwargs for this function and any file settings from default
         file_settings = self.file_format_settings.copy()
+        file_settings.update(kwargs)
+
+        # Update the file settings with anything that's in file-specific overrides
         if filename in self.file_format_overrides:
             file_settings.update(self.file_format_overrides[filename])
 
-        with self.input_path(filename) as fh:
-            return pd.read_table(fh, index_col=index_col, **file_settings)
+        # Load a dataframe
+        return pd.read_csv(self.input_path(filename), **file_settings)
 
     def append_to_path(self, var_name, to_append):
         """
@@ -240,7 +274,8 @@ class WorkflowBase(object):
         """
         path = getattr(self, var_name, None)
         if path is None:
-            raise ValueError("Cannot append to None")
+            raise ValueError("Cannot append {to_append} to {var_name} (Which is None)".format(to_append=to_append,
+                                                                                              var_name=var_name))
         setattr(self, var_name, os.path.join(path, to_append))
 
     @staticmethod
@@ -267,8 +302,11 @@ class WorkflowBase(object):
         if len(keeper_regulators) == 0 or len(expressed_targets) == 0:
             raise ValueError("Filtering will result in a priors with at least one axis of 0 length")
 
-        self.priors_data = self.priors_data.loc[expressed_targets, keeper_regulators]
+        self.priors_data = self.priors_data.reindex(expressed_targets, axis=0)
+        self.priors_data = self.priors_data.reindex(keeper_regulators, axis=1)
         self.priors_data = pd.DataFrame.fillna(self.priors_data, 0)
+
+        self.shuffle_priors()
 
     def get_bootstraps(self):
         """
@@ -278,7 +316,7 @@ class WorkflowBase(object):
         random_state = np.random.RandomState(seed=self.random_seed)
         return random_state.choice(col_range, size=(self.num_bootstraps, self.response.shape[1])).tolist()
 
-    def emit_results(self):
+    def emit_results(self, betas, rescaled_betas, gold_standard, priors):
         """
         Output result report(s) for workflow run.
         """
@@ -301,3 +339,85 @@ class WorkflowBase(object):
             os.makedirs(self.output_dir)
         except OSError:
             pass
+
+
+def create_inferelator_workflow(regression=RegressionWorkflow, workflow=WorkflowBase):
+    """
+    This is the factory method to create workflow ckasses that combine preprocessing and postprocessing (from workflow)
+    with a regression method (from regression)
+
+    :param regression: RegressionWorkflow subclass
+        A class object which implements the run_regression and run_bootstrap methods for a specific regression strategy
+    :param workflow: WorkflowBase subclass
+        A class object which implements the necessary data loading and preprocessing to create design & response data
+        for the regression strategy, and then the postprocessing to turn regression betas into a network
+    :return RegressWorkflow:
+        This returns an uninstantiated class which is the multi-inheritance result of both the regression workflow and
+        the preprocessing/postprocessing workflow
+    """
+
+    # Decide which preprocessing/postprocessing workflow to use
+    # String arguments are parsed for convenience in the run script
+    if isinstance(workflow, basestring):
+        if workflow == "base":
+            workflow_class = WorkflowBase
+        elif workflow == "tfa":
+            from inferelator_ng.tfa_workflow import TFAWorkFlow
+            workflow_class = TFAWorkFlow
+        elif workflow == "amusr":
+            from inferelator_ng.amusr_workflow import SingleCellMultiTask
+            workflow_class = SingleCellMultiTask
+        elif workflow == "single-cell":
+            from inferelator_ng.single_cell_workflow import SingleCellWorkflow
+            workflow_class = SingleCellWorkflow
+        else:
+            raise ValueError("{val} is not a string that can be mapped to a workflow class".format(val=workflow))
+    # Or just use a workflow class directly
+    elif inspect.isclass(workflow) and issubclass(workflow, WorkflowBase):
+        workflow_class = workflow
+    else:
+        raise ValueError("Workflow must be a string that maps to a workflow class or an actual workflow class")
+
+    # Decide which regression workflow to use
+    # Return just the workflow if regression is set to None
+    if regression is None:
+        return workflow_class
+    # String arguments are parsed for convenience in the run script
+    elif isinstance(regression, basestring):
+        if regression == "bbsr":
+            from inferelator_ng.regression.bbsr_python import BBSRRegressionWorkflow
+            regression_class = BBSRRegressionWorkflow
+        elif regression == "elasticnet":
+            from inferelator_ng.regression.elasticnet_python import ElasticNetWorkflow
+            regression_class = ElasticNetWorkflow
+        elif regression == "amusr":
+            from inferelator_ng.regression.amusr_regression import AMUSRRegressionWorkflow
+            regression_class = AMUSRRegressionWorkflow
+        else:
+            raise ValueError("{val} is not a string that can be mapped to a regression class".format(val=regression))
+    # Or just use a regression class directly
+    elif inspect.isclass(regression) and issubclass(regression, RegressionWorkflow):
+        regression_class = regression
+    else:
+        raise ValueError("Regression must be a string that maps to a regression class or an actual regression class")
+
+    class RegressWorkflow(regression_class, workflow_class):
+        regression_type = regression_class
+
+    return RegressWorkflow
+
+
+def inferelator_workflow(regression=RegressionWorkflow, workflow=WorkflowBase):
+    """
+    Create and instantiate a workflow
+
+    :param regression: RegressionWorkflow subclass
+        A class object which implements the run_regression and run_bootstrap methods for a specific regression strategy
+    :param workflow: WorkflowBase subclass
+        A class object which implements the necessary data loading and preprocessing to create design & response data
+        for the regression strategy, and then the postprocessing to turn regression betas into a network
+    :return RegressWorkflow:
+        This returns an initialized object which is the multi-inheritance result of both the regression workflow and
+        the preprocessing/postprocessing workflow
+    """
+    return create_inferelator_workflow(regression=regression, workflow=workflow)()
