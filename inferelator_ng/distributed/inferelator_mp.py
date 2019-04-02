@@ -47,6 +47,8 @@ class MPControl(AbstractController):
         :param engine: str / Controller object
             A string to lookup the controller or a Controller object
         """
+        if cls.is_initialized:
+            raise RuntimeError("Client is currently active. Run .shutdown() before changing engines.")
 
         if isinstance(engine, basestring):
             if engine == "dask-cluster":

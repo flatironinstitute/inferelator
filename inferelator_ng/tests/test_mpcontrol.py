@@ -66,6 +66,7 @@ class TestNoController(TestMPControl):
     @classmethod
     def setUpClass(cls):
         MPControl.shutdown()
+        MPControl.client = None
 
     @classmethod
     def tearDownClass(cls):
@@ -99,6 +100,10 @@ class TestLocalController(TestMPControl):
 
     def test_local_connect(self):
         self.assertTrue(MPControl.is_initialized)
+
+    def test_cant_change(self):
+        with self.assertRaises(RuntimeError):
+            MPControl.set_multiprocess_engine("local")
 
     def test_local_map(self):
         test_result = MPControl.map(math_function, *self.map_test_data)
