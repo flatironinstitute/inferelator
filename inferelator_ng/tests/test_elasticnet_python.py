@@ -65,6 +65,3 @@ class TestElasticNet(unittest.TestCase):
         for component in check.keys():
             for idx in range(0, len(check[component])):
                 np.testing.assert_array_almost_equal(result[component][idx], check[component][idx], 2)
-
-
-

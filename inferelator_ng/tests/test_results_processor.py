@@ -180,10 +180,6 @@ class TestResultsProcessor(unittest.TestCase):
         np.testing.assert_equal(mean, np.array([[ 1.5,  1.5],[ 1.5,  1.5]]))
         np.testing.assert_equal(median, np.array([[ 1.5, 1.5],[ 1.5, 1.5]]))
 
-
-
-# csg test start here
-
     def test_save_network_to_tsv(self):
         rankable_data = [pd.DataFrame(np.array([[2.0, 4.0], [6.0, 8.0]]))]
         gold_standard = pd.DataFrame(np.array([[0, 1], [1, 1]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
