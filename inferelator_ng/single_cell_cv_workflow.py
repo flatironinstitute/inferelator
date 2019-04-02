@@ -16,7 +16,7 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, cross
     # Output TSV controllers
     write_network = True  # bool
     csv_writer = None  # csv.csvwriter
-    csv_header = ["Seed", "AUPR", "Num_Interacting"]  # list[]
+    csv_header = ("Seed", "AUPR", "Num_Interacting")  # list[]
     output_file_name = "aupr.tsv"  # str
 
     # How to sample

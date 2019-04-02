@@ -22,11 +22,13 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
     extract_metadata_from_expression_matrix = default.DEFAULT_EXTRACT_METADATA_FROM_EXPR  # bool
     expression_matrix_metadata = default.DEFAULT_EXPRESSION_MATRIX_METADATA  # str
 
-    # Preprocessing workflow holder
-    preprocessing_workflow = list()
-
     # Shuffle priors for a negative control
     shuffle_prior_axis = None
+
+    def __init__(self):
+        # Preprocessing workflow holder
+        self.preprocessing_workflow = list()
+        super(SingleCellWorkflow, self).__init__()
 
     def startup_finish(self):
         # If the expression matrix is [G x N], transpose it for preprocessing

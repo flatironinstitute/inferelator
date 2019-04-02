@@ -76,7 +76,7 @@ class PuppeteerWorkflow(object):
     """
     write_network = True  # bool
     csv_writer = None  # csv.csvwriter
-    csv_header = []  # list[]
+    csv_header = ()  # list[]
     output_file_name = "aupr.tsv"  # str
 
     cv_regression_type = base_regression.RegressionWorkflow
@@ -167,6 +167,8 @@ def create_puppet_workflow(regression_class=base_regression.RegressionWorkflow,
             self.meta_data = meta_data
             self.priors_data = prior_data
             self.gold_standard = gs_data
+            
+            super(PuppetClass, self).__init__()
 
         def startup_run(self):
             if self.split_priors_for_gold_standard:
