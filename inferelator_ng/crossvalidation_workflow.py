@@ -6,7 +6,7 @@ import csv
 from inferelator_ng import utils, default
 from inferelator_ng.regression import base_regression
 from inferelator_ng.postprocessing import results_processor
-from inferelator_ng import single_cell_workflow
+from inferelator_ng.postprocessing import model_performance
 from inferelator_ng import workflow
 
 
@@ -43,7 +43,7 @@ class NoOutputRP(results_processor.ResultsProcessor):
             The number of interactions above the precision threshold
         """
 
-        pr_calc = results_processor.RankSummaryPR(self.rescaled_betas, gold_standard, filter_method=self.filter_method)
+        pr_calc = model_performance.RankSummaryPR(self.rescaled_betas, gold_standard, filter_method=self.filter_method)
         beta_sign, beta_nonzero = self.summarize(self.betas)
         beta_threshold = self.passes_threshold(beta_nonzero, len(self.betas), self.threshold)
         resc_betas_mean, resc_betas_median = self.mean_and_median(self.rescaled_betas)

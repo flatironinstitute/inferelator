@@ -17,6 +17,7 @@ from inferelator_ng import single_cell_workflow
 from inferelator_ng import default
 from inferelator_ng.regression import amusr_regression
 from inferelator_ng.postprocessing import results_processor
+from inferelator_ng.postprocessing import model_performance
 
 
 class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
@@ -78,7 +79,7 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
         overall_threshold = overall_sign.copy()
 
         for task_id, task_dir in enumerate(self.tasks_names):
-            pr_calc = results_processor.RankSummaryPR(self.rescaled_betas[task_id], gold_standard,
+            pr_calc = model_performance.RankSummaryPR(self.rescaled_betas[task_id], gold_standard,
                                                       filter_method=self.filter_method)
             task_threshold, task_sign, task_nonzero = self.threshold_and_summarize(self.betas[task_id], self.threshold)
             task_resc_betas_mean, task_resc_betas_median = self.mean_and_median(self.rescaled_betas[task_id])
@@ -96,7 +97,7 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
                 self.write_output_files(pr_calc, os.path.join(output_dir, task_dir), priors, task_threshold,
                                         network_data)
 
-        overall_pr_calc = results_processor.RankSummaryPR(overall_confidences, gold_standard,
+        overall_pr_calc = model_performance.RankSummaryPR(overall_confidences, gold_standard,
                                                           filter_method=self.filter_method)
 
         overall_threshold = (overall_threshold / len(overall_confidences) > self.threshold).astype(int)
