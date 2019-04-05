@@ -279,7 +279,7 @@ class RankSummaryPR(RankSumming):
         for i in idx:
             row_name = self.all_confidences.index[int(i / num_cols)]
             column_name = self.all_confidences.columns[i % num_cols]
-            yield row_name, column_name, self.all_confidences.ix[row_name, column_name]
+            yield row_name, column_name, self.all_confidences.at[row_name, column_name]
 
     def sorted_confidence_index(self, threshold=None, desc=True):
         conf_values = self.all_confidences.values
