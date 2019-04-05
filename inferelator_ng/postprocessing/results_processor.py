@@ -135,28 +135,28 @@ class ResultsProcessor:
             if conf <= confidence_threshold:
                 continue
 
-            if beta_threshold is not None and not beta_threshold.ix[row_name, column_name]:
+            if beta_threshold is not None and not beta_threshold.at[row_name, column_name]:
                 continue
 
             row_data = [column_name, row_name, conf]
 
             # Add prior value (or nan if the priors does not cover this interaction)
             if row_name in priors.index and column_name in priors.columns:
-                row_data += [priors.ix[row_name, column_name]]
+                row_data += [priors.at[row_name, column_name]]
             else:
                 row_data += [np.nan]
 
             # Add gold standard, precision, and recall (or nan if the gold standard does not cover this interaction)
             if row_name in pr_calc.gold_standard.index and column_name in pr_calc.gold_standard.columns:
-                row_data += [pr_calc.gold_standard.ix[row_name, column_name], precision_data.ix[row_name, column_name],
-                             recall_data.ix[row_name, column_name]]
+                row_data += [pr_calc.gold_standard.at[row_name, column_name], precision_data.at[row_name, column_name],
+                             recall_data.at[row_name, column_name]]
             else:
                 row_data += [np.nan, np.nan, np.nan]
 
             if extra_columns is not None:
                 for k in sorted(extra_columns.keys()):
                     if row_name in extra_columns[k].index and column_name in extra_columns[k].columns:
-                        row_data += [extra_columns[k].ix[row_name, column_name]]
+                        row_data += [extra_columns[k].at[row_name, column_name]]
                     else:
                         row_data += [np.nan]
 
