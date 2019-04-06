@@ -31,6 +31,8 @@ class FakeRegression(RegressionWorkflow):
 
 class FakeResultProcessor:
 
+    network_data = None
+
     def __init__(self, *args, **kwargs):
         pass
 
