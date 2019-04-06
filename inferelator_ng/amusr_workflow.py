@@ -28,7 +28,9 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
     """
 
     write_task_files = True
-    tasks_names = []
+
+    tasks_names = None
+    tasks_networks = None
 
     def __init__(self, betas, rescaled_betas, threshold=0.5, filter_method='overlap', tasks_names=None):
         """
@@ -51,6 +53,8 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
 
         if tasks_names is not None:
             self.tasks_names = tasks_names
+        else:
+            self.tasks_names = []
 
     def summarize_network(self, output_dir, gold_standard, priors, confidence_threshold=default.DEFAULT_CONF,
                           precision_threshold=default.DEFAULT_PREC):
@@ -78,6 +82,7 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
                                     columns=self.betas[0][0].columns)
         overall_threshold = overall_sign.copy()
 
+        self.tasks_networks = {}
         for task_id, task_dir in enumerate(self.tasks_names):
             pr_calc = model_performance.RankSummaryPR(self.rescaled_betas[task_id], gold_standard,
                                                       filter_method=self.filter_method)
@@ -94,8 +99,9 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
             utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=pr_calc.aupr), level=0)
 
             if self.write_task_files is True and output_dir is not None:
-                self.write_output_files(pr_calc, os.path.join(output_dir, task_dir), priors, task_threshold,
-                                        network_data)
+                task_net = self.write_output_files(pr_calc, os.path.join(output_dir, task_dir), priors, task_threshold,
+                                                   network_data)
+                self.tasks_networks[task_id] = task_net
 
         overall_pr_calc = model_performance.RankSummaryPR(overall_confidences, gold_standard,
                                                           filter_method=self.filter_method)
@@ -106,8 +112,8 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
 
         utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=overall_pr_calc.aupr), level=0)
 
-        self.write_output_files(overall_pr_calc, output_dir, priors, overall_threshold, network_data,
-                                threshold_network=False)
+        self.network_data = self.write_output_files(overall_pr_calc, output_dir, priors, overall_threshold,
+                                                    network_data, threshold_network=False)
 
         # Calculate how many interactions are stable (are above the combined confidence threshold)
         stable_interactions = overall_pr_calc.num_over_conf_threshold(confidence_threshold)
@@ -226,5 +232,6 @@ class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, crossvalidati
                                               tasks_names=self.tasks_names)
             results = rp.summarize_network(self.output_dir, gold_standard, priors_data)
             self.aupr, self.n_interact, self.precision_interact = results
+            return rp.network_data
         else:
             self.aupr, self.n_interact, self.precision_interact = None, None, None
