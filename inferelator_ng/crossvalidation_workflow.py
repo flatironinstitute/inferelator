@@ -52,7 +52,7 @@ class NoOutputRP(results_processor.ResultsProcessor):
         utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=pr_calc.aupr), level=0)
 
         # Plot PR curve & Output results to a TSV
-        self.write_output_files(pr_calc, output_dir, priors, beta_threshold, network_data)
+        self.network_data = self.write_output_files(pr_calc, output_dir, priors, beta_threshold, network_data)
 
         num_conf = pr_calc.num_over_conf_threshold(confidence_threshold)
         num_prec = pr_calc.num_over_precision_threshold(precision_threshold)
