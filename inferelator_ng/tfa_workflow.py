@@ -48,7 +48,7 @@ class TFAWorkFlow(workflow.WorkflowBase):
         betas, rescaled_betas = self.run_regression()
 
         # Write the results out to a file
-        self.emit_results(betas, rescaled_betas, self.gold_standard, self.priors_data)
+        return self.emit_results(betas, rescaled_betas, self.gold_standard, self.priors_data)
 
     def startup_run(self):
         self.get_data()
@@ -80,6 +80,7 @@ class TFAWorkFlow(workflow.WorkflowBase):
             self.create_output_dir()
             rp = self.result_processor_driver(betas, rescaled_betas, filter_method=self.gold_standard_filter_method)
             rp.summarize_network(self.output_dir, gold_standard, priors)
+            return rp.network_data
 
     def compute_common_data(self):
         """

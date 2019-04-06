@@ -16,6 +16,9 @@ class ResultsProcessor:
     rescaled_betas = None
     filter_method = None
 
+    # Processed Network
+    network_data = None
+
     # Cutoffs
     threshold = None
 
@@ -89,8 +92,9 @@ class ResultsProcessor:
         beta_threshold = beta_threshold if threshold_network else None
 
         # Write output
-        self.save_network_to_tsv(pr_calc, priors, output_dir, output_file_name=self.network_file_name,
-                                 beta_threshold=beta_threshold, extra_columns=network_data)
+        self.network_data = self.save_network_to_tsv(pr_calc, priors, output_dir,
+                                                     output_file_name=self.network_file_name,
+                                                     beta_threshold=beta_threshold, extra_columns=network_data)
 
     @staticmethod
     def save_network_to_tsv(pr_calc, priors, output_dir, confidence_threshold=0, output_file_name="network.tsv",
@@ -123,49 +127,73 @@ class ResultsProcessor:
         if output_dir is None or output_file_name is None:
             return False
 
-        header = ['regulator', 'target', 'combined_confidences', 'prior', 'gold_standard', 'precision', 'recall']
-        if extra_columns is not None:
-            header += [k for k in sorted(extra_columns.keys())]
-
-        output_list = [header]
-
         recall_data, precision_data = pr_calc.dataframe_recall_precision()
 
-        for row_name, column_name, conf in pr_calc.confidence_ordered_generator():
-            if conf <= confidence_threshold:
-                continue
+        # Get the combined confidences in order, convert them to a dataframe, and subset for confidence threshold
+        network_data = list(pr_calc.confidence_ordered_generator())
+        network_data = pd.DataFrame(network_data, columns=['target', 'regulator', 'combined_confidences'])
+        network_data = network_data.loc[network_data['combined_confidences'] > confidence_threshold,
+                                        ['regulator', 'target', 'combined_confidences']]
 
-            if beta_threshold is not None and not beta_threshold.at[row_name, column_name]:
-                continue
+        # Convert each column's data to a dataframe with a multiindex
+        prior_data = ResultsProcessor.melt_and_reindex_dataframe(priors, "prior")
+        gold_data = ResultsProcessor.melt_and_reindex_dataframe(pr_calc.gold_standard, "gold_standard")
+        recall_data = ResultsProcessor.melt_and_reindex_dataframe(recall_data, "recall")
+        precision_data = ResultsProcessor.melt_and_reindex_dataframe(precision_data, "precision")
 
-            row_data = [column_name, row_name, conf]
+        # Join each column's data to the network edges
+        network_data = network_data.join(prior_data, on=["target", "regulator"])
+        network_data = network_data.join(gold_data, on=["target", "regulator"])
+        network_data = network_data.join(precision_data, on=["target", "regulator"])
+        network_data = network_data.join(recall_data, on=["target", "regulator"])
 
-            # Add prior value (or nan if the priors does not cover this interaction)
-            if row_name in priors.index and column_name in priors.columns:
-                row_data += [priors.at[row_name, column_name]]
-            else:
-                row_data += [np.nan]
+        # Add any extra columns as needed
+        if extra_columns is not None:
+            for k in sorted(extra_columns.keys()):
+                extra_data = ResultsProcessor.melt_and_reindex_dataframe(extra_columns[k], k)
+                network_data = network_data.join(extra_data, on=["target", "regulator"])
 
-            # Add gold standard, precision, and recall (or nan if the gold standard does not cover this interaction)
-            if row_name in pr_calc.gold_standard.index and column_name in pr_calc.gold_standard.columns:
-                row_data += [pr_calc.gold_standard.at[row_name, column_name], precision_data.at[row_name, column_name],
-                             recall_data.at[row_name, column_name]]
-            else:
-                row_data += [np.nan, np.nan, np.nan]
+        # Make sure all missing values are NaN
+        network_data[pd.isnull(network_data)] = np.nan
 
-            if extra_columns is not None:
-                for k in sorted(extra_columns.keys()):
-                    if row_name in extra_columns[k].index and column_name in extra_columns[k].columns:
-                        row_data += [extra_columns[k].at[row_name, column_name]]
-                    else:
-                        row_data += [np.nan]
+        # Write output
+        network_data.to_csv(os.path.join(output_dir, output_file_name), sep="\t", index=False, header=True)
 
-            output_list.append(row_data)
+        return network_data
 
-        with open(os.path.join(output_dir, output_file_name), 'w') as myfile:
-            wr = csv.writer(myfile, delimiter='\t')
-            for row in output_list:
-                wr.writerow(row)
+    @staticmethod
+    def melt_and_reindex_dataframe(data_frame, value_name, idx_name="target", col_name="regulator"):
+        """
+        Take a pandas dataframe and melt it into a one column dataframe (with the column `value_name`) and a multiindex
+        of the original index + column
+        :param data_frame: pd.DataFrame [M x N]
+            Meltable dataframe
+        :param value_name: str
+            The column name for the values of the dataframe
+        :param idx_name: str
+            The name to assign to the original data_frame index values
+        :param col_name: str
+            The name to assign to the original data_frame column values
+        :return: pd.DataFrame [(M*N) x 1]
+            Melted dataframe with a single column of values and a multiindex that is the original index + column for
+            that value
+        """
+
+        assert check.argument_type(data_frame, pd.DataFrame)
+
+        # Copy the dataframe and move the index to a column
+        data_frame = data_frame.copy()
+        data_frame[idx_name] = data_frame.index
+
+        # Melt it into a [(M*N) x 3] dataframe
+        data_frame = data_frame.melt(id_vars=idx_name, var_name=col_name, value_name=value_name)
+
+        # Create a multiindex and then drop the columns that are now in the index
+        data_frame.index = pd.MultiIndex.from_frame(data_frame.loc[:, [idx_name, col_name]])
+        del data_frame[idx_name]
+        del data_frame[col_name]
+
+        return data_frame
 
     @staticmethod
     def write_csv(data, pathname, filename):
