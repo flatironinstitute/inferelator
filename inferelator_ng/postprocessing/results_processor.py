@@ -163,8 +163,6 @@ class ResultsProcessor:
         recall_data = ResultsProcessor.melt_and_reindex_dataframe(recall_data, "recall")
         precision_data = ResultsProcessor.melt_and_reindex_dataframe(precision_data, "precision")
 
-        print(network_data)
-
         # Join each column's data to the network edges
         network_data = network_data.join(prior_data, on=["regulator", "target"])
         network_data = network_data.join(gold_data, on=["target", "regulator"])
