@@ -70,16 +70,16 @@ class ResultsProcessor:
         beta_sign, beta_nonzero = self.summarize(self.betas)
         beta_threshold = self.passes_threshold(beta_nonzero, len(self.betas), self.threshold)
         resc_betas_mean, resc_betas_median = self.mean_and_median(self.rescaled_betas)
-        network_data = {'beta.sign.sum': beta_sign, 'var.exp.median': resc_betas_median}
+        extra_cols = {'beta.sign.sum': beta_sign, 'var.exp.median': resc_betas_median}
 
         utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=pr_calc.aupr), level=0)
 
         # Plot PR curve & Output results to a TSV
-        self.write_output_files(pr_calc, output_dir, priors, beta_threshold, network_data)
+        self.network_data = self.write_output_files(pr_calc, output_dir, priors, beta_threshold, extra_cols)
 
         return pr_calc.aupr
 
-    def write_output_files(self, pr_calc, output_dir, priors, beta_threshold, network_data, threshold_network=True):
+    def write_output_files(self, pr_calc, output_dir, priors, beta_threshold, extra_cols, threshold_network=True):
 
         assert check.argument_type(pr_calc, RankSummaryPR)
         assert check.argument_path(output_dir, allow_none=True, create_if_needed=True)
@@ -91,41 +91,55 @@ class ResultsProcessor:
         # Threshold the network with the boolean beta_threshold if threshold_network is True
         beta_threshold = beta_threshold if threshold_network else None
 
-        # Write output
-        self.network_data = self.save_network_to_tsv(pr_calc, priors, output_dir,
-                                                     output_file_name=self.network_file_name,
-                                                     beta_threshold=beta_threshold, extra_columns=network_data)
+        # Process data into a network dataframe, write it out, and return it
+        network_data = self.process_network(pr_calc, priors, beta_threshold=beta_threshold, extra_columns=extra_cols)
+        self.save_network_to_tsv(network_data, output_dir, output_file_name=self.network_file_name)
+        return network_data
 
     @staticmethod
-    def save_network_to_tsv(pr_calc, priors, output_dir, confidence_threshold=0, output_file_name="network.tsv",
-                            beta_threshold=None, extra_columns=None):
+    def save_network_to_tsv(network_data, output_dir, output_file_name="network.tsv"):
         """
         Create a network file and save it
+        :param network_data: pd.DataFrame
+            The network as an edge dataframe
+        :param output_dir: str
+            The path to the output file. If None, don't save anything
+        :param output_file_name: str
+            The output file name. If None, don't save anything
+
+        """
+
+        assert check.argument_type(network_data, pd.DataFrame)
+        assert check.argument_path(output_dir, allow_none=True)
+        assert check.argument_type(output_file_name, str, allow_none=True)
+
+        # Write output
+        if output_dir is not None and output_file_name is not None:
+            network_data.to_csv(os.path.join(output_dir, output_file_name), sep="\t", index=False, header=True)
+
+    @staticmethod
+    def process_network(pr_calc, priors, confidence_threshold=0, beta_threshold=None, extra_columns=None):
+        """
+        Process rank-summed results into a network data frame
         :param pr_calc: RankSummaryPR
             The rank-sum object with the math in it
         :param priors: pd.DataFrame [G x K]
             Prior data
-        :param output_dir: str
-            The path to the output file. If None, don't save anything
         :param confidence_threshold: numeric
             The minimum confidence score needed to write a network edge
-        :param output_file_name: str
-            The output file name. If None, don't save anything
         :param beta_threshold: pd.DataFrame [G x K]
             The thresholded betas to include in the network. If None, include everything.
         :param extra_columns: dict(col_name: pd.DataFrame [G x K])
             Any additional data to include, keyed by column name and indexable with row and column names
+        :return network_data: pd.DataFrame [(G*K) x 7+]
+            Network edge dataframe
+
         """
 
         assert check.argument_type(pr_calc, RankSumming)
         assert check.argument_type(priors, pd.DataFrame)
         assert check.argument_type(beta_threshold, pd.DataFrame, allow_none=True)
-        assert check.argument_path(output_dir, allow_none=True)
-        assert check.argument_type(output_file_name, str, allow_none=True)
         assert check.argument_numeric(confidence_threshold, 0, 1)
-
-        if output_dir is None or output_file_name is None:
-            return False
 
         recall_data, precision_data = pr_calc.dataframe_recall_precision()
 
@@ -135,14 +149,24 @@ class ResultsProcessor:
         network_data = network_data.loc[network_data['combined_confidences'] > confidence_threshold,
                                         ['regulator', 'target', 'combined_confidences']]
 
+        # If beta_threshold has been provided, melt and join it to the network data
+        # Then discard anything which isn't meeting the threshold
+        if beta_threshold is not None and False:
+            beta_data = ResultsProcessor.melt_and_reindex_dataframe(beta_threshold, 'beta_threshold')
+            network_data = network_data.join(beta_data, on=["target", "regulator"])
+            network_data = network_data.loc[network_data['beta_threshold'] == 1, :]
+            del network_data['beta_threshold']
+
         # Convert each column's data to a dataframe with a multiindex
         prior_data = ResultsProcessor.melt_and_reindex_dataframe(priors, "prior")
         gold_data = ResultsProcessor.melt_and_reindex_dataframe(pr_calc.gold_standard, "gold_standard")
         recall_data = ResultsProcessor.melt_and_reindex_dataframe(recall_data, "recall")
         precision_data = ResultsProcessor.melt_and_reindex_dataframe(precision_data, "precision")
 
+        print(network_data)
+
         # Join each column's data to the network edges
-        network_data = network_data.join(prior_data, on=["target", "regulator"])
+        network_data = network_data.join(prior_data, on=["regulator", "target"])
         network_data = network_data.join(gold_data, on=["target", "regulator"])
         network_data = network_data.join(precision_data, on=["target", "regulator"])
         network_data = network_data.join(recall_data, on=["target", "regulator"])
@@ -155,9 +179,6 @@ class ResultsProcessor:
 
         # Make sure all missing values are NaN
         network_data[pd.isnull(network_data)] = np.nan
-
-        # Write output
-        network_data.to_csv(os.path.join(output_dir, output_file_name), sep="\t", index=False, header=True)
 
         return network_data
 

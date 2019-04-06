@@ -14,10 +14,14 @@ class TestResults(unittest.TestCase):
 
     def setUp(self):
         # Data was taken from a subset of row 42 of Bacillus subtilis run results
-        self.beta1 = pd.DataFrame(np.array([[-0.2841755, 0, 0.2280624, -0.3852462, 0.2545609]]), ['gene1'], ['tf1', 'tf2', 'tf3', 'tf4', 'tf5'])
-        self.rescaled_beta1 = pd.DataFrame(np.array([[0.09488207, 0, 0.07380172, 0.15597205, 0.07595131]]), ['gene1'], ['tf1', 'tf2', 'tf3', 'tf4', 'tf5'])
-        self.beta2 = pd.DataFrame(np.array([[0, 0.2612011, 0.1922999, 0.00000000, 0.19183277]]), ['gene1'], ['tf1', 'tf2', 'tf3', 'tf4', 'tf5'])
-        self.rescaled_beta2 = pd.DataFrame(np.array([[0, 0.09109101, 0.05830292, 0.00000000, 0.3675702]]), ['gene1'], ['tf1', 'tf2', 'tf3', 'tf4', 'tf5'])
+        self.beta1 = pd.DataFrame(np.array([[-0.2841755, 0, 0.2280624, -0.3852462, 0.2545609]]), ['gene1'],
+                                  ['tf1', 'tf2', 'tf3', 'tf4', 'tf5'])
+        self.rescaled_beta1 = pd.DataFrame(np.array([[0.09488207, 0, 0.07380172, 0.15597205, 0.07595131]]), ['gene1'],
+                                           ['tf1', 'tf2', 'tf3', 'tf4', 'tf5'])
+        self.beta2 = pd.DataFrame(np.array([[0, 0.2612011, 0.1922999, 0.00000000, 0.19183277]]), ['gene1'],
+                                  ['tf1', 'tf2', 'tf3', 'tf4', 'tf5'])
+        self.rescaled_beta2 = pd.DataFrame(np.array([[0, 0.09109101, 0.05830292, 0.00000000, 0.3675702]]), ['gene1'],
+                                           ['tf1', 'tf2', 'tf3', 'tf4', 'tf5'])
 
         # Toy data
         self.beta = pd.DataFrame(np.array([[0, 1], [0.5, 0.05]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
@@ -76,15 +80,28 @@ class TestResultsProcessor(TestResults):
         np.testing.assert_equal(mean, np.array([[1.5, 1.5], [1.5, 1.5]]))
         np.testing.assert_equal(median, np.array([[1.5, 1.5], [1.5, 1.5]]))
 
+
+class TestNetworkCreator(TestResults):
+
+    def setUp(self):
+        super(TestNetworkCreator, self).setUp()
+        self.pr_calc = model_performance.RankSummaryPR([self.rescaled_beta1, self.rescaled_beta2], self.gold_standard,
+                                                       "keep_all_gold_standard")
+        self.beta_sign, self.beta_nonzero = results_processor.ResultsProcessor.summarize([self.beta1, self.beta2])
+        self.beta_threshold = results_processor.ResultsProcessor.passes_threshold(self.beta_nonzero, 2, 0.5)
+
+    def test_process_network(self):
+        net = results_processor.ResultsProcessor.process_network(self.pr_calc, self.prior,
+                                                                 beta_threshold=self.beta_threshold)
+        self.assertListEqual(net['regulator'].tolist(), ['tf5', 'tf4', 'tf1'])
+        self.assertListEqual(net['target'].tolist(), ['gene1'] * 3)
+        self.assertListEqual(net['combined_confidences'].tolist(), [0.6, 0.3, 0.1])
+
     def test_network_summary(self):
         temp_dir = tempfile.mkdtemp()
-        pr_calc = model_performance.RankSummaryPR([self.rescaled_beta1, self.rescaled_beta2], self.gold_standard,
-                                                  "keep_all_gold_standard")
-        beta_sign, beta_nonzero = results_processor.ResultsProcessor.summarize([self.beta1, self.beta2])
-        beta_threshold = results_processor.ResultsProcessor.passes_threshold(beta_nonzero, 2, 0.5)
-        results_processor.ResultsProcessor.save_network_to_tsv(pr_calc, self.prior, temp_dir,
-                                                               output_file_name="network.tsv",
-                                                               beta_threshold=beta_threshold)
+        net = results_processor.ResultsProcessor.process_network(self.pr_calc, self.prior,
+                                                                 beta_threshold=self.beta_threshold)
+        results_processor.ResultsProcessor.save_network_to_tsv(net, temp_dir)
         processed_data = pd.read_csv(os.path.join(temp_dir, "network.tsv"), sep="\t", index_col=None, header=0)
         self.assertEqual(processed_data.shape[0], 3)
         self.assertListEqual(processed_data['regulator'].tolist(), ['tf5', 'tf4', 'tf1'])
@@ -192,17 +209,6 @@ class TestPRProcessor(TestResults):
         recall, precision, _ = model_performance.RankSummaryPR.calculate_precision_recall(confidences, gs)
         aupr = model_performance.RankSummaryPR.calculate_aupr(recall, precision)
         np.testing.assert_approx_equal(aupr, 7. / 24)
-
-    def test_save_network_to_tsv(self):
-        rankable_data = [pd.DataFrame(np.array([[2.0, 4.0], [6.0, 8.0]]))]
-        gold_standard = pd.DataFrame(np.array([[0, 1], [1, 1]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        pr_calc = model_performance.RankSummaryPR(rankable_data, gold_standard)
-        priors = pd.DataFrame(np.array([[1.0, 2.0], [0, 1.0]]), ['gene1', 'gene2'], ['cond1', 'cond2'])
-        results_processor.ResultsProcessor.save_network_to_tsv(pr_calc, priors, output_dir=None,
-                                                               confidence_threshold=0.1,
-                                                               output_file_name='network_output',
-                                                               beta_threshold=None,
-                                                               extra_columns=None)
 
     def test_compute_combined_confidences_rank_method_sum(self):
         rankable_data = [pd.DataFrame(np.array([[1.0, 2.0], [3.0, 4.0]])),
