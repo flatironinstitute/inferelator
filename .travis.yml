@@ -10,17 +10,13 @@ install:
   - pip install codecov
   - python setup.py install
   - pip install -r requirements.txt
-  - pip install dill
-  - pip install pathos
-  - pip install dask
-  - pip install dask[distributed]
-  - pip install dask_jobqueue
+  - pip install -r requirements-multiprocessing.txt
 script:
   - git clone https://github.com/simonsfoundation/kvsstcp
   - export PYTHONPATH=$PYTHONPATH:$(pwd)/kvsstcp
   - python -c "import os; print(repr(os.name))"
   - python -c "import matplotlib.pyplot as plt; print('imported '+plt.__file__)"
-  - coverage run --source=inferelator_ng setup.py test
+  - coverage run --source=inferelator setup.py test
 after_success:
   - codecov
 after_failure:

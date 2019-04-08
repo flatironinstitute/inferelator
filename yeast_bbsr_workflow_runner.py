@@ -1,4 +1,4 @@
-from inferelator_ng import workflow
+from inferelator import workflow
 
 wflow = workflow.inferelator_workflow(regression="bbsr", workflow="tfa")
 # Common configuration parameters
