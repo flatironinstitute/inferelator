@@ -213,6 +213,7 @@ class AMuSR_regression(base_regression.BaseRegression):
         self.priors = priors
         self.prior_weight = float(prior_weight)
 
+        # Construct a list of TFs & genes if they are not passed in
         if tfs is None or genes is None:
             tfs, genes = [], []
             for design, response in zip(X, Y):
@@ -224,7 +225,6 @@ class AMuSR_regression(base_regression.BaseRegression):
             self.tfs, self.genes = tfs, genes
 
         # Set the regulators and targets into the regression object
-
         self.K, self.G = len(tfs), len(genes)
         self.remove_autoregulation = remove_autoregulation
 
@@ -258,8 +258,9 @@ class AMuSR_regression(base_regression.BaseRegression):
         """
 
         if MPControl.client.name() == "dask":
-            return regress_dask(self.X, self.Y, self.priors, self.prior_weight, self.n_tasks, self.genes, self.tfs,
-                                self.G, remove_autoregulation=self.remove_autoregulation)
+            from inferelator_ng.distributed.dask_functions import amusr_regress_dask
+            return amusr_regress_dask(self.X, self.Y, self.priors, self.prior_weight, self.n_tasks, self.genes,
+                                      self.tfs, self.G, remove_autoregulation=self.remove_autoregulation)
 
         def regression_maker(j):
             level = 0 if j % 100 == 0 else 2
@@ -372,10 +373,35 @@ def final_weights(X, y, TFs, gene):
 
 
 def run_regression_EBIC(X, Y, TFs, tasks, gene, prior):
-    '''
-    '''
+    """
+    Run multitask regression
+
+    :param X: list(np.ndarray [N x K]) [t]
+        List consisting of design matrixes for each task
+    :param Y: list(np.ndarray [N x 1]) [t]
+        List consisting of response matrixes for each task
+    :param TFs: list [K]
+        List of TF names for each feature
+    :param tasks: list(int) [t]
+        List identifying each task
+    :param gene: str
+        The gene being modeled
+    :param prior: np.ndarray [K x T]
+        The priors for this gene in a TF x Task array
+    :return: dict
+
+    """
+
+    assert len(X) == len(Y)
+    assert len(X) == len(tasks)
+
+    # The number of tasks
     n_tasks = len(X)
+
+    # The number of predictors
     n_preds = X[0].shape[1]
+
+    # A list of the number of samples for each task
     n_samples = [X[k].shape[0] for k in range(n_tasks)]
 
     ###### EBIC ######
@@ -510,65 +536,3 @@ def filter_genes_on_tasks(list_of_indexes, task_expression_filter):
         raise ValueError("{v} is not an allowed task_expression_filter value".format(v=task_expression_filter))
 
     return filtered_genes
-
-
-def regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remove_autoregulation=True):
-    """
-    Execute multitask (AMUSR)
-
-    :return: list
-        Returns a list of regression results that the amusr_regression pileup_data can process
-    """
-
-    from dask import distributed
-    DaskController = MPControl.client
-
-    # Gets genes, n_tasks, prior_weight, and remove_autoregulation from regress_dask()
-    # Other arguments are passed in
-    def regression_maker(j, x_df, y_list, prior, tf):
-        level = 0 if j % 100 == 0 else 2
-        utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=genes[j], i=j, total=G),
-                             level=level)
-
-        gene = genes[j]
-        x, y, tasks = [], [], []
-
-        if remove_autoregulation:
-            tf = [t for t in tf if t != gene]
-        else:
-            pass
-
-        for k, y_data in y_list:
-            x.append(x_df[k].loc[:, tf].values)  # list([N, K])
-            y.append(y_data)
-            tasks.append(k)  # [T,]
-
-        del y_list
-        prior = format_prior(prior, gene, tasks, prior_weight)
-        return j, run_regression_EBIC(x, y, tf, tasks, gene, prior)
-
-    def response_maker(y_df, i):
-        y = []
-        gene = genes[i]
-        for k in range(n_tasks):
-            if gene in y_df[k]:
-                y.append((k, y_df[k].loc[:, gene].values.reshape(-1, 1)))
-        return y
-
-    [scatter_x] = DaskController.client.scatter([X], broadcast=True)
-    [scatter_priors] = DaskController.client.scatter([priors], broadcast=True)
-
-    future_list = [DaskController.client.submit(regression_maker, i, scatter_x, response_maker(Y, i), scatter_priors,
-                                                tfs)
-                   for i in range(G)]
-
-    # Collect results as they finish instead of waiting for all workers to be done
-    result_list = [None] * len(future_list)
-    for finished_future, (j, result_data) in distributed.as_completed(future_list, with_results=True):
-        result_list[j] = result_data
-        finished_future.cancel()
-
-    DaskController.client.cancel(scatter_x)
-    DaskController.client.cancel(scatter_priors)
-
-    return result_list

@@ -104,6 +104,7 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
 
     # Build the MI matrix
     if MPControl.client.name() == "dask":
+        from inferelator_ng.distributed.dask_functions import build_mi_array_dask
         return pd.DataFrame(build_mi_array_dask(X, Y, bins, logtype=logtype), index=mi_r, columns=mi_c)
     else:
         return pd.DataFrame(build_mi_array(X, Y, bins, logtype=logtype, temp_dir=temp_dir), index=mi_r,
@@ -138,56 +139,6 @@ def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
 
     # Send the MI build to the multiprocessing controller
     mi_list = MPControl.map(mi_make, range(m1), tmp_file_path=temp_dir)
-
-    # Convert the list of lists to an array
-    mi = np.array(mi_list)
-    assert (m1, m2) == mi.shape, "Array {sh} produced [({m1}, {m2}) expected]".format(sh=mi.shape, m1=m1, m2=m2)
-
-    return mi
-
-
-def build_mi_array_dask(X, Y, bins, logtype=DEFAULT_LOG_TYPE):
-    """
-    Calculate MI into an array with dask (the naive map is very inefficient)
-
-    :param X: np.ndarray (n x m1)
-        Discrete array of bins
-    :param Y: np.ndarray (n x m2)
-        Discrete array of bins
-    :param bins: int
-        The total number of bins that were used to make the arrays discrete
-    :param logtype: np.log func
-        Which log function to use (log2 gives bits, ln gives nats)
-    :return mi: np.ndarray (m1 x m2)
-        Returns the mutual information array
-    """
-
-    assert MPControl.name() == "dask"
-
-    # Get a reference to the Dask controller
-    from dask import distributed
-    dask_controller = MPControl.client
-
-    m1, m2 = X.shape[1], Y.shape[1]
-
-    def mi_make(i, x, y):
-        level = 1 if i % 1000 == 0 else 3
-        utils.Debug.allprint("Mutual Information Calculation [{i} / {total}]".format(i=i, total=m1), level=level)
-        return i, [_calc_mi(_make_table(x, y[:, j], bins), logtype=logtype) for j in range(m2)]
-
-    # Scatter Y to workers and keep track as Futures
-    [scatter_y] = dask_controller.client.scatter([Y], broadcast=True)
-
-    # Build an asynchronous list of Futures for each calculation of mi_make
-    future_list = [dask_controller.client.submit(mi_make, i, X[:, i], scatter_y) for i in range(m1)]
-    mi_list = [None] * len(future_list)
-    for finished_future, (i, result_data) in distributed.as_completed(future_list, with_results=True):
-        mi_list[i] = result_data
-        finished_future.cancel()
-
-    # Clean up worker data by cancelling all the Futures
-    dask_controller.client.cancel(scatter_y)
-    dask_controller.client.cancel(future_list)
 
     # Convert the list of lists to an array
     mi = np.array(mi_list)

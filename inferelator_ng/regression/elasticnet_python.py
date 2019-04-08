@@ -76,6 +76,11 @@ class ElasticNet(base_regression.BaseRegression):
             Returns a list of regression results that base_regression's pileup_data can process
         """
 
+
+        if MPControl.client.name() == "dask":
+            from inferelator_ng.distributed.dask_functions import elasticnet_regress_dask
+            return elasticnet_regress_dask(self.X, self.Y, self.params, self.G, self.genes)
+
         def regression_maker(j):
             level = 0 if j % 100 == 0 else 2
             utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G), level=level)
