@@ -2,6 +2,4 @@ numpy>=1.14.0
 matplotlib>=1.5.1
 scipy>=0.9
 scikit-learn
-pybedtools
-pandas>=0.20.0
-git+https://github.com/flatironinstitute/kvsstcp
+pandas>=0.24.0
