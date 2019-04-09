@@ -7,4 +7,4 @@ The inferelator package for python; a fork of the currently-inactive [inferelato
 
 To install the python packages needed for the inferelator, run `pip install -r requirements.txt`. To install the python packages needed for the inferelator multiprocessing functionality, run `pip install -r requirements-multiprocessing.txt`. To install this package, run `python setup.py install`
 
-Basic workflows for Bacillus subtilis and Saccharomyces cerevisiae are included with a tutorial. 
+Basic workflows for ***Bacillus subtilis*** and ***Saccharomyces cerevisiae*** are included with a tutorial. 
