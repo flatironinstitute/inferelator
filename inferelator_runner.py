@@ -90,5 +90,25 @@ wflow.tau = 45
 wflow.num_bootstraps = 2
 wflow.random_seed = 42
 
+# If desired, resample the gold standard for cross-validation
+# This will select a subset of the gold standard to use for testing, and it will remove that subset from the priors
+
+# wflow.split_gold_standard_for_crossvalidation = True
+
+# When setting the crossvalidation flag, also set the proportion of the gold standard which will be retained
+# 0.5 would be a 2-fold crossvalidation, 0.33 would be a 3-fold crossvalidation, etc
+
+# wflow.cv_split_ratio = 0.5
+
+# Crossvalidation operates on genes by default, but can be set to operate on TFs instead (this isn't a good idea)
+# Setting cv_split_axis to 0 is genes, to 1 is TFs, and to None operates on flattened data
+
+# wflow.cv_split_axis = 0
+
+# As a negative control, prior labels can be shuffled. Setting shuffle_prior_axis to 0 shuffles labels for genes,
+# setting to 1 shuffles labels for TFs, and setting to None disables shuffling
+
+# wflow.shuffle_prior_axis = None
+
 # Run the workflow
 network = wflow.run()
