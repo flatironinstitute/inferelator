@@ -1,34 +1,21 @@
 import os
-import sys
 from setuptools import setup
 
-install_requires = ["requests"]
-#tests_require = ["mock", "unittest2"]
+install_requires = ["numpy", "scipy", "pandas", "scikit-learn", "matplotlib"]
 tests_require = ["coverage", "nose"]
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 
-version = "0.1"
+version = "0.2"
 
-#if sys.argv[-1] == 'publish':
-#    os.system("git tag -a %s -m 'v%s'" % (version, version))
-#    os.system("python setup.py sdist bdist_wheel upload -r pypi")
-#    print("Published version %s, do `git push --tags` to push new tag to remote" % version)
-#    sys.exit()
-
-#if sys.argv[-1] == 'syncci':
-#    os.system("panci --to=tox .travis.yml > tox.ini");
-#    sys.exit();
+long_description = "\n\n".join([open(os.path.join(base_dir, "README.md"), "r").read()])
 
 setup(
     name = "inferelator",
     version = version,
-    description = "inferelator next generation",
-    long_description="\n\n".join([
-        open(os.path.join(base_dir, "README.md"), "r").read(),
-        #open(os.path.join(base_dir, "CHANGELOG.rst"), "r").read()
-    ]),
-    url = "https://github.com/flatironinstitute/inferelator_sc",
+    description = "Inferelator: Network Inference",
+    long_description=long_description,
+    url = "https://github.com/flatironinstitute/inferelator",
     author = "Aaron Watters",
     author_email = "awatters@simonsfoundation.org",
     maintainer = "Aaron Watters",
