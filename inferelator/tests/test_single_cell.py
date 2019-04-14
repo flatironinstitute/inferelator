@@ -81,7 +81,7 @@ class SingleCellWorkflowTest(SingleCellTestCase):
         np.testing.assert_almost_equal(np.log2(expr_filtered + 1).values, self.workflow.expression_matrix)
 
     def TestFilter(self):
-        self.workflow.gene_list = self.gene_list
+        self.workflow.gene_metadata = self.gene_list
         self.workflow.tf_names = self.tf_names
         self.workflow.filter_expression_and_priors()
         genes = ["gene1", "gene2", "gene3", "gene4", "gene6"]
@@ -91,7 +91,7 @@ class SingleCellWorkflowTest(SingleCellTestCase):
         self.assertEqual(self.workflow.priors_data.columns.tolist(), tfs)
 
     def TestStack(self):
-        self.workflow.gene_list = self.gene_list
+        self.workflow.gene_metadata = self.gene_list
         self.workflow.tf_names = self.tf_names
         self.workflow.startup()
         genes = ["gene1", "gene2", "gene4", "gene6"]

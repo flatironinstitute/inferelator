@@ -12,8 +12,8 @@ from inferelator import default
 
 class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
     # Gene list
-    gene_list_file = default.DEFAULT_GENE_LIST_FILE
-    gene_list = None
+    gene_metadata_file = default.DEFAULT_GENE_LIST_FILE
+    gene_metadata = None
     gene_list_index = default.DEFAULT_GENE_LIST_INDEX_COLUMN
 
     # Single-cell expression data manipulations
@@ -33,9 +33,13 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
         if not self.expression_matrix_columns_are_genes:
             self.expression_matrix = self.expression_matrix.transpose()
 
-        # Filter expression and priors to align
+        # Preprocess the single-cell data based on the preprocessing steps added to the workflow
         self.single_cell_normalize()
+
+        # Transpose the expression data to [G x N], filter to gene_list, and align the priors to the expression data
         self.filter_expression_and_priors()
+
+        # Compute TFA
         self.compute_activity()
 
     def read_metadata(self, file=None):
@@ -52,11 +56,11 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
         self.expression_matrix = self.expression_matrix.transpose()
 
         # If gene_list_file is set, read a list of genes in and then filter the expression and priors to this list
-        if self.gene_list is None and self.gene_list_file is not None:
+        if self.gene_metadata is None and self.gene_metadata_file is not None:
             self.read_genes()
 
-        if self.gene_list is not None:
-            genes = self.gene_list[self.gene_list_index]
+        if self.gene_metadata is not None:
+            genes = self.gene_metadata[self.gene_list_index]
             utils.Debug.vprint("Filtering expression and priors to {le} genes from list".format(le=len(genes)), level=1)
             self.expression_matrix = self.expression_matrix.loc[self.expression_matrix.index.intersection(genes)]
             utils.Debug.vprint("Expression data filtered to {sh}".format(sh=self.expression_matrix.shape), level=1)
@@ -101,7 +105,7 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
         Read in a list of genes which should be modeled for network inference
         """
 
-        self.gene_list = self.input_dataframe(self.gene_list_file, index_col=None)
+        self.gene_metadata = self.input_dataframe(self.gene_metadata_file, index_col=None)
 
     def compute_activity(self):
         """

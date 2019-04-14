@@ -28,7 +28,7 @@ class TestAMuSRWorkflow(unittest.TestCase):
                                                result_processor_class=amusr_workflow.ResultsProcessorMultiTask)
         self.workflow = self.workflow(self.expr, self.meta, self.prior, self.gold_standard)
         self.workflow.tf_names = self.tf_names
-        self.workflow.gene_list = self.gene_list
+        self.workflow.gene_metadata = self.gene_list
         self.workflow.create_output_dir = lambda *x: None
 
     def test_task_separation(self):
