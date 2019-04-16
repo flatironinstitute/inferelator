@@ -1,7 +1,7 @@
 # inferelator
 
-[![Travis](https://travis-ci.org/flatironinstitute/inferelator.svg?branch=dev)](https://travis-ci.org/flatironinstitute/inferelator)
-[![codecov](https://codecov.io/gh/flatironinstitute/inferelator/branch/dev/graph/badge.svg)](https://codecov.io/gh/flatironinstitute/inferelator)
+[![Travis](https://travis-ci.org/flatironinstitute/inferelator.svg?branch=master)](https://travis-ci.org/flatironinstitute/inferelator)
+[![codecov](https://codecov.io/gh/flatironinstitute/inferelator/branch/master/graph/badge.svg)](https://codecov.io/gh/flatironinstitute/inferelator)
 
 The inferelator package for python; a fork of the currently-inactive [inferelator_ng](https://github.com/simonsfoundation/inferelator_ng) repository that works for both single-cell and bulk transcriptome experiments. Currently includes [AMuSR](https://github.com/simonsfoundation/multitask_inferelator/tree/AMuSR/inferelator_ng) [(Castro et al 2019)](https://doi.org/10.1371/journal.pcbi.1006591) and elements of [InfereCLaDR](https://github.com/simonsfoundation/inferelator_ng/tree/InfereCLaDR) [(Tchourine et al 2018)](https://doi.org/10.1016/j.celrep.2018.03.048).
 
