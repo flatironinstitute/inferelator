@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 
 from inferelator import utils
+from inferelator.utils import Validator as check
 from inferelator import tfa_workflow
 from inferelator.preprocessing import single_cell
 from inferelator import default
@@ -84,6 +85,8 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
         Executes all preprocessing workflow steps from the preprocessing_workflow list that's set by the
         add_preprocess_step() class function
         """
+
+        assert check.dataframe_is_numeric(self.expression_matrix)
 
         self.expression_matrix, self.meta_data = single_cell.filter_genes_for_count(self.expression_matrix,
                                                                                     self.meta_data,

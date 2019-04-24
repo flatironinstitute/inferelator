@@ -37,15 +37,17 @@ class TestUtils(unittest.TestCase):
         self.assertEqual({'del.t', 'is1stLast', 'isTs', 'prevCol'}, set(df.keys()))
         return df
 
+
 class TestValidator(unittest.TestCase):
 
     def setUp(self):
-        self.frame1 = pd.DataFrame(index=["A", "B", "C", "D", "E"], columns = ["RED", "BLUE", "GREEN"])
-        self.frame2 = pd.DataFrame(index=["A", "B", "C", "D", "E"], columns = ["CYAN", "BLUE", "MAUVE"])
-        self.frame3 = pd.DataFrame(index=["A", "B", "C", "E", "D"], columns = ["RED", "BLUE", "GREEN"])
+        self.frame1 = pd.DataFrame(index=["A", "B", "C", "D", "E"], columns=["RED", "BLUE", "GREEN"])
+        self.frame1['RED'], self.frame1['BLUE'] = 0, 1
+        self.frame2 = pd.DataFrame(index=["A", "B", "C", "D", "E"], columns=["CYAN", "BLUE", "MAUVE"])
+        self.frame3 = pd.DataFrame(index=["A", "B", "C", "E", "D"], columns=["RED", "BLUE", "GREEN"])
+        self.frame3['RED'], self.frame3['BLUE'], self.frame3['GREEN'] = "zero", 1, "two"
 
     def test_frame_alignment(self):
-
         self.assertTrue(check.dataframes_align([self.frame1, self.frame1, self.frame1]))
         self.assertTrue(check.dataframes_align([self.frame1, self.frame1, self.frame3], check_order=False))
 
@@ -55,8 +57,14 @@ class TestValidator(unittest.TestCase):
         with self.assertRaises(ValueError):
             check.dataframes_align([self.frame1, self.frame3, self.frame1])
 
-    def test_numeric(self):
+    def test_frame_numeric(self):
+        self.assertTrue(check.dataframe_is_numeric(None, allow_none=True))
+        self.assertTrue(check.dataframe_is_numeric(self.frame1))
 
+        with self.assertRaises(ValueError):
+            check.dataframe_is_numeric(self.frame3)
+
+    def test_numeric(self):
         self.assertTrue(check.argument_numeric(0))
         self.assertTrue(check.argument_numeric(0.0))
 

@@ -233,6 +233,20 @@ class Validator(object):
         return True
 
     @staticmethod
+    def dataframe_is_numeric(frame, allow_none=False):
+        if allow_none and frame is None:
+            return True
+
+        is_num = frame.applymap(lambda x: isinstance(x, (float, int))).sum()
+        is_feature_num = is_num.apply(lambda x: x == frame.shape[0])
+
+        if is_feature_num.all():
+            return True
+        else:
+            bad_features = "\t".join(map(str, is_feature_num.index[is_feature_num].tolist()))
+            raise ValueError("Dataframe has non-numeric features: {f}".format(f=bad_features))
+
+    @staticmethod
     def indexes_align(index_iterable, allow_none=False, check_order=True):
         if allow_none and any([i is None for i in index_iterable]):
             return True
@@ -288,6 +302,8 @@ class Validator(object):
             raise ValueError("{num} arguments are not None; only {nnum} are allowed".format(num=n_not_none,
                                                                                             nnum=num_none))
         return True
+
+
 
 
 def df_from_tsv(file_like, has_index=True):
