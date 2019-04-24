@@ -61,8 +61,7 @@ class NoOutputRP(results_processor.ResultsProcessor):
 
 
 # The variable names that get set in the main workflow, but need to get copied to the puppets
-SHARED_CLASS_VARIABLES = ['tf_names', 'gene_list', 'num_bootstraps', 'modify_activity_from_metadata',
-                          'metadata_expression_lookup', 'gene_list_lookup', 'mi_sync_path', 'count_minimum',
+SHARED_CLASS_VARIABLES = ['tf_names', 'gene_metadata', 'num_bootstraps', 'mi_sync_path', 'count_minimum',
                           'gold_standard_filter_method', 'split_priors_for_gold_standard', 'cv_split_ratio',
                           'split_gold_standard_for_crossvalidation', 'cv_split_axis', 'preprocessing_workflow',
                           'shuffle_prior_axis', 'write_network', 'output_dir', 'tfa_driver', 'drd_driver',
