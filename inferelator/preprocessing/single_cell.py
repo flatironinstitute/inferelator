@@ -155,6 +155,19 @@ def ln_data(expression_matrix, meta_data, **kwargs):
     return np.log1p(expression_matrix), meta_data
 
 
+def tf_sqrt_data(expression_matrix, meta_data, **kwargs):
+    """
+    Transform the expression data by sqrt(x) + sqrt(x+1) and restore sparsity with x - 1
+    Based on Freeman & Tukey: https://projecteuclid.org/euclid.aoms/1177729756
+    :param expression_matrix: pd.DataFrame
+    :param meta_data: pd.DataFrame
+    :return expression_matrix, meta_data: pd.DataFrame, pd.DataFrame
+    """
+    utils.Debug.vprint('Freeman-Tukey square root transformation [sqrt(x) + sqrt(x+1) - 1]... ')
+    expression_matrix = np.sqrt(expression_matrix.values) + np.sqrt(expression_matrix.values + 1) - 1
+    return expression_matrix, meta_data
+
+
 def filter_genes_for_var(expression_matrix, meta_data, **kwargs):
     no_signal = (expression_matrix.max(axis=0) - expression_matrix.min(axis=0)) == 0
     utils.Debug.vprint("Filtering {gn} genes [Var = 0]".format(gn=no_signal.sum()), level=1)

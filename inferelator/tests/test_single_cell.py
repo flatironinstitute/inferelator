@@ -71,6 +71,9 @@ class SingleCellPreprocessTest(SingleCellTestCase):
         expr_log3, _ = single_cell.ln_data(self.expr, self.meta)
         np.testing.assert_almost_equal(np.log(self.expr + 1).values, expr_log3)
 
+        expr_sqrt, _ = single_cell.tf_sqrt_data(self.expr, self.meta)
+        np.testing.assert_almost_equal(np.sqrt(self.expr + 1).values + np.sqrt(self.expr).values - 1, expr_sqrt)
+
 
 class SingleCellWorkflowTest(SingleCellTestCase):
 
