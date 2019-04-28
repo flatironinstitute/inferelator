@@ -153,12 +153,12 @@ class TestAMuSRrunner(unittest.TestCase):
         out0 = pd.DataFrame([['tf3', 'gene1', -1, 1],
                              ['tf3', 'gene1', -1, 1]],
                             index=pd.MultiIndex(levels=[[0, 1], [0]],
-                                                labels=[[0, 1], [0, 0]]),
+                                                codes=[[0, 1], [0, 0]]),
                             columns=['regulator', 'target', 'weights', 'resc_weights'])
         out1 = pd.DataFrame([['tf3', 'gene2', -1, 1],
                              ['tf3', 'gene2', -1, 1]],
                             index=pd.MultiIndex(levels=[[0, 1], [0]],
-                                                labels=[[0, 1], [0, 0]]),
+                                                codes=[[0, 1], [0, 0]]),
                             columns=['regulator', 'target', 'weights', 'resc_weights'])
         pdt.assert_frame_equal(pd.concat(output[0]), out0, check_dtype=False)
         pdt.assert_frame_equal(pd.concat(output[1]), out1, check_dtype=False)
@@ -177,13 +177,13 @@ class TestAMuSRrunner(unittest.TestCase):
         r = amusr_regression.AMuSR_regression(des, res, tfs=tfs, genes=targets, priors=priors)
 
         out = [pd.DataFrame([['tf3', 'gene1', -1, 1], ['tf3', 'gene1', -1, 1]],
-                            index=pd.MultiIndex(levels=[[0, 1], [0]], labels=[[0, 1], [0, 0]]),
+                            index=pd.MultiIndex(levels=[[0, 1], [0]], codes=[[0, 1], [0, 0]]),
                             columns=['regulator', 'target', 'weights', 'resc_weights']),
                pd.DataFrame([['tf3', 'gene2', -1, 1]],
-                            index=pd.MultiIndex(levels=[[0, 1], [0]], labels=[[0], [0]]),
+                            index=pd.MultiIndex(levels=[[0, 1], [0]], codes=[[0], [0]]),
                             columns=['regulator', 'target', 'weights', 'resc_weights']),
                pd.DataFrame([['tf3', 'gene3', -1, 1]],
-                            index=pd.MultiIndex(levels=[[0, 1], [0]], labels=[[1], [0]]),
+                            index=pd.MultiIndex(levels=[[0, 1], [0]], codes=[[1], [0]]),
                             columns=['regulator', 'target', 'weights', 'resc_weights'])]
 
         regress_data = r.regress()
