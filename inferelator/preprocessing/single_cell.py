@@ -164,7 +164,7 @@ def tf_sqrt_data(expression_matrix, meta_data, **kwargs):
     :return expression_matrix, meta_data: pd.DataFrame, pd.DataFrame
     """
     utils.Debug.vprint('Freeman-Tukey square root transformation [sqrt(x) + sqrt(x+1) - 1]... ')
-    expression_matrix = np.sqrt(expression_matrix.values) + np.sqrt(expression_matrix.values + 1) - 1
+    expression_matrix = np.sqrt(expression_matrix) + np.sqrt(expression_matrix + 1) - 1
     return expression_matrix, meta_data
 
 
