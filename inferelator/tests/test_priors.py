@@ -106,12 +106,26 @@ class TestPriorManager(unittest.TestCase):
     def test_validation_passthrough(self):
         ngs = self.gold_standard
         ngs.index = ["A"] * ngs.shape[0]
-        ngs.index = ["B"] * ngs.shape[1]
+        ngs.columns = ["B"] * ngs.shape[1]
 
-        npr = self.gold_standard
+        npr = self.priors_data
         npr.index = ["C"] * npr.shape[0]
-        npr.index = ["D"] * npr.shape[1]
+        npr.columns = ["D"] * npr.shape[1]
 
-        ngs1, npr1 = ManagePriors.validate_priors_gold_standard(npr, ngs)
+        npr1, ngs1 = ManagePriors.validate_priors_gold_standard(npr, ngs)
         pdt.assert_frame_equal(ngs, ngs1)
         pdt.assert_frame_equal(npr, npr1)
+
+    def test_align_priors_1(self):
+        npr = self.priors_data.iloc[list(range(10)),:]
+        npr = ManagePriors.align_priors_to_expression(npr, self.expression_matrix)
+        self.assertEqual(len(npr.index), len(self.expression_matrix.index))
+        self.assertListEqual(npr.columns.tolist(), self.priors_data.columns.tolist())
+        self.assertListEqual(npr.index.tolist(), self.expression_matrix.index.tolist())
+
+    def test_align_priors_2(self):
+        npr = self.priors_data
+        npr.index = list(range(npr.shape[0]))
+
+        with self.assertRaises(ValueError):
+            npr = ManagePriors.align_priors_to_expression(npr, self.expression_matrix)

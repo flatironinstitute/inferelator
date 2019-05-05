@@ -154,12 +154,10 @@ class ManagePriors(object):
             Returns priors_data where genes match expression matrix genes
         """
 
-        priors_data = priors_data.reindex(index=expression_matrix.index).fillna(value=0)
-
-        if priors_data.shape[0] == 0:
+        if len(priors_data.index.intersection(expression_matrix.index)) == 0:
             raise ValueError("Prior genes and expression matrix genes have no overlap")
 
-        return priors_data
+        return priors_data.reindex(index=expression_matrix.index).fillna(value=0)
 
     @staticmethod
     def shuffle_priors(priors_data, shuffle_prior_axis, random_seed):
