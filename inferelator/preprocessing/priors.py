@@ -176,7 +176,7 @@ class ManagePriors(object):
         assert check.argument_enum(shuffle_prior_axis, [0, 1], allow_none=True)
 
         if shuffle_prior_axis is None:
-            return None
+            return priors_data
         elif shuffle_prior_axis == 0:
             # Shuffle index (genes) in the priors_data
             utils.Debug.vprint("Randomly shuffling prior [{sh}] gene data".format(sh=priors_data.shape))

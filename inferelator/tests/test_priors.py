@@ -129,3 +129,19 @@ class TestPriorManager(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             npr = ManagePriors.align_priors_to_expression(npr, self.expression_matrix)
+
+    def test_shuffle_priors_none(self):
+        npr1 = ManagePriors.shuffle_priors(self.priors_data, None, 42)
+        pdt.assert_frame_equal(npr1, self.priors_data)
+
+    def test_shuffle_priors_gene(self):
+        npr2 = ManagePriors.shuffle_priors(self.priors_data, 0, 42)
+        pdt.assert_series_equal(self.priors_data.sum(axis=0), npr2.sum(axis=0))
+        pdt.assert_index_equal(npr2.index, self.priors_data.index)
+        pdt.assert_index_equal(npr2.columns, self.priors_data.columns)
+
+    def test_shuffle_priors_tf(self):
+        npr3 = ManagePriors.shuffle_priors(self.priors_data, 1, 42)
+        pdt.assert_series_equal(self.priors_data.sum(axis=1), npr3.sum(axis=1))
+        pdt.assert_index_equal(npr3.index, self.priors_data.index)
+        pdt.assert_index_equal(npr3.columns, self.priors_data.columns)
