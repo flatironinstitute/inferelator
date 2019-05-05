@@ -5,8 +5,10 @@ Test base workflow stepwise.
 import unittest
 import os
 import tempfile
+import shutil
 import numpy as np
 import pandas as pd
+import pandas.testing as pdt
 
 from inferelator import workflow
 from inferelator.regression.base_regression import RegressionWorkflow
@@ -42,9 +44,59 @@ class TestWorkflowLoadData(unittest.TestCase):
         self.assertTrue(all(self.workflow.priors_data.index == self.workflow.priors_data.columns))
         self.assertTrue(all(self.workflow.gold_standard.index == self.workflow.gold_standard.columns))
 
+        self.workflow.priors_file = None
+        self.workflow.priors_data = None
+        self.workflow.gold_standard_file = None
+        self.workflow.gold_standard = None
+
+        with self.assertRaises(ValueError):
+            self.workflow.read_priors()
+
     def test_load_metadata(self):
         self.workflow.read_metadata()
         self.assertEqual(self.workflow.meta_data.shape, (421, 5))
+
+    def test_make_metadata(self):
+        self.workflow.read_expression()
+        self.workflow.meta_data_file = None
+        self.workflow.read_metadata()
+        self.assertEqual(self.workflow.meta_data.shape, (421, 5))
+
+    def test_extract_metadata(self):
+        self.workflow.read_expression()
+        meta_data = self.workflow.create_default_meta_data(self.workflow.expression_matrix)
+        gene_list = self.workflow.expression_matrix.index.tolist()
+
+        self.workflow.expression_matrix = self.workflow.expression_matrix.transpose()
+        self.workflow.expression_matrix_columns_are_genes = True
+        self.workflow.extract_metadata_from_expression_matrix = True
+        self.workflow.expression_matrix = pd.concat([self.workflow.expression_matrix, meta_data], axis=1)
+        self.workflow.expression_matrix_metadata = meta_data.columns.tolist()
+
+        self.workflow.read_metadata()
+
+        pdt.assert_frame_equal(self.workflow.meta_data, meta_data)
+        self.assertListEqual(self.workflow.expression_matrix.columns.tolist(), gene_list)
+
+    def test_load_gene_metadata(self):
+        self.workflow.input_dir = tempfile.mkdtemp()
+        self.workflow.gene_metadata_file = "genes.tsv"
+        self.workflow.gene_list_index = "SystematicName"
+        genes = pd.DataFrame({"SystematicName": ["gene1", "gene2", "gene3", "gene4", "gene7", "gene6"]})
+        genes.to_csv(os.path.join(self.workflow.input_dir, "genes.tsv"), sep="\t", index=False)
+
+        self.workflow.read_genes()
+        pdt.assert_frame_equal(self.workflow.gene_metadata, genes)
+
+        self.workflow.gene_list_index = None
+        with self.assertRaises(ValueError):
+            self.workflow.read_genes()
+
+        self.workflow.gene_list_index = "SillyName"
+        with self.assertRaises(ValueError):
+            self.workflow.read_genes()
+
+        shutil.rmtree(self.workflow.input_dir)
 
     def test_get_data(self):
         self.workflow.get_data()

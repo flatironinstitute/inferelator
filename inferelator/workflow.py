@@ -28,6 +28,8 @@ try:
 except NameError:
     basestring = str
 
+META_DATA_DEFAULT_VALUES = {"isTs": "FALSE", "is1stLast": "e", "prevCol": "NA", "del.t": "NA", "condName": None}
+
 
 class WorkflowBase(object):
     # Paths to the input and output locations
@@ -199,7 +201,7 @@ class WorkflowBase(object):
         else:
             return
 
-        if self.gene_list_index is None or self.gene_list_index not in self.gene_metadata.index:
+        if self.gene_list_index is None or self.gene_list_index not in self.gene_metadata.columns:
             raise ValueError("The gene list file must have headers and workflow.gene_list_index must be a valid column")
 
     def read_priors(self, priors_file=None, gold_standard_file=None):
@@ -300,12 +302,10 @@ class WorkflowBase(object):
         """
         Create a meta_data dataframe from basic defaults
         """
-        metadata_rows = expression_matrix.columns.tolist()
-        metadata_defaults = {"isTs": "FALSE", "is1stLast": "e", "prevCol": "NA", "del.t": "NA", "condName": None}
-        data = {}
-        for key in metadata_defaults.keys():
-            data[key] = pd.Series(data=[metadata_defaults[key] if metadata_defaults[key] else i for i in metadata_rows])
-        return pd.DataFrame(data)
+        meta_data = pd.DataFrame(index=expression_matrix.columns)
+        for col, val in META_DATA_DEFAULT_VALUES.items():
+            meta_data[col] = val if val is not None else expression_matrix.columns
+        return meta_data
 
     def get_bootstraps(self):
         """
