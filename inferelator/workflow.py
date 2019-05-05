@@ -3,13 +3,15 @@ Base implementation for high level workflow.
 
 The goal of this design is to make it easy to share
 code among different variants of the Inferelator workflow.
+
+The base workflow has functions for loading and managing data
+But does not have any functions for regression or analysis
 """
 from __future__ import unicode_literals, print_function
 
 from inferelator import utils
-from inferelator.utils import Validator as check
 from inferelator import default
-from inferelator.preprocessing.prior_gs_split_workflow import split_for_cv, remove_prior_circularity
+from inferelator.preprocessing.priors import ManagePriors
 from inferelator.regression.base_regression import RegressionWorkflow
 
 from inferelator.distributed.inferelator_mp import MPControl
@@ -45,18 +47,29 @@ class WorkflowBase(object):
     priors_file = default.DEFAULT_PRIORS_FILE
     gold_standard_file = default.DEFAULT_GOLDSTANDARD_FILE
 
+    # Gene list & associated metadata
+    gene_metadata_file = None
+    gene_metadata = None
+    gene_list_index = default.DEFAULT_GENE_LIST_INDEX_COLUMN
+
+    # Flags to control splitting priors into a prior/gold-standard set
+    split_gold_standard_for_crossvalidation = False
+    cv_split_ratio = default.DEFAULT_GS_SPLIT_RATIO
+    cv_split_axis = default.DEFAULT_GS_SPLIT_AXIS
+    shuffle_prior_axis = None
+
+    # Flag to identify orientation of the expression matrix (True for samples x genes & False for genes x samples)
+    expression_matrix_columns_are_genes = False  # bool
+
+    # Flag to extract metadata from specific columns of the expression matrix instead of a separate file
+    extract_metadata_from_expression_matrix = default.DEFAULT_EXTRACT_METADATA_FROM_EXPR  # bool
+    expression_matrix_metadata = default.DEFAULT_EXPRESSION_MATRIX_METADATA  # str
+
     # The random seed for sampling, etc
     random_seed = default.DEFAULT_RANDOM_SEED
 
     # The number of inference bootstraps to run
     num_bootstraps = default.DEFAULT_NUM_BOOTSTRAPS
-
-    # Flags to control splitting priors into a prior/gold-standard set
-    split_priors_for_gold_standard = False
-    split_gold_standard_for_crossvalidation = False
-    cv_split_ratio = default.DEFAULT_GS_SPLIT_RATIO
-    cv_split_axis = default.DEFAULT_GS_SPLIT_AXIS
-    shuffle_prior_axis = None
 
     # Computed data structures [G: Genes, K: Predictors, N: Conditions
     expression_matrix = None  # expression_matrix dataframe [G x N]
@@ -68,6 +81,9 @@ class WorkflowBase(object):
     # Multiprocessing controller
     initialize_mp = True
     multiprocessing_controller = None
+
+    # Prior manager
+    prior_manager = ManagePriors
 
     def __init__(self):
         # Get environment variables
@@ -124,7 +140,12 @@ class WorkflowBase(object):
         self.read_expression()
         self.read_tfs()
         self.read_metadata()
-        self.set_gold_standard_and_priors()
+        self.read_genes()
+        self.read_priors()
+
+        # Transpose expression data to [Genes x Samples] if the columns_are_genes flag is set
+        if self.expression_matrix_columns_are_genes:
+            self.expression_matrix = self.expression_matrix.transpose()
 
     def read_expression(self, file=None):
         """
@@ -153,93 +174,89 @@ class WorkflowBase(object):
         """
         Read metadata file into meta_data or make fake metadata
         """
-        if file is None:
-            file = self.meta_data_file
 
-        try:
+        file = file if file is not None else self.meta_data_file
+
+        # If the metadata is embedded in the expression matrix, extract it
+        if self.extract_metadata_from_expression_matrix:
+            self.meta_data = self.expression_matrix.loc[:, self.expression_matrix_metadata].copy()
+            self.expression_matrix = self.expression_matrix.drop(self.expression_matrix_metadata, axis=1)
+        elif file is not None:
             self.meta_data = self.input_dataframe(file, index_col=None)
-        except IOError:
+        else:
+            utils.Debug.vprint("No metadata provided. Creating a generic metadata", level=0)
             self.meta_data = self.create_default_meta_data(self.expression_matrix)
 
-    def set_gold_standard_and_priors(self):
+    def read_genes(self, file=None):
         """
-        Read priors file into priors_data and gold standard file into gold_standard
+        Read in a list of genes which should be modeled for network inference
         """
-        self.priors_data = self.input_dataframe(self.priors_file)
 
-        if self.split_priors_for_gold_standard:
-            self.split_priors_into_gold_standard()
+        file = file if file is not None else self.gene_metadata_file
+
+        if file is not None:
+            self.gene_metadata = self.input_dataframe(self.gene_metadata_file, index_col=None)
         else:
-            self.gold_standard = self.input_dataframe(self.gold_standard_file)
+            return
 
+        if self.gene_list_index is None or self.gene_list_index not in self.gene_metadata.index:
+            raise ValueError("The gene list file must have headers and workflow.gene_list_index must be a valid column")
+
+    def read_priors(self, priors_file=None, gold_standard_file=None):
+        """
+        Read in the priors and gold standard files
+        """
+        priors_file = priors_file if priors_file is not None else self.priors_file
+        gold_standard_file = gold_standard_file if gold_standard_file is not None else self.gold_standard_file
+
+        if priors_file is not None:
+            self.priors_data = self.input_dataframe(priors_file)
+        if gold_standard_file is not None:
+            self.gold_standard = self.input_dataframe(gold_standard_file)
+
+        if self.priors_data is None and self.gold_standard is None:
+            raise ValueError("No gold standard or priors have been provided")
+
+    def process_priors_and_gold_standard(self):
+        """
+        Run split, shuffle, etc called for by the workflow flags
+        This also filters the expression matrix to the list of genes to model
+        """
+
+        # Split gold standard for cross-validation
         if self.split_gold_standard_for_crossvalidation:
-            self.cross_validate_gold_standard()
+            self.priors_data, self.gold_standard = self.prior_manager.cross_validate_gold_standard(self.priors_data,
+                                                                                                   self.gold_standard,
+                                                                                                   self.cv_split_axis,
+                                                                                                   self.cv_split_ratio,
+                                                                                                   self.random_seed)
 
-        try:
-            check.index_values_unique(self.priors_data.index)
-        except ValueError as v_err:
-            utils.Debug.vprint("Duplicate gene(s) in prior index", level=0)
-            utils.Debug.vprint(str(v_err), level=0)
+        # Filter priors to a list of regulators
+        if self.tf_names is not None:
+            self.priors_data = self.prior_manager.filter_to_tf_names_list(self.priors_data, self.tf_names)
 
-        try:
-            check.index_values_unique(self.priors_data.columns)
-        except ValueError as v_err:
-            utils.Debug.vprint("Duplicate tf(s) in prior index", level=0)
-            utils.Debug.vprint(str(v_err), level=0)
+        # Filter priors and expression to a list of genes
+        if self.gene_metadata is not None and self.gene_list_index is not None:
+            gene_list = self.gene_metadata[self.gene_list_index].tolist()
+            self.priors_data, self.expression_matrix = self.prior_manager.filter_to_gene_list(self.priors_data,
+                                                                                              self.expression_matrix,
+                                                                                              gene_list)
 
-    def split_priors_into_gold_standard(self):
+        # Shuffle prior labels
+        if self.shuffle_prior_axis is not None:
+            self.priors_data = self.prior_manager.shuffle_priors(self.priors_data,
+                                                                 self.shuffle_prior_axis,
+                                                                 self.random_seed)
+
+        # Check for duplicates or whatever
+        self.priors_data, self.gold_standard = self.prior_manager.validate_priors_gold_standard(self.priors_data,
+                                                                                                self.gold_standard)
+
+    def align_priors_and_expression(self):
         """
-        Break priors_data in half and give half to the gold standard
+        Align prior to the expression matrix
         """
-
-        if self.gold_standard is not None:
-            utils.Debug.vprint("Existing gold standard is being replaced by a split from the prior", level=0)
-        self.priors_data, self.gold_standard = split_for_cv(self.priors_data,
-                                                            self.cv_split_ratio,
-                                                            split_axis=self.cv_split_axis,
-                                                            seed=self.random_seed)
-
-        utils.Debug.vprint("Prior split into a prior {pr} and a gold standard {gs}".format(pr=self.priors_data.shape,
-                                                                                           gs=self.gold_standard.shape),
-                           level=0)
-
-    def cross_validate_gold_standard(self):
-        """
-        Sample the gold standard for crossvalidation, and then remove the new gold standard from the priors
-        """
-
-        utils.Debug.vprint("Resampling prior {pr} and gold standard {gs}".format(pr=self.priors_data.shape,
-                                                                                 gs=self.gold_standard.shape), level=0)
-        _, self.gold_standard = split_for_cv(self.gold_standard,
-                                             self.cv_split_ratio,
-                                             split_axis=self.cv_split_axis,
-                                             seed=self.random_seed)
-        self.priors_data, self.gold_standard = remove_prior_circularity(self.priors_data, self.gold_standard,
-                                                                        split_axis=self.cv_split_axis)
-        utils.Debug.vprint("Selected prior {pr} and gold standard {gs}".format(pr=self.priors_data.shape,
-                                                                               gs=self.gold_standard.shape), level=0)
-
-    def shuffle_priors(self):
-        """
-        Shuffle prior labels if shuffle_prior_axis is set
-        """
-
-        if self.shuffle_prior_axis is None:
-            return None
-        elif self.shuffle_prior_axis == 0:
-            # Shuffle index (genes) in the priors_data
-            utils.Debug.vprint("Randomly shuffling prior [{sh}] gene data".format(sh=self.priors_data.shape))
-            prior_index = self.priors_data.index.tolist()
-            self.priors_data = self.priors_data.sample(frac=1, axis=0, random_state=self.random_seed)
-            self.priors_data.index = prior_index
-        elif self.shuffle_prior_axis == 1:
-            # Shuffle columns (TFs) in the priors_data
-            utils.Debug.vprint("Randomly shuffling prior [{sh}] TF data".format(sh=self.priors_data.shape))
-            prior_index = self.priors_data.columns.tolist()
-            self.priors_data = self.priors_data.sample(frac=1, axis=1, random_state=self.random_seed)
-            self.priors_data.columns = prior_index
-        else:
-            raise ValueError("shuffle_prior_axis must be 0 or 1")
+        self.priors_data = self.prior_manager.align_priors_to_expression(self.priors_data, self.expression_matrix)
 
     def input_path(self, filename):
         """
@@ -290,24 +307,6 @@ class WorkflowBase(object):
             data[key] = pd.Series(data=[metadata_defaults[key] if metadata_defaults[key] else i for i in metadata_rows])
         return pd.DataFrame(data)
 
-    def filter_expression_and_priors(self):
-        """
-        Guarantee that each row of the prior is in the expression and vice versa.
-        Also filter the priors to only includes columns, transcription factors, that are in the tf_names list
-        """
-        expressed_targets = self.expression_matrix.index
-        expressed_or_prior = expressed_targets.union(self.priors_data.columns)
-        keeper_regulators = expressed_or_prior.intersection(self.tf_names)
-
-        if len(keeper_regulators) == 0 or len(expressed_targets) == 0:
-            raise ValueError("Filtering will result in a priors with at least one axis of 0 length")
-
-        self.priors_data = self.priors_data.reindex(expressed_targets, axis=0)
-        self.priors_data = self.priors_data.reindex(keeper_regulators, axis=1)
-        self.priors_data = pd.DataFrame.fillna(self.priors_data, 0)
-
-        self.shuffle_priors()
-
     def get_bootstraps(self):
         """
         Generate sequence of bootstrap parameter objects for run.
@@ -322,7 +321,8 @@ class WorkflowBase(object):
         """
         raise NotImplementedError  # implement in subclass
 
-    def is_master(self):
+    @staticmethod
+    def is_master():
         """
         Return True if this is the master thread
         """
@@ -343,7 +343,7 @@ class WorkflowBase(object):
 
 def create_inferelator_workflow(regression=RegressionWorkflow, workflow=WorkflowBase):
     """
-    This is the factory method to create workflow ckasses that combine preprocessing and postprocessing (from workflow)
+    This is the factory method to create workflow classes that combine preprocessing and postprocessing (from workflow)
     with a regression method (from regression)
 
     :param regression: RegressionWorkflow subclass

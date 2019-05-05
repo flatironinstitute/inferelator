@@ -54,6 +54,8 @@ class TFAWorkFlow(workflow.WorkflowBase):
         self.get_data()
 
     def startup_finish(self):
+        self.process_priors_and_gold_standard()
+        self.align_priors_and_expression()
         self.compute_common_data()
         self.compute_activity()
 
@@ -68,8 +70,8 @@ class TFAWorkFlow(workflow.WorkflowBase):
         Compute Transcription Factor Activity
         """
         utils.Debug.vprint('Computing Transcription Factor Activity ... ')
-        TFA_calculator = self.tfa_driver(self.priors_data, self.design, self.half_tau_response)
-        self.design = TFA_calculator.compute_transcription_factor_activity()
+        tfa_calculator = self.tfa_driver(self.priors_data, self.design, self.half_tau_response)
+        self.design = tfa_calculator.compute_transcription_factor_activity()
         self.half_tau_response = None
 
     def emit_results(self, betas, rescaled_betas, gold_standard, priors):
@@ -86,9 +88,16 @@ class TFAWorkFlow(workflow.WorkflowBase):
         """
         Compute common data structures like design and response matrices.
         """
-        self.filter_expression_and_priors()
-        drd = self.drd_driver(return_half_tau=True)
-        utils.Debug.vprint('Creating design and response matrix ... ')
-        drd.delTmin, drd.delTmax, drd.tau = self.delTmin, self.delTmax, self.tau
-        self.design, self.response, self.half_tau_response = drd.run(self.expression_matrix, self.meta_data)
+
+        if self.drd_driver is not None:
+            # If there is a design-response driver, run it to create design and response
+            drd = self.drd_driver(return_half_tau=True)
+            utils.Debug.vprint('Creating design and response matrix ... ')
+            drd.delTmin, drd.delTmax, drd.tau = self.delTmin, self.delTmax, self.tau
+            self.design, self.response, self.half_tau_response = drd.run(self.expression_matrix, self.meta_data)
+        else:
+            # If there is no design-response driver set, use the expression data for design and response
+            self.design = self.expression_matrix
+            self.response, self.half_tau_response = self.expression_matrix, self.expression_matrix
+
         self.expression_matrix = None
