@@ -15,7 +15,7 @@ class TestAMuSRWorkflow(unittest.TestCase):
                                   [8, 34, 0, 7, 1, 3], [6, 26, 0, 3, 1, 3], [1, 31, 0, 1, 1, 4],
                                   [3, 27, 0, 5, 1, 4], [8, 34, 0, 9, 1, 3], [1, 22, 0, 3, 1, 4],
                                   [9, 33, 0, 17, 1, 2]],
-                                 columns=["gene1", "gene2", "gene3", "gene4", "gene5", "gene6"])
+                                 columns=["gene1", "gene2", "gene3", "gene4", "gene5", "gene6"]).transpose()
         self.meta = pd.DataFrame({"Condition": ["A", "B", "C", "C", "B", "B", "A", "C", "B", "C"],
                                   "Genotype": ['WT', 'WT', 'WT', 'WT', 'WT', 'WT', 'WT', 'WT', 'WT', 'WT']})
         self.prior = pd.DataFrame([[0, 1], [0, 1], [1, 0], [0, 0]], index=["gene1", "gene2", "gene4", "gene5"],
@@ -29,10 +29,11 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.workflow = self.workflow(self.expr, self.meta, self.prior, self.gold_standard)
         self.workflow.tf_names = self.tf_names
         self.workflow.gene_metadata = self.gene_list
+        self.workflow.gene_list_index = "SystematicName"
         self.workflow.create_output_dir = lambda *x: None
 
     def test_task_separation(self):
-        self.workflow.filter_expression_and_priors()
+        self.workflow.process_priors_and_gold_standard()
         self.workflow.separate_tasks_by_metadata()
         self.assertEqual(self.workflow.n_tasks, 3)
         self.assertEqual(self.workflow.tasks_names, ["A", "B", "C"])
