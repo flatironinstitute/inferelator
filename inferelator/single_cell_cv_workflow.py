@@ -33,25 +33,8 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, cross
         self.create_writer()
         auprs = self.modeling_method()
 
-    def compute_activity(self):
-        # Compute activities in the puppet, not in the puppetmaster
-        pass
-
-    def single_cell_normalize(self):
-        # Normalize and impute in the puppet, not in the puppetmaster
-        pass
-
-    def set_gold_standard_and_priors(self):
-        # Split priors for a gold standard in the puppet, not in the puppetmaster
-        self.priors_data = self.input_dataframe(self.priors_file)
-        self.gold_standard = self.input_dataframe(self.gold_standard_file)
-
-    def align_priors_and_expression(self):
-        # Align the priors and expression in the puppet, not in the puppetmaster
-        pass
-
-    def shuffle_priors(self):
-        # Do any shuffles in the puppet, not in the puppetmaster
+    def startup_finish(self):
+        # Do all the processing stuff in the puppet workflow
         pass
 
     def modeling_method(self):

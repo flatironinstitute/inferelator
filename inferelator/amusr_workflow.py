@@ -153,17 +153,10 @@ class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, crossvalidati
     cv_workflow_type = single_cell_workflow.SingleCellWorkflow
 
     def startup_finish(self):
-        # If the expression matrix is [G x N], transpose it for preprocessing
-        if not self.expression_matrix_columns_are_genes:
-            self.expression_matrix = self.expression_matrix.transpose()
-
         # Filter expression and priors to align
-        self.filter_expression_and_priors()
+        self.process_priors_and_gold_standard()
         self.separate_tasks_by_metadata()
         self.process_task_data()
-
-    def align_priors_and_expression(self):
-        pass
 
     def separate_tasks_by_metadata(self, meta_data_column=default.DEFAULT_METADATA_FOR_BATCH_CORRECTION):
         """

@@ -61,17 +61,18 @@ class NoOutputRP(results_processor.ResultsProcessor):
 
 
 # The variable names that get set in the main workflow, but need to get copied to the puppets
-SHARED_CLASS_VARIABLES = ['tf_names', 'gene_metadata', 'num_bootstraps', 'mi_sync_path', 'count_minimum',
-                          'gold_standard_filter_method', 'split_priors_for_gold_standard', 'cv_split_ratio',
+SHARED_CLASS_VARIABLES = ['tf_names', 'gene_metadata', 'gene_list_index' 'num_bootstraps', 'mi_sync_path',
+                          'count_minimum', 'gold_standard_filter_method', 'cv_split_ratio',
                           'split_gold_standard_for_crossvalidation', 'cv_split_axis', 'preprocessing_workflow',
                           'shuffle_prior_axis', 'write_network', 'output_dir', 'tfa_driver', 'drd_driver',
-                          'result_processor_driver']
+                          'result_processor_driver', 'prior_manager']
 
 
 class PuppeteerWorkflow(object):
     """
     This class contains the methods to create new child Workflow objects
-    It does not extend WorkflowBase because I hate keeping track of multiinheritance patterns
+    It needs to be multi-inherited with a Workflow class (this needs to be the left side)
+    This does not extend WorkflowBase because multiinheritence from subclasses of the same super is a NIGHTMARE
     """
     write_network = True  # bool
     csv_writer = None  # csv.csvwriter
@@ -123,9 +124,6 @@ class PuppeteerWorkflow(object):
         # Set the random seed into the puppet
         puppet.random_seed = seed
 
-        # Make sure that the puppet knows the correct orientation of the expression matrix
-        puppet.expression_matrix_columns_are_genes = False
-
         # Tell the puppet what to name stuff (if write_network is False then no output will be produced)
         puppet.network_file_name = "network_s{seed}.tsv".format(seed=seed)
         puppet.pr_curve_file_name = "pr_curve_s{seed}.pdf".format(seed=seed)
@@ -168,10 +166,8 @@ def create_puppet_workflow(regression_class=base_regression.RegressionWorkflow,
             self.gold_standard = gs_data
 
         def startup_run(self):
-            if self.split_priors_for_gold_standard:
-                self.split_priors_into_gold_standard()
-            elif self.split_gold_standard_for_crossvalidation:
-                self.cross_validate_gold_standard()
+            # Skip all of the data loading
+            pass
 
         def emit_results(self, betas, rescaled_betas, gold_standard, priors):
             if self.is_master():
