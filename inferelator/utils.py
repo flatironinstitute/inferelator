@@ -255,7 +255,7 @@ class Validator(object):
         zindex = index_iterable[0]
         for ind in index_iterable:
             if len(zindex.difference(ind)) > 0:
-                raise ValueError("Indexes have mismatching labels")
+                raise ValueError("Indexes have mismatching labels: "+"\t".join(map(str, zindex.difference(ind))))
             elif check_order and any(zindex != ind):
                 order_flag = True
 
