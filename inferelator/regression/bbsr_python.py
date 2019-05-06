@@ -164,7 +164,5 @@ class BBSRRegressionWorkflow(base_regression.RegressionWorkflow):
         mi_matrix = None
         utils.Debug.vprint('Calculating betas using BBSR', level=0)
 
-        regress_data = BBSR(X, Y, clr_matrix, self.priors_data, prior_weight=self.prior_weight,
-                            no_prior_weight=self.no_prior_weight, nS=self.bsr_feature_num).run()
-        MPControl.sync_processes()
-        return regress_data
+        return BBSR(X, Y, clr_matrix, self.priors_data, prior_weight=self.prior_weight,
+                    no_prior_weight=self.no_prior_weight, nS=self.bsr_feature_num).run()

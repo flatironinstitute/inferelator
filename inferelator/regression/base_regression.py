@@ -55,9 +55,11 @@ class BaseRegression(object):
         run_data = self.regress()
 
         if MPControl.is_master:
-            return self.pileup_data(run_data)
+            pileup_data = self.pileup_data(run_data)
         else:
-            return None, None
+            pileup_data = None, None
+
+        MPControl.sync_processes("post_pileup")
 
     def regress(self):
         """
@@ -130,7 +132,7 @@ class RegressionWorkflow(object):
         betas = []
         rescaled_betas = []
 
-        MPControl.sync_processes()
+        MPControl.sync_processes("pre_regression")
 
         for idx, bootstrap in enumerate(self.get_bootstraps()):
             utils.Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps), level=0)
@@ -140,7 +142,7 @@ class RegressionWorkflow(object):
                 betas.append(current_betas)
                 rescaled_betas.append(current_rescaled_betas)
 
-            MPControl.sync_processes()
+            MPControl.sync_processes("post_bootstrap")
 
         return betas, rescaled_betas
 

@@ -483,8 +483,6 @@ class AMUSRRegressionWorkflow(base_regression.RegressionWorkflow):
         betas = [[] for _ in range(self.n_tasks)]
         rescaled_betas = [[] for _ in range(self.n_tasks)]
 
-        MPControl.sync_processes()
-
         for idx in range(self.num_bootstraps):
             utils.Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps), level=0)
             current_betas, current_rescaled_betas = self.run_bootstrap(idx)
@@ -493,8 +491,6 @@ class AMUSRRegressionWorkflow(base_regression.RegressionWorkflow):
                 for k in range(self.n_tasks):
                     betas[k].append(current_betas[k])
                     rescaled_betas[k].append(current_rescaled_betas[k])
-
-            MPControl.sync_processes()
 
         return betas, rescaled_betas
 
