@@ -90,7 +90,7 @@ class PuppeteerWorkflow(object):
 
         if self.is_master():
             self.create_output_dir()
-            self.csv_writer = csv.writer(open(os.path.join(self.output_dir, self.output_file_name),
+            self.csv_writer = csv.writer(open(os.path.expanduser(os.path.join(self.output_dir, self.output_file_name)),
                                               mode="w", buffering=1), delimiter="\t", lineterminator="\n",
                                          quoting=csv.QUOTE_NONE)
             self.csv_writer.writerow(self.csv_header)

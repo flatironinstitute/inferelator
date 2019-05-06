@@ -114,7 +114,7 @@ class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
                 aupr_data.append(size_aupr)
                 if self.is_master():
                     self.csv_writer.writerow(size_aupr)
-                MPControl.sync_processes()
+                MPControl.sync_processes("post_CV")
         return aupr_data
 
 
@@ -215,5 +215,5 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
             aupr_data.append(drop_data)
             if self.is_master():
                 self.csv_writer.writerow(drop_data)
-            MPControl.sync_processes()
+            MPControl.sync_processes("post_CV")
         return aupr_data

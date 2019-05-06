@@ -336,7 +336,7 @@ class WorkflowBase(object):
             new_path = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
             self.output_dir = os.path.expanduser(os.path.join(self.input_dir, new_path))
         try:
-            os.makedirs(self.output_dir)
+            os.makedirs(os.path.expanduser(self.output_dir))
         except OSError:
             pass
 
