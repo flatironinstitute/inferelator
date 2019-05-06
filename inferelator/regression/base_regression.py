@@ -60,6 +60,7 @@ class BaseRegression(object):
             pileup_data = None, None
 
         MPControl.sync_processes("post_pileup")
+        return pileup_data
 
     def regress(self):
         """
