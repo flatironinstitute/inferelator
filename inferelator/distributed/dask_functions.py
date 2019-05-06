@@ -10,6 +10,8 @@ This package contains the dask-specific multiprocessing functions (these are use
 more advanced memory and task tools of dask to be used)
 """
 
+DASK_SCATTER_TIMEOUT = 120
+
 
 def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remove_autoregulation=True):
     """
@@ -56,8 +58,13 @@ def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remov
                 y.append((k, y_df[k].loc[:, gene].values.reshape(-1, 1)))
         return y
 
+    # Scatter common data to workers
     [scatter_x] = DaskController.client.scatter([X], broadcast=True)
     [scatter_priors] = DaskController.client.scatter([priors], broadcast=True)
+
+    # Wait for scattering to finish before creating futures
+    distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
+    distributed.wait(scatter_priors, timeout=DASK_SCATTER_TIMEOUT)
 
     future_list = [DaskController.client.submit(regression_maker, i, scatter_x, response_maker(Y, i), scatter_priors,
                                                 tfs)
@@ -94,9 +101,15 @@ def bbsr_regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS):
         data['ind'] = j
         return j, data
 
+    # Scatter common data to workers
     [scatter_x] = DaskController.client.scatter([X.values], broadcast=True)
     [scatter_pp] = DaskController.client.scatter([pp_mat.values], broadcast=True)
     [scatter_weights] = DaskController.client.scatter([weights_mat.values], broadcast=True)
+
+    # Wait for scattering to finish before creating futures
+    distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
+    distributed.wait(scatter_pp, timeout=DASK_SCATTER_TIMEOUT)
+    distributed.wait(scatter_weights, timeout=DASK_SCATTER_TIMEOUT)
 
     future_list = [DaskController.client.submit(regression_maker, i, scatter_x, Y.values[i, :].flatten(), scatter_pp,
                                                 scatter_weights)
@@ -135,7 +148,11 @@ def elasticnet_regress_dask(X, Y, params, G, genes):
         data['ind'] = j
         return j, data
 
+    # Scatter common data to workers
     [scatter_x] = DaskController.client.scatter([X.values], broadcast=True)
+
+    # Wait for scattering to finish before creating futures
+    distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
 
     future_list = [DaskController.client.submit(regression_maker, i, scatter_x, Y.values[i, :].flatten())
                    for i in range(G)]
@@ -185,10 +202,13 @@ def build_mi_array_dask(X, Y, bins, logtype):
     # Scatter Y to workers and keep track as Futures
     [scatter_y] = dask_controller.client.scatter([Y], broadcast=True)
 
+    # Wait for scattering to finish before creating futures
+    distributed.wait(scatter_y, timeout=DASK_SCATTER_TIMEOUT)
+
     # Build an asynchronous list of Futures for each calculation of mi_make
     future_list = [dask_controller.client.submit(mi_make, i, X[:, i], scatter_y) for i in range(m1)]
     mi_list = [None] * len(future_list)
-    for finished_future, future_return  in distributed.as_completed(future_list, with_results=True):
+    for finished_future, future_return in distributed.as_completed(future_list, with_results=True):
         i, result_data = future_return
         mi_list[i] = result_data
         finished_future.cancel()
