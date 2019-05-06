@@ -130,6 +130,8 @@ class RegressionWorkflow(object):
         betas = []
         rescaled_betas = []
 
+        MPControl.sync_processes()
+
         for idx, bootstrap in enumerate(self.get_bootstraps()):
             utils.Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps), level=0)
             np.random.seed(self.random_seed + idx)
@@ -137,6 +139,8 @@ class RegressionWorkflow(object):
             if self.is_master():
                 betas.append(current_betas)
                 rescaled_betas.append(current_rescaled_betas)
+
+            MPControl.sync_processes()
 
         return betas, rescaled_betas
 

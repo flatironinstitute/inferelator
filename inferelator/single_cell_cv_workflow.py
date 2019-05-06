@@ -9,6 +9,7 @@ from inferelator import utils
 from inferelator import default
 from inferelator.utils import Validator as check
 
+from inferelator.distributed.inferelator_mp import MPControl
 
 class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, crossvalidation_workflow.PuppeteerWorkflow):
     seeds = default.DEFAULT_SEED_RANGE
@@ -113,6 +114,7 @@ class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
                 aupr_data.append(size_aupr)
                 if self.is_master():
                     self.csv_writer.writerow(size_aupr)
+                MPControl.sync_processes()
         return aupr_data
 
 
@@ -213,4 +215,5 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
             aupr_data.append(drop_data)
             if self.is_master():
                 self.csv_writer.writerow(drop_data)
+            MPControl.sync_processes()
         return aupr_data
