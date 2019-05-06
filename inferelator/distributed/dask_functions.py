@@ -63,8 +63,11 @@ def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remov
     [scatter_priors] = DaskController.client.scatter([priors], broadcast=True)
 
     # Wait for scattering to finish before creating futures
-    distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
-    distributed.wait(scatter_priors, timeout=DASK_SCATTER_TIMEOUT)
+    try:
+        distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
+        distributed.wait(scatter_priors, timeout=DASK_SCATTER_TIMEOUT)
+    except distributed.TimeoutError:
+        utils.Debug.vprint("Scattering timeout during regression. Dask workers may be sick", level=0)
 
     future_list = [DaskController.client.submit(regression_maker, i, scatter_x, response_maker(Y, i), scatter_priors,
                                                 tfs)
@@ -107,9 +110,12 @@ def bbsr_regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS):
     [scatter_weights] = DaskController.client.scatter([weights_mat.values], broadcast=True)
 
     # Wait for scattering to finish before creating futures
-    distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
-    distributed.wait(scatter_pp, timeout=DASK_SCATTER_TIMEOUT)
-    distributed.wait(scatter_weights, timeout=DASK_SCATTER_TIMEOUT)
+    try:
+        distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
+        distributed.wait(scatter_pp, timeout=DASK_SCATTER_TIMEOUT)
+        distributed.wait(scatter_weights, timeout=DASK_SCATTER_TIMEOUT)
+    except distributed.TimeoutError:
+        utils.Debug.vprint("Scattering timeout during regression. Dask workers may be sick", level=0)
 
     future_list = [DaskController.client.submit(regression_maker, i, scatter_x, Y.values[i, :].flatten(), scatter_pp,
                                                 scatter_weights)
@@ -152,7 +158,10 @@ def elasticnet_regress_dask(X, Y, params, G, genes):
     [scatter_x] = DaskController.client.scatter([X.values], broadcast=True)
 
     # Wait for scattering to finish before creating futures
-    distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
+    try:
+        distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
+    except distributed.TimeoutError:
+        utils.Debug.vprint("Scattering timeout during regression. Dask workers may be sick", level=0)
 
     future_list = [DaskController.client.submit(regression_maker, i, scatter_x, Y.values[i, :].flatten())
                    for i in range(G)]
@@ -203,7 +212,10 @@ def build_mi_array_dask(X, Y, bins, logtype):
     [scatter_y] = dask_controller.client.scatter([Y], broadcast=True)
 
     # Wait for scattering to finish before creating futures
-    distributed.wait(scatter_y, timeout=DASK_SCATTER_TIMEOUT)
+    try:
+        distributed.wait(scatter_y, timeout=DASK_SCATTER_TIMEOUT)
+    except distributed.TimeoutError:
+        utils.Debug.vprint("Scattering timeout during mutual information. Dask workers may be sick", level=0)
 
     # Build an asynchronous list of Futures for each calculation of mi_make
     future_list = [dask_controller.client.submit(mi_make, i, X[:, i], scatter_y) for i in range(m1)]
