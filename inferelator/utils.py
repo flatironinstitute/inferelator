@@ -63,18 +63,6 @@ class Debug:
         cls.print_level(*args, **kwargs)
 
     @classmethod
-    def warn(cls, *args, **kwargs):
-        cls.vprint(*args, level=cls.levels["v"], **kwargs)
-
-    @classmethod
-    def notify(cls, *args, **kwargs):
-        cls.vprint(*args, level=cls.levels["vv"], **kwargs)
-
-    @classmethod
-    def vprint_all(cls, *args, **kwargs):
-        cls.print_level(*args, **kwargs)
-
-    @classmethod
     def print_level(cls, *args, **kwargs):
         try:
             level = kwargs.pop('level')
@@ -304,23 +292,9 @@ class Validator(object):
         return True
 
 
-
-
 def df_from_tsv(file_like, has_index=True):
     "Read a tsv file or buffer with headers and row ids into a pandas dataframe."
     return pd.read_csv(file_like, sep="\t", header=0, index_col=0 if has_index else False)
-
-
-def metadata_df(file_like):
-    "Read a metadata file as a pandas data frame."
-    return pd.read_csv(file_like, sep="\t", header=0, index_col="condName")
-
-
-def read_tf_names(file_like):
-    "Read transcription factor names from one-column tsv file.  Return list of names."
-    exp = pd.read_csv(file_like, sep="\t", header=None)
-    assert exp.shape[1] == 1, "transcription factor file should have one column "
-    return list(exp[0])
 
 
 def df_set_diag(df, val, copy=True):
