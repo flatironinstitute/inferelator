@@ -188,7 +188,8 @@ def build_mi_array_dask(X, Y, bins, logtype):
     # Build an asynchronous list of Futures for each calculation of mi_make
     future_list = [dask_controller.client.submit(mi_make, i, X[:, i], scatter_y) for i in range(m1)]
     mi_list = [None] * len(future_list)
-    for finished_future, (i, result_data) in distributed.as_completed(future_list, with_results=True):
+    for finished_future, future_return  in distributed.as_completed(future_list, with_results=True):
+        i, result_data = future_return
         mi_list[i] = result_data
         finished_future.cancel()
 
