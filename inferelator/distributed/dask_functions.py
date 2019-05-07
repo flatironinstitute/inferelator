@@ -209,13 +209,16 @@ def build_mi_array_dask(X, Y, bins, logtype):
         return i, [_calc_mi(_make_table(x, y[:, j], bins), logtype=logtype) for j in range(m2)]
 
     # Scatter Y to workers and keep track as Futures
-    [scatter_y] = dask_controller.client.scatter([Y], broadcast=True)
-
-    # Wait for scattering to finish before creating futures
     try:
-        distributed.wait(scatter_y, timeout=DASK_SCATTER_TIMEOUT)
-    except distributed.TimeoutError:
-        utils.Debug.vprint("Scattering timeout during mutual information. Dask workers may be sick", level=0)
+        [scatter_y] = dask_controller.client.scatter([Y], broadcast=True)
+        # Wait for scattering to finish before creating futures
+        try:
+            distributed.wait(scatter_y, timeout=DASK_SCATTER_TIMEOUT)
+        except distributed.TimeoutError:
+            utils.Debug.vprint("Scattering timeout during mutual information. Dask workers may be sick", level=0)
+    except AssertionError:
+        # There is something wrong with distributed.replicate - failover to non-broadcast and see if it works
+        [scatter_y] = dask_controller.client.scatter([Y])
 
     # Build an asynchronous list of Futures for each calculation of mi_make
     future_list = [dask_controller.client.submit(mi_make, i, X[:, i], scatter_y) for i in range(m1)]
