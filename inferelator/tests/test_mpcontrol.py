@@ -1,6 +1,8 @@
 import unittest
 import tempfile
-import os
+import pandas as pd
+import pandas.testing as pdt
+import numpy as np
 import shutil
 import types
 from inferelator.distributed.inferelator_mp import MPControl
@@ -189,7 +191,7 @@ class TestDaskLocalMPController(TestMPControl):
         cls.tempdir = tempfile.mkdtemp()
         MPControl.shutdown()
         MPControl.set_multiprocess_engine(cls.name)
-        MPControl.connect(local_dir=cls.tempdir, n_workers=0)
+        MPControl.connect(local_dir=cls.tempdir, n_workers=1)
 
     @classmethod
     def tearDownClass(cls):
@@ -209,6 +211,35 @@ class TestDaskLocalMPController(TestMPControl):
 
     def test_dask_local_sync(self):
         self.assertTrue(MPControl.sync_processes())
+
+    def test_dask_function_mi(self):
+        """Compute mi for identical arrays [[1, 2, 1], [2, 4, 6]]."""
+
+        from inferelator.regression import mi
+
+        L = [[1, 2, 1], [3, 4, 6]]
+        x_dataframe = pd.DataFrame(L)
+        y_dataframe = pd.DataFrame(L)
+        clr_matrix, self.mi_matrix = mi.MIDriver().run(x_dataframe, y_dataframe)
+        expected = np.array([[0, 1], [1, 0]])
+        np.testing.assert_almost_equal(clr_matrix.values, expected)
+
+    def test_dask_function_bbsr(self):
+        from inferelator.regression import bbsr_python
+
+        priors = pd.DataFrame([[0, 0], [0, 0]], index=['gene1', 'gene2'], columns=['gene1', 'gene2'])
+        clr = pd.DataFrame([[0, 0], [0, 0]], index=['gene1', 'gene2'], columns=['gene1', 'gene2'])
+        X = pd.DataFrame([1, 2], index = ['gene1', 'gene2'], columns = ['ss'])
+        Y = pd.DataFrame([1, 2], index = ['gene1', 'gene2'], columns = ['ss'])
+        betas, resc = bbsr_python.BBSR(X, Y, clr, priors).run()
+
+        pdt.assert_frame_equal(betas, pd.DataFrame([[0, 0],[0, 0]],
+                                                   index = ['gene1', 'gene2'],
+                                                   columns = ['gene1', 'gene2']).astype(float))
+        pdt.assert_frame_equal(resc, pd.DataFrame([[0, 0],[0, 0]],
+                                                  index = ['gene1', 'gene2'],
+                                                  columns = ['gene1', 'gene2']).astype(float))
+
 
 
 @unittest.skipIf(not TEST_DASK_CLUSTER, "Dask not installed")

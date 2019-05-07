@@ -130,7 +130,6 @@ def bbsr_regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS):
     DaskController.client.cancel(scatter_x)
     DaskController.client.cancel(scatter_pp)
     DaskController.client.cancel(scatter_weights)
-    DaskController.client.cancel(future_list)
 
     return result_list
 
@@ -173,7 +172,6 @@ def elasticnet_regress_dask(X, Y, params, G, genes):
         finished_future.cancel()
 
     DaskController.client.cancel(scatter_x)
-    DaskController.client.cancel(future_list)
 
     return result_list
 
@@ -230,7 +228,6 @@ def build_mi_array_dask(X, Y, bins, logtype):
 
     # Clean up worker data by cancelling all the Futures
     dask_controller.client.cancel(scatter_y)
-    dask_controller.client.cancel(future_list)
 
     # Convert the list of lists to an array
     mi = np.array(mi_list)
