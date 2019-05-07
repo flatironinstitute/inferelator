@@ -205,8 +205,23 @@ class Validator(object):
 
     @staticmethod
     def dataframes_align(frame_iterable, allow_none=False, check_order=True):
-        if allow_none and any([f is None for f in frame_iterable]):
-            return True
+
+        is_none = [f is None for f in frame_iterable]
+        if any(is_none) and allow_none:
+            # If None is an allowed value, remove the Nones and check the remaining dataframes
+            new_frame_iterable = []
+            for frame in frame_iterable:
+                if frame is not None:
+                    new_frame_iterable.append(frame)
+
+            # If there are any non-None dataframes, check them for alignment. Otherwise return True
+            if len(new_frame_iterable) > 0:
+                frame_iterable = new_frame_iterable
+            else:
+                return True
+        elif any(is_none):
+            # If None isn't allowed, throw an error
+            raise ValueError("None values are present in dataframe list")
 
         try:
             Validator.indexes_align([f.index for f in frame_iterable], allow_none=allow_none, check_order=check_order)
@@ -236,8 +251,22 @@ class Validator(object):
 
     @staticmethod
     def indexes_align(index_iterable, allow_none=False, check_order=True):
-        if allow_none and any([i is None for i in index_iterable]):
-            return True
+        is_none = [f is None for f in index_iterable]
+        if any(is_none) and allow_none:
+            # If None is an allowed value, remove the Nones and check the remaining dataframes
+            new_index_iterable = []
+            for index in index_iterable:
+                if index is not None:
+                    new_index_iterable.append(index)
+
+            # If there are any non-None dataframes, check them for alignment. Otherwise return True
+            if len(new_index_iterable) > 0:
+                index_iterable = new_index_iterable
+            else:
+                return True
+        elif any(is_none):
+            # If None isn't allowed, throw an error
+            raise ValueError("None values are present in dataframe list")
 
         order_flag = False
         zindex = index_iterable[0]

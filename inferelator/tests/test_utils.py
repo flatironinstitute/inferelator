@@ -52,6 +52,41 @@ class TestValidator(unittest.TestCase):
         with self.assertRaises(ValueError):
             check.dataframes_align([self.frame1, self.frame3, self.frame1])
 
+        self.assertTrue(check.dataframes_align([None, None, None], allow_none=True))
+        with self.assertRaises(ValueError):
+            check.dataframes_align([None, None, None], allow_none=False)
+
+        self.assertTrue(check.dataframes_align([self.frame1, self.frame1, None], allow_none=True))
+        with self.assertRaises(ValueError):
+            check.dataframes_align([self.frame1, self.frame1, None], allow_none=False)
+
+    def test_index_alignment(self):
+        index1 = self.frame1.index
+        index2 = self.frame3.index
+        index3 = self.frame1.columns
+
+        self.assertTrue(check.indexes_align([index1, index1, index1]))
+        self.assertTrue(check.indexes_align([index1, index1, index2], check_order=False))
+
+        with self.assertRaises(ValueError):
+            check.indexes_align([index1, index2, index1])
+
+        with self.assertRaises(ValueError):
+            check.indexes_align([index1, index3, index1])
+
+        self.assertTrue(check.indexes_align([None, None, None], allow_none=True))
+        with self.assertRaises(ValueError):
+            check.indexes_align([None, None, None], allow_none=False)
+
+        self.assertTrue(check.indexes_align([index1, index1, None], allow_none=True))
+        with self.assertRaises(ValueError):
+            check.indexes_align([index1, index1, None], allow_none=False)
+
+    def test_index_unique(self):
+        index1 = self.frame1.index
+        index2 = self.frame3.index
+        index3 = self.frame1.columns
+
     def test_frame_numeric(self):
         self.assertTrue(check.dataframe_is_numeric(None, allow_none=True))
         self.assertTrue(check.dataframe_is_numeric(self.frame1))
@@ -107,6 +142,26 @@ class TestValidator(unittest.TestCase):
         self.assertTrue(check.argument_path(temp_test, create_if_needed=False, access=os.W_OK))
         self.assertTrue(check.argument_path(None, allow_none=True))
         shutil.rmtree(temp_dir)
+
+    def test_callable(self):
+        def callable_function(x):
+            return x
+
+        class NonCallableClass(object):
+            pass
+
+        self.assertTrue(check.argument_callable(None, allow_none=True))
+        with self.assertRaises(ValueError):
+            check.argument_callable(None, allow_none=False)
+
+        self.assertTrue(check.argument_callable(int))
+        self.assertTrue(check.argument_callable(callable_function))
+        with self.assertRaises(ValueError):
+            check.argument_callable(NonCallableClass())
+        with self.assertRaises(ValueError):
+            check.argument_callable(1)
+        with self.assertRaises(ValueError):
+            check.argument_callable("string")
 
 
 if __name__ == '__main__':
