@@ -1,3 +1,5 @@
+import time
+
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.regression import base_regression
 from inferelator import utils
@@ -74,10 +76,7 @@ def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remov
                    for i in range(G)]
 
     # Collect results as they finish instead of waiting for all workers to be done
-    result_list = [None] * len(future_list)
-    for finished_future, (j, result_data) in distributed.as_completed(future_list, with_results=True):
-        result_list[j] = result_data
-        finished_future.cancel()
+    result_list = process_futures_into_list(future_list)
 
     DaskController.client.cancel(scatter_x)
     DaskController.client.cancel(scatter_priors)
@@ -122,10 +121,7 @@ def bbsr_regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS):
                    for i in range(G)]
 
     # Collect results as they finish instead of waiting for all workers to be done
-    result_list = [None] * len(future_list)
-    for finished_future, (j, result_data) in distributed.as_completed(future_list, with_results=True):
-        result_list[j] = result_data
-        finished_future.cancel()
+    result_list = process_futures_into_list(future_list)
 
     DaskController.client.cancel(scatter_x)
     DaskController.client.cancel(scatter_pp)
@@ -166,10 +162,7 @@ def elasticnet_regress_dask(X, Y, params, G, genes):
                    for i in range(G)]
 
     # Collect results as they finish instead of waiting for all workers to be done
-    result_list = [None] * len(future_list)
-    for finished_future, (j, result_data) in distributed.as_completed(future_list, with_results=True):
-        result_list[j] = result_data
-        finished_future.cancel()
+    result_list = process_futures_into_list(future_list)
 
     DaskController.client.cancel(scatter_x)
 
@@ -202,35 +195,47 @@ def build_mi_array_dask(X, Y, bins, logtype):
     m1, m2 = X.shape[1], Y.shape[1]
 
     def mi_make(i, x, y):
-        level = 1 if i % 1000 == 0 else 3
-        utils.Debug.allprint("Mutual Information Calculation [{i} / {total}]".format(i=i, total=m1), level=level)
         return i, [_calc_mi(_make_table(x, y[:, j], bins), logtype=logtype) for j in range(m2)]
 
     # Scatter Y to workers and keep track as Futures
+    [scatter_y] = dask_controller.client.scatter([Y], broadcast=True, hash=False)
+    # Wait for scattering to finish before creating futures
     try:
-        [scatter_y] = dask_controller.client.scatter([Y], broadcast=True)
-        # Wait for scattering to finish before creating futures
-        try:
-            distributed.wait(scatter_y, timeout=DASK_SCATTER_TIMEOUT)
-        except distributed.TimeoutError:
-            utils.Debug.vprint("Scattering timeout during mutual information. Dask workers may be sick", level=0)
-    except AssertionError:
-        # There is something wrong with distributed.replicate - failover to non-broadcast and see if it works
-        [scatter_y] = dask_controller.client.scatter([Y])
+        distributed.wait(scatter_y, timeout=DASK_SCATTER_TIMEOUT)
+    except distributed.TimeoutError:
+        utils.Debug.vprint("Scattering timeout during mutual information. Dask workers may be sick", level=0)
 
     # Build an asynchronous list of Futures for each calculation of mi_make
-    future_list = [dask_controller.client.submit(mi_make, i, X[:, i], scatter_y) for i in range(m1)]
-    mi_list = [None] * len(future_list)
-    for finished_future, future_return in distributed.as_completed(future_list, with_results=True):
-        i, result_data = future_return
-        mi_list[i] = result_data
-        finished_future.cancel()
-
-    # Clean up worker data by cancelling all the Futures
-    dask_controller.client.cancel(scatter_y)
+    future_list = [dask_controller.client.submit(mi_make, i, X[:, i], scatter_y, pure=False) for i in range(m1)]
+    mi_list = process_futures_into_list(future_list)
 
     # Convert the list of lists to an array
     mi = np.array(mi_list)
     assert (m1, m2) == mi.shape, "Array {sh} produced [({m1}, {m2}) expected]".format(sh=mi.shape, m1=m1, m2=m2)
 
     return mi
+
+
+def process_futures_into_list(future_list):
+    """
+    Take a list of futures and turn them into a list of results
+    Results must be of the form i, data (where i is the output order)
+    :param future_list: list(Futures)
+    :return output_list: list(Data)
+    """
+
+    dask_controller = MPControl.client
+    output_list = [None] * len(future_list)
+    complete_gen = distributed.as_completed(future_list, with_results=True)
+
+    for finished_future, future_return in complete_gen:
+        if not finished_future.cancelled():
+            i, result_data = future_return
+        else:
+            dask_controller.client.retry(finished_future)
+            complete_gen.update([finished_future])
+            continue
+
+        output_list[i] = result_data
+
+    return output_list
