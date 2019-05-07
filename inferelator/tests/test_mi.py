@@ -80,13 +80,3 @@ class Test2By3(unittest.TestCase):
         self.clr_matrix, self.mi_matrix = mi.MIDriver().run(self.x_dataframe, self.y_dataframe)
         expected = np.array([[0, 1], [1, 0]])
         np.testing.assert_almost_equal(self.clr_matrix.values, expected)
-
-    def test_mixed(self):
-        """Compute mi for mixed arrays."""
-        L = [[1, 2, 1], [3, 4, 6]]
-        L2 = [[3, 7, 1], [9, 0, 2]]
-        self.x_dataframe = pd.DataFrame(np.array(L))
-        self.y_dataframe = pd.DataFrame(np.array(L2))
-        self.clr_matrix, self.mi_matrix = mi.MIDriver().run(self.x_dataframe, self.y_dataframe)
-        expected = np.array([[0, 1], [1, 0]])
-        # np.testing.assert_almost_equal(self.clr_matrix.values, expected)
