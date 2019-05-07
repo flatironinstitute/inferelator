@@ -1,5 +1,6 @@
 import unittest
 import tempfile
+import time
 import pandas as pd
 import pandas.testing as pdt
 import numpy as np
@@ -191,6 +192,7 @@ class TestDaskLocalMPController(TestMPControl):
         cls.tempdir = tempfile.mkdtemp()
         MPControl.shutdown()
         MPControl.set_multiprocess_engine(cls.name)
+        time.sleep(0.25) #?
         MPControl.connect(local_dir=cls.tempdir, n_workers=1)
 
     @classmethod
