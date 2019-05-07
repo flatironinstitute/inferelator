@@ -142,6 +142,8 @@ class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, crossvalidati
     task_bootstraps = None
     tasks_names = None
 
+    meta_data_task_column = default.DEFAULT_METADATA_FOR_BATCH_CORRECTION
+
     # Axis labels to keep
     targets = None
     regulators = None
@@ -158,7 +160,7 @@ class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, crossvalidati
         self.separate_tasks_by_metadata()
         self.process_task_data()
 
-    def separate_tasks_by_metadata(self, meta_data_column=default.DEFAULT_METADATA_FOR_BATCH_CORRECTION):
+    def separate_tasks_by_metadata(self, meta_data_column=None):
         """
         Take a single expression matrix and break it into multiple dataframes based on meta_data. Reset the
         self.expression_matrix and self.meta_data with a list of dataframes, self.n_tasks with the number of tasks,
@@ -168,6 +170,8 @@ class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, crossvalidati
             Meta_data column which corresponds to task ID
 
         """
+
+        meta_data_column = meta_data_column if meta_data_column is not None else self.meta_data_task_column
 
         task_name, task_data, task_metadata = [], [], []
 
