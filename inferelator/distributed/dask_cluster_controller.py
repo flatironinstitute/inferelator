@@ -25,6 +25,8 @@ ENV_EXTRA = ['module purge',
              'export OPENBLAS_NUM_THREADS=1',
              'export NUMEXPR_NUM_THREADS=1']
 
+CONTROLLER_EXTRA = []
+
 DEFAULT_MIN_CORES = 20
 DEFAULT_MAX_CORES = 200
 DEFAULT_ADAPT_INTERVAL = "1s"
@@ -104,6 +106,7 @@ class DaskHPCClusterController(AbstractController):
     job_cpu = DEFAULT_CORES
     job_mem = DEFAULT_MEM
     env_extra = ENV_EXTRA
+    cluster_controller_options = CONTROLLER_EXTRA
     interface = DEFAULT_INTERFACE
     local_directory = DEFAULT_LOCAL_DIR
 
@@ -118,7 +121,7 @@ class DaskHPCClusterController(AbstractController):
                                                          job_cpu=cls.job_cpu, cores=cls.cores, processes=cls.processes,
                                                          job_mem=cls.job_mem, env_extra=cls.env_extra,
                                                          interface=cls.interface, local_directory=cls.local_directory,
-                                                         memory=cls.memory)
+                                                         memory=cls.memory, job_extra=cls.cluster_controller_options)
 
         # Deactivate the worker memory nanny
         if cls.worker_memory_limit == 0:
