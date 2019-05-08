@@ -197,8 +197,8 @@ class PythonDRDriver(object):
         possible unless strict checking is on
         """
         # Check to make sure that the conditions in the expression data are matched with conditions in the metadata
-        exp_conds = self.exp_data.columns
-        meta_conds = self.meta_data[self.cond_col]
+        exp_conds = self.exp_data.columns.astype(str)
+        meta_conds = self.meta_data[self.cond_col].astype(str)
 
         # Check to find out if there are any conditions which don't have associated metadata
         # If there are, raise an exception if strict_checking_for_metadata is True
