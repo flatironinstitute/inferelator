@@ -200,7 +200,8 @@ class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, crossvalidati
         self.task_design, self.task_response, self.task_meta_data, self.task_bootstraps = [], [], [], []
         targets, regulators = [], []
 
-        for expr_data, meta_data in zip(self.expression_matrix, self.meta_data):
+        for expr_data, meta_data, task_name in zip(self.expression_matrix, self.meta_data, self.tasks_names):
+            utils.Debug.vprint("Processing {task} [{sh}]".format(task=task_name, sh=expr_data.shape), level=1)
             task = self.new_puppet(expr_data, meta_data, seed=self.random_seed)
             task.startup_finish()
             self.task_design.append(task.design)
