@@ -38,6 +38,10 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, cross
         # Do all the processing stuff in the puppet workflow
         pass
 
+    def process_priors_and_gold_standard(self):
+        # Do all the processing stuff in the puppet workflow
+        pass
+
     def modeling_method(self):
         raise NotImplementedError("No method to create models was provided")
 
