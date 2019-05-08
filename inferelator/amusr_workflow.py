@@ -156,7 +156,6 @@ class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, crossvalidati
 
     def startup_finish(self):
         # Filter expression and priors to align
-        self.process_priors_and_gold_standard()
         self.separate_tasks_by_metadata()
         self.process_task_data()
 

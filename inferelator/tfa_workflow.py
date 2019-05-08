@@ -52,9 +52,9 @@ class TFAWorkFlow(workflow.WorkflowBase):
 
     def startup_run(self):
         self.get_data()
+        self.process_priors_and_gold_standard()
 
     def startup_finish(self):
-        self.process_priors_and_gold_standard()
         self.align_priors_and_expression()
         self.compute_common_data()
         self.compute_activity()

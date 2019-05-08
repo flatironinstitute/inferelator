@@ -167,7 +167,7 @@ def create_puppet_workflow(regression_class=base_regression.RegressionWorkflow,
 
         def startup_run(self):
             # Skip all of the data loading
-            pass
+            self.process_priors_and_gold_standard()
 
         def emit_results(self, betas, rescaled_betas, gold_standard, priors):
             if self.is_master():
