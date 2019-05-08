@@ -14,7 +14,7 @@ DELT_COLUMN_NAME = 'del.t'
 COND_COLUMN_NAME = 'condName'
 
 
-class PythonDRDriver:
+class PythonDRDriver(object):
     # Parameters for response matrix
     tau = DEFAULT_tau
     delTmin = DEFAULT_delTmin
