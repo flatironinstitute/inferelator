@@ -65,7 +65,7 @@ SHARED_CLASS_VARIABLES = ['tf_names', 'gene_metadata', 'gene_list_index', 'num_b
                           'count_minimum', 'gold_standard_filter_method', 'cv_split_ratio',
                           'split_gold_standard_for_crossvalidation', 'cv_split_axis', 'preprocessing_workflow',
                           'shuffle_prior_axis', 'write_network', 'output_dir', 'tfa_driver', 'drd_driver',
-                          'result_processor_driver', 'prior_manager']
+                          'result_processor_driver', 'prior_manager', 'meta_data_task_column']
 
 
 class PuppeteerWorkflow(object):
