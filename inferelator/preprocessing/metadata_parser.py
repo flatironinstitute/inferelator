@@ -123,6 +123,18 @@ class MetadataParser(object):
         """
         return data_frame.replace('NA', np.nan, regex=False)
 
+    @classmethod
+    def validate_metadata(cls, exp_data, meta_data):
+        if cls.cond_col not in meta_data:
+            meta_data[cls.cond_col] = meta_data.index.astype(str)
+        align_count = len(exp_data.columns.intersection(meta_data[cls.cond_col]))
+        if align_count == 0:
+            raise ConditionDoesNotExistError("Unable to align metadata to expression data")
+        elif align_count < min(exp_data.shape[1], meta_data.shape[0]):
+            utils.Debug.vprint("Metadata ({me}) and expression data ({ex}) alignment off".format(me=meta_data.shape,
+                                                                                                 ex=exp_data.shape),
+                               level=0)
+
 
 class MetadataParserNonbranching(MetadataParser):
     group_col = GROUP_COLUMN_NAME

@@ -57,6 +57,9 @@ class PythonDRDriver(object):
         # Turn NA in the dataframe into np.NaN
         meta_data = processor.fix_NAs(meta_data)
 
+        # Validate metadata alignment to expression
+        processor.validate_metadata(exp_data, meta_data)
+
         # Turn the metadata into a set of dicts keyed by sample
         steady_idx, ts_group = processor.process_groups(meta_data)
 
@@ -205,16 +208,3 @@ class PythonDRDriver(object):
         else:
             idx = idx[0]
         return idx
-
-
-class PythonDRDriverExtractedMetadata(PythonDRDriver):
-    """
-    This is a wrapper to handle metadata that's extracted from the expression data
-    """
-
-    cond_col = metadata_parser.COND_COLUMN_NAME
-
-    def run(self, expression, meta):
-        meta = meta.copy()
-        meta[self.cond_col] = meta.index.astype(str)
-        return super(PythonDRDriverExtractedMetadata, self).run(expression, meta)

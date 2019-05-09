@@ -73,6 +73,16 @@ class TestMetaDataProcessor(unittest.TestCase):
         metadata_parser.MetadataParser.check_for_dupes(self.expr, meta_err, steady_idx,
                                                            strict_checking_for_duplicates=False)
 
+    def test_fixing_alignment(self):
+        meta = metadata_parser.MetadataParser.fix_NAs(self.meta)
+        meta = meta.copy()
+        meta.index = meta['condName']
+        del meta['condName']
+        metadata_parser.MetadataParser.validate_metadata(self.expr, meta)
+        steady_idx, ts_idx = metadata_parser.MetadataParser.process_groups(meta)
+        self.assertEqual(len(steady_idx.keys()), 5)
+        self.assertEqual(len(ts_idx.keys()), 4)
+
 
 class TestMetaDataNonbranchingProcessor(unittest.TestCase):
 
