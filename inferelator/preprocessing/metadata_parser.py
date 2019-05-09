@@ -131,7 +131,7 @@ class MetadataParserNonbranching(MetadataParser):
 
     @classmethod
     def process_groups(cls, meta_data):
-        ts_dict = dict(zip(meta_data.index.astype(str).tolist(),
+        ts_dict = dict(zip(meta_data[cls.cond_col].astype(str).tolist(),
                            zip(meta_data[cls.group_col].tolist(),
                                meta_data[cls.time_col].tolist())))
 
@@ -145,13 +145,16 @@ class MetadataParserNonbranching(MetadataParser):
         for cond, (group, time) in ts_dict.items():
             times_per_group[group].append(time)
             group_time_cond[group][time] = cond
+            if np.isnan(time):
+                steady_idx[cond] =True
 
         # Process into a dict, keyed by sample ID, of [(previous sample, del.t), (next sample, del.t)]
         for cond, (group, time) in ts_dict.items():
             group_times = times_per_group[group]
 
-            if min(group_times) == time and max(group_times) == time:
+            if (min(group_times) == time and max(group_times) == time) or steady_idx[cond]:
                 steady_idx[cond] = True
+                ts_group.pop(cond)
                 continue
 
             if min(group_times) == time:

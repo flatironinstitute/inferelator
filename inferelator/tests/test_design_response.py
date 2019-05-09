@@ -1,65 +1,143 @@
 import unittest, os
 import pandas as pd
 import numpy as np
-import pdb
+from inferelator.preprocessing import metadata_parser
 from inferelator.preprocessing import design_response_translation
 from inferelator import utils
 
 my_dir = os.path.dirname(__file__)
 
 
-class TestDR(unittest.TestCase):
-    """
-    Superclass for common methods
-    """
-
-    def calculate_design_and_response(self):
-        # drd = design_response_R.DRDriver()
-        drd = design_response_translation.PythonDRDriver()
-        target = drd.target_directory = os.path.join(my_dir, "artifacts")
-        if not os.path.exists(target):
-            os.makedirs(target)
-        drd.delTmin = self.delT_min
-        drd.delTmax = self.delT_max
-        drd.tau = self.tau
-        (self.design, self.response) = drd.run(self.exp, self.meta)
-
-
-@unittest.skip("Need to redo this to match the current drd")
-class TestDRModelOrganisms(TestDR):
-
-    def test_on_bsubtilis(self):
-        self.exp = utils.df_from_tsv('data/bsubtilis/expression.tsv')
-        self.meta = utils.df_from_tsv('data/bsubtilis/meta_data.tsv', has_index=False)
-        expected_design = utils.df_from_tsv('data/bsubtilis/bsubtilis_design_matrix.tsv')
-        expected_response = utils.df_from_tsv('data/bsubtilis/bsubtilis_response_matrix.tsv')
-        self.delT_min = 0
-        self.delT_max = 110
-        self.tau = 45
-        self.calculate_design_and_response()
-        np.testing.assert_allclose(self.response.values, expected_response.values, atol=1e-15)
-        self.assertEqual(len(set(expected_response.columns)), len(set(self.response.columns)))
-        self.assertEqual(expected_response.columns.tolist(), self.response.columns.tolist())
-        self.assertEqual(expected_response.index.tolist(), self.response.index.tolist())
-        self.assertTrue(pd.DataFrame.equals(expected_design, self.design))
-
-
-class TestDRAboveDeltMax(TestDR):
+class TestMetaDataProcessor(unittest.TestCase):
 
     def setUp(self):
-        self.meta = pd.DataFrame()
-        self.meta['isTs'] = [True, True, True, True, False]
-        self.meta['is1stLast'] = ['f', 'm', 'm', 'l', 'e']
-        self.meta['prevCol'] = ['NA', 'ts1', 'ts2', 'ts3', 'NA']
-        self.meta['del.t'] = ['NA', 3, 2, 5, 'NA']
-        self.meta['condName'] = ['ts1', 'ts2', 'ts3', 'ts4', 'ss']
+        self.meta = pd.DataFrame({
+            'isTs': [True, True, True, True, False],
+            'is1stLast': ['f', 'm', 'm', 'l', 'e'],
+            'prevCol': ['NA', 'ts1', 'ts2', 'ts3', 'NA'],
+            'del.t': ['NA', 3, 2, 5, 'NA'],
+            'condName': ['ts1', 'ts2', 'ts3', 'ts4', 'ss']
+        })
+        self.expr = pd.DataFrame(np.ones((10,5)), columns=self.meta['condName'])
+
+    def test_NA_fix(self):
+        meta = metadata_parser.MetadataParser.fix_NAs(self.meta)
+        self.assertEqual(pd.isnull(meta['del.t']).sum(), 2)
+        self.assertEqual(pd.isnull(meta['prevCol']).sum(), 2)
+        self.assertEqual(pd.isnull(meta['isTs']).sum(), 0)
+        self.assertEqual(pd.isnull(meta['condName']).sum(), 0)
+
+    def test_meta_processing_steady(self):
+        meta = metadata_parser.MetadataParser.fix_NAs(self.meta)
+        steady_idx, ts_idx = metadata_parser.MetadataParser.process_groups(meta)
+        self.assertEqual(len(steady_idx.keys()), 5)
+        self.assertEqual(sum(steady_idx.values()), 1)
+        self.assertTrue(steady_idx["ss"])
+
+    def test_meta_processing_time(self):
+        meta = metadata_parser.MetadataParser.fix_NAs(self.meta)
+        steady_idx, ts_idx = metadata_parser.MetadataParser.process_groups(meta)
+        self.assertEqual(len(ts_idx.keys()), 4)
+        self.assertListEqual(ts_idx["ts1"], [(None, None), ("ts2", 3)])
+        self.assertListEqual(ts_idx["ts2"], [("ts1", 3), ("ts3", 2)])
+        self.assertListEqual(ts_idx["ts3"], [("ts2", 2), ("ts4", 5)])
+        self.assertListEqual(ts_idx["ts4"], [("ts3", 5), (None, None)])
+
+    def test_checking_missing_samples(self):
+        meta = metadata_parser.MetadataParser.fix_NAs(self.meta)
+
+        with self.assertRaises(metadata_parser.ConditionDoesNotExistError):
+            meta_err = meta.copy().iloc[0:2, :]
+            steady_idx, ts_idx = metadata_parser.MetadataParser.process_groups(meta_err)
+            metadata_parser.MetadataParser.check_for_dupes(self.expr, meta_err, steady_idx,
+                                                           strict_checking_for_metadata=True)
+
+        meta_err = meta.copy().iloc[0:2, :]
+        steady_idx, ts_idx = metadata_parser.MetadataParser.process_groups(meta_err)
+        new_idx = metadata_parser.MetadataParser.check_for_dupes(self.expr, meta_err, steady_idx)
+        self.assertEqual(sum(new_idx.values()), 3)
+
+    def test_checking_dupe_samples(self):
+        meta = metadata_parser.MetadataParser.fix_NAs(self.meta)
+
+        with self.assertRaises(metadata_parser.MultipleConditionsError):
+            meta_err = meta.copy()
+            meta_err['condName'] = "allsame"
+            steady_idx, ts_idx = metadata_parser.MetadataParser.process_groups(meta_err)
+            metadata_parser.MetadataParser.check_for_dupes(self.expr, meta_err, steady_idx,
+                                                           strict_checking_for_duplicates=True)
+
+        meta_err = meta.copy()
+        meta_err['condName'] = "allsame"
+        steady_idx, ts_idx = metadata_parser.MetadataParser.process_groups(meta_err)
+        metadata_parser.MetadataParser.check_for_dupes(self.expr, meta_err, steady_idx,
+                                                           strict_checking_for_duplicates=False)
+
+
+class TestMetaDataNonbranchingProcessor(unittest.TestCase):
+
+    def setUp(self):
+        self.meta = pd.DataFrame({
+            'strain': ['a', 'a', 'a', 'a', 'b'],
+            'time': [0, 3, 5, 10, 'NA'],
+            'condName': ['ts1', 'ts2', 'ts3', 'ts4', 'ss']
+        })
+
+    def test_meta_processing_steady(self):
+        meta = metadata_parser.MetadataParser.fix_NAs(self.meta)
+        steady_idx, ts_idx = metadata_parser.MetadataParserNonbranching.process_groups(meta)
+        self.assertEqual(len(steady_idx.keys()), 5)
+        self.assertEqual(sum(steady_idx.values()), 1)
+        self.assertTrue(steady_idx["ss"])
+
+    def test_meta_processing_time(self):
+        meta = metadata_parser.MetadataParser.fix_NAs(self.meta)
+        steady_idx, ts_idx = metadata_parser.MetadataParserNonbranching.process_groups(meta)
+        self.assertEqual(len(ts_idx.keys()), 4)
+        self.assertListEqual(ts_idx["ts1"], [(None, None), ("ts2", 3)])
+        self.assertListEqual(ts_idx["ts2"], [("ts1", 3), ("ts3", 2)])
+        self.assertListEqual(ts_idx["ts3"], [("ts2", 2), ("ts4", 5)])
+        self.assertListEqual(ts_idx["ts4"], [("ts3", 5), (None, None)])
+
+
+@unittest.skip
+class TestDRModelOrganisms(unittest.TestCase):
+
+    def test_on_bsubtilis(self):
+        exp_data = utils.df_from_tsv('data/bsubtilis/expression.tsv')
+        meta_data = utils.df_from_tsv('data/bsubtilis/meta_data.tsv', has_index=False)
+        expected_design = utils.df_from_tsv('data/bsubtilis/bsubtilis_design_matrix.tsv')
+        expected_response = utils.df_from_tsv('data/bsubtilis/bsubtilis_response_matrix.tsv')
+        drd = design_response_translation.PythonDRDriver(tau = 45, deltmin=0, deltmax=110)
+        design, response = drd.run(exp_data, meta_data)
+
+        np.testing.assert_allclose(response.values, expected_response.values, atol=1e-15)
+        self.assertEqual(len(set(expected_response.columns)), len(set(response.columns)))
+        self.assertEqual(expected_response.columns.tolist(), response.columns.tolist())
+        self.assertEqual(expected_response.index.tolist(), response.index.tolist())
+        self.assertTrue(pd.DataFrame.equals(expected_design, design))
+
+
+class TestDRAboveDeltMax(unittest.TestCase):
+
+    def setUp(self):
+        self.meta = pd.DataFrame({
+            'isTs': [True, True, True, True, False],
+            'is1stLast': ['f', 'm', 'm', 'l', 'e'],
+            'prevCol': ['NA', 'ts1', 'ts2', 'ts3', 'NA'],
+            'del.t': ['NA', 3, 2, 5, 'NA'],
+            'condName': ['ts1', 'ts2', 'ts3', 'ts4', 'ss']
+        })
         self.exp = pd.DataFrame(np.reshape(range(10), (2, 5)) + 1,
                                 index=['gene' + str(i + 1) for i in range(2)],
                                 columns=['ts' + str(i + 1) for i in range(4)] + ['ss'])
+
+        self.drd = design_response_translation.PythonDRDriver(tau=2, deltmin=2, deltmax=4)
+
         self.delT_min = 2
         self.delT_max = 4
         self.tau = 2
-        self.calculate_design_and_response()
+        self.design, self.response = self.drd.run(self.exp, self.meta)
 
     def test_design_matrix_above_delt_max(self):
         # Set up variables
@@ -90,6 +168,23 @@ class TestDRAboveDeltMax(TestDR):
             float(self.meta['del.t'][2]))
         np.testing.assert_almost_equal(np.array(resp['ts1-ts2']), expected_response_1)
         np.testing.assert_almost_equal(np.array(resp['ts2-ts3']), expected_response_2)
+
+
+class TestDR(unittest.TestCase):
+    """
+    Superclass for common methods
+    """
+
+    def calculate_design_and_response(self):
+        # drd = design_response_R.DRDriver()
+        drd = design_response_translation.PythonDRDriver()
+        target = drd.target_directory = os.path.join(my_dir, "artifacts")
+        if not os.path.exists(target):
+            os.makedirs(target)
+        drd.delTmin = self.delT_min
+        drd.delTmax = self.delT_max
+        drd.tau = self.tau
+        (self.design, self.response) = drd.run(self.exp, self.meta)
 
 
 class TestDRMicro(TestDR):
