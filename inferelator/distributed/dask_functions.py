@@ -23,7 +23,7 @@ def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remov
         Returns a list of regression results that the amusr_regression pileup_data can process
     """
 
-    assert MPControl.name() == "dask"
+    assert MPControl.is_dask()
 
     from inferelator.regression.amusr_regression import format_prior, run_regression_EBIC
     DaskController = MPControl.client
@@ -91,7 +91,7 @@ def bbsr_regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS):
     :return: list
         Returns a list of regression results that the pileup_data can process
     """
-    assert MPControl.name() == "dask"
+    assert MPControl.is_dask()
 
     from inferelator.regression import bayes_stats
     DaskController = MPControl.client
@@ -137,7 +137,7 @@ def elasticnet_regress_dask(X, Y, params, G, genes):
     :return: list
         Returns a list of regression results that the pileup_data can process
     """
-    assert MPControl.name() == "dask"
+    assert MPControl.is_dask()
 
     from inferelator.regression import elasticnet_python
     DaskController = MPControl.client
@@ -185,12 +185,12 @@ def build_mi_array_dask(X, Y, bins, logtype):
         Returns the mutual information array
     """
 
-    assert MPControl.name() == "dask"
+    assert MPControl.is_dask()
 
     from inferelator.regression.mi import _calc_mi, _make_table
 
     # Get a reference to the Dask controller
-    dask_controller = MPControl.client
+    DaskController = MPControl.client
 
     m1, m2 = X.shape[1], Y.shape[1]
 
@@ -198,7 +198,7 @@ def build_mi_array_dask(X, Y, bins, logtype):
         return i, [_calc_mi(_make_table(x, y[:, j], bins), logtype=logtype) for j in range(m2)]
 
     # Scatter Y to workers and keep track as Futures
-    [scatter_y] = dask_controller.client.scatter([Y], broadcast=True, hash=False)
+    [scatter_y] = DaskController.client.scatter([Y], broadcast=True, hash=False)
     # Wait for scattering to finish before creating futures
     try:
         distributed.wait(scatter_y, timeout=DASK_SCATTER_TIMEOUT)
@@ -206,7 +206,7 @@ def build_mi_array_dask(X, Y, bins, logtype):
         utils.Debug.vprint("Scattering timeout during mutual information. Dask workers may be sick", level=0)
 
     # Build an asynchronous list of Futures for each calculation of mi_make
-    future_list = [dask_controller.client.submit(mi_make, i, X[:, i], scatter_y, pure=False) for i in range(m1)]
+    future_list = [DaskController.client.submit(mi_make, i, X[:, i], scatter_y, pure=False) for i in range(m1)]
     mi_list = process_futures_into_list(future_list)
 
     # Convert the list of lists to an array
@@ -224,7 +224,7 @@ def process_futures_into_list(future_list):
     :return output_list: list(Data)
     """
 
-    dask_controller = MPControl.client
+    DaskController = MPControl.client
     output_list = [None] * len(future_list)
     complete_gen = distributed.as_completed(future_list, with_results=True)
 
@@ -232,7 +232,7 @@ def process_futures_into_list(future_list):
         if not finished_future.cancelled():
             i, result_data = future_return
         else:
-            dask_controller.client.retry(finished_future)
+            DaskController.client.retry(finished_future)
             complete_gen.update([finished_future])
             continue
 

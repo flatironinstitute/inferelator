@@ -110,7 +110,7 @@ class WorkflowBase(object):
         """
         Startup by preprocessing all data into a ready format for regression.
         """
-        if self.initialize_mp:
+        if self.initialize_mp and not MPControl.is_initialized:
             self.initialize_multiprocessing()
         self.startup_run()
         self.startup_finish()

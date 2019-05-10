@@ -180,7 +180,7 @@ class TestMultiprocessingMPController(TestMPControl):
 @unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
 class TestDaskLocalMPController(TestMPControl):
     name = "dask-local"
-    client_name = "dask"
+    client_name = "dask-local"
     tempdir = None
 
     @classmethod
@@ -213,7 +213,7 @@ class TestDaskLocalMPController(TestMPControl):
 @unittest.skipIf(not TEST_DASK_CLUSTER, "Dask not installed")
 class TestDaskHPCMPController(TestMPControl):
     name = "dask-cluster"
-    client_name = "dask"
+    client_name = "dask-cluster"
     tempdir = None
 
     @classmethod

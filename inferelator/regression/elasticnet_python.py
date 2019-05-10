@@ -77,7 +77,7 @@ class ElasticNet(base_regression.BaseRegression):
         """
 
 
-        if MPControl.client.name() == "dask":
+        if MPControl.is_dask():
             from inferelator.distributed.dask_functions import elasticnet_regress_dask
             return elasticnet_regress_dask(self.X, self.Y, self.params, self.G, self.genes)
 

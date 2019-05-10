@@ -74,7 +74,7 @@ class BBSR(base_regression.BaseRegression):
             Returns None, None if it's a subordinate thread
         """
 
-        if MPControl.client.name() == "dask":
+        if MPControl.is_dask():
             from inferelator.distributed.dask_functions import bbsr_regress_dask
             return bbsr_regress_dask(self.X, self.Y, self.pp, self.weights_mat, self.G, self.genes, self.nS)
 

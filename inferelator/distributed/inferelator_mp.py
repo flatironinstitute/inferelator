@@ -32,6 +32,15 @@ class MPControl(AbstractController):
         return cls.client.name()
 
     @classmethod
+    def is_dask(cls):
+        """
+        This returns True if dask functions should be used
+        """
+        if cls.client is None:
+            return False
+        return cls.client.is_dask()
+
+    @classmethod
     def set_multiprocess_engine(cls, engine):
         """
         Register the multiprocessing engine to use
@@ -41,7 +50,7 @@ class MPControl(AbstractController):
         dask-cluster
         dask-local
         kvs
-        multprocessing
+        multiprocessing
         local
 
         :param engine: str / Controller object
@@ -72,6 +81,8 @@ class MPControl(AbstractController):
             cls.client = engine
         else:
             raise ValueError("Engine must be provided as a string for lookup or an implemented Controller class object")
+
+        utils.Debug.vprint("Inferelator MPControl using engine {eng}".format(eng=cls.name()))
 
     @classmethod
     def connect(cls, *args, **kwargs):

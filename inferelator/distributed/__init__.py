@@ -15,6 +15,7 @@ class AbstractController:
 
     # The name of this controller
     _controller_name = None
+    _controller_dask = False
 
     @classmethod
     def name(cls):
@@ -24,6 +25,10 @@ class AbstractController:
         if cls._controller_name is None:
             raise NameError("Controller name has not been defined")
         return cls._controller_name
+
+    @classmethod
+    def is_dask(cls):
+        return cls._controller_dask
 
     @classmethod
     @abstractmethod
