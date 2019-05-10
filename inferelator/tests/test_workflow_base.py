@@ -291,10 +291,10 @@ class TestWorkflowFactory(unittest.TestCase):
 
     def test_amusr(self):
         from inferelator.regression.amusr_regression import AMUSRRegressionWorkflow
-        from inferelator.amusr_workflow import SingleCellMultiTask
+        from inferelator.amusr_workflow import MultitaskLearningWorkflow
         worker = workflow.inferelator_workflow(regression="amusr", workflow="amusr")
         self.assertTrue(isinstance(worker, AMUSRRegressionWorkflow))
-        self.assertTrue(isinstance(worker, SingleCellMultiTask))
+        self.assertTrue(isinstance(worker, MultitaskLearningWorkflow))
 
     def test_bad_inputs(self):
         with self.assertRaises(ValueError):

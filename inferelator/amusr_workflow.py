@@ -123,7 +123,7 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
         return overall_pr_calc.aupr, stable_interactions, precision_interactions
 
 
-class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, crossvalidation_workflow.PuppeteerWorkflow):
+class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossvalidation_workflow.PuppeteerWorkflow):
     """
     Class that implements AMuSR multitask learning for single cell data
 
@@ -154,10 +154,60 @@ class SingleCellMultiTask(single_cell_workflow.SingleCellWorkflow, crossvalidati
     # Workflow type for task processing
     cv_workflow_type = single_cell_workflow.SingleCellWorkflow
 
+    def read_expression(self, file=None):
+        """
+        Load a list of expression files (as tasks) or call the workflowbase loader
+        """
+
+        file = file if file is not None else self.expression_matrix_file
+
+        if isinstance(file, list):
+            self.expression_matrix = [self.input_dataframe(task_expr) for task_expr in file]
+        else:
+            super(MultitaskLearningWorkflow, self).read_expression(file=file)
+
+    def read_metadata(self, file=None):
+        """
+        Load a list of metadata files (as tasks) or call the workflowbase loader
+        """
+
+        file = file if file is not None else self.meta_data_file
+
+        if isinstance(file, list):
+            self.meta_data = [self.input_dataframe(task_meta) for task_meta in file]
+        else:
+            super(MultitaskLearningWorkflow, self).read_metadata(file=file)
+
+    def read_priors(self, priors_file=None, gold_standard_file=None):
+        """
+        Load a list of priors (as tasks) or gold standards (as tasks) or call the workflowbase loader
+        """
+
+        priors_file = priors_file if priors_file is not None else self.priors_file
+        gold_standard_file = gold_standard_file if gold_standard_file is not None else self.gold_standard_file
+
+        if isinstance(priors_file, list):
+            self.priors_data = [self.input_dataframe(task_priors) for task_priors in priors_file]
+        elif priors_file is not None:
+            self.priors_data = self.input_dataframe(priors_file)
+        if isinstance(gold_standard_file, list):
+            self.gold_standard = [self.input_dataframe(task_gold) for task_gold in gold_standard_file]
+        elif gold_standard_file is not None:
+            self.gold_standard = self.input_dataframe(gold_standard_file)
+
     def startup_finish(self):
         # Filter expression and priors to align
-        self.separate_tasks_by_metadata()
+        self.prepare_tasks()
         self.process_task_data()
+
+    def prepare_tasks(self):
+
+        if isinstance(self.expression_matrix, pd.DataFrame) and isinstance(self.meta_data, pd.DataFrame):
+            self.separate_tasks_by_metadata()
+        elif isinstance(self.expression_matrix, pd.DataFrame) != isinstance(self.meta_data, pd.DataFrame):
+            raise NotImplementedError("Metadata and expression must both be a single file or both be a list of files")
+        else:
+            pass
 
     def separate_tasks_by_metadata(self, meta_data_column=None):
         """

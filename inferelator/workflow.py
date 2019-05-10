@@ -153,8 +153,8 @@ class WorkflowBase(object):
         """
         Read expression matrix file into expression_matrix
         """
-        if file is None:
-            file = self.expression_matrix_file
+        file = file if file is not None else self.expression_matrix_file
+
         self.expression_matrix = self.input_dataframe(file)
 
     def read_tfs(self, file=None):
@@ -364,9 +364,9 @@ def create_inferelator_workflow(regression=RegressionWorkflow, workflow=Workflow
         elif workflow == "tfa":
             from inferelator.tfa_workflow import TFAWorkFlow
             workflow_class = TFAWorkFlow
-        elif workflow == "amusr":
-            from inferelator.amusr_workflow import SingleCellMultiTask
-            workflow_class = SingleCellMultiTask
+        elif workflow == "amusr" or workflow == "multitask":
+            from inferelator.amusr_workflow import MultitaskLearningWorkflow
+            workflow_class = MultitaskLearningWorkflow
         elif workflow == "single-cell":
             from inferelator.single_cell_workflow import SingleCellWorkflow
             workflow_class = SingleCellWorkflow

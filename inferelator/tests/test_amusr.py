@@ -23,7 +23,7 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.gold_standard = self.prior.copy()
         self.gene_list = pd.DataFrame({"SystematicName": ["gene1", "gene2", "gene3", "gene4", "gene7", "gene6"]})
         self.tf_names = ["gene3", "gene6"]
-        self.workflow = create_puppet_workflow(base_class=amusr_workflow.SingleCellMultiTask,
+        self.workflow = create_puppet_workflow(base_class=amusr_workflow.MultitaskLearningWorkflow,
                                                regression_class=amusr_regression.AMUSRRegressionWorkflow,
                                                result_processor_class=amusr_workflow.ResultsProcessorMultiTask)
         self.workflow = self.workflow(self.expr, self.meta, self.prior, self.gold_standard)
