@@ -94,6 +94,7 @@ class MPControl(AbstractController):
             return True
 
         if cls.client is None:
+            utils.Debug.vprint("Loading default engine {eng}".format(eng=default.DEFAULT_MULTIPROCESSING_ENGINE))
             cls.set_multiprocess_engine(default.DEFAULT_MULTIPROCESSING_ENGINE)
 
         connect_return = cls.client.connect(*args, **kwargs)
