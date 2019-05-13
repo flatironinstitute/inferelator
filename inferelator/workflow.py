@@ -146,7 +146,11 @@ class WorkflowBase(object):
 
         # Transpose expression data to [Genes x Samples] if the columns_are_genes flag is set
         if self.expression_matrix_columns_are_genes:
-            self.expression_matrix = self.expression_matrix.transpose()
+            self.transpose_expression_matrix()
+
+    def transpose_expression_matrix(self):
+        # Transpose expression data
+        self.expression_matrix = self.expression_matrix.transpose()
 
     def read_expression(self, file=None):
         """
@@ -180,8 +184,8 @@ class WorkflowBase(object):
 
         # If the metadata is embedded in the expression matrix, extract it
         if self.extract_metadata_from_expression_matrix:
-            self.meta_data = self.expression_matrix.loc[:, self.expression_matrix_metadata].copy()
-            self.expression_matrix = self.expression_matrix.drop(self.expression_matrix_metadata, axis=1)
+            self.expression_matrix, self.meta_data = self.dataframe_split(self.expression_matrix,
+                                                                          self.expression_matrix_metadata)
         elif file is not None:
             self.meta_data = self.input_dataframe(file, index_col=None)
         else:
@@ -329,6 +333,20 @@ class WorkflowBase(object):
             os.makedirs(os.path.expanduser(self.output_dir))
         except OSError:
             pass
+
+    @staticmethod
+    def dataframe_split(data_frame, remove_columns):
+        """
+        Take a dataframe and extract specific columns. Return the dataframe, minus those columns, and a second
+        dataframe which is only those columns.
+        :param data_frame: pd.DataFrame
+        :param meta_columns: list(str)
+        :return data_frame, data_frame_two: pd.DataFrame, pd.DataFrame
+        """
+
+        data_frame_two = data_frame.loc[:, remove_columns].copy()
+        data_frame = data_frame.drop(remove_columns, axis=1)
+        return data_frame, data_frame_two
 
 
 def create_inferelator_workflow(regression=RegressionWorkflow, workflow=WorkflowBase):

@@ -12,12 +12,14 @@ except ImportError:
 import pandas as pd
 import numpy as np
 from inferelator import utils
+from inferelator.utils import Validator as check
 from inferelator import crossvalidation_workflow
 from inferelator import single_cell_workflow
 from inferelator import default
 from inferelator.regression import amusr_regression
 from inferelator.postprocessing import results_processor
 from inferelator.postprocessing import model_performance
+from inferelator.preprocessing.metadata_parser import MetadataHandler
 
 
 class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
@@ -161,8 +163,10 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
 
         file = file if file is not None else self.expression_matrix_file
 
+        # Load a list of metadatas
         if isinstance(file, list):
             self.expression_matrix = [self.input_dataframe(task_expr) for task_expr in file]
+            self.n_tasks = len(self.expression_matrix)
         else:
             super(MultitaskLearningWorkflow, self).read_expression(file=file)
 
@@ -173,8 +177,19 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
 
         file = file if file is not None else self.meta_data_file
 
+        # Load a list of metadatas from a list of files
+        # Create a default metadata if the file name is None
         if isinstance(file, list):
-            self.meta_data = [self.input_dataframe(task_meta) for task_meta in file]
+
+            assert len(file) == self.n_tasks, "Metadata and expression task lists are different lengths"
+            meta_handler = MetadataHandler.get_handler()
+
+            self.meta_data = list()
+            for task_id, task_meta in enumerate(file):
+                if task_meta is None:
+                    self.meta_data.append(meta_handler.create_default_meta_data(self.expression_matrix[task_id]))
+                else:
+                    self.meta_data.append(self.input_dataframe(task_meta, index_col=None))
         else:
             super(MultitaskLearningWorkflow, self).read_metadata(file=file)
 
@@ -198,9 +213,13 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
     def startup_finish(self):
         # Filter expression and priors to align
         self.prepare_tasks()
+        self.check_tasks()
         self.process_task_data()
 
     def prepare_tasks(self):
+        """
+        Process one expression matrix/metadata file into multiple tasks if necessary
+        """
 
         if isinstance(self.expression_matrix, pd.DataFrame) and isinstance(self.meta_data, pd.DataFrame):
             self.separate_tasks_by_metadata()
@@ -208,6 +227,24 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
             raise NotImplementedError("Metadata and expression must both be a single file or both be a list of files")
         else:
             pass
+
+    def check_tasks(self):
+        """
+        Confirm that task data has been separated and that the multitask workflow is ready for regression
+        """
+
+        assert check.argument_type(self.expression_matrix, list)
+        assert check.argument_type(self.meta_data, list)
+
+        if self.n_tasks is None:
+            raise ValueError("n_tasks is not set")
+        if self.n_tasks != len(self.expression_matrix):
+            raise ValueError("n_tasks is inconsistent with task expression data")
+        if self.n_tasks != len(self.meta_data):
+            raise ValueError("n_tasks is inconsistent with task meta data")
+        if self.tasks_names is None:
+            utils.Debug.vprint("Creating default task names")
+            self.tasks_names = list(map(str, range(self.n_tasks)))
 
     def separate_tasks_by_metadata(self, meta_data_column=None):
         """
@@ -223,9 +260,13 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
         meta_data_column = meta_data_column if meta_data_column is not None else self.meta_data_task_column
 
         task_name, task_data, task_metadata = [], [], []
+        tasks = self.meta_data[meta_data_column].unique().tolist()
 
-        for task in self.meta_data[meta_data_column].unique():
-            task_idx = self.meta_data[meta_data_column] == task
+        utils.Debug.vprint("Creating {n} tasks from metadata column {col}".format(n=len(tasks), col=meta_data_column),
+                           level=0)
+
+        for task in tasks:
+            task_idx = (self.meta_data[meta_data_column] == task).tolist()
             task_data.append(self.expression_matrix.loc[:, task_idx])
             task_metadata.append(self.meta_data.loc[task_idx, :])
             task_name.append(task)
