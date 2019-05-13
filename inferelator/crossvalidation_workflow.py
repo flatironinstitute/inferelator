@@ -136,9 +136,9 @@ class PuppeteerWorkflow(object):
         for varname in SHARED_CLASS_VARIABLES:
             try:
                 setattr(obj, varname, getattr(self, varname))
-                utils.Debug.vprint("Variable {var} set to child".format(var=varname), level=2)
+                utils.Debug.vprint("Variable {var} set to child".format(var=varname), level=3)
             except AttributeError:
-                utils.Debug.vprint("Variable {var} not assigned to parent".format(var=varname))
+                utils.Debug.vprint("Variable {var} not assigned to parent".format(var=varname), level=2)
 
 
 # Factory method to spit out a puppet workflow
