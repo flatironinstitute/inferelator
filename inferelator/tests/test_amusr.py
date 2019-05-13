@@ -1,4 +1,5 @@
 import unittest
+import os
 import pandas as pd
 import numpy as np
 from inferelator.regression import amusr_regression
@@ -31,6 +32,7 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.workflow.gene_metadata = self.gene_list
         self.workflow.gene_list_index = "SystematicName"
         self.workflow.create_output_dir = lambda *x: None
+        self.workflow.input_dir = os.path.join(os.path.dirname(__file__), "../../data/dream4")
 
     def test_task_separation(self):
         self.workflow.process_priors_and_gold_standard()
@@ -98,6 +100,65 @@ class TestAMuSRWorkflow(unittest.TestCase):
                                    self.workflow.gold_standard,
                                    self.workflow.priors_data)
         self.assertAlmostEqual(self.workflow.aupr, 1)
+
+    def test_load_data_and_split(self):
+        self.workflow.read_expression(file="expression.tsv")
+        self.workflow.read_metadata(file="meta_data.tsv")
+        self.workflow.meta_data['Group'] = "A"
+        self.workflow.meta_data.loc[[False]*200 + [True]*221, "Group"] = "B"
+        self.workflow.meta_data_task_column = "Group"
+        self.workflow.prepare_tasks()
+
+        self.assertEqual(self.workflow.n_tasks, 2)
+        self.assertListEqual(self.workflow.tasks_names, ["A", "B"])
+        self.assertEqual(self.workflow.expression_matrix[0].shape, (100, 200))
+        self.assertEqual(self.workflow.expression_matrix[1].shape, (100, 221))
+        self.assertEqual(self.workflow.meta_data[0].shape, (200, 6))
+        self.assertEqual(self.workflow.meta_data[1].shape, (221, 6))
+
+    def test_load_split_data_from_list(self):
+        self.workflow.read_expression(file=["expression.tsv", "expression.tsv"])
+        self.workflow.read_metadata(file=["meta_data.tsv", "meta_data.tsv"])
+        self.workflow.prepare_tasks()
+        self.workflow.check_tasks()
+
+        self.assertEqual(self.workflow.n_tasks, 2)
+        self.assertListEqual(self.workflow.tasks_names, ["0", "1"])
+        self.assertEqual(self.workflow.expression_matrix[0].shape, (100, 421))
+        self.assertEqual(self.workflow.expression_matrix[1].shape, (100, 421))
+        self.assertEqual(self.workflow.meta_data[0].shape, (421, 5))
+        self.assertEqual(self.workflow.meta_data[1].shape, (421, 5))
+
+    def test_expr_meta_mismatch(self):
+
+        self.workflow.read_expression(file="expression.tsv")
+
+        with self.assertRaises(AssertionError):
+            self.workflow.read_metadata(file=["meta_data.tsv", "meta_data.tsv"])
+
+        self.workflow.n_tasks = 2
+        self.workflow.read_metadata(file=["meta_data.tsv", "meta_data.tsv"])
+        self.workflow.n_tasks = None
+
+        with self.assertRaises(NotImplementedError):
+            self.workflow.prepare_tasks()
+
+        self.workflow.expression_matrix = [self.workflow.expression_matrix, self.workflow.expression_matrix]
+
+        with self.assertRaises(ValueError):
+            self.workflow.check_tasks()
+
+        self.workflow.n_tasks = 2
+        self.assertTrue(self.workflow.check_tasks())
+
+        self.workflow.n_tasks = 4
+        with self.assertRaises(ValueError):
+            self.workflow.check_tasks()
+
+        self.workflow.expression_matrix = self.workflow.expression_matrix + self.workflow.expression_matrix
+        with self.assertRaises(ValueError):
+            self.workflow.check_tasks()
+
 
 
 

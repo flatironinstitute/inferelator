@@ -246,6 +246,8 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
             utils.Debug.vprint("Creating default task names")
             self.tasks_names = list(map(str, range(self.n_tasks)))
 
+        return True
+
     def separate_tasks_by_metadata(self, meta_data_column=None):
         """
         Take a single expression matrix and break it into multiple dataframes based on meta_data. Reset the
