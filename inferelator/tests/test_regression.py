@@ -33,7 +33,8 @@ class TestRegressionFactory(unittest.TestCase):
         self.workflow = self.workflow(self.expr.transpose(), self.meta, self.prior, self.gold_standard)
         self.workflow.gene_list = self.gene_list
         self.workflow.tf_names = self.tf_names
-        self.workflow.meta_data = self.workflow.create_default_meta_data(self.workflow.expression_matrix)
+        self.workflow.meta_data_file = None
+        self.workflow.read_metadata()
         with self.assertRaises(NotImplementedError):
             self.workflow.run()
 
@@ -44,7 +45,8 @@ class TestRegressionFactory(unittest.TestCase):
         self.workflow = self.workflow(self.expr.transpose(), self.meta, self.prior, self.gold_standard)
         self.workflow.gene_list = self.gene_list
         self.workflow.tf_names = self.tf_names
-        self.workflow.meta_data = self.workflow.create_default_meta_data(self.workflow.expression_matrix)
+        self.workflow.meta_data_file = None
+        self.workflow.read_metadata()
         self.workflow.run()
         self.assertEqual(self.workflow.aupr, 1)
 

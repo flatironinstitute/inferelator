@@ -2,16 +2,13 @@ from __future__ import division
 
 from inferelator import utils
 from inferelator import default
-from inferelator.preprocessing import metadata_parser
+from inferelator.preprocessing.metadata_parser import MetadataHandler
 from inferelator.preprocessing.metadata_parser import ConditionDoesNotExistError, MultipleConditionsError
 import pandas as pd
 import numpy as np
 
 
 class PythonDRDriver(object):
-    # Metadata processor module
-    meta_data_processor = metadata_parser.MetadataParser
-
     # Parameters for response matrix
     tau = default.DEFAULT_TAU
     delTmin = default.DEFAULT_DELTMIN
@@ -52,7 +49,7 @@ class PythonDRDriver(object):
         """
 
         (k, n) = exp_data.shape
-        processor = self.meta_data_processor
+        processor = MetadataHandler.get_handler()
 
         # Turn NA in the dataframe into np.NaN
         meta_data = processor.fix_NAs(meta_data)

@@ -21,22 +21,22 @@ class TestMetaDataProcessor(unittest.TestCase):
         self.expr = pd.DataFrame(np.ones((10,5)), columns=self.meta['condName'])
 
     def test_NA_fix(self):
-        meta = metadata_parser.MetadataParser.fix_NAs(self.meta)
+        meta = metadata_parser.MetadataParserBranching.fix_NAs(self.meta)
         self.assertEqual(pd.isnull(meta['del.t']).sum(), 2)
         self.assertEqual(pd.isnull(meta['prevCol']).sum(), 2)
         self.assertEqual(pd.isnull(meta['isTs']).sum(), 0)
         self.assertEqual(pd.isnull(meta['condName']).sum(), 0)
 
     def test_meta_processing_steady(self):
-        meta = metadata_parser.MetadataParser.fix_NAs(self.meta)
-        steady_idx, ts_idx = metadata_parser.MetadataParser.process_groups(meta)
+        meta = metadata_parser.MetadataParserBranching.fix_NAs(self.meta)
+        steady_idx, ts_idx = metadata_parser.MetadataParserBranching.process_groups(meta)
         self.assertEqual(len(steady_idx.keys()), 5)
         self.assertEqual(sum(steady_idx.values()), 1)
         self.assertTrue(steady_idx["ss"])
 
     def test_meta_processing_time(self):
-        meta = metadata_parser.MetadataParser.fix_NAs(self.meta)
-        steady_idx, ts_idx = metadata_parser.MetadataParser.process_groups(meta)
+        meta = metadata_parser.MetadataParserBranching.fix_NAs(self.meta)
+        steady_idx, ts_idx = metadata_parser.MetadataParserBranching.process_groups(meta)
         self.assertEqual(len(ts_idx.keys()), 4)
         self.assertListEqual(ts_idx["ts1"], [(None, None), ("ts2", 3)])
         self.assertListEqual(ts_idx["ts2"], [("ts1", 3), ("ts3", 2)])
@@ -44,42 +44,42 @@ class TestMetaDataProcessor(unittest.TestCase):
         self.assertListEqual(ts_idx["ts4"], [("ts3", 5), (None, None)])
 
     def test_checking_missing_samples(self):
-        meta = metadata_parser.MetadataParser.fix_NAs(self.meta)
+        meta = metadata_parser.MetadataParserBranching.fix_NAs(self.meta)
 
         with self.assertRaises(metadata_parser.ConditionDoesNotExistError):
             meta_err = meta.copy().iloc[0:2, :]
-            steady_idx, ts_idx = metadata_parser.MetadataParser.process_groups(meta_err)
-            metadata_parser.MetadataParser.check_for_dupes(self.expr, meta_err, steady_idx,
-                                                           strict_checking_for_metadata=True)
+            steady_idx, ts_idx = metadata_parser.MetadataParserBranching.process_groups(meta_err)
+            metadata_parser.MetadataParserBranching.check_for_dupes(self.expr, meta_err, steady_idx,
+                                                                    strict_checking_for_metadata=True)
 
         meta_err = meta.copy().iloc[0:2, :]
-        steady_idx, ts_idx = metadata_parser.MetadataParser.process_groups(meta_err)
-        new_idx = metadata_parser.MetadataParser.check_for_dupes(self.expr, meta_err, steady_idx)
+        steady_idx, ts_idx = metadata_parser.MetadataParserBranching.process_groups(meta_err)
+        new_idx = metadata_parser.MetadataParserBranching.check_for_dupes(self.expr, meta_err, steady_idx)
         self.assertEqual(sum(new_idx.values()), 3)
 
     def test_checking_dupe_samples(self):
-        meta = metadata_parser.MetadataParser.fix_NAs(self.meta)
+        meta = metadata_parser.MetadataParserBranching.fix_NAs(self.meta)
 
         with self.assertRaises(metadata_parser.MultipleConditionsError):
             meta_err = meta.copy()
             meta_err['condName'] = "allsame"
-            steady_idx, ts_idx = metadata_parser.MetadataParser.process_groups(meta_err)
-            metadata_parser.MetadataParser.check_for_dupes(self.expr, meta_err, steady_idx,
-                                                           strict_checking_for_duplicates=True)
+            steady_idx, ts_idx = metadata_parser.MetadataParserBranching.process_groups(meta_err)
+            metadata_parser.MetadataParserBranching.check_for_dupes(self.expr, meta_err, steady_idx,
+                                                                    strict_checking_for_duplicates=True)
 
         meta_err = meta.copy()
         meta_err['condName'] = "allsame"
-        steady_idx, ts_idx = metadata_parser.MetadataParser.process_groups(meta_err)
-        metadata_parser.MetadataParser.check_for_dupes(self.expr, meta_err, steady_idx,
-                                                           strict_checking_for_duplicates=False)
+        steady_idx, ts_idx = metadata_parser.MetadataParserBranching.process_groups(meta_err)
+        metadata_parser.MetadataParserBranching.check_for_dupes(self.expr, meta_err, steady_idx,
+                                                                strict_checking_for_duplicates=False)
 
     def test_fixing_alignment(self):
-        meta = metadata_parser.MetadataParser.fix_NAs(self.meta)
+        meta = metadata_parser.MetadataParserBranching.fix_NAs(self.meta)
         meta = meta.copy()
         meta.index = meta['condName']
         del meta['condName']
-        metadata_parser.MetadataParser.validate_metadata(self.expr, meta)
-        steady_idx, ts_idx = metadata_parser.MetadataParser.process_groups(meta)
+        metadata_parser.MetadataParserBranching.validate_metadata(self.expr, meta)
+        steady_idx, ts_idx = metadata_parser.MetadataParserBranching.process_groups(meta)
         self.assertEqual(len(steady_idx.keys()), 5)
         self.assertEqual(len(ts_idx.keys()), 4)
 
@@ -94,14 +94,14 @@ class TestMetaDataNonbranchingProcessor(unittest.TestCase):
         })
 
     def test_meta_processing_steady(self):
-        meta = metadata_parser.MetadataParser.fix_NAs(self.meta)
+        meta = metadata_parser.MetadataParserBranching.fix_NAs(self.meta)
         steady_idx, ts_idx = metadata_parser.MetadataParserNonbranching.process_groups(meta)
         self.assertEqual(len(steady_idx.keys()), 5)
         self.assertEqual(sum(steady_idx.values()), 1)
         self.assertTrue(steady_idx["ss"])
 
     def test_meta_processing_time(self):
-        meta = metadata_parser.MetadataParser.fix_NAs(self.meta)
+        meta = metadata_parser.MetadataParserBranching.fix_NAs(self.meta)
         steady_idx, ts_idx = metadata_parser.MetadataParserNonbranching.process_groups(meta)
         self.assertEqual(len(ts_idx.keys()), 4)
         self.assertListEqual(ts_idx["ts1"], [(None, None), ("ts2", 3)])

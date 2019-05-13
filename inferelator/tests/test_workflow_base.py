@@ -13,6 +13,7 @@ import pandas.testing as pdt
 from inferelator import workflow
 from inferelator.regression.base_regression import RegressionWorkflow
 from inferelator.distributed.inferelator_mp import MPControl
+from inferelator.preprocessing.metadata_parser import MetadataParserBranching
 
 my_dir = os.path.dirname(__file__)
 
@@ -60,11 +61,11 @@ class TestWorkflowLoadData(unittest.TestCase):
         self.workflow.read_expression()
         self.workflow.meta_data_file = None
         self.workflow.read_metadata()
-        self.assertEqual(self.workflow.meta_data.shape, (421, 5))
+        self.assertEqual(self.workflow.meta_data.shape, (421, 4))
 
     def test_extract_metadata(self):
         self.workflow.read_expression()
-        meta_data = self.workflow.create_default_meta_data(self.workflow.expression_matrix)
+        meta_data = MetadataParserBranching.create_default_meta_data(self.workflow.expression_matrix)
         gene_list = self.workflow.expression_matrix.index.tolist()
 
         self.workflow.expression_matrix = self.workflow.expression_matrix.transpose()
@@ -155,8 +156,9 @@ class TestWorkflowFunctions(unittest.TestCase):
             self.workflow.append_to_path('input_dir', 'test')
 
     def test_make_fake_metadata(self):
-        self.workflow.meta_data = self.workflow.create_default_meta_data(self.workflow.expression_matrix)
-        self.assertEqual(self.workflow.meta_data.shape, (421, 5))
+        self.workflow.meta_data_file = None
+        self.workflow.read_metadata(file=None)
+        self.assertEqual(self.workflow.meta_data.shape, (421, 4))
 
     def test_workflow_cv_priors_genes(self):
         self.workflow.split_gold_standard_for_crossvalidation = True

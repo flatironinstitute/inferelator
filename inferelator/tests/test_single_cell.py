@@ -1,6 +1,6 @@
 import unittest
 from inferelator.single_cell_workflow import SingleCellWorkflow
-from inferelator.preprocessing import single_cell
+from inferelator.preprocessing import single_cell, metadata_parser
 from inferelator.crossvalidation_workflow import create_puppet_workflow
 import numpy as np
 import pandas as pd
@@ -40,6 +40,9 @@ class SingleCellPreprocessTest(SingleCellTestCase):
         self.assertEqual(expr_filtered_2.columns.tolist(), ["gene1", "gene2", "gene4"])
         expr_filtered_3, _ = single_cell.filter_genes_for_count(self.expr, self.meta, count_minimum=20)
         self.assertEqual(expr_filtered_3.columns.tolist(), ["gene2"])
+
+        with self.assertRaises(ValueError):
+            single_cell.filter_genes_for_count(self.expr - 3, self.meta, count_minimum=1, check_for_scaling=True)
 
     def test_library_to_one_norm(self):
         expr_normed, _ = single_cell.normalize_expression_to_one(self.expr, self.meta)
@@ -112,7 +115,7 @@ class SingleCellWorkflowTest(SingleCellTestCase):
 
 class TestSingleCellWorkflow(unittest.TestCase):
     test_count_data = pd.DataFrame([[0, 0, 0], [10, 0, 10], [4, 0, 5], [0, 0, 0]])
-    test_meta_data = SingleCellWorkflow.create_default_meta_data(test_count_data)
+    test_meta_data = metadata_parser.MetadataParserBranching.create_default_meta_data(test_count_data)
 
     def setUp(self):
         self.workflow = SingleCellWorkflow()

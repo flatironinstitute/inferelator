@@ -12,6 +12,7 @@ from __future__ import unicode_literals, print_function
 from inferelator import utils
 from inferelator import default
 from inferelator.preprocessing.priors import ManagePriors
+from inferelator.preprocessing.metadata_parser import MetadataHandler
 from inferelator.regression.base_regression import RegressionWorkflow
 
 from inferelator.distributed.inferelator_mp import MPControl
@@ -27,8 +28,6 @@ try:
     basestring
 except NameError:
     basestring = str
-
-META_DATA_DEFAULT_VALUES = {"isTs": "FALSE", "is1stLast": "e", "prevCol": "NA", "del.t": "NA", "condName": None}
 
 
 class WorkflowBase(object):
@@ -187,7 +186,7 @@ class WorkflowBase(object):
             self.meta_data = self.input_dataframe(file, index_col=None)
         else:
             utils.Debug.vprint("No metadata provided. Creating a generic metadata", level=0)
-            self.meta_data = self.create_default_meta_data(self.expression_matrix)
+            self.meta_data = MetadataHandler.get_handler().create_default_meta_data(self.expression_matrix)
 
     def read_genes(self, file=None):
         """
@@ -297,15 +296,6 @@ class WorkflowBase(object):
                                                                                               var_name=var_name))
         setattr(self, var_name, os.path.join(path, to_append))
 
-    @staticmethod
-    def create_default_meta_data(expression_matrix):
-        """
-        Create a meta_data dataframe from basic defaults
-        """
-        meta_data = pd.DataFrame(index=expression_matrix.columns)
-        for col, val in META_DATA_DEFAULT_VALUES.items():
-            meta_data[col] = val if val is not None else expression_matrix.columns
-        return meta_data
 
     def get_bootstraps(self):
         """

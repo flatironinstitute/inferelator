@@ -1,6 +1,13 @@
 import numpy as np
+import pandas as pd
+from abc import abstractmethod
 
 from inferelator import utils
+
+try:
+    basestring
+except NameError:
+    basestring = str
 
 ISTS_COLUMN_NAME = 'isTs'
 PREV_COLUMN_NAME = 'prevCol'
@@ -15,6 +22,40 @@ DEFAULT_STRICT_CHECKING_FOR_DUPLICATES = True
 
 
 class MetadataParser(object):
+
+    @classmethod
+    @abstractmethod
+    def process_groups(cls, meta_data):
+        raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
+    def check_for_dupes(cls, exp_data, meta_data, steady_idx,
+                        strict_checking_for_metadata=DEFAULT_STRICT_CHECKING_FOR_METADATA,
+                        strict_checking_for_duplicates=DEFAULT_STRICT_CHECKING_FOR_DUPLICATES):
+        raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
+    def validate_metadata(cls, exp_data, meta_data):
+        raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
+    def create_default_meta_data(cls, expression_matrix):
+        raise NotImplementedError
+
+    @staticmethod
+    def fix_NAs(data_frame):
+        """
+        Replace the string NA with a np.nan
+        :param data_frame: pd.DataFrame
+        :return: pd.DataFrame
+        """
+        return data_frame.replace('NA', np.nan, regex=False)
+
+
+class MetadataParserBranching(MetadataParser):
     """
     Metadata parser that handles prev_col & del_t metadata (which allows for Branching Time Courses)
     """
@@ -22,7 +63,7 @@ class MetadataParser(object):
     ists_col = ISTS_COLUMN_NAME  # Column of booleans for "Is a time-series experiment"
     cond_col = COND_COLUMN_NAME  # Column of sample names (matching expression data column names)
     prev_col = PREV_COLUMN_NAME  # Column that identifies the previous timepoint sample name
-    delt_col = DELT_COLUMN_NAME
+    delt_col = DELT_COLUMN_NAME  # Column that identifies the delta time between this sample and the previous
 
     @classmethod
     def process_groups(cls, meta_data):
@@ -114,15 +155,6 @@ class MetadataParser(object):
 
         return steady_idx
 
-    @staticmethod
-    def fix_NAs(data_frame):
-        """
-        Replace the string NA with a np.nan
-        :param data_frame: pd.DataFrame
-        :return: pd.DataFrame
-        """
-        return data_frame.replace('NA', np.nan, regex=False)
-
     @classmethod
     def validate_metadata(cls, exp_data, meta_data):
         if cls.cond_col not in meta_data:
@@ -135,11 +167,25 @@ class MetadataParser(object):
                                                                                                  ex=exp_data.shape),
                                level=0)
 
+    @classmethod
+    def create_default_meta_data(cls, expression_matrix):
+        """
+        Create a meta_data dataframe from basic defaults
+        """
+        meta_data = pd.DataFrame(index=expression_matrix.columns)
+        meta_data[cls.cond_col] = expression_matrix.columns
+        meta_data[cls.ists_col] = True
+        meta_data[cls.prev_col] = "NA"
+        meta_data[cls.delt_col] = "NA"
+        return meta_data
 
-class MetadataParserNonbranching(MetadataParser):
+
+class MetadataParserNonbranching(MetadataParserBranching):
     group_col = GROUP_COLUMN_NAME
     time_col = TIME_COLUMN_NAME
     cond_col = COND_COLUMN_NAME
+
+    default_values = {"isTs": "FALSE", "is1stLast": "e", "prevCol": "NA", "del.t": "NA", "condName": None}
 
     @classmethod
     def process_groups(cls, meta_data):
@@ -158,7 +204,7 @@ class MetadataParserNonbranching(MetadataParser):
             times_per_group[group].append(time)
             group_time_cond[group][time] = cond
             if np.isnan(time):
-                steady_idx[cond] =True
+                steady_idx[cond] = True
 
         # Process into a dict, keyed by sample ID, of [(previous sample, del.t), (next sample, del.t)]
         for cond, (group, time) in ts_dict.items():
@@ -186,6 +232,46 @@ class MetadataParserNonbranching(MetadataParser):
             ts_group[cond] = [prev, nex]
 
         return steady_idx, ts_group
+
+    @classmethod
+    def create_default_meta_data(cls, expression_matrix):
+        """
+        Create a meta_data dataframe from basic defaults
+        """
+        meta_data = pd.DataFrame(index=expression_matrix.columns)
+        meta_data[cls.cond_col] = expression_matrix.columns
+        meta_data[cls.group_col] = list(range(expression_matrix.shape[1]))
+        meta_data[cls.time_col] = 0
+        return meta_data
+
+
+class MetadataHandler(object):
+    """
+    This keeps track of how to process metadata
+    """
+    handler = MetadataParserBranching
+
+    @classmethod
+    def set_handler(cls, handler_ref):
+        if isinstance(handler_ref, basestring):
+            if handler_ref == "branching":
+                cls.handler = MetadataParserBranching
+            elif handler_ref == "nonbranching":
+                cls.handler = MetadataParserNonbranching
+            else:
+                raise ValueError("Parser {parser_str} unknown".format(parser_str=handler_ref))
+        elif issubclass(handler_ref, MetadataParser):
+            cls.handler = handler_ref
+        else:
+            raise ValueError("Handler must be a string or a MetadataParser class")
+
+    @classmethod
+    def get_handler(cls):
+        return cls.handler
+
+    @classmethod
+    def make_default_metadata(cls, expression_data):
+        return cls.handler.create_default_meta_data(expression_data)
 
 
 class ConditionDoesNotExistError(IndexError):
