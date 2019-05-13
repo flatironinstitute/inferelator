@@ -269,7 +269,7 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
 
         for task in tasks:
             task_idx = (self.meta_data[meta_data_column] == task).tolist()
-            task_data.append(self.expression_matrix.loc[:, task_idx])
+            task_data.append(self.expression_matrix.iloc[:,[i for i,j in enumerate(task_idx) if j]])
             task_metadata.append(self.meta_data.loc[task_idx, :])
             task_name.append(task)
 
