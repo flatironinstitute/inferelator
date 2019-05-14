@@ -144,6 +144,7 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
     task_bootstraps = None
     tasks_names = None
 
+    meta_data_handlers = None
     meta_data_task_column = default.DEFAULT_METADATA_FOR_BATCH_CORRECTION
 
     # Axis labels to keep
@@ -187,13 +188,15 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
             self.meta_data = list()
             for task_id, task_meta in enumerate(file):
                 if task_meta is None:
+                    self.set_metadata_handler(task_id)
+                    meta_handler = MetadataHandler.get_handler()
                     self.meta_data.append(meta_handler.create_default_meta_data(self.expression_matrix[task_id]))
                 else:
                     self.meta_data.append(self.input_dataframe(task_meta, index_col=None))
 
         # Extract the metadata from each expression matrix
         elif isinstance(self.expression_matrix, list) and self.extract_metadata_from_expression_matrix:
-            if not isinstance(self.expression_matrix_metadata, list):
+            if not isinstance(self.expression_matrix_metadata[0], list):
                 expr_meta_cols = [self.expression_matrix_metadata] * len(self.expression_matrix)
             else:
                 assert len(self.expression_matrix_metadata) == self.n_tasks
@@ -207,6 +210,25 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
                 self.expression_matrix[task_id], self.meta_data[task_id] = processed_data
         else:
             super(MultitaskLearningWorkflow, self).read_metadata(file=file)
+
+    def set_metadata_handler(self, task_id):
+        """
+        Check the meta_data_handlers instance variable and reset the metadata handler to match if needed
+        :param task_id: int
+        """
+
+        # If meta_data_handlers is a list, pick the correct one from the list by task_id
+        if isinstance(self.meta_data_handlers, list):
+            assert len(self.meta_data_handlers) == self.n_tasks
+            MetadataHandler.set_handler(self.meta_data_handlers[task_id])
+
+        # If meta_data_handlers isn't a list, set it for any task_id
+        elif self.meta_data_handlers is not None:
+            MetadataHandler.set_handler(self.meta_data_handlers)
+
+        # If meta_data_handlers is None, just move on with our lives
+        else:
+            pass
 
     def transpose_expression_matrix(self):
         """
@@ -328,8 +350,11 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
         self.task_design, self.task_response, self.task_meta_data, self.task_bootstraps = [], [], [], []
         targets, regulators = [], []
 
-        for expr_data, meta_data, task_name in zip(self.expression_matrix, self.meta_data, self.tasks_names):
-            utils.Debug.vprint("Processing {task} [{sh}]".format(task=task_name, sh=expr_data.shape), level=1)
+        for task_id, (expr_data, meta_data) in enumerate(zip(self.expression_matrix, self.meta_data)):
+            utils.Debug.vprint("Processing {task} [{sh}]".format(task=self.tasks_names[task_id], sh=expr_data.shape),
+                               level=1)
+
+            self.set_metadata_handler(task_id)
             task = self.new_puppet(expr_data, meta_data, seed=self.random_seed)
             task.startup_finish()
             self.task_design.append(task.design)
