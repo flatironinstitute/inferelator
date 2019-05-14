@@ -173,6 +173,7 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
     def read_metadata(self, file=None):
         """
         Load a list of metadata files (as tasks) or call the workflowbase loader
+        TODO: Break this up and clean this up
         """
 
         file = file if file is not None else self.meta_data_file
@@ -180,8 +181,7 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
         # Load a list of metadatas from a list of files
         # Create a default metadata if the file name is None
         if isinstance(file, list):
-
-            assert len(file) == self.n_tasks, "Metadata and expression task lists are different lengths"
+            assert len(file) == self.n_tasks
             meta_handler = MetadataHandler.get_handler()
 
             self.meta_data = list()
@@ -190,8 +190,43 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
                     self.meta_data.append(meta_handler.create_default_meta_data(self.expression_matrix[task_id]))
                 else:
                     self.meta_data.append(self.input_dataframe(task_meta, index_col=None))
+
+        # Extract the metadata from each expression matrix
+        elif isinstance(self.expression_matrix, list) and self.extract_metadata_from_expression_matrix:
+            if not isinstance(self.expression_matrix_metadata, list):
+                expr_meta_cols = [self.expression_matrix_metadata] * len(self.expression_matrix)
+            else:
+                assert len(self.expression_matrix_metadata) == self.n_tasks
+                expr_meta_cols = self.expression_matrix_metadata
+
+            self.meta_data = [None] * len(self.expression_matrix)
+
+            for task_id in range(len(self.expression_matrix)):
+                processed_data = self.dataframe_split(self.expression_matrix[task_id],
+                                                      self.expression_matrix_metadata[task_id])
+                self.expression_matrix[task_id], self.meta_data[task_id] = processed_data
         else:
             super(MultitaskLearningWorkflow, self).read_metadata(file=file)
+
+    def transpose_expression_matrix(self):
+        """
+        Transpose the expression matrix or transpose each of a list of expression matrixes
+        """
+
+        # If the expression_matrix_columns_are_genes is a list of bools, flip according to the list
+        if isinstance(self.expression_matrix, list) and isinstance(self.expression_matrix_columns_are_genes, list):
+            assert len(self.expression_matrix) == len(self.expression_matrix_columns_are_genes)
+            for task_id, flip_bool in enumerate(self.expression_matrix_columns_are_genes):
+                if flip_bool:
+                    self.expression_matrix[task_id] = self.expression_matrix[task_id].transpose()
+
+        # If the expression_matrix_columns_are_genes is True, flip all of the expression matrixes
+        elif isinstance(self.expression_matrix, list) and self.expression_matrix_columns_are_genes:
+            self.expression_matrix = list(map(lambda x: x.transpose(), self.expression_matrix))
+
+        # If expression_matrix isn't a list, call to the super workflow function
+        else:
+            super(MultitaskLearningWorkflow, self).transpose_expression_matrix()
 
     def read_priors(self, priors_file=None, gold_standard_file=None):
         """
