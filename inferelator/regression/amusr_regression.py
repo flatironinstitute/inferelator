@@ -20,13 +20,14 @@ except ImportError:
 MAX_ITER = 1000
 TOL = 1e-2
 MIN_WEIGHT_VAL = 0.1
+MIN_RSS = 1e-10
 
 
 def scale_list_of_arrays(X):
     """
     Scale a list of data frames so that each has mean 0 and unit variance
-    :param X: list(np.ndarray)
-    :return X: list(np.ndarray)
+    :param X: list(np.ndarray) [T]
+    :return X: list(np.ndarray) [T]
     """
 
     assert check.argument_type(X, list)
@@ -69,8 +70,8 @@ def covariance_update(X, Y):
 
     # Populate arrays
     for task_id in range(n_tasks):
-        cov_C[task_id] = np.dot(Y[task_id].transpose(), X[task_id])
-        cov_D[task_id] = np.dot(X[task_id].transpose(), X[task_id])
+        cov_C[task_id] = np.dot(Y[task_id].transpose(), X[task_id])  # yTx
+        cov_D[task_id] = np.dot(X[task_id].transpose(), X[task_id])  # xTx
 
     return cov_C, cov_D
 
@@ -142,8 +143,9 @@ def update_block(cov_C, cov_D, block_matrix, sparse_matrix, lambda_B):
         Covariance of the predictors K to the response gene by task
     :param cov_D: np.ndarray [T x K x K]
         Covariance of the predictors K to K by task
-    :param block_matrix:
-    :param sparse_matrix:
+    :param block_matrix: np.ndarray [K x T]
+
+    :param sparse_matrix: np.ndarray [K x T]
     :param lambda_B:
     :return:
     """
@@ -177,8 +179,10 @@ def update_block(cov_C, cov_D, block_matrix, sparse_matrix, lambda_B):
             block_tmp[j] = 0.
 
             # Calculate next coefficient based on fit only
-            alphas[task_id] = (task_c[j] - np.sum((block_tmp + task_s) * task_d[:, j])) / task_d[j, j] if task_d[
-                                                                                                              j, j] != 0 else 0.
+            if task_d[j, j] != 0:
+                alphas[task_id] = (task_c[j] - np.sum((block_tmp + task_s) * task_d[:, j])) / task_d[j, j]
+            else:
+                alphas[task_id] = 0.
 
         # Set all tasks to zero if l1-norm less than lamB
         if np.linalg.norm(alphas, 1) <= lambda_B:
@@ -318,15 +322,11 @@ def run_regression_EBIC(X, Y, TFs, tasks, gene, prior):
     assert len(X) == len(tasks)
     assert max([xk.shape[1] for xk in X]) == min([xk.shape[1] for xk in X])
     assert min([xk.shape[0] for xk in X]) > 0
+    assert all([xk.shape[0] == yk.shape[0] for xk, yk in zip(X, Y)])
 
-    # The number of tasks
-    n_tasks = len(X)
-
-    # The number of predictors
-    n_preds = X[0].shape[1]
-
-    # A list of the number of samples for each task
-    n_samples = [xk.shape[0] for xk in X]
+    n_tasks = len(X)  # The number of tasks
+    n_preds = X[0].shape[1]  # The number of predictors
+    n_samples = [xk.shape[0] for xk in X]  # A list of the number of samples for each task
 
     ###### EBIC ######
     Cs = np.logspace(np.log10(0.01), np.log10(10), 20)[::-1]
@@ -377,17 +377,20 @@ def sum_squared_errors(X, Y, betas, k):
     return np.sum((Y[k].T - np.dot(X[k], betas[:, k])) ** 2)
 
 
-def ebic(X, Y, model_weights, n_tasks, n_samples, n_preds, gamma=1):
+def ebic(X, Y, model_weights, n_tasks, n_samples, n_preds, gamma=1, min_rss=MIN_RSS):
     """
     Calculate EBIC for each task, and take the mean
 
-    :param X:
-    :param Y:
-    :param model_weights:
-    :param n_tasks:
-    :param n_samples:
-    :param n_preds:
-    :param gamma:
+    :param X: list(np.ndarray [N x K]) [T]
+        List consisting of design matrixes for each task
+    :param Y: list(np.ndarray [N x 1]) [T]
+        List consisting of response matrixes for each task
+    :param model_weights: np.ndarray [T x K]
+    :param n_tasks: int
+    :param n_samples: int
+    :param n_preds: int
+    :param gamma: float
+    :param min_rss: float
     :return:
     """
 
@@ -406,12 +409,13 @@ def ebic(X, Y, model_weights, n_tasks, n_samples, n_preds, gamma=1):
     for k in range(n_tasks):
         n = n_samples[k]
         nonzero_pred = (model_weights[:, k] != 0).sum()
+        rss = sum_squared_errors(X, Y, model_weights, k)
 
-        BIC = n * np.log(sum_squared_errors(X, Y, model_weights, k) / n)
-        BIC_penalty = nonzero_pred * np.log(n)
-        BIC_extension = 2 * gamma * np.log(comb(n_preds, nonzero_pred))
+        bic = n * np.log(rss / n) if rss > 0 else n * np.log(min_rss / n)
+        bic_penalty = nonzero_pred * np.log(n)
+        bic_extension = 2 * gamma * np.log(comb(n_preds, nonzero_pred))
 
-        EBIC.append(BIC + BIC_penalty + BIC_extension)
+        EBIC.append(bic + bic_penalty + bic_extension)
 
     return np.mean(EBIC)
 
@@ -585,33 +589,68 @@ class AMuSR_regression(base_regression.BaseRegression):
 
 
 def format_prior(priors, gene, tasks, prior_weight):
-    '''
-    Returns priors for one gene (numpy matrix TFs by tasks)
-    '''
+    """
+    Returns weighted priors for one gene
+    :param priors: list(pd.DataFrame [G x K]) or pd.DataFrame [G x K]
+        Either a list of prior data or a single data frame to use for all tasks
+    :param gene: str
+        The gene to select from the priors
+    :param tasks: list(int)
+        A list of task IDs
+    :param prior_weight: float, int
+        How much to weight the priors
+    :return prior_out: np.ndarray [K x T]
+        The weighted priors for a specific gene in each task
+    """
+
+    assert check.argument_type(priors, (list, pd.DataFrame), allow_none=True)
+    assert check.argument_string(gene)
+    assert check.argument_type(tasks, list)
+    assert check.argument_numeric(prior_weight)
+
     if priors is None:
         return None
 
-    if isinstance(priors, list):
-        priors_out = []
-        for k in tasks:
-            prior = priors[k]
-            prior = prior.loc[gene, :].replace(np.nan, 0)
-            priors_out.append(weight_prior(prior, prior_weight))
-        priors_out = np.transpose(np.asarray(priors_out))
-    else:
-        if gene in priors.index:
-            priors_out = np.tile(weight_prior(priors.loc[gene, :].values, prior_weight).reshape(-1, 1),
-                                 (1, len(tasks)))
-        else:
-            priors_out = np.zeros((priors.shape[1], len(tasks)))
+    priors_out = []
 
+    # If the priors are a list, get the gene-specific prior from each task
+    if isinstance(priors, list):
+        assert len(priors) == len(tasks)
+        for k in tasks:
+            prior = priors[k].reindex([gene]).replace(np.nan, 0)
+            priors_out.append(weight_prior(prior.loc[gene, :], prior_weight))
+
+    # Otherwise just use the same prior for each task
+    else:
+        prior = priors.reindex([gene]).replace(np.nan, 0)
+        priors_out = [weight_prior(prior.loc[gene, :], prior_weight)] * len(tasks)
+
+    # Return a [K x T]
+    priors_out = np.transpose(np.asarray(priors_out))
     return priors_out
 
 
 def weight_prior(prior, prior_weight):
+    """
+    Weight priors
+    :param prior: pd.Series [K] or np.ndarray [K,]
+        The prior information
+    :param prior_weight: numeric
+        How much to weight priors
+    :return prior: pd.Series [K] or np.ndarray [K,]
+        Weighted priors
+    """
+
+    # Set non-zero priors to 1 and zeroed priors to 0
     prior = (prior != 0).astype(float)
+
+    # Divide by the prior weight
     prior /= prior_weight
+
+    # Set zeroed priors to 1
     prior[prior == 0] = 1.0
+
+    # Reweight priors
     prior = prior / prior.sum() * len(prior)
     return prior
 
