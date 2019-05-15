@@ -268,7 +268,7 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
             self.gold_standard = self.input_dataframe(gold_standard_file)
 
     def startup_finish(self):
-        # Filter expression and priors to align
+        # Make sure tasks are set correctly
         self.prepare_tasks()
         self.check_tasks()
         self.process_task_data()
@@ -354,8 +354,13 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
             utils.Debug.vprint("Processing {task} [{sh}]".format(task=self.tasks_names[task_id], sh=expr_data.shape),
                                level=1)
 
+            if isinstance(self.priors_data, list):
+                task_prior = self.priors_data[task_id]
+            else:
+                task_prior = self.priors_data
+
             self.set_metadata_handler(task_id)
-            task = self.new_puppet(expr_data, meta_data, seed=self.random_seed)
+            task = self.new_puppet(expr_data, meta_data, seed=self.random_seed, priors_data=task_prior)
             task.startup_finish()
             self.task_design.append(task.design)
             self.task_response.append(task.response)
