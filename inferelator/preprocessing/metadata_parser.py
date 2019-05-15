@@ -159,7 +159,7 @@ class MetadataParserBranching(MetadataParser):
     def validate_metadata(cls, exp_data, meta_data):
         if cls.cond_col not in meta_data:
             meta_data[cls.cond_col] = meta_data.index.astype(str)
-        align_count = len(exp_data.columns.intersection(meta_data[cls.cond_col]))
+        align_count = len(exp_data.columns.astype(str).intersection(meta_data[cls.cond_col]))
         if align_count == 0:
             raise ConditionDoesNotExistError("Unable to align metadata to expression data")
         elif align_count < min(exp_data.shape[1], meta_data.shape[0]):
