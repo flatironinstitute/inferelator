@@ -205,8 +205,7 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
             self.meta_data = [None] * len(self.expression_matrix)
 
             for task_id in range(len(self.expression_matrix)):
-                processed_data = self.dataframe_split(self.expression_matrix[task_id],
-                                                      self.expression_matrix_metadata[task_id])
+                processed_data = self.dataframe_split(self.expression_matrix[task_id], expr_meta_cols[task_id])
                 self.expression_matrix[task_id], self.meta_data[task_id] = processed_data
         else:
             super(MultitaskLearningWorkflow, self).read_metadata(file=file)
