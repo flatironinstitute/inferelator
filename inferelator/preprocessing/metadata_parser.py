@@ -157,9 +157,18 @@ class MetadataParserBranching(MetadataParser):
 
     @classmethod
     def validate_metadata(cls, exp_data, meta_data):
-        if cls.cond_col not in meta_data:
-            meta_data[cls.cond_col] = meta_data.index.astype(str)
-        align_count = len(exp_data.columns.astype(str).intersection(meta_data[cls.cond_col]))
+        """
+        Make sure that meta_data and expression_data are compatible
+        """
+
+        # Check and make sure that there's a name column and create it if needed
+        cls.create_sample_name_column(meta_data)
+
+        # Check the alignment of the expression data and the meta_data
+        sample_names_expr = exp_data.columns.astype(str)
+        sample_names_meta = meta_data[cls.cond_col].astype(str)
+        align_count = len(sample_names_expr.intersection(sample_names_meta))
+
         if align_count == 0:
             raise ConditionDoesNotExistError("Unable to align metadata to expression data")
         elif align_count < min(exp_data.shape[1], meta_data.shape[0]):
@@ -168,12 +177,28 @@ class MetadataParserBranching(MetadataParser):
                                level=0)
 
     @classmethod
+    def create_sample_name_column(cls, meta_data):
+        """
+        Create a meta_data sample_name column from the index if necessary
+        """
+        if cls.cond_col not in meta_data:
+            meta_data[cls.cond_col] = meta_data.index.astype(str)
+        elif (meta_data[cls.cond_col] != meta_data.index.astype(str)).any():
+            utils.Debug.vprint("Meta data sample name column and meta_data index are not equal", level=2)
+
+    @classmethod
     def create_default_meta_data(cls, expression_matrix):
         """
         Create a meta_data dataframe from basic defaults
         """
-        meta_data = pd.DataFrame(index=expression_matrix.columns)
-        meta_data[cls.cond_col] = expression_matrix.columns
+
+        # Create an empty dataframe with index equal to sample names from expression data
+        meta_data = pd.DataFrame(index=expression_matrix.columns.astype(str))
+
+        # Create a name column
+        cls.create_sample_name_column(meta_data)
+
+        # Assign default values to information columns
         meta_data[cls.ists_col] = True
         meta_data[cls.prev_col] = "NA"
         meta_data[cls.delt_col] = "NA"
