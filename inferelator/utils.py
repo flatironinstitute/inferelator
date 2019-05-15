@@ -5,6 +5,11 @@ import os
 
 from inferelator.default import SBATCH_VARS
 
+# Python 2/3 compatible string checking
+try:
+    basestring
+except NameError:
+    basestring = str
 
 def slurm_envs(var_names=None):
     """
@@ -187,6 +192,10 @@ class Validator(object):
             raise ValueError("Argument {arg} must be of type {typ}".format(arg=arg, typ=arg_type))
 
     @staticmethod
+    def argument_string(arg, allow_none=False):
+        return Validator.argument_type(arg, basestring, allow_none=allow_none)
+
+    @staticmethod
     def argument_list_type(arg, arg_type, allow_none=False):
         if allow_none and arg is None:
             return True
@@ -354,6 +363,15 @@ def df_set_diag(df, val, copy=True):
         return df
     else:
         return len(isect)
+
+
+def is_string(arg):
+    """
+    Check if a argument is a string in a python 2/3 compatible way
+    :param arg:
+    :return:
+    """
+    return isinstance(arg, basestring)
 
 
 def make_array_2d(arr):

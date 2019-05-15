@@ -2,12 +2,6 @@ from inferelator.distributed import AbstractController
 from inferelator import utils
 from inferelator import default
 
-# Python 2/3 compatible string checking
-try:
-    basestring
-except NameError:
-    basestring = str
-
 
 class MPControl(AbstractController):
     """
@@ -59,7 +53,7 @@ class MPControl(AbstractController):
         if cls.is_initialized:
             raise RuntimeError("Client is currently active. Run .shutdown() before changing engines.")
 
-        if isinstance(engine, basestring):
+        if utils.is_string(engine):
             if engine == "dask-cluster":
                 from inferelator.distributed.dask_cluster_controller import DaskHPCClusterController
                 cls.client = DaskHPCClusterController

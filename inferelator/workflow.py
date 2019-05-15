@@ -23,12 +23,6 @@ import os
 import datetime
 import pandas as pd
 
-# Python 2/3 compatible string checking
-try:
-    basestring
-except NameError:
-    basestring = str
-
 
 class WorkflowBase(object):
     # Paths to the input and output locations
@@ -366,7 +360,7 @@ def create_inferelator_workflow(regression=RegressionWorkflow, workflow=Workflow
 
     # Decide which preprocessing/postprocessing workflow to use
     # String arguments are parsed for convenience in the run script
-    if isinstance(workflow, basestring):
+    if utils.is_string(workflow):
         if workflow == "base":
             workflow_class = WorkflowBase
         elif workflow == "tfa":
@@ -391,7 +385,7 @@ def create_inferelator_workflow(regression=RegressionWorkflow, workflow=Workflow
     if regression is None:
         return workflow_class
     # String arguments are parsed for convenience in the run script
-    elif isinstance(regression, basestring):
+    elif utils.is_string(regression):
         if regression == "bbsr":
             from inferelator.regression.bbsr_python import BBSRRegressionWorkflow
             regression_class = BBSRRegressionWorkflow

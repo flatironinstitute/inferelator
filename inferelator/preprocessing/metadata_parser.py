@@ -4,11 +4,6 @@ from abc import abstractmethod
 
 from inferelator import utils
 
-try:
-    basestring
-except NameError:
-    basestring = str
-
 ISTS_COLUMN_NAME = 'isTs'
 PREV_COLUMN_NAME = 'prevCol'
 DELT_COLUMN_NAME = 'del.t'
@@ -278,7 +273,7 @@ class MetadataHandler(object):
 
     @classmethod
     def set_handler(cls, handler_ref):
-        if isinstance(handler_ref, basestring):
+        if utils.is_string(handler_ref):
             if handler_ref == "branching":
                 cls.handler = MetadataParserBranching
             elif handler_ref == "nonbranching":
