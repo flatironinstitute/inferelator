@@ -160,27 +160,23 @@ class TestAMuSRWorkflow(unittest.TestCase):
             self.workflow.check_tasks()
 
 
-
-
 class TestAMuSRrunner(unittest.TestCase):
 
     def test_format_priors_noweight(self):
-        runner = amusr_regression.AMuSR_regression([pd.DataFrame()], [pd.DataFrame()], None)
         tfs = ['tf1', 'tf2']
         priors = [pd.DataFrame([[0, 1], [1, 0]], index=['gene1', 'gene2'], columns=tfs),
                   pd.DataFrame([[0, 0], [1, 0]], index=['gene1', 'gene2'], columns=tfs)]
-        gene1_prior = amusr_regression.format_prior(priors, 'gene1', [0, 1], 1)
-        gene2_prior = amusr_regression.format_prior(priors, 'gene2', [0, 1], 1)
+        gene1_prior = amusr_regression._format_prior(priors, 'gene1', [0, 1], 1)
+        gene2_prior = amusr_regression._format_prior(priors, 'gene2', [0, 1], 1)
         npt.assert_almost_equal(gene1_prior, np.array([[1., 1.], [1., 1.]]))
         npt.assert_almost_equal(gene2_prior, np.array([[1., 1.], [1., 1.]]))
 
     def test_format_priors_pweight(self):
-        runner = amusr_regression.AMuSR_regression([pd.DataFrame()], [pd.DataFrame()], None)
         tfs = ['tf1', 'tf2']
         priors = [pd.DataFrame([[0, 1], [1, 0]], index=['gene1', 'gene2'], columns=tfs),
                   pd.DataFrame([[0, 0], [1, 0]], index=['gene1', 'gene2'], columns=tfs)]
-        gene1_prior = amusr_regression.format_prior(priors, 'gene1', [0, 1], 1.2)
-        gene2_prior = amusr_regression.format_prior(priors, 'gene2', [0, 1], 1.2)
+        gene1_prior = amusr_regression._format_prior(priors, 'gene1', [0, 1], 1.2)
+        gene2_prior = amusr_regression._format_prior(priors, 'gene2', [0, 1], 1.2)
         npt.assert_almost_equal(gene1_prior, np.array([[1.09090909, 1.], [0.90909091, 1.]]))
         npt.assert_almost_equal(gene2_prior, np.array([[0.90909091, 0.90909091], [1.09090909, 1.09090909]]))
 
@@ -205,8 +201,8 @@ class TestAMuSRrunner(unittest.TestCase):
         runner = amusr_regression.AMuSR_regression([pd.DataFrame(des[0], columns=tfs)],
                                                    [pd.DataFrame(res[0], columns=["gene1"])],
                                                    None)
-        gene1_prior = amusr_regression.format_prior(priors, 'gene1', [0, 1], 1.)
-        gene2_prior = amusr_regression.format_prior(priors, 'gene2', [0, 1], 1.)
+        gene1_prior = amusr_regression._format_prior(priors, 'gene1', [0, 1], 1.)
+        gene2_prior = amusr_regression._format_prior(priors, 'gene2', [0, 1], 1.)
         output = []
         output.append(
             amusr_regression.run_regression_EBIC(des, res, ['tf1', 'tf2', 'tf3'], [0, 1], 'gene1', gene1_prior))
@@ -251,3 +247,48 @@ class TestAMuSRrunner(unittest.TestCase):
         regress_data = r.regress()
         for i in range(len(targets)):
             pdt.assert_frame_equal(pd.concat(regress_data[i]), out[i], check_dtype=False)
+
+    def test_process_output(self):
+        cols = ["regulator", "target", "weights", "resc_weights"]
+        output = {0: pd.DataFrame([["A", "C", 1, 1], ["B", "D", 1, 1], ["A", "D", 1, 1]], columns=cols),
+                  1: pd.DataFrame([["B", "D", 1, 1], ["C", "D", 1, 1], ["A", "F", 1, 1]], columns=cols)}
+
+        targets = pd.Index(["A", "B", "C", "D", "E", "F"], name="target")
+        regulators = pd.Index(["A", "B", "C"], name="regulator")
+
+        correct_output_0 = pd.DataFrame(0., index=targets, columns=regulators)
+        correct_output_0.loc["C", "A"] = 1.
+        correct_output_0.loc["D", "B"] = 1.
+        correct_output_0.loc["D", "A"] = 1.
+
+        out_0 = amusr_regression._format_weights(output[0], "weights", targets, regulators)
+        pdt.assert_frame_equal(out_0, correct_output_0)
+
+    def test_process_output_all(self):
+        cols = ["regulator", "target", "weights", "resc_weights"]
+        output = {0: pd.DataFrame([["A", "C", 1, 1], ["B", "D", 1, 1], ["A", "D", 1, 1]], columns=cols),
+                  1: pd.DataFrame([["B", "D", 1, 1], ["C", "D", 1, 1], ["A", "F", 1, 1]], columns=cols)}
+
+        targets = pd.Index(["A", "B", "C", "D", "E", "F"], name="target")
+        regulators = pd.Index(["A", "B", "C"], name="regulator")
+
+        correct_output_0 = pd.DataFrame(0., index=targets, columns=regulators)
+        correct_output_0.loc["C", "A"] = 1.
+        correct_output_0.loc["D", "B"] = 1.
+        correct_output_0.loc["D", "A"] = 1.
+
+        correct_output_1 = pd.DataFrame(0., index=targets, columns=regulators)
+        correct_output_1.loc["D", "B"] = 1.
+        correct_output_1.loc["D", "C"] = 1.
+        correct_output_1.loc["F", "A"] = 1.
+
+        runner = amusr_regression.AMuSR_regression([pd.DataFrame()], [pd.DataFrame()], genes=targets.tolist(),
+                                                   tfs=regulators.tolist())
+        runner.n_tasks = 2
+
+        weights, resc_weights = runner.pileup_data([output])
+
+        pdt.assert_frame_equal(weights[0], correct_output_0)
+        pdt.assert_frame_equal(resc_weights[0], correct_output_0)
+        pdt.assert_frame_equal(weights[1], correct_output_1)
+        pdt.assert_frame_equal(resc_weights[1], correct_output_1)

@@ -23,6 +23,288 @@ MIN_WEIGHT_VAL = 0.1
 MIN_RSS = 1e-10
 
 
+class AMuSR_regression(base_regression.BaseRegression):
+    X = None  # list(pd.DataFrame [N, K])
+    Y = None  # list(pd.DataFrame [N, G])
+    priors = None  # list(pd.DataFrame [G, K]) OR pd.DataFrame [G, K]
+    tfs = None  # pd.Index OR list
+    genes = None  # pd.Index OR list
+
+    K = None  # int
+    G = None  # int
+    n_tasks = None  # int
+    prior_weight = 1.0  # float
+    remove_autoregulation = True  # bool
+
+    def __init__(self, X, Y, tfs=None, genes=None, priors=None, prior_weight=1, remove_autoregulation=True):
+        """
+        Set up a regression object for multitask regression
+
+        :param X: list(pd.DataFrame [N, K])
+        :param Y: list(pd.DataFrame [N, G])
+        :param priors: pd.DataFrame [G, K]
+        :param prior_weight: float
+        :param remove_autoregulation: bool
+        """
+
+        # Set the data into the regression object
+        self.X = X
+        self.Y = Y
+        self.n_tasks = len(X)
+
+        # Set the priors and weight into the regression object
+        self.priors = priors
+        self.prior_weight = float(prior_weight)
+
+        # Construct a list of TFs & genes if they are not passed in
+        if tfs is None or genes is None:
+            tfs, genes = [], []
+            for design, response in zip(X, Y):
+                tfs.append(design.columns)
+                genes.append(response.columns)
+            self.tfs = filter_genes_on_tasks(tfs, "intersection")
+            self.genes = filter_genes_on_tasks(genes, "intersection")
+        else:
+            self.tfs, self.genes = tfs, genes
+
+        # Set the regulators and targets into the regression object
+        self.K, self.G = len(tfs), len(genes)
+        self.remove_autoregulation = remove_autoregulation
+
+    def regress(self):
+        """
+        Execute multitask (AMUSR)
+
+        :return: list
+            Returns a list of regression results that the amusr_regression pileup_data can process
+        """
+
+        if MPControl.is_dask():
+            from inferelator.distributed.dask_functions import amusr_regress_dask
+            return amusr_regress_dask(self.X, self.Y, self.priors, self.prior_weight, self.n_tasks, self.genes,
+                                      self.tfs, self.G, remove_autoregulation=self.remove_autoregulation)
+
+        def regression_maker(j):
+            level = 0 if j % 100 == 0 else 2
+            utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G),
+                                 level=level)
+
+            gene = self.genes[j]
+            x, y, tasks = [], [], []
+
+            if self.remove_autoregulation:
+                tfs = [t for t in self.tfs if t != gene]
+            else:
+                tfs = self.tfs
+
+            for k in range(self.n_tasks):
+                if gene in self.Y[k]:
+                    x.append(self.X[k].loc[:, tfs].values)  # list([N, K])
+                    y.append(self.Y[k].loc[:, gene].values.reshape(-1, 1))  # list([N, 1])
+                    tasks.append(k)  # [T,]
+
+            prior = _format_prior(self.priors, gene, tasks, self.prior_weight)
+            return run_regression_EBIC(x, y, tfs, tasks, gene, prior)
+
+        return MPControl.map(regression_maker, range(self.G))
+
+    def pileup_data(self, run_data):
+
+        weights = []
+        rescaled_weights = []
+
+        for k in range(self.n_tasks):
+            results_k = []
+            for res in run_data:
+                try:
+                    results_k.append(res[k])
+                except KeyError:
+                    pass
+
+            results_k = pd.concat(results_k)
+            weights_k = _format_weights(results_k, 'weights', self.genes, self.tfs)
+            rescaled_weights_k = _format_weights(results_k, 'resc_weights', self.genes, self.tfs)
+            rescaled_weights_k[rescaled_weights_k < 0.] = 0
+
+            weights.append(weights_k)
+            rescaled_weights.append(rescaled_weights_k)
+
+        return weights, rescaled_weights
+
+
+def run_regression_EBIC(X, Y, TFs, tasks, gene, prior):
+    """
+    Run multitask regression
+
+    :param X: list(np.ndarray [N x K]) [T]
+        List consisting of design matrixes for each task
+    :param Y: list(np.ndarray [N x 1]) [T]
+        List consisting of response matrixes for each task
+    :param TFs: list [K]
+        List of TF names for each feature
+    :param tasks: list(int) [T]
+        List identifying each task
+    :param gene: str
+        The gene being modeled
+    :param prior: np.ndarray [K x T]
+        The priors for this gene in a TF x Task array
+    :return output: dict
+        A dict, keyed by task, containing a dataframe with model coefficients in edge (regulator -> target) format
+    """
+
+    assert check.argument_type(X, list)
+    assert check.argument_type(Y, list)
+    assert check.argument_type(TFs, list)
+    assert check.argument_type(tasks, list)
+    assert len(X) == len(Y)
+    assert len(X) == len(tasks)
+    assert max([xk.shape[1] for xk in X]) == min([xk.shape[1] for xk in X])
+    assert min([xk.shape[0] for xk in X]) > 0
+    assert all([xk.shape[0] == yk.shape[0] for xk, yk in zip(X, Y)])
+
+    n_tasks = len(X)  # The number of tasks
+    n_preds = X[0].shape[1]  # The number of predictors
+    n_samples = [xk.shape[0] for xk in X]  # A list of the number of samples for each task
+
+    ###### EBIC ######
+
+    # Set a grid search space for the lambda parameters
+    Cs = np.logspace(np.log10(0.01), np.log10(10), 20)[::-1]
+    Ss = np.linspace((1.0 / n_tasks) + 0.01, 0.99, 10)[::-1]  # in paper I used 0.51 as minimum for all networks
+
+    # Start with a default lambda B based on tasks, predictors, and samples
+    lambda_B_param = np.sqrt((n_tasks * np.log(n_preds)) / np.mean(n_samples))
+
+    # Center and scale the data
+    X = scale_list_of_arrays(X)
+    Y = scale_list_of_arrays(Y)
+
+    # Calculate covariances
+    cov_C, cov_D = _covariance_by_task(X, Y)
+
+    # Create empty block and sparse matrixes
+    sparse_matrix = np.zeros((n_preds, n_tasks))
+    block_matrix = np.zeros((n_preds, n_tasks))
+
+    # Set the starting EBIC to infinity
+    min_ebic = float('Inf')
+    model_output = None
+
+    # Search lambda space for the model with the lowest EBIC
+    for c, s in itertools.product(Cs, Ss):
+        lambda_B_tmp = c * lambda_B_param
+        lambda_S_tmp = s * lambda_B_tmp
+        combined_weights, sparse_matrix, block_matrix = amusr_fit(X, Y, lambda_B_tmp, lambda_S_tmp, cov_C, cov_D,
+                                                                  sparse_matrix, block_matrix, prior)
+        ebic_score = ebic(X, Y, combined_weights, n_tasks, n_samples, n_preds)
+        if ebic_score < min_ebic:
+            model_output = combined_weights
+
+    # Rescale weights for output.
+    # This will be processed later by AMuSR_regression.pileup_data()
+    output = {}
+
+    if model_output is not None:
+        for kx, k in enumerate(tasks):
+            nonzero = model_output[:, kx] != 0
+            if nonzero.sum() > 0:
+                included_tfs = np.asarray(TFs)[nonzero]
+                output[k] = _final_weights(X[kx][:, nonzero], Y[kx], included_tfs, gene)
+
+    return output
+
+
+def amusr_fit(X, Y, lambda_B=0., lambda_S=0., cov_C=None, cov_D=None, sparse_matrix=None, block_matrix=None, prior=None,
+              max_iter=MAX_ITER, tol=TOL, min_weight=MIN_WEIGHT_VAL):
+    """
+    Fits regression model in which the weights matrix W (predictors x tasks)
+    is decomposed in two components: B that captures block structure across tasks
+    and S that allows for the differences.
+    reference: Jalali et al., NIPS 2010. A Dirty Model for Multi-task Learning.
+
+    :param X: list(np.ndarray [N x K]) [T]
+        List of design values for each task. Must be aligned on the feature (K) axis.
+    :param Y: list(np.ndarray [N x 1]) [T]
+        List of response values for each task
+    :param lambda_B: float
+        Penalty coefficient for the block matrix
+    :param lambda_S: float
+        Penalty coefficient for the sparse matrix
+    :param cov_C: np.ndarray [T x K]
+        Covariance of the predictors K to the response gene by task
+    :param cov_D: np.ndarray [T x K x K]
+        Covariance of the predictors K to K by task
+    :param sparse_matrix: np.ndarray [K x T]
+        Matrix of model coefficients for each predictor by each task that are unique to each task
+    :param block_matrix: np.ndarray [K x T]
+        Matrix of model coefficients for each predictor by each task that are shared between each task
+    :param prior: np.ndarray [T x K]
+        Matrix of known prior information
+    :param max_iter: int
+        Maximum number of model iterations if tol is not reached
+    :param tol: float
+        The tolerance for the stopping criteria (convergence)
+    :param min_weight: float
+        Regularize any weights below this threshold to 0
+    :return combined_weights, sparse_matrix, block_matrix: np.ndarray [K x T], np.ndarray [K x T], np.ndarray [K x T]
+    """
+
+    assert check.argument_type(X, list)
+    assert check.argument_type(Y, list)
+    assert check.argument_type(lambda_B, (float, int))
+    assert check.argument_type(lambda_S, (float, int))
+    assert check.argument_type(max_iter, int)
+    assert check.argument_type(tol, float)
+    assert check.argument_type(min_weight, float)
+    assert len(X) == len(Y)
+    assert max([xk.shape[1] for xk in X]) == min([xk.shape[1] for xk in X])
+
+    n_tasks = len(X)
+    n_features = max([xk.shape[1] for xk in X])
+
+    # calculate covariance update terms if not provided
+    if cov_C is None or cov_D is None:
+        cov_C, cov_D = _covariance_by_task(X, Y)
+
+    assert cov_C.shape[0] == cov_D.shape[0]
+    assert cov_C.shape[1] == cov_D.shape[1]
+
+    # if S and B are provided -- warm starts -- will run faster
+    if sparse_matrix is None or block_matrix is None:
+        sparse_matrix = np.zeros((n_features, n_tasks))
+        block_matrix = np.zeros((n_features, n_tasks))
+
+    # If there is no prior for weights, create an array of 1s
+    prior = np.ones((n_features, n_tasks)) if prior is None else prior
+
+    # Initialize weights
+    combined_weights = sparse_matrix + block_matrix
+    for _ in range(max_iter):
+
+        # Save old weights (to check convergence)
+        old_weights = np.copy(combined_weights)
+
+        # Update sparse and block coefficients
+        sparse_matrix = _update_sparse(cov_C, cov_D, block_matrix, sparse_matrix, lambda_S, prior)
+        block_matrix = _update_block(cov_C, cov_D, block_matrix, sparse_matrix, lambda_S)
+
+        # Combine sparse matrix and block matrix to a unified weight matrix
+        combined_weights = sparse_matrix + block_matrix
+
+        # If convergence tolerance reached, break loop and move on
+        if np.max(np.abs(combined_weights - old_weights)) < tol:
+            break
+
+    # Weights matrix (W) is the sum of a sparse (S) and a block-sparse (B) matrix
+    combined_weights = sparse_matrix + block_matrix
+
+    # Set small values of W to zero
+    # Since we don't run the algorithm until update equals zero
+    combined_weights[np.abs(combined_weights) < min_weight] = 0
+
+    return combined_weights, sparse_matrix, block_matrix
+
+
 def scale_list_of_arrays(X):
     """
     Scale a list of data frames so that each has mean 0 and unit variance
@@ -35,7 +317,7 @@ def scale_list_of_arrays(X):
     return [StandardScaler().fit_transform(xk) for xk in X]
 
 
-def covariance_update(X, Y):
+def _covariance_by_task(X, Y):
     """
     Returns C and D, containing terms for covariance update for OLS fit
 
@@ -76,7 +358,7 @@ def covariance_update(X, Y):
     return cov_C, cov_D
 
 
-def update_sparse(cov_C, cov_D, block_matrix, sparse_matrix, lambda_S, prior):
+def _update_sparse(cov_C, cov_D, block_matrix, sparse_matrix, lambda_S, prior):
     """
     returns updated coefficients for S (predictors x tasks)
     lasso regularized -- using cyclical coordinate descent and
@@ -85,10 +367,14 @@ def update_sparse(cov_C, cov_D, block_matrix, sparse_matrix, lambda_S, prior):
         Covariance of the predictors K to the response gene by task
     :param cov_D: np.ndarray [T x K x K]
         Covariance of the predictors K to K by task
-    :param block_matrix:
-    :param sparse_matrix:
-    :param lambda_S:
-    :param prior:
+    :param sparse_matrix: np.ndarray [K x T]
+        Matrix of model coefficients for each predictor by each task that are unique to each task
+    :param block_matrix: np.ndarray [K x T]
+        Matrix of model coefficients for each predictor by each task that are shared between each task
+    :param lambda_S: float
+        Penalty coefficient for the sparse matrix
+    :param prior: np.ndarray [T x K]
+        Matrix of known prior information
     :return:
     """
 
@@ -132,7 +418,7 @@ def update_sparse(cov_C, cov_D, block_matrix, sparse_matrix, lambda_S, prior):
     return sparse_matrix
 
 
-def update_block(cov_C, cov_D, block_matrix, sparse_matrix, lambda_B):
+def _update_block(cov_C, cov_D, block_matrix, sparse_matrix, lambda_B):
     """
     returns updated coefficients for B (predictors x tasks)
     block regularized (l_1/l_inf) -- using cyclical coordinate descent and
@@ -143,10 +429,12 @@ def update_block(cov_C, cov_D, block_matrix, sparse_matrix, lambda_B):
         Covariance of the predictors K to the response gene by task
     :param cov_D: np.ndarray [T x K x K]
         Covariance of the predictors K to K by task
-    :param block_matrix: np.ndarray [K x T]
-
     :param sparse_matrix: np.ndarray [K x T]
-    :param lambda_B:
+        Matrix of model coefficients for each predictor by each task that are unique to each task
+    :param block_matrix: np.ndarray [K x T]
+        Matrix of model coefficients for each predictor by each task that are shared between each task
+    :param lambda_B: float
+        Penalty coefficient for the block matrix
     :return:
     """
 
@@ -212,186 +500,53 @@ def update_block(cov_C, cov_D, block_matrix, sparse_matrix, lambda_B):
     return block_matrix
 
 
-def amusr_fit(X, Y, lambda_B=0., lambda_S=0., cov_C=None, cov_D=None, sparse_matrix=None, block_matrix=None, prior=None,
-              max_iter=MAX_ITER, tol=TOL, min_weight=MIN_WEIGHT_VAL):
+def sum_squared_errors(X, Y, betas, task_id):
     """
-    Fits regression model in which the weights matrix W (predictors x tasks)
-    is decomposed in two components: B that captures block structure across tasks
-    and S that allows for the differences.
-    reference: Jalali et al., NIPS 2010. A Dirty Model for Multi-task Learning.
-
-    :param X: list(np.ndarray [N x K]) [T]
-        List of design values for each task. Must be aligned on the feature (K) axis.
-    :param Y: list(np.ndarray [N x 1]) [T]
-        List of response values for each task
-    :param lambda_B: float
-    :param lambda_S: float
-    :param cov_C: np.ndarray [T x K]
-        Covariance of the predictors K to the response gene by task
-    :param cov_D: np.ndarray [T x K x K]
-        Covariance of the predictors K to K by task
-    :param sparse_matrix: np.ndarray [K x T]
-    :param block_matrix: np.ndarray [K x T]
-    :param prior: np.ndarray [T x K]
-    :param max_iter: int
-    :param tol: float
-    :param min_weight: float
-    :return combined_weights, sparse_matrix, block_matrix: np.ndarray [K x T], np.ndarray [K x T], np.ndarray [K x T]
-    """
-
-    assert check.argument_type(X, list)
-    assert check.argument_type(Y, list)
-    assert check.argument_type(lambda_B, (float, int))
-    assert check.argument_type(lambda_S, (float, int))
-    assert check.argument_type(max_iter, int)
-    assert check.argument_type(tol, float)
-    assert check.argument_type(min_weight, float)
-    assert len(X) == len(Y)
-    assert max([xk.shape[1] for xk in X]) == min([xk.shape[1] for xk in X])
-
-    n_tasks = len(X)
-    n_features = max([xk.shape[1] for xk in X])
-
-    # calculate covariance update terms if not provided
-    if cov_C is None or cov_D is None:
-        cov_C, cov_D = covariance_update(X, Y)
-
-    assert cov_C.shape[0] == cov_D.shape[0]
-    assert cov_C.shape[1] == cov_D.shape[1]
-
-    # if S and B are provided -- warm starts -- will run faster
-    if sparse_matrix is None or block_matrix is None:
-        sparse_matrix = np.zeros((n_features, n_tasks))
-        block_matrix = np.zeros((n_features, n_tasks))
-
-    # If there is no prior for weights, create an array of 1s
-    if prior is None:
-        prior = np.ones((n_features, n_tasks))
-
-    # Initialize weights
-    combined_weights = sparse_matrix + block_matrix
-    for n_iter in range(max_iter):
-
-        # Save old weights (to check convergence)
-        old_weights = np.copy(combined_weights)
-
-        # Update sparse and block coefficients
-        sparse_matrix = update_sparse(cov_C, cov_D, block_matrix, sparse_matrix, lambda_S, prior)
-        block_matrix = update_block(cov_C, cov_D, block_matrix, sparse_matrix, lambda_S)
-        combined_weights = sparse_matrix + block_matrix
-
-        # If convergence tolerance reached, break loop and move on
-        if np.max(np.abs(combined_weights - old_weights)) < tol:
-            break
-
-    # Weights matrix (W) is the sum of a sparse (S) and a block-sparse (B) matrix
-    combined_weights = sparse_matrix + block_matrix
-
-    # Set small values of W to zero
-    # Since we don't run the algorithm until update equals zero
-    combined_weights[np.abs(combined_weights) < min_weight] = 0
-
-    return combined_weights, sparse_matrix, block_matrix
-
-
-def run_regression_EBIC(X, Y, TFs, tasks, gene, prior):
-    """
-    Run multitask regression
-
+    Get RSS for a particular task 'k'
     :param X: list(np.ndarray [N x K]) [T]
         List consisting of design matrixes for each task
     :param Y: list(np.ndarray [N x 1]) [T]
         List consisting of response matrixes for each task
-    :param TFs: list [K]
-        List of TF names for each feature
-    :param tasks: list(int) [T]
-        List identifying each task
-    :param gene: str
-        The gene being modeled
-    :param prior: np.ndarray [K x T]
-        The priors for this gene in a TF x Task array
-    :return: dict
-
+    :param betas: np.ndarray [K x T]
+        Fit model coefficients for each task
+    :param task_id: int
+        Task ID
+    :return:
     """
 
     assert check.argument_type(X, list)
     assert check.argument_type(Y, list)
-    assert check.argument_type(TFs, list)
-    assert check.argument_type(tasks, list)
-    assert len(X) == len(Y)
-    assert len(X) == len(tasks)
-    assert max([xk.shape[1] for xk in X]) == min([xk.shape[1] for xk in X])
-    assert min([xk.shape[0] for xk in X]) > 0
-    assert all([xk.shape[0] == yk.shape[0] for xk, yk in zip(X, Y)])
+    assert check.argument_type(betas, np.ndarray)
+    assert check.argument_type(task_id, int)
 
-    n_tasks = len(X)  # The number of tasks
-    n_preds = X[0].shape[1]  # The number of predictors
-    n_samples = [xk.shape[0] for xk in X]  # A list of the number of samples for each task
-
-    ###### EBIC ######
-    Cs = np.logspace(np.log10(0.01), np.log10(10), 20)[::-1]
-    Ss = np.linspace((1.0 / n_tasks) + 0.01, 0.99, 10)[::-1]  # in paper I used 0.51 as minimum for all networks
-    lambda_B_param = np.sqrt((n_tasks * np.log(n_preds)) / np.mean(n_samples))
-
-    # Center and scale the data
-    X = scale_list_of_arrays(X)
-    Y = scale_list_of_arrays(Y)
-
-    # Calculate covariances
-    cov_C, cov_D = covariance_update(X, Y)
-
-    # Create empty block and sparse matrixes
-    sparse_matrix = np.zeros((n_preds, n_tasks))
-    block_matrix = np.zeros((n_preds, n_tasks))
-
-    # Set the starting EBIC to infinity
-    min_ebic = float('Inf')
-    model_output = None
-
-    # Search lambda space for the model with the lowest EBIC
-    for c, s in itertools.product(Cs, Ss):
-        lambda_B_tmp = c * lambda_B_param
-        lambda_S_tmp = s * lambda_B_tmp
-        combined_weights, sparse_matrix, block_matrix = amusr_fit(X, Y, lambda_B_tmp, lambda_S_tmp, cov_C, cov_D,
-                                                                  sparse_matrix, block_matrix, prior)
-        ebic_score = ebic(X, Y, combined_weights, n_tasks, n_samples, n_preds)
-        if ebic_score < min_ebic:
-            model_output = combined_weights
-
-    ###### RESCALE WEIGHTS ######
-    output = {}
-
-    if model_output is not None:
-        for kx, k in enumerate(tasks):
-            nonzero = model_output[:, kx] != 0
-            if nonzero.sum() > 0:
-                included_tfs = np.asarray(TFs)[nonzero]
-                output[k] = final_weights(X[kx][:, nonzero], Y[kx], included_tfs, gene)
-    return output
-
-
-def sum_squared_errors(X, Y, betas, k):
-    '''
-    Get RSS for a particular task 'k'
-    '''
-    return np.sum((Y[k].T - np.dot(X[k], betas[:, k])) ** 2)
+    return np.sum((Y[task_id].T - np.dot(X[task_id], betas[:, task_id])) ** 2)
 
 
 def ebic(X, Y, model_weights, n_tasks, n_samples, n_preds, gamma=1, min_rss=MIN_RSS):
     """
     Calculate EBIC for each task, and take the mean
 
+    Chen J, Chen Z. Extended Bayesian information criteria for model selection with large model spaces.
+    Biometrika. 2008; 95(3):759–771. https://doi.org/10.1093/biomet/asn034
+
     :param X: list(np.ndarray [N x K]) [T]
         List consisting of design matrixes for each task
     :param Y: list(np.ndarray [N x 1]) [T]
         List consisting of response matrixes for each task
-    :param model_weights: np.ndarray [T x K]
+    :param model_weights: np.ndarray [K x T]
+        Fit model coefficients for each task
     :param n_tasks: int
-    :param n_samples: int
+        Number of tasks T
+    :param n_samples: list(int) [T]
+        Number of samples for each task
     :param n_preds: int
+        Number of predictors
     :param gamma: float
+        Gamma parameter for extended BIC
     :param min_rss: float
-    :return:
+        Floor value for RSS to prevent log(0)
+    :return: float
+        Mean ebic for all tasks
     """
 
     assert check.argument_type(X, list)
@@ -406,27 +561,56 @@ def ebic(X, Y, model_weights, n_tasks, n_samples, n_preds, gamma=1, min_rss=MIN_
 
     EBIC = []
 
-    for k in range(n_tasks):
-        n = n_samples[k]
-        nonzero_pred = (model_weights[:, k] != 0).sum()
-        rss = sum_squared_errors(X, Y, model_weights, k)
+    for task_id in range(n_tasks):
 
-        bic = n * np.log(rss / n) if rss > 0 else n * np.log(min_rss / n)
-        bic_penalty = nonzero_pred * np.log(n)
+        # Get the number of samples for this task
+        task_samples = n_samples[task_id]
+
+        # Find the number of non-zero predictors
+        nonzero_pred = (model_weights[:, task_id] != 0).sum()
+
+        # Calculate RSS for the model
+        rss = sum_squared_errors(X, Y, model_weights, task_id)
+
+        # Calculate bayes information criterion using likelihood = RSS / n
+        # Calculate the first component of BIC with a non-zero floor for RSS (so BIC is always finite)
+        bic = task_samples * np.log(rss / task_samples) if rss > 0 else task_samples * np.log(min_rss / task_samples)
+
+        # Calculate the second component of BIC
+        bic_penalty = nonzero_pred * np.log(task_samples)
+
+        # Calculate the extended component of eBIC
+        # 2 * gamma * ln(number of non-zero predictor combinations of all predictors)
         bic_extension = 2 * gamma * np.log(comb(n_preds, nonzero_pred))
 
+        # Combine all the components and put them in a list
         EBIC.append(bic + bic_penalty + bic_extension)
 
     return np.mean(EBIC)
 
 
-def final_weights(X, y, TFs, gene):
+def _final_weights(X, y, TFs, gene):
     """
     returns reduction on variance explained for each predictor
     (model without each predictor compared to full model)
     see: Greenfield et al., 2013. Robust data-driven incorporation of prior
     knowledge into the inference of dynamic regulatory networks.
+    :param X: np.ndarray [N x k]
+        A design matrix with N samples and k non-zero predictors
+    :param y: np.ndarray [N x 1]
+        A response matrix with N samples of a specific gene expression
+    :param TFs: list()
+        A list of non-zero TFs (k) included in the model
+    :param gene: str
+        The gene modeled
+    :return out_weights: pd.DataFrame [k x 4]
+        An edge table (regulator -> target) with the model coefficient and the variance explained by that predictor for
+        each non-zero predictor
     """
+
+    assert check.argument_type(X, np.ndarray)
+    assert check.argument_type(y, np.ndarray)
+    assert check.argument_type(TFs, list)
 
     n_preds = len(TFs)
 
@@ -447,148 +631,18 @@ def final_weights(X, y, TFs, gene):
     else:
         for j in range(len(TFs)):
             X_noj = X[:, np.setdiff1d(range(n_preds), j)]
-            ols = LinearRegression()
-            ols.fit(X_noj, y)
+            ols = LinearRegression().fit(X_noj, y)
             var_noj = np.var((y - ols.predict(X_noj)) ** 2)
             resc_weights[j] = 1 - (var_full / var_noj)
 
-    # format output
+    # Format output into an edge table
     out_weights = pd.DataFrame([TFs, [gene] * len(TFs), weights, resc_weights]).transpose()
     out_weights.columns = ['regulator', 'target', 'weights', 'resc_weights']
+
     return out_weights
 
 
-class AMuSR_regression(base_regression.BaseRegression):
-    X = None  # list(pd.DataFrame [N, K])
-    Y = None  # list(pd.DataFrame [N, G])
-    priors = None  # list(pd.DataFrame [G, K]) OR pd.DataFrame [G, K]
-    tfs = None  # pd.Index OR list
-    genes = None  # pd.Index OR list
-
-    K = None  # int
-    G = None  # int
-    n_tasks = None  # int
-    prior_weight = 1.0  # float
-    remove_autoregulation = True  # bool
-
-    def __init__(self, X, Y, tfs=None, genes=None, priors=None, prior_weight=1, remove_autoregulation=True):
-        """
-        Set up a regression object for multitask regression
-
-        :param X: list(pd.DataFrame [N, K])
-        :param Y: list(pd.DataFrame [N, G])
-        :param priors: pd.DataFrame [G, K]
-        :param prior_weight: float
-        :param remove_autoregulation: bool
-        """
-
-        # Set the data into the regression object
-        self.X = X
-        self.Y = Y
-        self.n_tasks = len(X)
-
-        # Set the priors and weight into the regression object
-        self.priors = priors
-        self.prior_weight = float(prior_weight)
-
-        # Construct a list of TFs & genes if they are not passed in
-        if tfs is None or genes is None:
-            tfs, genes = [], []
-            for design, response in zip(X, Y):
-                tfs.append(design.columns)
-                genes.append(response.columns)
-            self.tfs = filter_genes_on_tasks(tfs, "intersection")
-            self.genes = filter_genes_on_tasks(genes, "intersection")
-        else:
-            self.tfs, self.genes = tfs, genes
-
-        # Set the regulators and targets into the regression object
-        self.K, self.G = len(tfs), len(genes)
-        self.remove_autoregulation = remove_autoregulation
-
-    def format_weights(self, df, col, targets, regs):
-
-        df[col] = pd.to_numeric(df[col])
-
-        out = pd.pivot_table(df, index='target',
-                             columns='regulator',
-                             values=col,
-                             fill_value=0.)
-        del out.columns.name
-        del out.index.name
-
-        out = pd.concat([out,
-                         pd.DataFrame(0., index=out.index,
-                                      columns=np.setdiff1d(regs, out.columns))], axis=1)
-        out = pd.concat([out,
-                         pd.DataFrame(0., index=np.setdiff1d(targets, out.index),
-                                      columns=out.columns)])
-        out = out.loc[targets, regs]
-
-        return (out)
-
-    def regress(self):
-        """
-        Execute multitask (AMUSR)
-
-        :return: list
-            Returns a list of regression results that the amusr_regression pileup_data can process
-        """
-
-        if MPControl.is_dask():
-            from inferelator.distributed.dask_functions import amusr_regress_dask
-            return amusr_regress_dask(self.X, self.Y, self.priors, self.prior_weight, self.n_tasks, self.genes,
-                                      self.tfs, self.G, remove_autoregulation=self.remove_autoregulation)
-
-        def regression_maker(j):
-            level = 0 if j % 100 == 0 else 2
-            utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G),
-                                 level=level)
-
-            gene = self.genes[j]
-            x, y, tasks = [], [], []
-
-            if self.remove_autoregulation:
-                tfs = [t for t in self.tfs if t != gene]
-            else:
-                tfs = self.tfs
-
-            for k in range(self.n_tasks):
-                if gene in self.Y[k]:
-                    x.append(self.X[k].loc[:, tfs].values)  # list([N, K])
-                    y.append(self.Y[k].loc[:, gene].values.reshape(-1, 1))  # list([N, 1])
-                    tasks.append(k)  # [T,]
-
-            prior = format_prior(self.priors, gene, tasks, self.prior_weight)
-            return run_regression_EBIC(x, y, tfs, tasks, gene, prior)
-
-        return MPControl.map(regression_maker, range(self.G))
-
-    def pileup_data(self, run_data):
-
-        weights = []
-        rescaled_weights = []
-
-        for k in range(self.n_tasks):
-            results_k = []
-            for res in run_data:
-                try:
-                    results_k.append(res[k])
-                except KeyError:
-                    pass
-
-            results_k = pd.concat(results_k)
-            weights_k = self.format_weights(results_k, 'weights', self.genes, self.tfs)
-            rescaled_weights_k = self.format_weights(results_k, 'resc_weights', self.genes, self.tfs)
-            rescaled_weights_k[rescaled_weights_k < 0.] = 0
-
-            weights.append(weights_k)
-            rescaled_weights.append(rescaled_weights_k)
-
-        return weights, rescaled_weights
-
-
-def format_prior(priors, gene, tasks, prior_weight):
+def _format_prior(priors, gene, tasks, prior_weight):
     """
     Returns weighted priors for one gene
     :param priors: list(pd.DataFrame [G x K]) or pd.DataFrame [G x K]
@@ -618,25 +672,25 @@ def format_prior(priors, gene, tasks, prior_weight):
         assert len(priors) == len(tasks)
         for k in tasks:
             prior = priors[k].reindex([gene]).replace(np.nan, 0)
-            priors_out.append(weight_prior(prior.loc[gene, :], prior_weight))
+            priors_out.append(_weight_prior(prior.loc[gene, :], prior_weight))
 
     # Otherwise just use the same prior for each task
     else:
         prior = priors.reindex([gene]).replace(np.nan, 0)
-        priors_out = [weight_prior(prior.loc[gene, :], prior_weight)] * len(tasks)
+        priors_out = [_weight_prior(prior.loc[gene, :], prior_weight)] * len(tasks)
 
     # Return a [K x T]
     priors_out = np.transpose(np.asarray(priors_out))
     return priors_out
 
 
-def weight_prior(prior, prior_weight):
+def _weight_prior(prior, prior_weight):
     """
     Weight priors
     :param prior: pd.Series [K] or np.ndarray [K,]
         The prior information
     :param prior_weight: numeric
-        How much to weight priors
+        How much to weight priors. If this is 1, do not weight prior terms differently
     :return prior: pd.Series [K] or np.ndarray [K,]
         Weighted priors
     """
@@ -653,6 +707,35 @@ def weight_prior(prior, prior_weight):
     # Reweight priors
     prior = prior / prior.sum() * len(prior)
     return prior
+
+
+def _format_weights(df, col, targets, regs):
+    """
+    Reformat the edge table (target -> regulator) that's output by amusr into a pivoted table that the rest of the
+    inferelator workflow can handle
+    :param df: pd.DataFrame
+        An edge table (regulator -> target) with columns containing model values
+    :param col:
+        Which column to pivot into values
+    :param targets: list
+        A list of target genes (the index of the output data)
+    :param regs: list
+        A list of regulators (the columns of the output data)
+    :return out: pd.DataFrame [G x K]
+        A [targets x regulators] dataframe pivoted from the edge dataframe
+    """
+
+    # Make sure that the value column is all numeric
+    df[col] = pd.to_numeric(df[col])
+
+    # Pivot an edge table into a matrix of values
+    out = pd.pivot_table(df, index='target', columns='regulator', values=col, fill_value=0.)
+
+    # Reindex to a [targets x regulators] dataframe and fill anything missing with 0s
+    out = out.reindex(targets).reindex(regs, axis=1)
+    out = out.fillna(value=0.)
+
+    return out
 
 
 class AMUSRRegressionWorkflow(base_regression.RegressionWorkflow):
