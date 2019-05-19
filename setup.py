@@ -1,7 +1,12 @@
 import os
 from setuptools import setup
+import sys
 
-install_requires = ["numpy", "scipy<=1.2.1", "pandas", "scikit-learn<=0.20.0", "matplotlib<3.0"]
+if sys.version_info[0] == 2:
+    install_requires = ["numpy", "scipy<=1.2.1", "pandas", "scikit-learn<=0.20.0", "matplotlib<3.0"]
+elif sys.version_info[0] == 3:
+    install_requires = ["numpy", "scipy", "pandas", "scikit-learn", "matplotlib"]
+
 tests_require = ["coverage", "nose"]
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
