@@ -8,19 +8,21 @@ from inferelator.utils import Validator as check
 from inferelator.postprocessing.model_performance import RankSummaryPR, RankSumming
 
 FILTER_METHODS = ("overlap", "keep_all_gold_standard")
+DEFAULT_BOOTSTRAP_THRESHOLD = 0.5
+DEFAULT_FILTER_METHOD = "overlap"
 
 
 class ResultsProcessor:
     # Data
     betas = None
     rescaled_betas = None
-    filter_method = None
+    filter_method = DEFAULT_FILTER_METHOD
 
     # Processed Network
     network_data = None
 
     # Cutoffs
-    threshold = None
+    threshold = DEFAULT_BOOTSTRAP_THRESHOLD
 
     # File names
     network_file_name = "network.tsv"
@@ -28,7 +30,7 @@ class ResultsProcessor:
     threshold_file_name = "betas_stack.tsv"
     pr_curve_file_name = "pr_curve.pdf"
 
-    def __init__(self, betas, rescaled_betas, threshold=0.5, filter_method='overlap'):
+    def __init__(self, betas, rescaled_betas, threshold=None, filter_method=None):
         """
         :param betas: list(pd.DataFrame[G x K])
         :param rescaled_betas: list(pd.DataFrame[G x K])
@@ -43,11 +45,11 @@ class ResultsProcessor:
         assert check.dataframes_align(rescaled_betas)
         self.rescaled_betas = rescaled_betas
 
-        assert check.argument_enum(filter_method, FILTER_METHODS)
-        self.filter_method = filter_method
+        assert check.argument_enum(filter_method, FILTER_METHODS, allow_none=True)
+        self.filter_method = self.filter_method if filter_method is None else filter_method
 
-        assert check.argument_numeric(threshold, 0, 1)
-        self.threshold = threshold
+        assert check.argument_numeric(threshold, 0, 1, allow_none=True)
+        self.threshold = self.threshold if threshold is None else threshold
 
     def summarize_network(self, output_dir, gold_standard, priors):
         """
@@ -67,8 +69,7 @@ class ResultsProcessor:
         assert check.argument_type(priors, pd.DataFrame)
 
         pr_calc = RankSummaryPR(self.rescaled_betas, gold_standard, filter_method=self.filter_method)
-        beta_sign, beta_nonzero = self.summarize(self.betas)
-        beta_threshold = self.passes_threshold(beta_nonzero, len(self.betas), self.threshold)
+        beta_threshold, beta_sign, beta_nonzero = self.threshold_and_summarize(self.betas, self.threshold)
         resc_betas_mean, resc_betas_median = self.mean_and_median(self.rescaled_betas)
         extra_cols = {'beta.sign.sum': beta_sign, 'var.exp.median': resc_betas_median}
 
