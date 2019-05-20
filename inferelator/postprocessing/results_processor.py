@@ -137,7 +137,7 @@ class ResultsProcessor:
         """
 
         assert check.argument_type(pr_calc, RankSumming)
-        assert check.argument_type(priors, pd.DataFrame)
+        assert check.argument_type(priors, pd.DataFrame, allow_none=True)
         assert check.argument_type(beta_threshold, pd.DataFrame, allow_none=True)
         assert check.argument_numeric(confidence_threshold, 0, 1)
 
@@ -158,13 +158,15 @@ class ResultsProcessor:
             del network_data['beta_threshold']
 
         # Convert each column's data to a dataframe with a multiindex
-        prior_data = ResultsProcessor.melt_and_reindex_dataframe(priors, "prior")
         gold_data = ResultsProcessor.melt_and_reindex_dataframe(pr_calc.gold_standard, "gold_standard")
         recall_data = ResultsProcessor.melt_and_reindex_dataframe(recall_data, "recall")
         precision_data = ResultsProcessor.melt_and_reindex_dataframe(precision_data, "precision")
 
+        if priors is not None:
+            prior_data = ResultsProcessor.melt_and_reindex_dataframe(priors, "prior")
+            network_data = network_data.join(prior_data, on=["target", "regulator"])
+
         # Join each column's data to the network edges
-        network_data = network_data.join(prior_data, on=["target", "regulator"])
         network_data = network_data.join(gold_data, on=["target", "regulator"])
         network_data = network_data.join(precision_data, on=["target", "regulator"])
         network_data = network_data.join(recall_data, on=["target", "regulator"])
