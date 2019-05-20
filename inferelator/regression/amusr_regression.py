@@ -529,7 +529,6 @@ def ebic(X, Y, model_weights, n_tasks, n_samples, n_preds, gamma=1, min_rss=MIN_
 
     Extended Bayesian information criteria for model selection with large model spaces
     Jiahua Chen & Zehua Chen, Biometrika, Volume 95, Issue 3, September 2008, Pages 759–771,
-    https://doi.org/10.1093/biomet/asn034
 
     :param X: list(np.ndarray [N x K]) [T]
         List consisting of design matrixes for each task
