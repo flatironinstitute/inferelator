@@ -69,7 +69,6 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
     def read_metadata(self, file=None):
         """
         Load a list of metadata files (as tasks) or call the workflowbase loader
-        TODO: Break this up and clean this up
         """
 
         file = file if file is not None else self.meta_data_file
@@ -77,33 +76,49 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
         # Load a list of metadatas from a list of files
         # Create a default metadata if the file name is None
         if isinstance(file, list):
-
-            assert len(file) == self.n_tasks
-            self.meta_data = []
-            
-            for task_id, task_meta in enumerate(file):
-                if task_meta is None:
-                    self.set_metadata_handler(task_id)
-                    meta_handler = MetadataHandler.get_handler()
-                    self.meta_data.append(meta_handler.create_default_meta_data(self.expression_matrix[task_id]))
-                else:
-                    self.meta_data.append(self.input_dataframe(task_meta, index_col=None))
-
+            self.read_metadata_list(file)
         # Extract the metadata from each expression matrix
         elif isinstance(self.expression_matrix, list) and self.extract_metadata_from_expression_matrix:
-            if not isinstance(self.expression_matrix_metadata[0], list):
-                expr_meta_cols = [self.expression_matrix_metadata] * len(self.expression_matrix)
-            else:
-                assert len(self.expression_matrix_metadata) == self.n_tasks
-                expr_meta_cols = self.expression_matrix_metadata
-
-            self.meta_data = [None] * len(self.expression_matrix)
-
-            for task_id in range(len(self.expression_matrix)):
-                processed_data = self.dataframe_split(self.expression_matrix[task_id], expr_meta_cols[task_id])
-                self.expression_matrix[task_id], self.meta_data[task_id] = processed_data
+            self.extract_metadata_from_list()
         else:
             super(MultitaskLearningWorkflow, self).read_metadata(file=file)
+
+    def read_metadata_list(self, file_list):
+        """
+        Read a list of metadata file names into a list of metadata dataframes
+        :param file_list:
+        """
+
+        assert len(file_list) == self.n_tasks
+        self.meta_data = []
+
+        for task_id, task_meta in enumerate(file_list):
+            if task_meta is None:
+                self.set_metadata_handler(task_id)
+                meta_handler = MetadataHandler.get_handler()
+                self.meta_data.append(meta_handler.create_default_meta_data(self.expression_matrix[task_id]))
+            else:
+                self.meta_data.append(self.input_dataframe(task_meta, index_col=None))
+
+    def extract_metadata_from_list(self):
+        """
+        Process a list of expression data dataframes to extract any metadata columns set in
+        self.expression_matrix_metadata
+        """
+
+        # If self.expression_matrix_metadata is a list of lists, use each list as a set of columns to extract
+        if isinstance(self.expression_matrix_metadata[0], list):
+            assert len(self.expression_matrix_metadata) == self.n_tasks
+            expr_meta_cols = self.expression_matrix_metadata
+        # If self.expression_matrix_metadata is a list of column names, use those columns for every expression matrix
+        else:
+            expr_meta_cols = [self.expression_matrix_metadata] * len(self.expression_matrix)
+
+        # For every task, extract the metadata from the expression matrix
+        self.meta_data = [None] * len(self.expression_matrix)
+        for task_id in range(len(self.expression_matrix)):
+            processed_data = self.dataframe_split(self.expression_matrix[task_id], expr_meta_cols[task_id])
+            self.expression_matrix[task_id], self.meta_data[task_id] = processed_data
 
     def set_metadata_handler(self, task_id):
         """
