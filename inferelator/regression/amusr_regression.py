@@ -596,7 +596,7 @@ def _final_weights(X, y, TFs, gene):
         A design matrix with N samples and k non-zero predictors
     :param y: np.ndarray [N x 1]
         A response matrix with N samples of a specific gene expression
-    :param TFs: list()
+    :param TFs: list() or np.ndarray or pd.Series
         A list of non-zero TFs (k) included in the model
     :param gene: str
         The gene modeled
@@ -607,7 +607,7 @@ def _final_weights(X, y, TFs, gene):
 
     assert check.argument_type(X, np.ndarray)
     assert check.argument_type(y, np.ndarray)
-    assert check.argument_type(TFs, list)
+    assert check.argument_type(TFs, (list, np.ndarray, pd.Series))
 
     n_preds = len(TFs)
 
