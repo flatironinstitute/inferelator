@@ -70,6 +70,12 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
                                     columns=self.betas[0][0].columns)
         overall_threshold = overall_sign.copy()
 
+        if not isinstance(priors, list):
+            priors = [priors] * len(self.tasks_names)
+            skip_final_prior = False
+        else:
+            skip_final_prior = True
+
         self.tasks_networks = {}
         for task_id, task_dir in enumerate(self.tasks_names):
             pr_calc = model_performance.RankSummaryPR(self.rescaled_betas[task_id], gold_standard,
@@ -87,8 +93,8 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
             utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=pr_calc.aupr), level=0)
 
             if self.write_task_files is True and output_dir is not None:
-                task_net = self.write_output_files(pr_calc, os.path.join(output_dir, task_dir), priors, task_threshold,
-                                                   network_data)
+                task_net = self.write_output_files(pr_calc, os.path.join(output_dir, task_dir), priors[task_id],
+                                                   task_threshold, network_data)
                 self.tasks_networks[task_id] = task_net
 
         overall_pr_calc = model_performance.RankSummaryPR(overall_confidences, gold_standard,
@@ -100,7 +106,9 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
 
         utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=overall_pr_calc.aupr), level=0)
 
-        self.network_data = self.write_output_files(overall_pr_calc, output_dir, priors, overall_threshold,
+        priors = None if skip_final_prior else priors
+
+        self.network_data = self.write_output_files(overall_pr_calc, output_dir, priors[0], overall_threshold,
                                                     network_data, threshold_network=False)
 
         # Calculate how many interactions are stable (are above the combined confidence threshold)
