@@ -166,8 +166,6 @@ def run_regression_EBIC(X, Y, TFs, tasks, gene, prior):
     n_preds = X[0].shape[1]  # The number of predictors
     n_samples = [xk.shape[0] for xk in X]  # A list of the number of samples for each task
 
-    ###### EBIC ######
-
     # Set a grid search space for the lambda parameters
     Cs = np.logspace(np.log10(0.01), np.log10(10), 20)[::-1]
     Ss = np.linspace((1.0 / n_tasks) + 0.01, 0.99, 10)[::-1]  # in paper I used 0.51 as minimum for all networks
@@ -526,9 +524,8 @@ def ebic(X, Y, model_weights, n_tasks, n_samples, n_preds, gamma=1, min_rss=MIN_
     """
     Calculate EBIC for each task, and take the mean
 
-
     Extended Bayesian information criteria for model selection with large model spaces
-    Jiahua Chen & Zehua Chen, Biometrika, Volume 95, Issue 3, September 2008, Pages 759–771,
+    https://doi.org/10.1093/biomet/asn034
 
     :param X: list(np.ndarray [N x K]) [T]
         List consisting of design matrixes for each task
@@ -563,7 +560,6 @@ def ebic(X, Y, model_weights, n_tasks, n_samples, n_preds, gamma=1, min_rss=MIN_
     EBIC = []
 
     for task_id in range(n_tasks):
-
         # Get the number of samples for this task
         task_samples = n_samples[task_id]
 
