@@ -101,4 +101,4 @@ class ElasticNetWorkflow(base_regression.RegressionWorkflow):
         Y = self.response.iloc[:, bootstrap]
         utils.Debug.vprint('Calculating betas using MEN', level=0)
         MPControl.sync_processes("pre-bootstrap")
-        return ElasticNet(X, Y).run()
+        return ElasticNet(X, Y, self.random_seed).run()
