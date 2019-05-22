@@ -139,12 +139,13 @@ class WorkflowBase(object):
         self.read_priors()
 
         # Transpose expression data to [Genes x Samples] if the columns_are_genes flag is set
-        if self.expression_matrix_columns_are_genes:
-            self.transpose_expression_matrix()
+        self.transpose_expression_matrix()
 
     def transpose_expression_matrix(self):
         # Transpose expression data
-        self.expression_matrix = self.expression_matrix.transpose()
+        if self.expression_matrix_columns_are_genes:
+            self.expression_matrix = self.expression_matrix.transpose()
+            utils.Debug.vprint("Transposing expression matrix to {sh}".format(sh=self.expression_matrix.shape), level=2)
 
     def read_expression(self, file=None):
         """

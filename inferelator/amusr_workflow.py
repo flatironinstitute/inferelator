@@ -156,8 +156,12 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
             self.expression_matrix = list(map(lambda x: x.transpose(), self.expression_matrix))
 
         # If expression_matrix isn't a list, call to the super workflow function
-        elif self.expression_matrix_columns_are_genes:
+        elif isinstance(self.expression_matrix, pd.DataFrame) and self.expression_matrix_columns_are_genes:
             super(MultitaskLearningWorkflow, self).transpose_expression_matrix()
+
+        # Don't do anything
+        else:
+            pass
 
     def read_priors(self, priors_file=None, gold_standard_file=None):
         """
@@ -224,6 +228,10 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
             Meta_data column which corresponds to task ID
 
         """
+
+        assert check.argument_type(self.meta_data, pd.DataFrame)
+        assert check.argument_type(self.expression_matrix, pd.DataFrame)
+        assert self.meta_data.shape[0] == self.expression_matrix.shape[1]
 
         meta_data_column = meta_data_column if meta_data_column is not None else self.meta_data_task_column
 
