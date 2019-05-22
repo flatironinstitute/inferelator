@@ -32,9 +32,12 @@ class ResultsProcessor:
 
     def __init__(self, betas, rescaled_betas, threshold=None, filter_method=None):
         """
-        :param betas: list(pd.DataFrame[G x K])
-        :param rescaled_betas: list(pd.DataFrame[G x K])
+        :param betas: list(pd.DataFrame[G x K]) [B]
+            A list of model weights per bootstrap
+        :param rescaled_betas: list(pd.DataFrame[G x K]) [B]
+            A list of the variance explained by each parameter per bootstrap
         :param threshold: float
+            The proportion of bootstraps which an model weight must be non-zero for inclusion in the network output
         :param filter_method: str
             How to handle gold standard filtering ('overlap' filters to beta, 'keep_all_gold_standard' doesn't filter)
         """

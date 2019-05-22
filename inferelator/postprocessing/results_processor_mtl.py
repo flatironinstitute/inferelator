@@ -4,6 +4,7 @@ import os
 
 from inferelator import default
 from inferelator import utils
+from inferelator.utils import Validator as check
 from inferelator.postprocessing import results_processor
 from inferelator.postprocessing import model_performance
 
@@ -20,29 +21,33 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
     tasks_names = None
     tasks_networks = None
 
-    def __init__(self, betas, rescaled_betas, threshold=0.5, filter_method='overlap', tasks_names=None):
+    def __init__(self, betas, rescaled_betas, threshold=None, filter_method=None, tasks_names=None):
         """
-        :param betas: list(pd.DataFrame[G x K])
-        :param rescaled_betas: list(pd.DataFrame[G x K])
+        :param betas: list(list(pd.DataFrame[G x K]) [B]) [T]
+            A list of the task inferelator outputs per bootstrap per task
+        :param rescaled_betas: list(list(pd.DataFrame[G x K]) [B]) [T]
+            A list of the variance explained by each parameter per bootstrap per task
         :param threshold: float
+            The proportion of bootstraps which an model weight must be non-zero for inclusion in the network output
         :param filter_method: str
             How to handle gold standard filtering ('overlap' filters to beta, 'keep_all_gold_standard' doesn't filter)
         :param tasks_names: list(str)
             The names for each task
         """
+
+        assert all([check.dataframes_align(b_task) for b_task in betas])
         self.betas = betas
+
+        assert all([check.dataframes_align(bresc_task) for bresc_task in rescaled_betas])
         self.rescaled_betas = rescaled_betas
-        self.filter_method = filter_method
 
-        if 1 >= threshold >= 0:
-            self.threshold = threshold
-        else:
-            raise ValueError("Threshold must be a float in the interval [0, 1]")
+        assert check.argument_enum(filter_method, results_processor.FILTER_METHODS, allow_none=True)
+        self.filter_method = self.filter_method if filter_method is None else filter_method
 
-        if tasks_names is not None:
-            self.tasks_names = tasks_names
-        else:
-            self.tasks_names = []
+        assert check.argument_numeric(threshold, 0, 1, allow_none=True)
+        self.threshold = self.threshold if threshold is None else threshold
+
+        self.tasks_names = [] if tasks_names is None else tasks_names
 
     def summarize_network(self, output_dir, gold_standard, priors, confidence_threshold=default.DEFAULT_CONF,
                           precision_threshold=default.DEFAULT_PREC):
@@ -76,9 +81,12 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
         else:
             skip_final_prior = True
 
+        if not isinstance(gold_standard, list):
+            gold_standard = [gold_standard] * len(self.tasks_names)
+
         self.tasks_networks = {}
         for task_id, task_dir in enumerate(self.tasks_names):
-            pr_calc = model_performance.RankSummaryPR(self.rescaled_betas[task_id], gold_standard,
+            pr_calc = model_performance.RankSummaryPR(self.rescaled_betas[task_id], gold_standard[task_id],
                                                       filter_method=self.filter_method)
             task_threshold, task_sign, task_nonzero = self.threshold_and_summarize(self.betas[task_id], self.threshold)
             task_resc_betas_mean, task_resc_betas_median = self.mean_and_median(self.rescaled_betas[task_id])
@@ -97,7 +105,7 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
                                                    task_threshold, network_data)
                 self.tasks_networks[task_id] = task_net
 
-        overall_pr_calc = model_performance.RankSummaryPR(overall_confidences, gold_standard,
+        overall_pr_calc = model_performance.RankSummaryPR(overall_confidences, gold_standard[0],
                                                           filter_method=self.filter_method)
 
         overall_threshold = (overall_threshold / len(overall_confidences) > self.threshold).astype(int)
@@ -106,9 +114,9 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
 
         utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=overall_pr_calc.aupr), level=0)
 
-        priors = None if skip_final_prior else priors
+        priors = None if skip_final_prior else priors[0]
 
-        self.network_data = self.write_output_files(overall_pr_calc, output_dir, priors[0], overall_threshold,
+        self.network_data = self.write_output_files(overall_pr_calc, output_dir, priors, overall_threshold,
                                                     network_data, threshold_network=False)
 
         # Calculate how many interactions are stable (are above the combined confidence threshold)
