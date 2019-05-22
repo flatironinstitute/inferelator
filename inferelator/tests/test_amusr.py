@@ -171,6 +171,14 @@ class TestAMuSRWorkflow(unittest.TestCase):
         pdt.assert_frame_equal(self.workflow.priors_data[0], self.workflow.priors_data[1])
         pdt.assert_frame_equal(self.workflow.gold_standard[0], self.workflow.gold_standard[1])
 
+    def test_taskwise_default_metadata(self):
+        self.workflow.meta_data_handlers = ["nonbranching", "branching"]
+        self.workflow.read_expression(file=["expression.tsv", "expression.tsv"])
+        self.workflow.read_metadata(file=[None, None])
+        self.assertEqual(self.workflow.meta_data[0].shape, (421, 3))
+        self.assertEqual(self.workflow.meta_data[1].shape, (421, 4))
+
+
     def test_expr_meta_mismatch(self):
         self.workflow.read_expression(file="expression.tsv")
 

@@ -122,6 +122,7 @@ class TestKVSMPController(TestMPControl):
     temp_dir = None
 
     @classmethod
+    @unittest.skipIf(not TEST_KVS, "KVS not installed")
     def setUpClass(cls):
         cls.temp_dir = tempfile.mkdtemp()
         cls.server = kvsstcp.KVSServer("", 0)
@@ -130,6 +131,7 @@ class TestKVSMPController(TestMPControl):
         MPControl.connect(host=cls.server.cinfo[0], port=cls.server.cinfo[1])
 
     @classmethod
+    @unittest.skipIf(not TEST_KVS, "KVS not installed")
     def tearDownClass(cls):
         super(TestKVSMPController, cls).tearDownClass()
         if cls.server is not None:
@@ -163,6 +165,16 @@ class TestKVSMPController(TestMPControl):
 class TestMultiprocessingMPController(TestMPControl):
     name = "multiprocessing"
 
+    @classmethod
+    @unittest.skipIf(not TEST_PATHOS, "Pathos not installed")
+    def setUpClass(cls):
+        super(TestMultiprocessingMPController, cls).setUpClass()
+
+    @classmethod
+    @unittest.skipIf(not TEST_PATHOS, "Pathos not installed")
+    def tearDownClass(cls):
+        super(TestMultiprocessingMPController, cls).tearDownClass()
+
     def test_mp_connect(self):
         self.assertTrue(MPControl.is_initialized)
 
@@ -184,6 +196,7 @@ class TestDaskLocalMPController(TestMPControl):
     tempdir = None
 
     @classmethod
+    @unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
     def setUpClass(cls):
         cls.tempdir = tempfile.mkdtemp()
         MPControl.shutdown()
@@ -191,6 +204,7 @@ class TestDaskLocalMPController(TestMPControl):
         MPControl.connect(local_dir=cls.tempdir, n_workers=0)
 
     @classmethod
+    @unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
     def tearDownClass(cls):
         super(TestDaskLocalMPController, cls).tearDownClass()
         if cls.tempdir is not None:
@@ -217,6 +231,7 @@ class TestDaskHPCMPController(TestMPControl):
     tempdir = None
 
     @classmethod
+    @unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
     def setUpClass(cls):
         cls.tempdir = tempfile.mkdtemp()
         MPControl.shutdown()
@@ -251,6 +266,7 @@ class TestDaskHPCMPController(TestMPControl):
         MPControl.connect()
 
     @classmethod
+    @unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
     def tearDownClass(cls):
         super(TestDaskHPCMPController, cls).tearDownClass()
         if cls.tempdir is not None:

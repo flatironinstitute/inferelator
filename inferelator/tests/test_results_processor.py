@@ -2,6 +2,7 @@ from __future__ import division
 
 import unittest
 from inferelator.postprocessing import results_processor
+from inferelator.postprocessing import results_processor_mtl
 from inferelator.postprocessing import model_performance
 import pandas as pd
 import numpy as np
@@ -369,3 +370,13 @@ class TestPRProcessor(TestResults):
                                                       file_name=None)
         self.assertFalse(os.path.exists(file_name))
         shutil.rmtree(temp_dir)
+
+
+class TestMTLResults(TestResults):
+
+    def test_mtl_multiple_priors(self):
+        rp = results_processor_mtl.ResultsProcessorMultiTask([[self.beta1], [self.beta1]], [[self.beta2], [self.beta2]])
+        rp.write_task_files = False
+        aupr, conf, prec = rp.summarize_network(None, [self.gold_standard, self.gold_standard],
+                                                [self.prior, self.prior])
+        self.assertEqual(aupr, 1)
