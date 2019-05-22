@@ -2,10 +2,8 @@ import unittest
 
 from inferelator.crossvalidation_workflow import create_puppet_workflow
 from inferelator import tfa_workflow
-from inferelator.regression import base_regression
-from inferelator.regression import bbsr_python
-from inferelator.regression import elasticnet_python
-from inferelator.regression import amusr_regression
+from inferelator.postprocessing.results_processor_mtl import ResultsProcessorMultiTask
+from inferelator.regression.bbsr_multitask import BBSRByTaskRegressionWorkflow
 
 import pandas as pd
 
@@ -40,8 +38,8 @@ class TestRegressionFactory(unittest.TestCase):
 
     def test_bbsr(self):
 
-        self.workflow = create_puppet_workflow(base_class=tfa_workflow.TFAWorkFlow,
-                                               regression_class=bbsr_python.BBSRRegressionWorkflow)
+        self.workflow = create_puppet_workflow(base_class="tfa",
+                                               regression_class="bbsr")
         self.workflow = self.workflow(self.expr.transpose(), self.meta, self.prior, self.gold_standard)
         self.workflow.gene_list = self.gene_list
         self.workflow.tf_names = self.tf_names
@@ -52,12 +50,42 @@ class TestRegressionFactory(unittest.TestCase):
 
     def test_elasticnet(self):
 
-        self.workflow = create_puppet_workflow(base_class=tfa_workflow.TFAWorkFlow,
-                                               regression_class=elasticnet_python.ElasticNetWorkflow)
+        self.workflow = create_puppet_workflow(base_class="tfa",
+                                               regression_class="elasticnet")
         self.workflow = self.workflow(self.expr.transpose(), self.meta, self.prior, self.gold_standard)
         self.workflow.gene_list = self.gene_list
         self.workflow.tf_names = self.tf_names
         self.workflow.meta_data_file = None
         self.workflow.read_metadata()
+        self.workflow.run()
+        self.assertEqual(self.workflow.aupr, 1)
+
+    def test_amusr(self):
+        self.workflow = create_puppet_workflow(base_class="amusr",
+                                               regression_class="amusr",
+                                               result_processor_class=ResultsProcessorMultiTask)
+
+        self.workflow = self.workflow([self.expr.transpose(), self.expr.transpose()],
+                                      [self.meta, self.meta], self.prior, self.gold_standard)
+
+        self.workflow.n_tasks = 2
+        self.workflow.gene_list = self.gene_list
+        self.workflow.tf_names = self.tf_names
+        self.workflow.meta_data_file = None
+        self.workflow.run()
+        self.assertAlmostEqual(self.workflow.aupr, 0.81666, places=4)
+
+    def test_mtl_bbsr(self):
+        self.workflow = create_puppet_workflow(base_class="amusr",
+                                               regression_class=BBSRByTaskRegressionWorkflow,
+                                               result_processor_class=ResultsProcessorMultiTask)
+
+        self.workflow = self.workflow([self.expr.transpose(), self.expr.transpose()],
+                                      [self.meta, self.meta], self.prior, self.gold_standard)
+
+        self.workflow.n_tasks = 2
+        self.workflow.gene_list = self.gene_list
+        self.workflow.tf_names = self.tf_names
+        self.workflow.meta_data_file = None
         self.workflow.run()
         self.assertEqual(self.workflow.aupr, 1)
