@@ -103,7 +103,7 @@ class AMuSR_regression(base_regression.BaseRegression):
                     y.append(self.Y[k].loc[:, gene].values.reshape(-1, 1))  # list([N, 1])
                     tasks.append(k)  # [T,]
 
-            prior = _format_prior(self.priors, gene, tasks, self.prior_weight)
+            prior = format_prior(self.priors, gene, tasks, self.prior_weight)
             return run_regression_EBIC(x, y, tfs, tasks, gene, prior)
 
         return MPControl.map(regression_maker, range(self.G))
@@ -639,7 +639,7 @@ def _final_weights(X, y, TFs, gene):
     return out_weights
 
 
-def _format_prior(priors, gene, tasks, prior_weight):
+def format_prior(priors, gene, tasks, prior_weight):
     """
     Returns weighted priors for one gene
     :param priors: list(pd.DataFrame [G x K]) or pd.DataFrame [G x K]
