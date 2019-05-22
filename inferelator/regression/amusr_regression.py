@@ -312,7 +312,7 @@ def scale_list_of_arrays(X):
 
     assert check.argument_type(X, list)
 
-    return [StandardScaler().fit_transform(xk) for xk in X]
+    return [StandardScaler().fit_transform(xk.astype(float)) for xk in X]
 
 
 def _covariance_by_task(X, Y):
