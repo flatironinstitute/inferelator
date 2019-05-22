@@ -19,8 +19,6 @@ DEFAULT_INTERFACE = 'ib0'
 DEFAULT_WALLTIME = '1:00:00'
 
 ENV_EXTRA = ['module purge',
-             'module load python/intel/2.7.12',
-             'module load gcc/6.3.0',
              'export MKL_NUM_THREADS=1',
              'export OPENBLAS_NUM_THREADS=1',
              'export NUMEXPR_NUM_THREADS=1']
@@ -38,6 +36,7 @@ try:
     DEFAULT_LOCAL_DIR = os.environ['TMPDIR']
 except KeyError:
     DEFAULT_LOCAL_DIR = 'dask-worker-space'
+
 
 # This is the worst thing I've ever written
 def memory_limit_0(command_template):
@@ -167,3 +166,13 @@ class DaskHPCClusterController(AbstractController):
         This is a thing for KVS. Just return True.
         """
         return True
+
+    @classmethod
+    def add_worker_env_line(cls, line):
+        """
+        Add a line to the worker environment declaration
+        This gets put into the sbatch script for workers
+        This can be used to load modules, activate conda, etc
+        """
+
+        cls.env_extra.append(line)
