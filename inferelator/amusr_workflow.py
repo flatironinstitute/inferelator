@@ -156,7 +156,7 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
             self.expression_matrix = list(map(lambda x: x.transpose(), self.expression_matrix))
 
         # If expression_matrix isn't a list, call to the super workflow function
-        else:
+        elif self.expression_matrix_columns_are_genes:
             super(MultitaskLearningWorkflow, self).transpose_expression_matrix()
 
     def read_priors(self, priors_file=None, gold_standard_file=None):

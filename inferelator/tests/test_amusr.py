@@ -51,11 +51,11 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.assertEqual(len(self.workflow.task_meta_data), 3)
         self.assertEqual(len(self.workflow.task_bootstraps), 3)
         pdt.assert_frame_equal(self.workflow.task_design[0],
-                               pd.DataFrame([[16., 5.], [15., 15.]], index=["gene3", "gene6"], columns = [0, 6]),
+                               pd.DataFrame([[16., 5.], [15., 15.]], index=["gene3", "gene6"], columns=[0, 6]),
                                check_dtype=False)
         pdt.assert_frame_equal(self.workflow.task_response[0],
                                pd.DataFrame([[2, 3], [28, 27], [16, 5], [3, 4]],
-                                            index=["gene1", "gene2", "gene4", "gene6"], columns = [0, 6]),
+                                            index=["gene1", "gene2", "gene4", "gene6"], columns=[0, 6]),
                                check_dtype=False)
 
     def test_result_processor_random(self):
@@ -105,7 +105,7 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.workflow.read_expression(file="expression.tsv")
         self.workflow.read_metadata(file="meta_data.tsv")
         self.workflow.meta_data['Group'] = "A"
-        self.workflow.meta_data.loc[[False]*200 + [True]*221, "Group"] = "B"
+        self.workflow.meta_data.loc[[False] * 200 + [True] * 221, "Group"] = "B"
         self.workflow.meta_data_task_column = "Group"
         self.workflow.prepare_tasks()
 
@@ -116,7 +116,7 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.assertEqual(self.workflow.meta_data[0].shape, (200, 6))
         self.assertEqual(self.workflow.meta_data[1].shape, (221, 6))
 
-    def test_load_split_data_from_list(self):
+    def test_load_taskwise_files(self):
         self.workflow.read_expression(file=["expression.tsv", "expression.tsv"])
         self.workflow.read_metadata(file=["meta_data.tsv", "meta_data.tsv"])
         self.workflow.prepare_tasks()
@@ -129,8 +129,49 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.assertEqual(self.workflow.meta_data[0].shape, (421, 5))
         self.assertEqual(self.workflow.meta_data[1].shape, (421, 5))
 
-    def test_expr_meta_mismatch(self):
+    def test_taskwise_meta_with_defaults(self):
+        self.workflow.read_expression(file=["expression.tsv", "expression.tsv"])
+        self.workflow.read_metadata(file=["meta_data.tsv", None])
+        self.workflow.prepare_tasks()
+        self.workflow.check_tasks()
 
+        self.assertEqual(self.workflow.n_tasks, 2)
+        self.assertListEqual(self.workflow.tasks_names, ["0", "1"])
+        self.assertEqual(self.workflow.expression_matrix[0].shape, (100, 421))
+        self.assertEqual(self.workflow.expression_matrix[1].shape, (100, 421))
+        self.assertEqual(self.workflow.meta_data[0].shape, (421, 5))
+        self.assertEqual(self.workflow.meta_data[1].shape, (421, 4))
+
+    def test_extract_taskwise_metadata(self):
+        mixed_data = pd.concat((self.expr.transpose(), self.meta), axis=1)
+        self.workflow.expression_matrix = [mixed_data.copy(), mixed_data.copy()]
+        self.workflow.n_tasks = 2
+        self.workflow.expression_matrix_columns_are_genes = True
+        self.workflow.extract_metadata_from_expression_matrix = True
+        self.workflow.expression_matrix_metadata = ["Condition", "Genotype"]
+
+        self.workflow.read_metadata()
+        self.workflow.transpose_expression_matrix()
+        self.workflow.prepare_tasks()
+        self.workflow.check_tasks()
+
+        self.assertEqual(self.workflow.n_tasks, 2)
+        self.assertListEqual(self.workflow.tasks_names, ["0", "1"])
+        self.assertEqual(self.workflow.expression_matrix[0].shape, (6, 10))
+        self.assertEqual(self.workflow.expression_matrix[1].shape, (6, 10))
+        self.assertEqual(self.workflow.meta_data[0].shape, (10, 2))
+        self.assertEqual(self.workflow.meta_data[1].shape, (10, 2))
+
+    def test_taskwise_prior_gs(self):
+        self.workflow.read_priors(priors_file=["gold_standard.tsv", "gold_standard.tsv"],
+                                  gold_standard_file=["gold_standard.tsv", "gold_standard.tsv"])
+
+        self.assertTrue(isinstance(self.workflow.priors_data, list))
+        self.assertTrue(isinstance(self.workflow.gold_standard, list))
+        pdt.assert_frame_equal(self.workflow.priors_data[0], self.workflow.priors_data[1])
+        pdt.assert_frame_equal(self.workflow.gold_standard[0], self.workflow.gold_standard[1])
+
+    def test_expr_meta_mismatch(self):
         self.workflow.read_expression(file="expression.tsv")
 
         with self.assertRaises(AssertionError):
