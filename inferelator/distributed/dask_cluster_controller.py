@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function
 import time
 import os
+import sys
 
 from dask import distributed
 from dask_jobqueue import SLURMCluster
@@ -110,6 +111,7 @@ class DaskHPCClusterController(AbstractController):
     cluster_controller_options = CONTROLLER_EXTRA
     interface = DEFAULT_INTERFACE
     local_directory = DEFAULT_LOCAL_DIR
+    python = sys.executable + " -O"
 
     @classmethod
     def connect(cls, *args, **kwargs):
@@ -122,7 +124,8 @@ class DaskHPCClusterController(AbstractController):
                                                          job_cpu=cls.job_cpu, cores=cls.cores, processes=cls.processes,
                                                          job_mem=cls.job_mem, env_extra=cls.env_extra,
                                                          interface=cls.interface, local_directory=cls.local_directory,
-                                                         memory=cls.memory, job_extra=cls.cluster_controller_options)
+                                                         memory=cls.memory, job_extra=cls.cluster_controller_options,
+                                                         python=cls.python)
 
         # Deactivate the worker memory nanny
         if cls.worker_memory_limit == 0:
