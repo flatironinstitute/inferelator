@@ -35,10 +35,9 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
             The names for each task
         """
 
-        assert all([check.dataframes_align(b_task) for b_task in betas])
-        self.betas = betas
+        assert all([check.dataframes_align(b_task + bresc_task) for b_task, bresc_task in zip(betas, rescaled_betas)])
 
-        assert all([check.dataframes_align(bresc_task) for bresc_task in rescaled_betas])
+        self.betas = betas
         self.rescaled_betas = rescaled_betas
 
         assert check.argument_enum(filter_method, results_processor.FILTER_METHODS, allow_none=True)
@@ -47,7 +46,8 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
         assert check.argument_numeric(threshold, 0, 1, allow_none=True)
         self.threshold = self.threshold if threshold is None else threshold
 
-        self.tasks_names = [] if tasks_names is None else tasks_names
+        # If there are no task names then make up some defaults
+        self.tasks_names = list(map(str, range(len(self.betas)))) if tasks_names is None else tasks_names
 
     def summarize_network(self, output_dir, gold_standard, priors, confidence_threshold=default.DEFAULT_CONF,
                           precision_threshold=default.DEFAULT_PREC):
@@ -68,6 +68,9 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
         :return precision_interactions: int
             Number of interactions with a combined confidence over the precision from precision_threshold
         """
+
+        assert len(self.betas) ==  len(self.tasks_names)
+        assert len(self.rescaled_betas) == len(self.tasks_names)
 
         overall_confidences = []
         overall_resc_betas = []
