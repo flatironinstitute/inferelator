@@ -35,6 +35,12 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
             The names for each task
         """
 
+        assert check.argument_type(betas, list)
+        assert check.argument_list_type(betas, list)
+        assert check.argument_list_type(betas[0], pd.DataFrame)
+        assert check.argument_type(rescaled_betas, list)
+        assert check.argument_list_type(rescaled_betas, list)
+        assert check.argument_list_type(rescaled_betas[0], pd.DataFrame)
         assert all([check.dataframes_align(b_task + bresc_task) for b_task, bresc_task in zip(betas, rescaled_betas)])
 
         self.betas = betas

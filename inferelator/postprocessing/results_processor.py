@@ -42,9 +42,13 @@ class ResultsProcessor:
             How to handle gold standard filtering ('overlap' filters to beta, 'keep_all_gold_standard' doesn't filter)
         """
 
+        assert check.argument_type(betas, list)
+        assert check.argument_type(betas[0], pd.DataFrame)
         assert check.dataframes_align(betas)
         self.betas = betas
 
+        assert check.argument_type(rescaled_betas, list)
+        assert check.argument_type(rescaled_betas[0], pd.DataFrame)
         assert check.dataframes_align(rescaled_betas)
         self.rescaled_betas = rescaled_betas
 
