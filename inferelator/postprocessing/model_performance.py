@@ -369,3 +369,8 @@ class RankSummaryPR(RankSumming):
         plt.annotate("aupr = {aupr}".format(aupr=aupr), xy=(0.4, 0.05), xycoords='axes fraction')
         plt.savefig(os.path.join(output_dir, file_name))
         plt.close()
+
+        # produce tsv dataframe of recall and precision
+        precision_recall = pd.DataFrame(np.column_stack([recall, precision]), columns=['recall', 'precision'])
+        file_name_pr = os.path.splitext('pr_curve.pdf')[0] + '.tsv'
+        precision_recall.to_csv(os.path.join(output_dir, file_name_pr), sep='\t', index=False)
