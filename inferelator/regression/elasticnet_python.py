@@ -4,6 +4,7 @@ from inferelator import utils
 from inferelator.regression import base_regression
 from inferelator.distributed.inferelator_mp import MPControl
 from sklearn.linear_model import ElasticNetCV
+import copy
 
 ELASTICNET_PARAMETERS = dict(l1_ratio=[0.5, 0.7, 0.9],
                              eps=0.001,
@@ -67,6 +68,12 @@ def elastic_net(X, Y, params):
 
 class ElasticNet(base_regression.BaseRegression):
     params = ELASTICNET_PARAMETERS
+
+    def __init__(self, X, Y, random_seed):
+        self.random_seed = random_seed
+        self.params = copy.copy(ELASTICNET_PARAMETERS)
+        self.params["random_state"] = random_seed
+        super(ElasticNet, self).__init__(self, X, Y)
 
     def regress(self):
         """
