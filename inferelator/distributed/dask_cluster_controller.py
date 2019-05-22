@@ -139,13 +139,6 @@ class DaskHPCClusterController(AbstractController):
             cls.local_cluster.adapt(minimum=cls.maximum_cores, maximum=cls.maximum_cores, interval=cls.interval,
                                     wait_count=cls.wait_count)
 
-        sleep_time = 0
-        while cls.local_cluster._count_active_workers() == 0:
-            time.sleep(1)
-            if sleep_time % 60 == 0:
-                print("Awaiting workers ({sleep_time} seconds elapsed)".format(sleep_time=sleep_time))
-            sleep_time += 1
-
         cls.local_cluster.scheduler.allowed_failures = cls.allowed_failures
         cls.client = distributed.Client(cls.local_cluster)
 
@@ -176,3 +169,21 @@ class DaskHPCClusterController(AbstractController):
         """
 
         cls.env_extra.append(line)
+
+    @classmethod
+    def is_dask(cls):
+        """
+        Block when something asks if this is a dask function until the workers are alive
+        """
+
+        if cls.local_cluster._count_active_workers() > 0:
+            return True
+
+        sleep_time = 0
+        while cls.local_cluster._count_active_workers() == 0:
+            time.sleep(1)
+            if sleep_time % 60 == 0:
+                print("Awaiting workers ({sleep_time} seconds elapsed)".format(sleep_time=sleep_time))
+            sleep_time += 1
+
+        return True
