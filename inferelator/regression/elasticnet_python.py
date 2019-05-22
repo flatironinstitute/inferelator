@@ -73,7 +73,7 @@ class ElasticNet(base_regression.BaseRegression):
         self.random_seed = random_seed
         self.params = copy.copy(ELASTICNET_PARAMETERS)
         self.params["random_state"] = random_seed
-        super(ElasticNet, self).__init__(self, X, Y)
+        super(ElasticNet, self).__init__(X, Y)
 
     def regress(self):
         """
