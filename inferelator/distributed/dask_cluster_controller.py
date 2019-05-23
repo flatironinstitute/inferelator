@@ -22,7 +22,8 @@ DEFAULT_WALLTIME = '1:00:00'
 ENV_EXTRA = ['module purge',
              'export MKL_NUM_THREADS=1',
              'export OPENBLAS_NUM_THREADS=1',
-             'export NUMEXPR_NUM_THREADS=1']
+             'export NUMEXPR_NUM_THREADS=1',
+             'export PYTHONOPTIMIZE=1']
 
 CONTROLLER_EXTRA = []
 
@@ -111,7 +112,6 @@ class DaskHPCClusterController(AbstractController):
     cluster_controller_options = CONTROLLER_EXTRA
     interface = DEFAULT_INTERFACE
     local_directory = DEFAULT_LOCAL_DIR
-    python = sys.executable + " -O"
 
     @classmethod
     def connect(cls, *args, **kwargs):
@@ -124,8 +124,7 @@ class DaskHPCClusterController(AbstractController):
                                                          job_cpu=cls.job_cpu, cores=cls.cores, processes=cls.processes,
                                                          job_mem=cls.job_mem, env_extra=cls.env_extra,
                                                          interface=cls.interface, local_directory=cls.local_directory,
-                                                         memory=cls.memory, job_extra=cls.cluster_controller_options,
-                                                         python=cls.python)
+                                                         memory=cls.memory, job_extra=cls.cluster_controller_options)
 
         # Deactivate the worker memory nanny
         if cls.worker_memory_limit == 0:
