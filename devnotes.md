@@ -30,7 +30,7 @@ You will also need
 
 These are the commands that I (Kostya) ran on Ubuntu:
 
-## Fork the simonsfoundation repository (once)
+## Fork the flatiron institute repository (once)
 
 In order to make changes to the repository you will work in your own copy
 where you have complete freedom to try anything you like.  To get this copy
@@ -38,7 +38,7 @@ set up you need to create a "fork" of the primary repository and set up the
 primary repository as a "remote".
 
 To create your fork log in to github and go to 
-[https://github.com/simonsfoundation/inferelator_ng](https://github.com/simonsfoundation/inferelator_ng)
+[https://github.com/flatironinstitute/inferelator](https://github.com/flatironinstitute/inferelator)
 and click "fork"
 
 ## Install the necessary packages (once)
@@ -65,9 +65,9 @@ You might want to follow these instructions in case your name and email are not 
 ```
 This allows git to associate your name and email with any changes you make.
 
-## Cloning the forked `inferelator_ng` directory onto your machine
+## Cloning the forked `inferelator` directory onto your machine
 
-Go to the fork of `inferelator_ng` that's in your github (of form https://github.com/$USERNAME/inferelator_ng
+Go to the fork of `inferelator` that's in your github (of form https://github.com/$USERNAME/inferelator
 also linked from your github profile page), and click "clone or download" to get `$URL`
 
 To clone the fork onto your workstation type in the terminal:
@@ -78,7 +78,7 @@ git clone $URL
 
 For me, this was:
 
-```git clone https://github.com/kostyat/inferelator_ng.git```
+```git clone https://github.com/kostyat/inferelator.git```
 
 ## Set up the "remote" repository (once)
 
@@ -87,7 +87,7 @@ You will want to periodically
 This does not happen automatically -- to make it happen you need to 
 [set up the main repository as a "remote"](https://help.github.com/articles/configuring-a-remote-for-a-fork)
 
-`git remote add upstream https://github.com/simonsfoundation/inferelator_ng.git`
+`git remote add upstream https://github.com/flatironinstitute/inferelator.git`
 
 ## Merging changes from the remote into your fork (as needed)
 
@@ -156,7 +156,7 @@ When your pull request is approved (by someone else) your contribution is comple
 To test the process you can go try the following:
 
 ```
-cd inferelator_ng/
+cd inferelator/
 ```
 
 Change one of the files (for example the `utils.py` file), by adding a blank line or something.
