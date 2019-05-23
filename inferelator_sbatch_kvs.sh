@@ -9,9 +9,8 @@
 #SBATCH --mem=62000
 #SBATCH --time 48:00:00
 
-# Clear environment modules and load GCC
+# Clear environment modules
 module purge
-module load gcc/6.3.0
 
 # Activate conda environment
 source ~/anaconda3/bin/activate
