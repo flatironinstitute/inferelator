@@ -244,7 +244,13 @@ def amusr_fit(X, Y, lambda_B=0., lambda_S=0., cov_C=None, cov_D=None, sparse_mat
         The tolerance for the stopping criteria (convergence)
     :param min_weight: float
         Regularize any weights below this threshold to 0
-    :return combined_weights, sparse_matrix, block_matrix: np.ndarray [K x T], np.ndarray [K x T], np.ndarray [K x T]
+    :return combined_weights: np.ndarray [K x T]
+        Matrix of model coefficients for each predictor by each task that are the summation of both the task-specific
+        model and the shared model
+    :return sparse_matrix: np.ndarray [K x T]
+        Matrix of model coefficients for each predictor by each task that are unique to each task
+    :return block_matrix: np.ndarray [K x T]
+        Matrix of model coefficients for each predictor by each task that are shared between each task
     """
 
     assert check.argument_type(X, list)
@@ -279,22 +285,19 @@ def amusr_fit(X, Y, lambda_B=0., lambda_S=0., cov_C=None, cov_D=None, sparse_mat
     combined_weights = sparse_matrix + block_matrix
     for _ in range(max_iter):
 
-        # Save old weights (to check convergence)
-        old_weights = np.copy(combined_weights)
+        # Keep a reference to the old combined_weights
+        _combined_weights_old = combined_weights
 
-        # Update sparse and block coefficients
+        # Update sparse and block-sparse coefficients
         sparse_matrix = _update_sparse(cov_C, cov_D, block_matrix, sparse_matrix, lambda_S, prior)
         block_matrix = _update_block(cov_C, cov_D, block_matrix, sparse_matrix, lambda_S)
 
-        # Combine sparse matrix and block matrix to a unified weight matrix
+        # Weights matrix (W) is the sum of a sparse (S) and a block-sparse (B) matrix
         combined_weights = sparse_matrix + block_matrix
 
         # If convergence tolerance reached, break loop and move on
-        if np.max(np.abs(combined_weights - old_weights)) < tol:
+        if np.max(np.abs(combined_weights - _combined_weights_old)) < tol:
             break
-
-    # Weights matrix (W) is the sum of a sparse (S) and a block-sparse (B) matrix
-    combined_weights = sparse_matrix + block_matrix
 
     # Set small values of W to zero
     # Since we don't run the algorithm until update equals zero
@@ -373,13 +376,9 @@ def _update_sparse(cov_C, cov_D, block_matrix, sparse_matrix, lambda_S, prior):
         Penalty coefficient for the sparse matrix
     :param prior: np.ndarray [T x K]
         Matrix of known prior information
-    :return:
+    :return sparse_matrix: np.ndarray [K x T]
+        Updated matrix of model coefficients unique to each task
     """
-
-    assert cov_C.shape[0] == cov_D.shape[0]
-    assert cov_C.shape[1] == cov_D.shape[1]
-    assert block_matrix.shape == sparse_matrix.shape
-    assert check.argument_type(lambda_S, (float, int))
 
     n_features = cov_C.shape[1]
     n_tasks = cov_C.shape[0]
@@ -433,13 +432,9 @@ def _update_block(cov_C, cov_D, block_matrix, sparse_matrix, lambda_B):
         Matrix of model coefficients for each predictor by each task that are shared between each task
     :param lambda_B: float
         Penalty coefficient for the block matrix
-    :return:
+    :return block_matrix: np.ndarray [K x T]
+        Updated matrix of model coefficients that are shared between all tasks
     """
-
-    assert cov_C.shape[0] == cov_D.shape[0]
-    assert cov_C.shape[1] == cov_D.shape[1]
-    assert block_matrix.shape == sparse_matrix.shape
-    assert check.argument_type(lambda_B, (float, int))
 
     n_features = cov_C.shape[1]
     n_tasks = cov_C.shape[0]
