@@ -159,6 +159,7 @@ def create_puppet_workflow(regression_class=base_regression.RegressionWorkflow,
         write_network = True
         network_file_name = None
         pr_curve_file_name = None
+        precision_recall_file_name = None
         initialize_mp = False
 
         def __init__(self, expr_data, meta_data, prior_data, gs_data):
@@ -177,10 +178,12 @@ def create_puppet_workflow(regression_class=base_regression.RegressionWorkflow,
                 if self.write_network:
                     results.network_file_name = self.network_file_name
                     results.pr_curve_file_name = self.pr_curve_file_name
+                    results.precision_recall_file_name = self.precision_recall_file_name
                     network_file_path = self.output_dir
                 else:
                     results.network_file_name = None
                     results.pr_curve_file_name = None
+                    results.precision_recall_file_name = None
                     network_file_path = None
                 results.confidence_file_name = None
                 results.threshold_file_name = None
