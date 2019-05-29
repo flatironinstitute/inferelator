@@ -29,6 +29,7 @@ class ResultsProcessor:
     confidence_file_name = "combined_confidences.tsv"
     threshold_file_name = "betas_stack.tsv"
     pr_curve_file_name = "pr_curve.pdf"
+    precision_recall_file_name = "pr_curve.tsv"
 
     def __init__(self, betas, rescaled_betas, threshold=None, filter_method=None):
         """
