@@ -128,7 +128,7 @@ class PuppeteerWorkflow(object):
         # Tell the puppet what to name stuff (if write_network is False then no output will be produced)
         puppet.network_file_name = "network_s{seed}.tsv".format(seed=seed)
         puppet.pr_curve_file_name = "pr_curve_s{seed}.pdf".format(seed=seed)
-        puppet.precision_recall_file_name = "precision_recall_s{seed}.tsv".format(seed=seed)
+        puppet.precision_recall_file_name = "pr_curve_s{seed}.tsv".format(seed=seed)
         return puppet
 
     def assign_class_vars(self, obj):
