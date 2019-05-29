@@ -113,6 +113,8 @@ class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
                 if self.write_network:
                     puppet.network_file_name = "network_{size}_s{seed}.tsv".format(size=s_ratio, seed=seed)
                     puppet.pr_curve_file_name = "pr_curve_{size}_s{seed}.pdf".format(size=s_ratio, seed=seed)
+                    puppet.precision_recall_file_name = "precision_recall_{size}_s{seed}.tsv".format(size=s_ratio,
+                                                                                                     seed=seed)
                 puppet.run()
                 size_aupr = (s_ratio, len(nidx), seed, puppet.aupr, puppet.n_interact, puppet.precision_interact)
                 aupr_data.append(size_aupr)
@@ -214,6 +216,7 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
             if self.write_network:
                 puppet.network_file_name = "network_drop_{drop}_s{seed}.tsv".format(drop=r_name, seed=seed)
                 puppet.pr_curve_file_name = "pr_curve_{drop}_s{seed}.pdf".format(drop=r_name, seed=seed)
+                puppet.precision_recall_file_name = "precision_recall_{drop}_s{seed}.tsv".format(drop=r_name, seed=seed)
             puppet.run()
             drop_data = (r_name, seed, puppet.aupr, puppet.n_interact, puppet.precision_interact)
             aupr_data.append(drop_data)
