@@ -18,7 +18,6 @@ class NoOutputRP(results_processor.ResultsProcessor):
 
     network_file_name = None
     pr_curve_file_name = None
-    precision_recall_file_name = None
     confidence_file_name = None
     threshold_file_name = None
 
@@ -128,7 +127,6 @@ class PuppeteerWorkflow(object):
         # Tell the puppet what to name stuff (if write_network is False then no output will be produced)
         puppet.network_file_name = "network_s{seed}.tsv".format(seed=seed)
         puppet.pr_curve_file_name = "pr_curve_s{seed}.pdf".format(seed=seed)
-        puppet.precision_recall_file_name = "pr_curve_s{seed}.tsv".format(seed=seed)
         return puppet
 
     def assign_class_vars(self, obj):
@@ -159,7 +157,6 @@ def create_puppet_workflow(regression_class=base_regression.RegressionWorkflow,
         write_network = True
         network_file_name = None
         pr_curve_file_name = None
-        precision_recall_file_name = None
         initialize_mp = False
 
         def __init__(self, expr_data, meta_data, prior_data, gs_data):
@@ -178,12 +175,10 @@ def create_puppet_workflow(regression_class=base_regression.RegressionWorkflow,
                 if self.write_network:
                     results.network_file_name = self.network_file_name
                     results.pr_curve_file_name = self.pr_curve_file_name
-                    results.precision_recall_file_name = self.precision_recall_file_name
                     network_file_path = self.output_dir
                 else:
                     results.network_file_name = None
                     results.pr_curve_file_name = None
-                    results.precision_recall_file_name = None
                     network_file_path = None
                 results.confidence_file_name = None
                 results.threshold_file_name = None
