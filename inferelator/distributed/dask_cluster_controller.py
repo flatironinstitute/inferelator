@@ -1,11 +1,11 @@
 from __future__ import absolute_import, division, print_function
 import time
 import os
-import sys
 
 from dask import distributed
 from dask_jobqueue import SLURMCluster
 
+from inferelator import utils
 from inferelator.distributed import AbstractController
 
 # Maintain python 2 compatibility
@@ -185,7 +185,8 @@ class DaskHPCClusterController(AbstractController):
         while cls.local_cluster._count_active_workers() == 0:
             time.sleep(1)
             if sleep_time % 60 == 0:
-                print("Awaiting workers ({sleep_time} seconds elapsed)".format(sleep_time=sleep_time))
+                utils.Debug.vprint("Awaiting workers ({sleep_time} seconds elapsed)".format(sleep_time=sleep_time),
+                                   level=0)
             sleep_time += 1
 
         return True
