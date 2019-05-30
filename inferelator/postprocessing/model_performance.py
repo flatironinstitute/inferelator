@@ -375,4 +375,3 @@ class RankSummaryPR(RankSumming):
         precision_recall = pd.DataFrame(np.column_stack([recall, precision]), columns=['recall', 'precision'])
         file_name_pr = os.path.splitext(file_name)[0] + '.tsv'
         precision_recall.to_csv(os.path.join(output_dir, file_name_pr), sep='\t', index=False)
-        print("plot_pr_curve() returning")
