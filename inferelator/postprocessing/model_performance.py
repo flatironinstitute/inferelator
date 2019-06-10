@@ -360,7 +360,6 @@ class RankSummaryPR(RankSumming):
 
     @staticmethod
     def plot_pr_curve(recall, precision, aupr, output_dir, file_name="pr_curve.pdf", pr_curve_file="pr_curve.tsv"):
-        print("Entering plot_pr_curve()")
         if file_name is None or output_dir is None:
             return False
         plt.figure()
