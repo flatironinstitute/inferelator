@@ -22,8 +22,7 @@ DEFAULT_WALLTIME = '1:00:00'
 ENV_EXTRA = ['module purge',
              'export MKL_NUM_THREADS=1',
              'export OPENBLAS_NUM_THREADS=1',
-             'export NUMEXPR_NUM_THREADS=1',
-             'export PYTHONOPTIMIZE=1']
+             'export NUMEXPR_NUM_THREADS=1']
 
 CONTROLLER_EXTRA = []
 

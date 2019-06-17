@@ -152,7 +152,7 @@ class WorkflowBase(object):
         Read expression matrix file into expression_matrix
         """
         file = file if file is not None else self.expression_matrix_file
-
+        utils.Debug.vprint("Loading expression data file {file}".format(file=file), level=1)
         self.expression_matrix = self.input_dataframe(file)
 
     def read_tfs(self, file=None):
@@ -162,7 +162,7 @@ class WorkflowBase(object):
 
         # Load the class variable if no file is passed
         file = self.tf_names_file if file is None else file
-
+        utils.Debug.vprint("Loading TF feature names from file {file}".format(file=file), level=1)
         # Read in a dataframe with no header or index
         tfs = self.input_dataframe(file, header=None, index_col=None)
 
@@ -179,9 +179,11 @@ class WorkflowBase(object):
 
         # If the metadata is embedded in the expression matrix, extract it
         if self.extract_metadata_from_expression_matrix:
+            utils.Debug.vprint("Slicing metadata from expression matrix", level=1)
             self.expression_matrix, self.meta_data = self.dataframe_split(self.expression_matrix,
                                                                           self.expression_matrix_metadata)
         elif file is not None:
+            utils.Debug.vprint("Loading metadata file {file}".format(file=file), level=1)
             self.meta_data = self.input_dataframe(file, index_col=None)
         else:
             utils.Debug.vprint("No metadata provided. Creating a generic metadata", level=0)
@@ -195,6 +197,7 @@ class WorkflowBase(object):
         file = file if file is not None else self.gene_metadata_file
 
         if file is not None:
+            utils.Debug.vprint("Loading Gene metadata from file {file}".format(file=file), level=1)
             self.gene_metadata = self.input_dataframe(self.gene_metadata_file, index_col=None)
         else:
             return
@@ -210,8 +213,10 @@ class WorkflowBase(object):
         gold_standard_file = gold_standard_file if gold_standard_file is not None else self.gold_standard_file
 
         if priors_file is not None:
+            utils.Debug.vprint("Loading prior data from file {file}".format(file=priors_file), level=1)
             self.priors_data = self.input_dataframe(priors_file)
         if gold_standard_file is not None:
+            utils.Debug.vprint("Loading gold_standard data from file {file}".format(file=gold_standard_file), level=1)
             self.gold_standard = self.input_dataframe(gold_standard_file)
 
         if self.priors_data is None and self.gold_standard is None:
@@ -282,6 +287,7 @@ class WorkflowBase(object):
         if filename in self.file_format_overrides:
             file_settings.update(self.file_format_overrides[filename])
 
+        utils.Debug.vprint("Loading data file: {a}".format(a=self.input_path(filename)), level=2)
         # Load a dataframe
         return pd.read_csv(self.input_path(filename), **file_settings)
 
