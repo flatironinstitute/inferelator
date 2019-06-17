@@ -14,9 +14,9 @@ cd inferelator_sc
 ```
 
 ## 1) Prepare data
-The largest file needed for network inference is the expression dataset, which for yeast is larger than the github file size cut off. As a result, we host the file on dropbox, where it is publicly accessible. 
+The largest file needed for network inference is the expression dataset, which for yeast is larger than the github file size cut off. As a result, we host the file on Zenodo, where it is publicly accessible and has a unique DOI (https://doi.org/10.5281/zenodo.3247753). 
 ```
-wget https://www.dropbox.com/s/dhj4amz0wcfdn58/expression.tsv -P data/yeast
+wget https://zenodo.org/record/3247754/files/expression.tsv -P data/yeast
 ```
 
 ## 2) Install required python libraries
