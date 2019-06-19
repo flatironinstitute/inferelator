@@ -69,6 +69,7 @@ class TFAWorkFlow(workflow.WorkflowBase):
         """
         Compute Transcription Factor Activity
         """
+        # If there is a tfa driver, run it to calculate TFA from the prior & expression data
         utils.Debug.vprint('Computing Transcription Factor Activity ... ')
         tfa_calculator = self.tfa_driver(self.priors_data, self.design, self.half_tau_response)
         self.design = tfa_calculator.compute_transcription_factor_activity()
