@@ -4,6 +4,7 @@ from inferelator.crossvalidation_workflow import create_puppet_workflow
 from inferelator import tfa_workflow
 from inferelator.postprocessing.results_processor_mtl import ResultsProcessorMultiTask
 from inferelator.regression.bbsr_multitask import BBSRByTaskRegressionWorkflow
+from inferelator.regression.elasticnet_multitask import ElasticNetByTaskRegressionWorkflow
 
 import pandas as pd
 
@@ -78,6 +79,21 @@ class TestRegressionFactory(unittest.TestCase):
     def test_mtl_bbsr(self):
         self.workflow = create_puppet_workflow(base_class="amusr",
                                                regression_class=BBSRByTaskRegressionWorkflow,
+                                               result_processor_class=ResultsProcessorMultiTask)
+
+        self.workflow = self.workflow([self.expr.transpose(), self.expr.transpose()],
+                                      [self.meta, self.meta], self.prior, self.gold_standard)
+
+        self.workflow.n_tasks = 2
+        self.workflow.gene_list = self.gene_list
+        self.workflow.tf_names = self.tf_names
+        self.workflow.meta_data_file = None
+        self.workflow.run()
+        self.assertEqual(self.workflow.aupr, 1)
+
+    def test_mtl_elasticnet(self):
+        self.workflow = create_puppet_workflow(base_class="amusr",
+                                               regression_class=ElasticNetByTaskRegressionWorkflow,
                                                result_processor_class=ResultsProcessorMultiTask)
 
         self.workflow = self.workflow([self.expr.transpose(), self.expr.transpose()],
