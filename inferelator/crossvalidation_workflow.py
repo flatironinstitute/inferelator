@@ -184,8 +184,14 @@ def create_puppet_workflow(regression_class=base_regression.RegressionWorkflow,
                 results.threshold_file_name = None
                 results.write_task_files = False
                 results.tasks_names = getattr(self, "tasks_names", None)  # For multitask
-                results = results.summarize_network(network_file_path, gold_standard, priors)
-                self.aupr, self.n_interact, self.precision_interact = results
+                summary = results.summarize_network(network_file_path, gold_standard, priors)
+
+                self.network = results.network_data
+
+                if isinstance(summary, tuple):
+                    self.aupr, self.n_interact, self.precision_interact = summary
+                else:
+                    self.aupr = summary
             else:
                 self.aupr, self.n_interact, self.precision_interact = None, None, None
 
