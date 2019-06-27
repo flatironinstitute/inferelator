@@ -231,11 +231,9 @@ def process_futures_into_list(future_list):
     for finished_future, future_return in complete_gen:
         if not finished_future.cancelled():
             i, result_data = future_return
+            output_list[i] = result_data
         else:
             DaskController.client.retry(finished_future)
             complete_gen.update([finished_future])
-            continue
-
-        output_list[i] = result_data
 
     return output_list
