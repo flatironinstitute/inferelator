@@ -329,11 +329,23 @@ class WorkflowBase(object):
         """
         if self.output_dir is None:
             new_path = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-            self.output_dir = os.path.expanduser(os.path.join(self.input_dir, new_path))
-        try:
-            os.makedirs(os.path.expanduser(self.output_dir))
-        except OSError:
-            pass
+            self.output_dir = self.make_path_safe(os.path.join(self.input_dir, new_path))
+        else:
+            self.output_dir = self.make_path_safe(self.output_dir)
+
+        os.makedirs(os.path.expanduser(self.output_dir), exist_ok=True)
+
+    @staticmethod
+    def make_path_safe(path):
+        """
+        Expand relative paths to absolute paths. Pass None through.
+        :param path: str
+        :return: str
+        """
+        if path is not None:
+            return os.path.abspath(os.path.expanduser(path))
+        else:
+            return None
 
     @staticmethod
     def dataframe_split(data_frame, remove_columns):

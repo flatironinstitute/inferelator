@@ -175,7 +175,7 @@ def create_puppet_workflow(regression_class=base_regression.RegressionWorkflow,
                 if self.write_network:
                     results.network_file_name = self.network_file_name
                     results.pr_curve_file_name = self.pr_curve_file_name
-                    network_file_path = self.output_dir
+                    network_file_path = self.make_path_safe(self.output_dir)
                 else:
                     results.network_file_name = None
                     results.pr_curve_file_name = None
