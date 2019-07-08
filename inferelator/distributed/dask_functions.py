@@ -226,17 +226,26 @@ def process_futures_into_list(future_list):
 
     DaskController = MPControl.client
     output_list = [None] * len(future_list)
-    complete_gen = distributed.as_completed(future_list, with_results=True)
+    complete_gen = distributed.as_completed(future_list)
 
-    for finished_future, future_return in complete_gen:
+    for finished_future in complete_gen:
+
+        # Jobs can be cancelled in certain situations
         if finished_future.cancelled():
             # Restart cancelled futures and put them back into the work pile
             DaskController.client.retry(finished_future)
             complete_gen.update([finished_future])
-            continue
 
-        # Get the results
-        i, result_data = future_return
+        # More likely is jobs erroring as a result of cluster instability
+        elif finished_future.status == "error":
+            error = finished_future.exception()
+            utils.Debug.vprint("Restarting job (Error: {er})".format(er=error), level=1)
+            # Restart errored futures and put them back into the work pile
+            DaskController.client.retry(finished_future)
+            complete_gen.update([finished_future])
+
+        # In the event of success, get the data
+        i, result_data = finished_future.result()
         output_list[i] = result_data
 
     return output_list
