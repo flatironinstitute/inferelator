@@ -15,7 +15,7 @@ more advanced memory and task tools of dask to be used)
 DASK_SCATTER_TIMEOUT = 120
 
 
-def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remove_autoregulation=True):
+def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remove_autoregulation=True, is_restart=False):
     """
     Execute multitask (AMUSR)
 
@@ -76,7 +76,15 @@ def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remov
                    for i in range(G)]
 
     # Collect results as they finish instead of waiting for all workers to be done
-    result_list = process_futures_into_list(future_list)
+    try:
+        result_list = process_futures_into_list(future_list)
+    except KeyError:
+        utils.Debug.vprint("Unrecoverable job error; restarting")
+        if not is_restart:
+            return amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G,
+                                      remove_autoregulation=remove_autoregulation, is_restart=True)
+        else:
+            raise
 
     DaskController.client.cancel(scatter_x)
     DaskController.client.cancel(scatter_priors)
@@ -84,7 +92,7 @@ def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remov
     return result_list
 
 
-def bbsr_regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS):
+def bbsr_regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS, is_restart=False):
     """
     Execute regression (BBSR)
 
@@ -121,7 +129,14 @@ def bbsr_regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS):
                    for i in range(G)]
 
     # Collect results as they finish instead of waiting for all workers to be done
-    result_list = process_futures_into_list(future_list)
+    try:
+        result_list = process_futures_into_list(future_list)
+    except KeyError:
+        utils.Debug.vprint("Unrecoverable job error; restarting")
+        if not is_restart:
+            return bbsr_regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS, is_restart=True)
+        else:
+            raise
 
     DaskController.client.cancel(scatter_x)
     DaskController.client.cancel(scatter_pp)
@@ -130,7 +145,7 @@ def bbsr_regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS):
     return result_list
 
 
-def elasticnet_regress_dask(X, Y, params, G, genes):
+def elasticnet_regress_dask(X, Y, params, G, genes, is_restart=False):
     """
     Execute regression (ElasticNet)
 
@@ -162,14 +177,21 @@ def elasticnet_regress_dask(X, Y, params, G, genes):
                    for i in range(G)]
 
     # Collect results as they finish instead of waiting for all workers to be done
-    result_list = process_futures_into_list(future_list)
+    try:
+        result_list = process_futures_into_list(future_list)
+    except KeyError:
+        utils.Debug.vprint("Unrecoverable job error; restarting")
+        if not is_restart:
+            return elasticnet_regress_dask(X, Y, params, G, genes, is_restart=True)
+        else:
+            raise
 
     DaskController.client.cancel(scatter_x)
 
     return result_list
 
 
-def build_mi_array_dask(X, Y, bins, logtype):
+def build_mi_array_dask(X, Y, bins, logtype, is_restart=False):
     """
     Calculate MI into an array with dask (the naive map is very inefficient)
 
@@ -207,7 +229,16 @@ def build_mi_array_dask(X, Y, bins, logtype):
 
     # Build an asynchronous list of Futures for each calculation of mi_make
     future_list = [DaskController.client.submit(mi_make, i, X[:, i], scatter_y, pure=False) for i in range(m1)]
-    mi_list = process_futures_into_list(future_list)
+
+    # Collect results as they finish instead of waiting for all workers to be done
+    try:
+        mi_list = process_futures_into_list(future_list)
+    except KeyError:
+        utils.Debug.vprint("Unrecoverable job error; restarting")
+        if not is_restart:
+            return build_mi_array_dask(X, Y, bins, logtype, is_restart=True)
+        else:
+            raise
 
     # Convert the list of lists to an array
     mi = np.array(mi_list)
