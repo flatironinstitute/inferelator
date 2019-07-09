@@ -2,8 +2,9 @@ import os
 from setuptools import setup
 import sys
 
+# Set py2 version ceilings
 if sys.version_info[0] == 2:
-    install_requires = ["numpy", "scipy<=1.2.1", "pandas", "scikit-learn<=0.20.0", "matplotlib<3.0"]
+    install_requires = ["numpy", "scipy<=1.2.1", "pandas<=0.24.2", "scikit-learn<=0.20.0", "matplotlib<3.0"]
 elif sys.version_info[0] == 3:
     install_requires = ["numpy", "scipy", "pandas", "scikit-learn", "matplotlib"]
 
