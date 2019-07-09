@@ -41,6 +41,11 @@ def elastic_net(X, Y, params):
     X = X.T  # Make X into [N, K]
     Y = Y.flatten()  # Make Y into [N, ]
 
+    bool_idx = np.isnan(Y)
+    Y[bool_idx] = 0
+    X[bool_idx, :] = 0
+    X[np.isnan(X)] = 0
+
 
     # Fit the linear model using the elastic net
     model = ElasticNetCV(**params).fit(X, Y)
