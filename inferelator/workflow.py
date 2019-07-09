@@ -333,7 +333,10 @@ class WorkflowBase(object):
         else:
             self.output_dir = self.make_path_safe(self.output_dir)
 
-        os.makedirs(os.path.expanduser(self.output_dir), exist_ok=True)
+        try:
+            os.makedirs(os.path.expanduser(self.output_dir))
+        except FileExistsError:
+            pass
 
     @staticmethod
     def make_path_safe(path):
