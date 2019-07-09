@@ -52,6 +52,15 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
     # Workflow type for task processing
     cv_workflow_type = single_cell_workflow.SingleCellWorkflow
 
+    def startup_run(self):
+        self.get_data()
+
+    def startup_finish(self):
+        # Make sure tasks are set correctly
+        self.prepare_tasks()
+        self.check_tasks()
+        self.process_task_data()
+
     def read_expression(self, file=None):
         """
         Load a list of expression files (as tasks) or call the workflowbase loader
@@ -179,12 +188,6 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
             self.gold_standard = [self.input_dataframe(task_gold) for task_gold in gold_standard_file]
         elif gold_standard_file is not None:
             self.gold_standard = self.input_dataframe(gold_standard_file)
-
-    def startup_finish(self):
-        # Make sure tasks are set correctly
-        self.prepare_tasks()
-        self.check_tasks()
-        self.process_task_data()
 
     def prepare_tasks(self):
         """
