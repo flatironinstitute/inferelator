@@ -38,14 +38,14 @@ def elastic_net(X, Y, params):
     assert check.argument_type(Y, np.ndarray)
 
     (K, N) = X.shape
-    X = X.T  # Make X into [N, K]
+    X = X.T.copy()  # Make X into [N, K]
     Y = Y.flatten()  # Make Y into [N, ]
 
-    bool_idx = np.isnan(Y)
+    # Clean up any NaNs or infs in the data
+    bool_idx = np.isnan(Y) | np.isinf(Y)
     Y[bool_idx] = 0
     X[bool_idx, :] = 0
-    X[np.isnan(X)] = 0
-
+    X[np.isnan(X) | np.isinf(X)] = 0
 
     # Fit the linear model using the elastic net
     model = ElasticNetCV(**params).fit(X, Y)
