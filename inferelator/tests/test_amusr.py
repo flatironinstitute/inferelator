@@ -1,5 +1,4 @@
 import unittest
-import os
 import pandas as pd
 import numpy as np
 from inferelator.regression import amusr_regression
@@ -32,7 +31,6 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.workflow.gene_metadata = self.gene_list
         self.workflow.gene_list_index = "SystematicName"
         self.workflow.create_output_dir = lambda *x: None
-        self.workflow.input_dir = os.path.join(os.path.dirname(__file__), "../../data/dream4")
 
     def test_task_separation(self):
         self.workflow.process_priors_and_gold_standard()
@@ -51,11 +49,11 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.assertEqual(len(self.workflow.task_meta_data), 3)
         self.assertEqual(len(self.workflow.task_bootstraps), 3)
         pdt.assert_frame_equal(self.workflow.task_design[0],
-                               pd.DataFrame([[16., 5.], [15., 15.]], index=["gene3", "gene6"], columns=[0, 6]),
+                               pd.DataFrame([[16., 5.], [15., 15.]], index=["gene3", "gene6"], columns = [0, 6]),
                                check_dtype=False)
         pdt.assert_frame_equal(self.workflow.task_response[0],
                                pd.DataFrame([[2, 3], [28, 27], [16, 5], [3, 4]],
-                                            index=["gene1", "gene2", "gene4", "gene6"], columns=[0, 6]),
+                                            index=["gene1", "gene2", "gene4", "gene6"], columns = [0, 6]),
                                check_dtype=False)
 
     def test_result_processor_random(self):
@@ -101,117 +99,12 @@ class TestAMuSRWorkflow(unittest.TestCase):
                                    self.workflow.priors_data)
         self.assertAlmostEqual(self.workflow.aupr, 1)
 
-    def test_load_data_and_split(self):
-        self.workflow.read_expression(file="expression.tsv")
-        self.workflow.read_metadata(file="meta_data.tsv")
-        self.workflow.meta_data['Group'] = "A"
-        self.workflow.meta_data.loc[[False] * 200 + [True] * 221, "Group"] = "B"
-        self.workflow.meta_data_task_column = "Group"
-        self.workflow.prepare_tasks()
-
-        self.assertEqual(self.workflow.n_tasks, 2)
-        self.assertListEqual(self.workflow.tasks_names, ["A", "B"])
-        self.assertEqual(self.workflow.expression_matrix[0].shape, (100, 200))
-        self.assertEqual(self.workflow.expression_matrix[1].shape, (100, 221))
-        self.assertEqual(self.workflow.meta_data[0].shape, (200, 6))
-        self.assertEqual(self.workflow.meta_data[1].shape, (221, 6))
-
-    def test_load_taskwise_files(self):
-        self.workflow.read_expression(file=["expression.tsv", "expression.tsv"])
-        self.workflow.read_metadata(file=["meta_data.tsv", "meta_data.tsv"])
-        self.workflow.prepare_tasks()
-        self.workflow.check_tasks()
-
-        self.assertEqual(self.workflow.n_tasks, 2)
-        self.assertListEqual(self.workflow.tasks_names, ["0", "1"])
-        self.assertEqual(self.workflow.expression_matrix[0].shape, (100, 421))
-        self.assertEqual(self.workflow.expression_matrix[1].shape, (100, 421))
-        self.assertEqual(self.workflow.meta_data[0].shape, (421, 5))
-        self.assertEqual(self.workflow.meta_data[1].shape, (421, 5))
-
-    def test_taskwise_meta_with_defaults(self):
-        self.workflow.read_expression(file=["expression.tsv", "expression.tsv"])
-        self.workflow.read_metadata(file=["meta_data.tsv", None])
-        self.workflow.prepare_tasks()
-        self.workflow.check_tasks()
-
-        self.assertEqual(self.workflow.n_tasks, 2)
-        self.assertListEqual(self.workflow.tasks_names, ["0", "1"])
-        self.assertEqual(self.workflow.expression_matrix[0].shape, (100, 421))
-        self.assertEqual(self.workflow.expression_matrix[1].shape, (100, 421))
-        self.assertEqual(self.workflow.meta_data[0].shape, (421, 5))
-        self.assertEqual(self.workflow.meta_data[1].shape, (421, 4))
-
-    def test_extract_taskwise_metadata(self):
-        mixed_data = pd.concat((self.expr.transpose(), self.meta), axis=1)
-        self.workflow.expression_matrix = [mixed_data.copy(), mixed_data.copy()]
-        self.workflow.n_tasks = 2
-        self.workflow.expression_matrix_columns_are_genes = True
-        self.workflow.extract_metadata_from_expression_matrix = True
-        self.workflow.expression_matrix_metadata = ["Condition", "Genotype"]
-
-        self.workflow.read_metadata()
-        self.workflow.transpose_expression_matrix()
-        self.workflow.prepare_tasks()
-        self.workflow.check_tasks()
-
-        self.assertEqual(self.workflow.n_tasks, 2)
-        self.assertListEqual(self.workflow.tasks_names, ["0", "1"])
-        self.assertEqual(self.workflow.expression_matrix[0].shape, (6, 10))
-        self.assertEqual(self.workflow.expression_matrix[1].shape, (6, 10))
-        self.assertEqual(self.workflow.meta_data[0].shape, (10, 2))
-        self.assertEqual(self.workflow.meta_data[1].shape, (10, 2))
-
-    def test_taskwise_prior_gs(self):
-        self.workflow.read_priors(priors_file=["gold_standard.tsv", "gold_standard.tsv"],
-                                  gold_standard_file=["gold_standard.tsv", "gold_standard.tsv"])
-
-        self.assertTrue(isinstance(self.workflow.priors_data, list))
-        self.assertTrue(isinstance(self.workflow.gold_standard, list))
-        pdt.assert_frame_equal(self.workflow.priors_data[0], self.workflow.priors_data[1])
-        pdt.assert_frame_equal(self.workflow.gold_standard[0], self.workflow.gold_standard[1])
-
-    def test_taskwise_default_metadata(self):
-        self.workflow.meta_data_handlers = ["nonbranching", "branching"]
-        self.workflow.read_expression(file=["expression.tsv", "expression.tsv"])
-        self.workflow.read_metadata(file=[None, None])
-        self.assertEqual(self.workflow.meta_data[0].shape, (421, 3))
-        self.assertEqual(self.workflow.meta_data[1].shape, (421, 4))
-
-
-    def test_expr_meta_mismatch(self):
-        self.workflow.read_expression(file="expression.tsv")
-
-        with self.assertRaises(AssertionError):
-            self.workflow.read_metadata(file=["meta_data.tsv", "meta_data.tsv"])
-
-        self.workflow.n_tasks = 2
-        self.workflow.read_metadata(file=["meta_data.tsv", "meta_data.tsv"])
-        self.workflow.n_tasks = None
-
-        with self.assertRaises(NotImplementedError):
-            self.workflow.prepare_tasks()
-
-        self.workflow.expression_matrix = [self.workflow.expression_matrix, self.workflow.expression_matrix]
-
-        with self.assertRaises(ValueError):
-            self.workflow.check_tasks()
-
-        self.workflow.n_tasks = 2
-        self.assertTrue(self.workflow.check_tasks())
-
-        self.workflow.n_tasks = 4
-        with self.assertRaises(ValueError):
-            self.workflow.check_tasks()
-
-        self.workflow.expression_matrix = self.workflow.expression_matrix + self.workflow.expression_matrix
-        with self.assertRaises(ValueError):
-            self.workflow.check_tasks()
 
 
 class TestAMuSRrunner(unittest.TestCase):
 
     def test_format_priors_noweight(self):
+        runner = amusr_regression.AMuSR_regression([pd.DataFrame()], [pd.DataFrame()], None)
         tfs = ['tf1', 'tf2']
         priors = [pd.DataFrame([[0, 1], [1, 0]], index=['gene1', 'gene2'], columns=tfs),
                   pd.DataFrame([[0, 0], [1, 0]], index=['gene1', 'gene2'], columns=tfs)]
@@ -221,6 +114,7 @@ class TestAMuSRrunner(unittest.TestCase):
         npt.assert_almost_equal(gene2_prior, np.array([[1., 1.], [1., 1.]]))
 
     def test_format_priors_pweight(self):
+        runner = amusr_regression.AMuSR_regression([pd.DataFrame()], [pd.DataFrame()], None)
         tfs = ['tf1', 'tf2']
         priors = [pd.DataFrame([[0, 1], [1, 0]], index=['gene1', 'gene2'], columns=tfs),
                   pd.DataFrame([[0, 0], [1, 0]], index=['gene1', 'gene2'], columns=tfs)]
@@ -296,48 +190,3 @@ class TestAMuSRrunner(unittest.TestCase):
         regress_data = r.regress()
         for i in range(len(targets)):
             pdt.assert_frame_equal(pd.concat(regress_data[i]), out[i], check_dtype=False)
-
-    def test_process_output(self):
-        cols = ["regulator", "target", "weights", "resc_weights"]
-        output = {0: pd.DataFrame([["A", "C", 1, 1], ["B", "D", 1, 1], ["A", "D", 1, 1]], columns=cols),
-                  1: pd.DataFrame([["B", "D", 1, 1], ["C", "D", 1, 1], ["A", "F", 1, 1]], columns=cols)}
-
-        targets = pd.Index(["A", "B", "C", "D", "E", "F"], name="target")
-        regulators = pd.Index(["A", "B", "C"], name="regulator")
-
-        correct_output_0 = pd.DataFrame(0., index=targets, columns=regulators)
-        correct_output_0.loc["C", "A"] = 1.
-        correct_output_0.loc["D", "B"] = 1.
-        correct_output_0.loc["D", "A"] = 1.
-
-        out_0 = amusr_regression._format_weights(output[0], "weights", targets, regulators)
-        pdt.assert_frame_equal(out_0, correct_output_0)
-
-    def test_process_output_all(self):
-        cols = ["regulator", "target", "weights", "resc_weights"]
-        output = {0: pd.DataFrame([["A", "C", 1, 1], ["B", "D", 1, 1], ["A", "D", 1, 1]], columns=cols),
-                  1: pd.DataFrame([["B", "D", 1, 1], ["C", "D", 1, 1], ["A", "F", 1, 1]], columns=cols)}
-
-        targets = pd.Index(["A", "B", "C", "D", "E", "F"], name="target")
-        regulators = pd.Index(["A", "B", "C"], name="regulator")
-
-        correct_output_0 = pd.DataFrame(0., index=targets, columns=regulators)
-        correct_output_0.loc["C", "A"] = 1.
-        correct_output_0.loc["D", "B"] = 1.
-        correct_output_0.loc["D", "A"] = 1.
-
-        correct_output_1 = pd.DataFrame(0., index=targets, columns=regulators)
-        correct_output_1.loc["D", "B"] = 1.
-        correct_output_1.loc["D", "C"] = 1.
-        correct_output_1.loc["F", "A"] = 1.
-
-        runner = amusr_regression.AMuSR_regression([pd.DataFrame()], [pd.DataFrame()], genes=targets.tolist(),
-                                                   tfs=regulators.tolist())
-        runner.n_tasks = 2
-
-        weights, resc_weights = runner.pileup_data([output])
-
-        pdt.assert_frame_equal(weights[0], correct_output_0)
-        pdt.assert_frame_equal(resc_weights[0], correct_output_0)
-        pdt.assert_frame_equal(weights[1], correct_output_1)
-        pdt.assert_frame_equal(resc_weights[1], correct_output_1)
