@@ -11,6 +11,7 @@ DATA_DIR = '../data/bsubtilis'
 OUTPUT_DIR = '~/bsubtilis_inference/'
 
 EXPRESSION_FILE_NAME = 'expression.tsv.gz'
+PRIORS_FILE_NAME = 'gold_standard.tsv.gz'
 GOLD_STANDARD_FILE_NAME = 'gold_standard.tsv.gz'
 META_DATA_FILE_NAME = 'meta_data.tsv'
 TF_LIST_FILE_NAME = 'tf_names.tsv'
@@ -35,6 +36,7 @@ def set_up_workflow(wkf):
     wkf.input_dir = DATA_DIR
     wkf.output_dir = OUTPUT_DIR
     wkf.expression_matrix_file = EXPRESSION_FILE_NAME
+    wkf.priors_file = PRIORS_FILE_NAME
     wkf.meta_data_file = META_DATA_FILE_NAME
     wkf.tf_names_file = TF_LIST_FILE_NAME
     wkf.gold_standard_file = GOLD_STANDARD_FILE_NAME
