@@ -10,7 +10,8 @@ utils.Debug.set_verbose_level(1)
 DATA_DIR = '../data/bsubtilis'
 OUTPUT_DIR = '~/bsubtilis_inference/'
 
-EXPRESSION_FILE_NAME = 'expression.tsv'
+EXPRESSION_FILE_NAME = 'expression.tsv.gz'
+GOLD_STANDARD_FILE_NAME = 'gold_standard.tsv.gz'
 META_DATA_FILE_NAME = 'meta_data.tsv'
 TF_LIST_FILE_NAME = 'tf_names.tsv'
 
@@ -36,6 +37,7 @@ def set_up_workflow(wkf):
     wkf.expression_matrix_file = EXPRESSION_FILE_NAME
     wkf.meta_data_file = META_DATA_FILE_NAME
     wkf.tf_names_file = TF_LIST_FILE_NAME
+    wkf.gold_standard_file = GOLD_STANDARD_FILE_NAME
     wkf.expression_matrix_columns_are_genes = False
     wkf.num_bootstraps = 5
     return wkf
