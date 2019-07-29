@@ -24,9 +24,6 @@ export DATADIR=${SCRATCH}/inferelator/data
 
 # Turn off buffering for stdout
 export PYTHONUNBUFFERED=TRUE
-# Turn off python asserts (a lot of asserts in regression are slow)
-# Note that this may make tracking down errors more difficult
-export PYTHONOPTIMIZE=1
 
 # Control multithreading through environment flags
 # numpy can be compiled with MKL

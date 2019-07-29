@@ -61,6 +61,7 @@ class TestRegressionFactory(unittest.TestCase):
         self.workflow.run()
         self.assertEqual(self.workflow.aupr, 1)
 
+    @unittest.skip
     def test_amusr(self):
         self.workflow = create_puppet_workflow(base_class="amusr",
                                                regression_class="amusr",
