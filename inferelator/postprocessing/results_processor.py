@@ -8,19 +8,21 @@ from inferelator.utils import Validator as check
 from inferelator.postprocessing.model_performance import RankSummaryPR, RankSumming
 
 FILTER_METHODS = ("overlap", "keep_all_gold_standard")
+DEFAULT_BOOTSTRAP_THRESHOLD = 0.5
+DEFAULT_FILTER_METHOD = "overlap"
 
 
 class ResultsProcessor:
     # Data
     betas = None
     rescaled_betas = None
-    filter_method = None
+    filter_method = DEFAULT_FILTER_METHOD
 
     # Processed Network
     network_data = None
 
     # Cutoffs
-    threshold = None
+    threshold = DEFAULT_BOOTSTRAP_THRESHOLD
 
     # File names
     network_file_name = "network.tsv"
@@ -28,26 +30,33 @@ class ResultsProcessor:
     threshold_file_name = "betas_stack.tsv"
     pr_curve_file_name = "pr_curve.pdf"
 
-    def __init__(self, betas, rescaled_betas, threshold=0.5, filter_method='overlap'):
+    def __init__(self, betas, rescaled_betas, threshold=None, filter_method=None):
         """
-        :param betas: list(pd.DataFrame[G x K])
-        :param rescaled_betas: list(pd.DataFrame[G x K])
+        :param betas: list(pd.DataFrame[G x K]) [B]
+            A list of model weights per bootstrap
+        :param rescaled_betas: list(pd.DataFrame[G x K]) [B]
+            A list of the variance explained by each parameter per bootstrap
         :param threshold: float
+            The proportion of bootstraps which an model weight must be non-zero for inclusion in the network output
         :param filter_method: str
             How to handle gold standard filtering ('overlap' filters to beta, 'keep_all_gold_standard' doesn't filter)
         """
 
+        assert check.argument_type(betas, list)
+        assert check.argument_type(betas[0], pd.DataFrame)
         assert check.dataframes_align(betas)
         self.betas = betas
 
+        assert check.argument_type(rescaled_betas, list)
+        assert check.argument_type(rescaled_betas[0], pd.DataFrame)
         assert check.dataframes_align(rescaled_betas)
         self.rescaled_betas = rescaled_betas
 
-        assert check.argument_enum(filter_method, FILTER_METHODS)
-        self.filter_method = filter_method
+        assert check.argument_enum(filter_method, FILTER_METHODS, allow_none=True)
+        self.filter_method = self.filter_method if filter_method is None else filter_method
 
-        assert check.argument_numeric(threshold, 0, 1)
-        self.threshold = threshold
+        assert check.argument_numeric(threshold, 0, 1, allow_none=True)
+        self.threshold = self.threshold if threshold is None else threshold
 
     def summarize_network(self, output_dir, gold_standard, priors):
         """
@@ -67,8 +76,7 @@ class ResultsProcessor:
         assert check.argument_type(priors, pd.DataFrame)
 
         pr_calc = RankSummaryPR(self.rescaled_betas, gold_standard, filter_method=self.filter_method)
-        beta_sign, beta_nonzero = self.summarize(self.betas)
-        beta_threshold = self.passes_threshold(beta_nonzero, len(self.betas), self.threshold)
+        beta_threshold, beta_sign, beta_nonzero = self.threshold_and_summarize(self.betas, self.threshold)
         resc_betas_mean, resc_betas_median = self.mean_and_median(self.rescaled_betas)
         extra_cols = {'beta.sign.sum': beta_sign, 'var.exp.median': resc_betas_median}
 
@@ -137,7 +145,7 @@ class ResultsProcessor:
         """
 
         assert check.argument_type(pr_calc, RankSumming)
-        assert check.argument_type(priors, pd.DataFrame)
+        assert check.argument_type(priors, pd.DataFrame, allow_none=True)
         assert check.argument_type(beta_threshold, pd.DataFrame, allow_none=True)
         assert check.argument_numeric(confidence_threshold, 0, 1)
 
@@ -158,13 +166,15 @@ class ResultsProcessor:
             del network_data['beta_threshold']
 
         # Convert each column's data to a dataframe with a multiindex
-        prior_data = ResultsProcessor.melt_and_reindex_dataframe(priors, "prior")
         gold_data = ResultsProcessor.melt_and_reindex_dataframe(pr_calc.gold_standard, "gold_standard")
         recall_data = ResultsProcessor.melt_and_reindex_dataframe(recall_data, "recall")
         precision_data = ResultsProcessor.melt_and_reindex_dataframe(precision_data, "precision")
 
+        if priors is not None:
+            prior_data = ResultsProcessor.melt_and_reindex_dataframe(priors, "prior")
+            network_data = network_data.join(prior_data, on=["target", "regulator"])
+
         # Join each column's data to the network edges
-        network_data = network_data.join(prior_data, on=["target", "regulator"])
         network_data = network_data.join(gold_data, on=["target", "regulator"])
         network_data = network_data.join(precision_data, on=["target", "regulator"])
         network_data = network_data.join(recall_data, on=["target", "regulator"])

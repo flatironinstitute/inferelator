@@ -2,12 +2,6 @@ from inferelator.distributed import AbstractController
 from inferelator import utils
 from inferelator import default
 
-# Python 2/3 compatible string checking
-try:
-    basestring
-except NameError:
-    basestring = str
-
 
 class MPControl(AbstractController):
     """
@@ -32,6 +26,15 @@ class MPControl(AbstractController):
         return cls.client.name()
 
     @classmethod
+    def is_dask(cls):
+        """
+        This returns True if dask functions should be used
+        """
+        if cls.client is None:
+            return False
+        return cls.client.is_dask()
+
+    @classmethod
     def set_multiprocess_engine(cls, engine):
         """
         Register the multiprocessing engine to use
@@ -41,7 +44,7 @@ class MPControl(AbstractController):
         dask-cluster
         dask-local
         kvs
-        multprocessing
+        multiprocessing
         local
 
         :param engine: str / Controller object
@@ -50,7 +53,7 @@ class MPControl(AbstractController):
         if cls.is_initialized:
             raise RuntimeError("Client is currently active. Run .shutdown() before changing engines.")
 
-        if isinstance(engine, basestring):
+        if utils.is_string(engine):
             if engine == "dask-cluster":
                 from inferelator.distributed.dask_cluster_controller import DaskHPCClusterController
                 cls.client = DaskHPCClusterController
@@ -73,6 +76,8 @@ class MPControl(AbstractController):
         else:
             raise ValueError("Engine must be provided as a string for lookup or an implemented Controller class object")
 
+        utils.Debug.vprint("Inferelator MPControl using engine {eng}".format(eng=cls.name()))
+
     @classmethod
     def connect(cls, *args, **kwargs):
         """
@@ -83,6 +88,7 @@ class MPControl(AbstractController):
             return True
 
         if cls.client is None:
+            utils.Debug.vprint("Loading default engine {eng}".format(eng=default.DEFAULT_MULTIPROCESSING_ENGINE))
             cls.set_multiprocess_engine(default.DEFAULT_MULTIPROCESSING_ENGINE)
 
         connect_return = cls.client.connect(*args, **kwargs)

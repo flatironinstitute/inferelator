@@ -9,6 +9,7 @@ from inferelator import utils
 from inferelator import default
 from inferelator.utils import Validator as check
 
+from inferelator.distributed.inferelator_mp import MPControl
 
 class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, crossvalidation_workflow.PuppeteerWorkflow):
     seeds = default.DEFAULT_SEED_RANGE
@@ -33,25 +34,12 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, cross
         self.create_writer()
         auprs = self.modeling_method()
 
-    def compute_activity(self):
-        # Compute activities in the puppet, not in the puppetmaster
+    def startup_finish(self):
+        # Do all the processing stuff in the puppet workflow
         pass
 
-    def single_cell_normalize(self):
-        # Normalize and impute in the puppet, not in the puppetmaster
-        pass
-
-    def set_gold_standard_and_priors(self):
-        # Split priors for a gold standard in the puppet, not in the puppetmaster
-        self.priors_data = self.input_dataframe(self.priors_file)
-        self.gold_standard = self.input_dataframe(self.gold_standard_file)
-
-    def align_priors_and_expression(self):
-        # Align the priors and expression in the puppet, not in the puppetmaster
-        pass
-
-    def shuffle_priors(self):
-        # Do any shuffles in the puppet, not in the puppetmaster
+    def process_priors_and_gold_standard(self):
+        # Do all the processing stuff in the puppet workflow
         pass
 
     def modeling_method(self):
@@ -119,6 +107,7 @@ class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
         aupr_data = []
         for s_ratio in self.sizes:
             for seed in self.seeds:
+
                 np.random.seed(seed)
                 nidx = self.get_sample_index(sample_ratio=s_ratio)
                 puppet = self.new_puppet(self.expression_matrix.iloc[:, nidx], self.meta_data.iloc[nidx, :], seed=seed)
@@ -130,6 +119,7 @@ class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
                 aupr_data.append(size_aupr)
                 if self.is_master():
                     self.csv_writer.writerow(size_aupr)
+                MPControl.sync_processes("post_CV")
         return aupr_data
 
 
@@ -230,4 +220,5 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
             aupr_data.append(drop_data)
             if self.is_master():
                 self.csv_writer.writerow(drop_data)
+            MPControl.sync_processes("post_CV")
         return aupr_data

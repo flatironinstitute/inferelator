@@ -3,6 +3,7 @@ import pandas as pd
 from scipy import linalg
 
 from inferelator import utils
+from inferelator.utils import Validator as check
 
 
 class TFA:
@@ -28,6 +29,10 @@ class TFA:
     """
 
     def __init__(self, prior, expression_matrix, expression_matrix_halftau):
+
+        assert check.dataframes_align([expression_matrix, expression_matrix_halftau])
+        assert check.indexes_align((prior.index, expression_matrix.index), check_order=False)
+
         self.prior = prior
         self.expression_matrix = expression_matrix
         self.expression_matrix_halftau = expression_matrix_halftau

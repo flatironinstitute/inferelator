@@ -11,10 +11,6 @@ All other arguments must be keyword. All functions must return expression_matrix
 
 Normalization functions take batch_factor_column [str] as a kwarg
 Imputation functions take random_seed [int] and output_file [str] as a kwarg 
-
-Please note that there are a bunch of packages in here that aren't installed as part of the project dependencies
-This is intentional; if you don't have these packages installed, don't try to use them
-TODO: Put together a set of tests for this 
 """
 
 
@@ -101,27 +97,6 @@ def normalize_sizes_within_batch(expression_matrix, meta_data, **kwargs):
     return expression_matrix.divide(umi['umi_mod'], axis=0), meta_data
 
 
-def impute_magic_expression(expression_matrix, meta_data, **kwargs):
-    """
-    Use MAGIC (van Dijk et al Cell, 2018, 10.1016/j.cell.2018.05.061) to impute data
-
-    :param expression_matrix: pd.DataFrame
-    :param meta_data: pd.DataFrame
-    :return imputed, meta_data: pd.DataFrame, pd.DataFrame
-    """
-    kwargs, random_seed, output_file = process_impute_args(**kwargs)
-
-    import magic
-    utils.Debug.vprint('Imputing data with MAGIC ... ')
-    imputed = pd.DataFrame(magic.MAGIC(random_state=random_seed, **kwargs).fit_transform(expression_matrix.values),
-                           index=expression_matrix.index, columns=expression_matrix.columns)
-
-    if output_file is not None:
-        imputed.to_csv(output_file, sep="\t")
-
-    return imputed, meta_data
-
-
 def log10_data(expression_matrix, meta_data, **kwargs):
     """
     Transform the expression data by adding one and then taking log10. Ignore any kwargs.
@@ -155,14 +130,47 @@ def ln_data(expression_matrix, meta_data, **kwargs):
     return np.log1p(expression_matrix), meta_data
 
 
+def tf_sqrt_data(expression_matrix, meta_data, **kwargs):
+    """
+    Transform the expression data by sqrt(x) + sqrt(x+1) and restore sparsity with x - 1
+    Based on Freeman & Tukey: https://projecteuclid.org/euclid.aoms/1177729756
+    :param expression_matrix: pd.DataFrame
+    :param meta_data: pd.DataFrame
+    :return expression_matrix, meta_data: pd.DataFrame, pd.DataFrame
+    """
+    utils.Debug.vprint('Freeman-Tukey square root transformation [sqrt(x) + sqrt(x+1) - 1]... ')
+    expression_matrix = np.sqrt(expression_matrix) + np.sqrt(expression_matrix + 1) - 1
+    return expression_matrix, meta_data
+
+
 def filter_genes_for_var(expression_matrix, meta_data, **kwargs):
+    """
+    Filter out any genes which have a variance of 0 (the min and max are identical)
+    :param expression_matrix: pd.DataFrame
+    :param meta_data: pd.DataFrame
+    :return expression_matrix, meta_data: pd.DataFrame, pd.DataFrame
+    """
     no_signal = (expression_matrix.max(axis=0) - expression_matrix.min(axis=0)) == 0
     utils.Debug.vprint("Filtering {gn} genes [Var = 0]".format(gn=no_signal.sum()), level=1)
     return expression_matrix.loc[:, ~no_signal], meta_data
 
 
-def filter_genes_for_count(expression_matrix, meta_data, count_minimum=None, check_for_scaling=False):
+def filter_genes_for_count(expression_matrix, meta_data, count_minimum=None, check_for_scaling=True):
+    """
+    Filter out any genes which have a variance of 0 by calling filter_genes_for_var. Filter out any genes which don't
+    reach the minimum count (if count is not none)
+    :param expression_matrix: pd.DataFrame
+    :param meta_data: pd.DataFrame
+    :param count_minimum: num
+        The minimum value per sample required to include any genes
+    :param check_for_scaling: bool
+        Check to see if the data has any negatives and throw an error if it does
+    :return expression_matrix, meta_data: pd.DataFrame, pd.DataFrame
+    """
+
+    # Remove any genes with no information
     expression_matrix, meta_data = filter_genes_for_var(expression_matrix, meta_data)
+
     if count_minimum is None:
         return expression_matrix, meta_data
     else:
@@ -173,12 +181,6 @@ def filter_genes_for_count(expression_matrix, meta_data, count_minimum=None, che
         utils.Debug.vprint("Filtering {gn} genes [Count]".format(gn=expression_matrix.shape[1] - keep_genes.sum()),
                            level=1)
         return expression_matrix.loc[:, keep_genes], meta_data
-
-
-def process_impute_args(**kwargs):
-    random_seed = kwargs.pop('random_seed', DEFAULT_RANDOM_SEED)
-    output_file = kwargs.pop('output_file', None)
-    return kwargs, random_seed, output_file
 
 
 def process_normalize_args(**kwargs):

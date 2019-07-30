@@ -196,7 +196,6 @@ class AMuSR_regression(base_regression.BaseRegression):
     def __init__(self, X, Y, tfs=None, genes=None, priors=None, prior_weight=1, remove_autoregulation=True):
         """
         Set up a regression object for multitask regression
-
         :param X: list(pd.DataFrame [N, K])
         :param Y: list(pd.DataFrame [N, G])
         :param priors: pd.DataFrame [G, K]
@@ -252,12 +251,11 @@ class AMuSR_regression(base_regression.BaseRegression):
     def regress(self):
         """
         Execute multitask (AMUSR)
-
         :return: list
             Returns a list of regression results that the amusr_regression pileup_data can process
         """
 
-        if MPControl.client.name() == "dask":
+        if MPControl.is_dask():
             from inferelator.distributed.dask_functions import amusr_regress_dask
             return amusr_regress_dask(self.X, self.Y, self.priors, self.prior_weight, self.n_tasks, self.genes,
                                       self.tfs, self.G, remove_autoregulation=self.remove_autoregulation)
@@ -375,7 +373,6 @@ def final_weights(X, y, TFs, gene):
 def run_regression_EBIC(X, Y, TFs, tasks, gene, prior):
     """
     Run multitask regression
-
     :param X: list(np.ndarray [N x K]) [t]
         List consisting of design matrixes for each task
     :param Y: list(np.ndarray [N x 1]) [t]
@@ -389,7 +386,6 @@ def run_regression_EBIC(X, Y, TFs, tasks, gene, prior):
     :param prior: np.ndarray [K x T]
         The priors for this gene in a TF x Task array
     :return: dict
-
     """
 
     assert len(X) == len(Y)
@@ -512,7 +508,6 @@ def filter_genes_on_tasks(list_of_indexes, task_expression_filter):
     """
     Take a list of indexes and filter them based on the method specified in task_expression_filter to a single
     index
-
     :param list_of_indexes: list(pd.Index)
     :param task_expression_filter: str or int
     :return filtered_genes: pd.Index

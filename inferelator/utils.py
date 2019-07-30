@@ -5,6 +5,11 @@ import os
 
 from inferelator.default import SBATCH_VARS
 
+# Python 2/3 compatible string checking
+try:
+    basestring
+except NameError:
+    basestring = str
 
 def slurm_envs(var_names=None):
     """
@@ -60,18 +65,6 @@ class Debug:
 
     @classmethod
     def allprint(cls, *args, **kwargs):
-        cls.print_level(*args, **kwargs)
-
-    @classmethod
-    def warn(cls, *args, **kwargs):
-        cls.vprint(*args, level=cls.levels["v"], **kwargs)
-
-    @classmethod
-    def notify(cls, *args, **kwargs):
-        cls.vprint(*args, level=cls.levels["vv"], **kwargs)
-
-    @classmethod
-    def vprint_all(cls, *args, **kwargs):
         cls.print_level(*args, **kwargs)
 
     @classmethod
@@ -199,6 +192,10 @@ class Validator(object):
             raise ValueError("Argument {arg} must be of type {typ}".format(arg=arg, typ=arg_type))
 
     @staticmethod
+    def argument_string(arg, allow_none=False):
+        return Validator.argument_type(arg, basestring, allow_none=allow_none)
+
+    @staticmethod
     def argument_list_type(arg, arg_type, allow_none=False):
         if allow_none and arg is None:
             return True
@@ -217,8 +214,23 @@ class Validator(object):
 
     @staticmethod
     def dataframes_align(frame_iterable, allow_none=False, check_order=True):
-        if allow_none and any([f is None for f in frame_iterable]):
-            return True
+
+        is_none = [f is None for f in frame_iterable]
+        if any(is_none) and allow_none:
+            # If None is an allowed value, remove the Nones and check the remaining dataframes
+            new_frame_iterable = []
+            for frame in frame_iterable:
+                if frame is not None:
+                    new_frame_iterable.append(frame)
+
+            # If there are any non-None dataframes, check them for alignment. Otherwise return True
+            if len(new_frame_iterable) > 0:
+                frame_iterable = new_frame_iterable
+            else:
+                return True
+        elif any(is_none):
+            # If None isn't allowed, throw an error
+            raise ValueError("None values are present in dataframe list")
 
         try:
             Validator.indexes_align([f.index for f in frame_iterable], allow_none=allow_none, check_order=check_order)
@@ -233,15 +245,43 @@ class Validator(object):
         return True
 
     @staticmethod
-    def indexes_align(index_iterable, allow_none=False, check_order=True):
-        if allow_none and any([i is None for i in index_iterable]):
+    def dataframe_is_numeric(frame, allow_none=False):
+        if allow_none and frame is None:
             return True
+
+        is_num = frame.applymap(lambda x: isinstance(x, (float, int))).sum()
+        is_feature_num = is_num.apply(lambda x: x == frame.shape[0])
+
+        if is_feature_num.all():
+            return True
+        else:
+            bad_features = "\t".join(map(str, is_feature_num.index[is_feature_num].tolist()))
+            raise ValueError("Dataframe has non-numeric features: {f}".format(f=bad_features))
+
+    @staticmethod
+    def indexes_align(index_iterable, allow_none=False, check_order=True):
+        is_none = [f is None for f in index_iterable]
+        if any(is_none) and allow_none:
+            # If None is an allowed value, remove the Nones and check the remaining dataframes
+            new_index_iterable = []
+            for index in index_iterable:
+                if index is not None:
+                    new_index_iterable.append(index)
+
+            # If there are any non-None dataframes, check them for alignment. Otherwise return True
+            if len(new_index_iterable) > 0:
+                index_iterable = new_index_iterable
+            else:
+                return True
+        elif any(is_none):
+            # If None isn't allowed, throw an error
+            raise ValueError("None values are present in dataframe list")
 
         order_flag = False
         zindex = index_iterable[0]
         for ind in index_iterable:
             if len(zindex.difference(ind)) > 0:
-                raise ValueError("Indexes have mismatching labels")
+                raise ValueError("Indexes have mismatching labels: "+"\t".join(map(str, zindex.difference(ind))))
             elif check_order and any(zindex != ind):
                 order_flag = True
 
@@ -295,18 +335,6 @@ def df_from_tsv(file_like, has_index=True):
     return pd.read_csv(file_like, sep="\t", header=0, index_col=0 if has_index else False)
 
 
-def metadata_df(file_like):
-    "Read a metadata file as a pandas data frame."
-    return pd.read_csv(file_like, sep="\t", header=0, index_col="condName")
-
-
-def read_tf_names(file_like):
-    "Read transcription factor names from one-column tsv file.  Return list of names."
-    exp = pd.read_csv(file_like, sep="\t", header=None)
-    assert exp.shape[1] == 1, "transcription factor file should have one column "
-    return list(exp[0])
-
-
 def df_set_diag(df, val, copy=True):
     """
     Sets the diagonal of a dataframe to a value. Diagonal in this case is anything where row label == column label.
@@ -335,6 +363,15 @@ def df_set_diag(df, val, copy=True):
         return df
     else:
         return len(isect)
+
+
+def is_string(arg):
+    """
+    Check if a argument is a string in a python 2/3 compatible way
+    :param arg:
+    :return:
+    """
+    return isinstance(arg, basestring)
 
 
 def make_array_2d(arr):

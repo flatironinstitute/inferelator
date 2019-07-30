@@ -359,7 +359,7 @@ class RankSummaryPR(RankSumming):
         return sum(d_recall * m_precision)
 
     @staticmethod
-    def plot_pr_curve(recall, precision, aupr, output_dir, file_name="pr_curve.pdf"):
+    def plot_pr_curve(recall, precision, aupr, output_dir, file_name="pr_curve.pdf", pr_curve_file="pr_curve.tsv"):
         if file_name is None or output_dir is None:
             return False
         plt.figure()
@@ -369,3 +369,8 @@ class RankSummaryPR(RankSumming):
         plt.annotate("aupr = {aupr}".format(aupr=aupr), xy=(0.4, 0.05), xycoords='axes fraction')
         plt.savefig(os.path.join(output_dir, file_name))
         plt.close()
+
+        # produce tsv dataframe of recall and precision
+        precision_recall = pd.DataFrame(np.column_stack([recall, precision]), columns=['recall', 'precision'])
+        file_name_pr = os.path.splitext(file_name)[0] + '.tsv'
+        precision_recall.to_csv(os.path.join(output_dir, file_name_pr), sep='\t', index=False)

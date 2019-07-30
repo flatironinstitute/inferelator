@@ -5,6 +5,7 @@ import os
 from dask import distributed
 from dask_jobqueue import SLURMCluster
 
+from inferelator import utils
 from inferelator.distributed import AbstractController
 
 # Maintain python 2 compatibility
@@ -19,11 +20,11 @@ DEFAULT_INTERFACE = 'ib0'
 DEFAULT_WALLTIME = '1:00:00'
 
 ENV_EXTRA = ['module purge',
-             'module load python/intel/2.7.12',
-             'module load gcc/6.3.0',
              'export MKL_NUM_THREADS=1',
              'export OPENBLAS_NUM_THREADS=1',
              'export NUMEXPR_NUM_THREADS=1']
+
+CONTROLLER_EXTRA = []
 
 DEFAULT_MIN_CORES = 20
 DEFAULT_MAX_CORES = 200
@@ -36,6 +37,7 @@ try:
     DEFAULT_LOCAL_DIR = os.environ['TMPDIR']
 except KeyError:
     DEFAULT_LOCAL_DIR = 'dask-worker-space'
+
 
 # This is the worst thing I've ever written
 def memory_limit_0(command_template):
@@ -70,7 +72,9 @@ class DaskHPCClusterController(AbstractController):
 
     The map functionality is deliberately not implemented; dask-specific multiprocessing functions are used instead
     """
-    _controller_name = "dask"
+    _controller_name = "dask-cluster"
+    _controller_dask = True
+
     is_master = True
     client = None
 
@@ -104,6 +108,7 @@ class DaskHPCClusterController(AbstractController):
     job_cpu = DEFAULT_CORES
     job_mem = DEFAULT_MEM
     env_extra = ENV_EXTRA
+    cluster_controller_options = CONTROLLER_EXTRA
     interface = DEFAULT_INTERFACE
     local_directory = DEFAULT_LOCAL_DIR
 
@@ -118,7 +123,7 @@ class DaskHPCClusterController(AbstractController):
                                                          job_cpu=cls.job_cpu, cores=cls.cores, processes=cls.processes,
                                                          job_mem=cls.job_mem, env_extra=cls.env_extra,
                                                          interface=cls.interface, local_directory=cls.local_directory,
-                                                         memory=cls.memory)
+                                                         memory=cls.memory, job_extra=cls.cluster_controller_options)
 
         # Deactivate the worker memory nanny
         if cls.worker_memory_limit == 0:
@@ -134,13 +139,6 @@ class DaskHPCClusterController(AbstractController):
         else:
             cls.local_cluster.adapt(minimum=cls.maximum_cores, maximum=cls.maximum_cores, interval=cls.interval,
                                     wait_count=cls.wait_count)
-
-        sleep_time = 0
-        while cls.local_cluster._count_active_workers() == 0:
-            time.sleep(1)
-            if sleep_time % 60 == 0:
-                print("Awaiting workers ({sleep_time} seconds elapsed)".format(sleep_time=sleep_time))
-            sleep_time += 1
 
         cls.local_cluster.scheduler.allowed_failures = cls.allowed_failures
         cls.client = distributed.Client(cls.local_cluster)
@@ -161,4 +159,33 @@ class DaskHPCClusterController(AbstractController):
         """
         This is a thing for KVS. Just return True.
         """
+        return True
+
+    @classmethod
+    def add_worker_env_line(cls, line):
+        """
+        Add a line to the worker environment declaration
+        This gets put into the sbatch script for workers
+        This can be used to load modules, activate conda, etc
+        """
+
+        cls.env_extra.append(line)
+
+    @classmethod
+    def is_dask(cls):
+        """
+        Block when something asks if this is a dask function until the workers are alive
+        """
+
+        if cls.local_cluster._count_active_workers() > 0:
+            return True
+
+        sleep_time = 0
+        while cls.local_cluster._count_active_workers() == 0:
+            time.sleep(1)
+            if sleep_time % 60 == 0:
+                utils.Debug.vprint("Awaiting workers ({sleep_time} seconds elapsed)".format(sleep_time=sleep_time),
+                                   level=0)
+            sleep_time += 1
+
         return True

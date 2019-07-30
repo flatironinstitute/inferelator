@@ -23,7 +23,9 @@ class DaskController(AbstractController):
     The map functionality is deliberately not implemented; dask-specific multiprocessing functions are used instead
     """
 
-    _controller_name = "dask"
+    _controller_name = "dask-local"
+    _controller_dask = True
+
     is_master = True
     client = None
 

@@ -1,40 +1,89 @@
+This tutorial is designed to walk through a basic example of network inference in Yeast and the basic mechanism for
+constructing an inference workflow for an arbitrary data set
 
-This tutorial walks through a gene regulatory network example in yeast. 
-
-## 0) Get Code
+## Set Up the Inferelator from the GitHub repository
 
 Clone the codebase:
 ```
-git clone git@github.com:flatironinstitute/inferelator_sc.git
+git clone https://github.com/flatironinstitute/inferelator.git
 ```
-
 Enter its top-level directory:
 ```
-cd inferelator_sc
+cd inferelator
+```
+Install required python libraries:
+```
+python -m pip install -r requirements.txt
+```
+Install required libraries for parallelization (running on a single machine requires only `python -m pip install pathos`):
+```
+python -m pip install -r requirements-multiprocessing.txt
+```
+Install the inferelator package
+```
+python setup.py develop --user
 ```
 
-## 1) Prepare data
-The largest file needed for network inference is the expression dataset, which for yeast is larger than the github file size cut off. As a result, we host the file on Zenodo, where it is publicly accessible and has a unique DOI (https://doi.org/10.5281/zenodo.3247753). 
-```
-wget https://zenodo.org/record/3247754/files/expression.tsv -P data/yeast
-```
+## Set Up the Inferelator using pip
 
-## 2) Install required python libraries
-If you have Python 2 >=2.7.9 or Python 3 >=3.4 you should already have pip, the tool for installing python libaries, installed, but if you don't you can download it here: https://packaging.python.org/installing/#install-pip-setuptools-and-wheel. 
-
-To install the python packages needed for the inferelator, run:
+Install the inferelator
 ```
-pip install -r requirements.txt
+python -m pip install inferelator --user
 ```
 
-## 3) Run workflow
-`python yeast_bbsr_workflow_runner.py`
+## Download the example data files and run scripts from Zenodo
 
-## 4) Analyze output
-Look in the data/yeast folder for a time-stamped folder that will contain the predicted network as network.tsv and will contain a precision-recall curve as pr_curve.png. The AUPR should be ~0.2.
+```
+wget https://zenodo.org/record/3355524/files/inferelator_example_data.tar.gz
+```
+Unpack the example data files and run scripts
+```
+tar -xzf inferelator_example_data.tar.gz
+```
+Change the value of `DATA_DIR =` in the example scripts to point to the just-created example data paths
 
-## Additional Config:
-The number of bootstraps is currently set to 2, but can be modified via setting variables in yeast_bbsr_workflow_runner.py. 
+## Run network inference on Yeast Microarray data
 
-## Additional Information:
-The whole genome expression.tsv was downloaded from the Gene Expression Omnibus (GEO), filtering for samples from Saccharomyces cerevisiae using the Yeast Affymetrix 2.0 platform (accessioning number GPL2529). The prior data file, yeast-motif-prior.tsv, is derived from ATAC-Seq peaks with motif analysis, using data from GEO (GSE66386), and signed (+/- 1) using knock-out results (GSE42527). The gold standard, gold_standard.tsv, is primarily from the YEASTRACT repository. 
+```
+python examples/yeast_network_inference_run_script.py
+```
+
+## Acquire necessary data for network inference in a different organism
+
+Obtain expression data and save it as a TSV file of [Genes x Samples]
+
+Obtain prior interaction data between TFs and target genes and save it as a TSV file of [Genes x TFs]
+
+Create a list of TFs to model for inference and save it as a text file with each TF on a separate line [TFs]
+
+Note that the TF and Gene names must match between files, and these files can be compressed with `gzip` if needed
+
+## Construct a new run script (`new_organism.py`) for a different organism
+
+Select parallelization options:
+```
+from inferelator.distributed.inferelator_mp import MPControl
+if __name__ == '__main__':
+    MPControl.set_multiprocess_engine("multiprocessing")
+    MPControl.client.processes = 4
+    MPControl.connect()
+```
+Create an inferelator workflow
+```
+from inferelator import workflow
+worker = workflow.inferelator_workflow(regression="bbsr", workflow="tfa")
+```
+Set file names and paths:
+```
+worker.input_dir = 'data/new_organism'
+worker.output_dir = '~/new_organism/'
+worker.expression_matrix_file = 'new_expression.tsv.gz'
+worker.tf_names_file = 'tf_list.txt'
+worker.priors_file = 'new_prior.tsv.gz'
+worker.gold_standard_file = 'new_prior.tsv.gz'
+```
+Add a line to execute inference:
+```
+worker.run()
+```
+This script can now be run from the command line as `python new_organism.py`

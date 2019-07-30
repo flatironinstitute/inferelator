@@ -61,17 +61,18 @@ class NoOutputRP(results_processor.ResultsProcessor):
 
 
 # The variable names that get set in the main workflow, but need to get copied to the puppets
-SHARED_CLASS_VARIABLES = ['tf_names', 'gene_metadata', 'num_bootstraps', 'mi_sync_path', 'count_minimum',
-                          'gold_standard_filter_method', 'split_priors_for_gold_standard', 'cv_split_ratio',
+SHARED_CLASS_VARIABLES = ['tf_names', 'gene_metadata', 'gene_list_index', 'num_bootstraps', 'mi_sync_path',
+                          'count_minimum', 'gold_standard_filter_method', 'cv_split_ratio',
                           'split_gold_standard_for_crossvalidation', 'cv_split_axis', 'preprocessing_workflow',
                           'shuffle_prior_axis', 'write_network', 'output_dir', 'tfa_driver', 'drd_driver',
-                          'result_processor_driver']
+                          'result_processor_driver', 'prior_manager', 'meta_data_task_column']
 
 
 class PuppeteerWorkflow(object):
     """
     This class contains the methods to create new child Workflow objects
-    It does not extend WorkflowBase because I hate keeping track of multiinheritance patterns
+    It needs to be multi-inherited with a Workflow class (this needs to be the left side)
+    This does not extend WorkflowBase because multiinheritence from subclasses of the same super is a NIGHTMARE
     """
     write_network = True  # bool
     csv_writer = None  # csv.csvwriter
@@ -89,7 +90,7 @@ class PuppeteerWorkflow(object):
 
         if self.is_master():
             self.create_output_dir()
-            self.csv_writer = csv.writer(open(os.path.join(self.output_dir, self.output_file_name),
+            self.csv_writer = csv.writer(open(os.path.expanduser(os.path.join(self.output_dir, self.output_file_name)),
                                               mode="w", buffering=1), delimiter="\t", lineterminator="\n",
                                          quoting=csv.QUOTE_NONE)
             self.csv_writer.writerow(self.csv_header)
@@ -123,9 +124,6 @@ class PuppeteerWorkflow(object):
         # Set the random seed into the puppet
         puppet.random_seed = seed
 
-        # Make sure that the puppet knows the correct orientation of the expression matrix
-        puppet.expression_matrix_columns_are_genes = False
-
         # Tell the puppet what to name stuff (if write_network is False then no output will be produced)
         puppet.network_file_name = "network_s{seed}.tsv".format(seed=seed)
         puppet.pr_curve_file_name = "pr_curve_s{seed}.pdf".format(seed=seed)
@@ -138,9 +136,9 @@ class PuppeteerWorkflow(object):
         for varname in SHARED_CLASS_VARIABLES:
             try:
                 setattr(obj, varname, getattr(self, varname))
-                utils.Debug.vprint("Variable {var} set to child".format(var=varname), level=2)
+                utils.Debug.vprint("Variable {var} set to child".format(var=varname), level=3)
             except AttributeError:
-                utils.Debug.vprint("Variable {var} not assigned to parent".format(var=varname))
+                utils.Debug.vprint("Variable {var} not assigned to parent".format(var=varname), level=2)
 
 
 # Factory method to spit out a puppet workflow
@@ -168,10 +166,8 @@ def create_puppet_workflow(regression_class=base_regression.RegressionWorkflow,
             self.gold_standard = gs_data
 
         def startup_run(self):
-            if self.split_priors_for_gold_standard:
-                self.split_priors_into_gold_standard()
-            elif self.split_gold_standard_for_crossvalidation:
-                self.cross_validate_gold_standard()
+            # Skip all of the data loading
+            self.process_priors_and_gold_standard()
 
         def emit_results(self, betas, rescaled_betas, gold_standard, priors):
             if self.is_master():
@@ -179,7 +175,7 @@ def create_puppet_workflow(regression_class=base_regression.RegressionWorkflow,
                 if self.write_network:
                     results.network_file_name = self.network_file_name
                     results.pr_curve_file_name = self.pr_curve_file_name
-                    network_file_path = self.output_dir
+                    network_file_path = self.make_path_safe(self.output_dir)
                 else:
                     results.network_file_name = None
                     results.pr_curve_file_name = None
@@ -188,8 +184,14 @@ def create_puppet_workflow(regression_class=base_regression.RegressionWorkflow,
                 results.threshold_file_name = None
                 results.write_task_files = False
                 results.tasks_names = getattr(self, "tasks_names", None)  # For multitask
-                results = results.summarize_network(network_file_path, gold_standard, priors)
-                self.aupr, self.n_interact, self.precision_interact = results
+                summary = results.summarize_network(network_file_path, gold_standard, priors)
+
+                self.network = results.network_data
+
+                if isinstance(summary, tuple):
+                    self.aupr, self.n_interact, self.precision_interact = summary
+                else:
+                    self.aupr = summary
             else:
                 self.aupr, self.n_interact, self.precision_interact = None, None, None
 

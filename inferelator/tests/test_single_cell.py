@@ -1,9 +1,12 @@
 import unittest
 from inferelator.single_cell_workflow import SingleCellWorkflow
-from inferelator.preprocessing import single_cell
+from inferelator.preprocessing import single_cell, metadata_parser
 from inferelator.crossvalidation_workflow import create_puppet_workflow
 import numpy as np
 import pandas as pd
+import os
+
+my_dir = os.path.dirname(__file__)
 
 
 class SingleCellTestCase(unittest.TestCase):
@@ -20,8 +23,8 @@ class SingleCellTestCase(unittest.TestCase):
         self.gold_standard = self.prior.copy()
         self.gene_list = pd.DataFrame({"SystematicName":["gene1", "gene2", "gene3", "gene4", "gene7", "gene6"]})
         self.tf_names = ["gene3", "gene6"]
-        self.workflow = create_puppet_workflow(base_class=SingleCellWorkflow)(self.expr, self.meta, self.prior,
-                                                                              self.gold_standard)
+        self.workflow = create_puppet_workflow(base_class=SingleCellWorkflow)(self.expr.transpose(), self.meta,
+                                                                              self.prior, self.gold_standard)
 
 
 class SingleCellPreprocessTest(SingleCellTestCase):
@@ -37,6 +40,9 @@ class SingleCellPreprocessTest(SingleCellTestCase):
         self.assertEqual(expr_filtered_2.columns.tolist(), ["gene1", "gene2", "gene4"])
         expr_filtered_3, _ = single_cell.filter_genes_for_count(self.expr, self.meta, count_minimum=20)
         self.assertEqual(expr_filtered_3.columns.tolist(), ["gene2"])
+
+        with self.assertRaises(ValueError):
+            single_cell.filter_genes_for_count(self.expr - 3, self.meta, count_minimum=1, check_for_scaling=True)
 
     def test_library_to_one_norm(self):
         expr_normed, _ = single_cell.normalize_expression_to_one(self.expr, self.meta)
@@ -71,6 +77,9 @@ class SingleCellPreprocessTest(SingleCellTestCase):
         expr_log3, _ = single_cell.ln_data(self.expr, self.meta)
         np.testing.assert_almost_equal(np.log(self.expr + 1).values, expr_log3)
 
+        expr_sqrt, _ = single_cell.tf_sqrt_data(self.expr, self.meta)
+        np.testing.assert_almost_equal(np.sqrt(self.expr + 1).values + np.sqrt(self.expr).values - 1, expr_sqrt)
+
 
 class SingleCellWorkflowTest(SingleCellTestCase):
 
@@ -78,12 +87,14 @@ class SingleCellWorkflowTest(SingleCellTestCase):
         self.workflow.add_preprocess_step(single_cell.log2_data)
         self.workflow.single_cell_normalize()
         expr_filtered, _ = single_cell.filter_genes_for_var(self.expr, self.meta)
-        np.testing.assert_almost_equal(np.log2(expr_filtered + 1).values, self.workflow.expression_matrix)
+        np.testing.assert_almost_equal(np.log2(expr_filtered.transpose() + 1).values, self.workflow.expression_matrix)
 
     def TestFilter(self):
         self.workflow.gene_metadata = self.gene_list
+        self.workflow.gene_list_index = "SystematicName"
         self.workflow.tf_names = self.tf_names
-        self.workflow.filter_expression_and_priors()
+        self.workflow.process_priors_and_gold_standard()
+        self.workflow.align_priors_and_expression()
         genes = ["gene1", "gene2", "gene3", "gene4", "gene6"]
         tfs = ["gene3", "gene6"]
         self.assertEqual(self.workflow.expression_matrix.index.tolist(), genes)
@@ -92,6 +103,7 @@ class SingleCellWorkflowTest(SingleCellTestCase):
 
     def TestStack(self):
         self.workflow.gene_metadata = self.gene_list
+        self.workflow.gene_list_index = "SystematicName"
         self.workflow.tf_names = self.tf_names
         self.workflow.startup()
         genes = ["gene1", "gene2", "gene4", "gene6"]
@@ -99,3 +111,50 @@ class SingleCellWorkflowTest(SingleCellTestCase):
         self.assertEqual(self.workflow.design.index.tolist(), tfs)
         self.assertEqual(self.workflow.response.index.tolist(), genes)
         self.assertEqual(self.workflow.response.columns.tolist(), self.workflow.design.columns.tolist())
+
+
+class TestSingleCellWorkflow(unittest.TestCase):
+    test_count_data = pd.DataFrame([[0, 0, 0], [10, 0, 10], [4, 0, 5], [0, 0, 0]])
+    test_meta_data = metadata_parser.MetadataParserBranching.create_default_meta_data(test_count_data)
+
+    def setUp(self):
+        self.workflow = SingleCellWorkflow()
+        self.workflow.expression_matrix_columns_are_genes = True
+        self.workflow.input_dir = os.path.join(my_dir, "../../data/dream4")
+
+    def tearDown(self):
+        del self.workflow
+
+    def prep1(self, expr, meta, **kwargs):
+        return expr, meta
+
+    def prep2(self, expr, meta, **kwargs):
+        return expr, meta
+
+    def test_preprocessing_flow(self):
+        self.workflow.expression_matrix_columns_are_genes = False
+        self.workflow.get_data()
+        self.workflow.add_preprocess_step(self.prep1)
+        self.workflow.add_preprocess_step(self.prep2)
+        self.workflow.single_cell_normalize()
+        self.assertEqual(self.workflow.expression_matrix.shape, (100, 421))
+
+    def test_preprocessing_filter(self):
+        self.workflow.expression_matrix = self.test_count_data.transpose()
+        self.workflow.meta_data = self.test_meta_data
+        self.workflow.single_cell_normalize()
+        self.assertEqual(self.workflow.expression_matrix.shape, (2, 4))
+
+    def test_preprocessing_nan_pre(self):
+        self.workflow.expression_matrix = self.test_count_data.transpose()
+        self.workflow.expression_matrix.iloc[0, 0] = np.nan
+        with self.assertRaises(ValueError):
+            self.workflow.single_cell_normalize()
+
+    def test_preprocessing_nan_post(self):
+        self.workflow.expression_matrix = self.test_count_data.transpose() - 1
+        self.workflow.add_preprocess_step(single_cell.log2_data)
+        with np.warnings.catch_warnings():
+            np.warnings.filterwarnings('ignore')
+            with self.assertRaises(ValueError):
+                self.workflow.single_cell_normalize()

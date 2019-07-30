@@ -4,6 +4,7 @@ from inferelator import utils
 from inferelator.regression import base_regression
 from inferelator.distributed.inferelator_mp import MPControl
 from sklearn.linear_model import ElasticNetCV
+import copy
 
 ELASTICNET_PARAMETERS = dict(l1_ratio=[0.5, 0.7, 0.9],
                              eps=0.001,
@@ -37,9 +38,14 @@ def elastic_net(X, Y, params):
     assert check.argument_type(Y, np.ndarray)
 
     (K, N) = X.shape
-    X = X.T  # Make X into [N, K]
+    X = X.T.copy()  # Make X into [N, K]
     Y = Y.flatten()  # Make Y into [N, ]
 
+    # Clean up any NaNs or infs in the data
+    bool_idx = np.isnan(Y) | np.isinf(Y)
+    Y[bool_idx] = 0
+    X[bool_idx, :] = 0
+    X[np.isnan(X) | np.isinf(X)] = 0
 
     # Fit the linear model using the elastic net
     model = ElasticNetCV(**params).fit(X, Y)
@@ -68,6 +74,12 @@ def elastic_net(X, Y, params):
 class ElasticNet(base_regression.BaseRegression):
     params = ELASTICNET_PARAMETERS
 
+    def __init__(self, X, Y, random_seed):
+        self.random_seed = random_seed
+        self.params = copy.copy(ELASTICNET_PARAMETERS)
+        self.params["random_state"] = random_seed
+        super(ElasticNet, self).__init__(X, Y)
+
     def regress(self):
         """
         Execute Elastic Net
@@ -77,7 +89,7 @@ class ElasticNet(base_regression.BaseRegression):
         """
 
 
-        if MPControl.client.name() == "dask":
+        if MPControl.is_dask():
             from inferelator.distributed.dask_functions import elasticnet_regress_dask
             return elasticnet_regress_dask(self.X, self.Y, self.params, self.G, self.genes)
 
@@ -101,4 +113,4 @@ class ElasticNetWorkflow(base_regression.RegressionWorkflow):
         Y = self.response.iloc[:, bootstrap]
         utils.Debug.vprint('Calculating betas using MEN', level=0)
         MPControl.sync_processes("pre-bootstrap")
-        return ElasticNet(X, Y).run()
+        return ElasticNet(X, Y, self.random_seed).run()

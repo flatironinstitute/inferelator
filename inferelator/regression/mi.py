@@ -103,7 +103,7 @@ def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
     Y = _make_array_discrete(Y.transpose(), bins, axis=0)
 
     # Build the MI matrix
-    if MPControl.client.name() == "dask":
+    if MPControl.is_dask():
         from inferelator.distributed.dask_functions import build_mi_array_dask
         return pd.DataFrame(build_mi_array_dask(X, Y, bins, logtype=logtype), index=mi_r, columns=mi_c)
     else:

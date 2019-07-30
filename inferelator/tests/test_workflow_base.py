@@ -5,16 +5,20 @@ Test base workflow stepwise.
 import unittest
 import os
 import tempfile
+import shutil
 import numpy as np
+import pandas as pd
+import pandas.testing as pdt
 
 from inferelator import workflow
 from inferelator.regression.base_regression import RegressionWorkflow
 from inferelator.distributed.inferelator_mp import MPControl
+from inferelator.preprocessing.metadata_parser import MetadataParserBranching
 
 my_dir = os.path.dirname(__file__)
 
 
-class TestWorkflow(unittest.TestCase):
+class TestWorkflowLoadData(unittest.TestCase):
 
     def setUp(self):
         self.workflow = workflow.WorkflowBase()
@@ -35,15 +39,65 @@ class TestWorkflow(unittest.TestCase):
         self.assertListEqual(self.workflow.tf_names, tf_names)
 
     def test_load_priors_gs(self):
-        self.workflow.set_gold_standard_and_priors()
+        self.workflow.read_priors()
         self.assertEqual(self.workflow.priors_data.shape, (100, 100))
         self.assertEqual(self.workflow.gold_standard.shape, (100, 100))
         self.assertTrue(all(self.workflow.priors_data.index == self.workflow.priors_data.columns))
         self.assertTrue(all(self.workflow.gold_standard.index == self.workflow.gold_standard.columns))
 
+        self.workflow.priors_file = None
+        self.workflow.priors_data = None
+        self.workflow.gold_standard_file = None
+        self.workflow.gold_standard = None
+
+        with self.assertRaises(ValueError):
+            self.workflow.read_priors()
+
     def test_load_metadata(self):
         self.workflow.read_metadata()
         self.assertEqual(self.workflow.meta_data.shape, (421, 5))
+
+    def test_make_metadata(self):
+        self.workflow.read_expression()
+        self.workflow.meta_data_file = None
+        self.workflow.read_metadata()
+        self.assertEqual(self.workflow.meta_data.shape, (421, 4))
+
+    def test_extract_metadata(self):
+        self.workflow.read_expression()
+        meta_data = MetadataParserBranching.create_default_meta_data(self.workflow.expression_matrix)
+        gene_list = self.workflow.expression_matrix.index.tolist()
+
+        self.workflow.expression_matrix = self.workflow.expression_matrix.transpose()
+        self.workflow.expression_matrix_columns_are_genes = True
+        self.workflow.extract_metadata_from_expression_matrix = True
+        self.workflow.expression_matrix = pd.concat([self.workflow.expression_matrix, meta_data], axis=1)
+        self.workflow.expression_matrix_metadata = meta_data.columns.tolist()
+
+        self.workflow.read_metadata()
+
+        pdt.assert_frame_equal(self.workflow.meta_data, meta_data)
+        self.assertListEqual(self.workflow.expression_matrix.columns.tolist(), gene_list)
+
+    def test_load_gene_metadata(self):
+        self.workflow.input_dir = tempfile.mkdtemp()
+        self.workflow.gene_metadata_file = "genes.tsv"
+        self.workflow.gene_list_index = "SystematicName"
+        genes = pd.DataFrame({"SystematicName": ["gene1", "gene2", "gene3", "gene4", "gene7", "gene6"]})
+        genes.to_csv(os.path.join(self.workflow.input_dir, "genes.tsv"), sep="\t", index=False)
+
+        self.workflow.read_genes()
+        pdt.assert_frame_equal(self.workflow.gene_metadata, genes)
+
+        self.workflow.gene_list_index = None
+        with self.assertRaises(ValueError):
+            self.workflow.read_genes()
+
+        self.workflow.gene_list_index = "SillyName"
+        with self.assertRaises(ValueError):
+            self.workflow.read_genes()
+
+        shutil.rmtree(self.workflow.input_dir)
 
     def test_get_data(self):
         self.workflow.get_data()
@@ -52,6 +106,29 @@ class TestWorkflow(unittest.TestCase):
         self.assertTrue(self.workflow.gold_standard is not None)
         self.assertTrue(self.workflow.tf_names is not None)
         self.assertTrue(self.workflow.meta_data is not None)
+
+
+class TestWorkflowFunctions(unittest.TestCase):
+    data = None
+
+    @classmethod
+    def setUpClass(cls):
+        cls.data = workflow.WorkflowBase()
+        cls.data.input_dir = os.path.join(my_dir, "../../data/dream4")
+        cls.data.expression_matrix_file = "expression.tsv"
+        cls.data.meta_data_file = "meta_data.tsv"
+        cls.data.tf_names_file = "tf_names.tsv"
+        cls.data.priors_file = "gold_standard.tsv"
+        cls.data.gold_standard_file = "gold_standard.tsv"
+        cls.data.get_data()
+
+    def setUp(self):
+        self.workflow = workflow.WorkflowBase()
+        self.workflow.priors_data = self.data.priors_data.copy()
+        self.workflow.gold_standard = self.data.gold_standard.copy()
+        self.workflow.expression_matrix = self.data.expression_matrix.copy()
+        self.workflow.tf_names = self.data.tf_names
+        self.workflow.input_dir = os.path.join(my_dir, "../../data/dream4")
 
     def test_multiprocessing_init(self):
         MPControl.shutdown()
@@ -79,36 +156,59 @@ class TestWorkflow(unittest.TestCase):
             self.workflow.append_to_path('input_dir', 'test')
 
     def test_make_fake_metadata(self):
-        self.workflow.read_expression()
-        self.workflow.meta_data = self.workflow.create_default_meta_data(self.workflow.expression_matrix)
-        self.assertEqual(self.workflow.meta_data.shape, (421, 5))
+        self.workflow.meta_data_file = None
+        self.workflow.read_metadata(file=None)
+        self.assertEqual(self.workflow.meta_data.shape, (421, 4))
 
-    def test_prior_split(self):
-        self.workflow.split_priors_for_gold_standard = True
-        self.workflow.cv_split_ratio = 0.5
-        self.workflow.set_gold_standard_and_priors()
-        self.assertEqual(self.workflow.priors_data.shape, (50, 100))
-        self.assertEqual(self.workflow.gold_standard.shape, (50, 100))
-        self.assertTrue(all(self.workflow.priors_data.columns == self.workflow.gold_standard.columns))
-
-    def test_cv_split(self):
+    def test_workflow_cv_priors_genes(self):
         self.workflow.split_gold_standard_for_crossvalidation = True
         self.workflow.cv_split_ratio = 0.5
-        self.workflow.set_gold_standard_and_priors()
+        self.workflow.cv_split_axis = 0
+        self.workflow.process_priors_and_gold_standard()
         self.assertEqual(self.workflow.priors_data.shape, (50, 100))
         self.assertEqual(self.workflow.gold_standard.shape, (50, 100))
-        self.assertTrue(all(self.workflow.priors_data.columns == self.workflow.gold_standard.columns))
+        self.assertListEqual(self.workflow.priors_data.columns.tolist(), self.workflow.gold_standard.columns.tolist())
+        self.workflow.align_priors_and_expression()
+        self.assertEqual(self.workflow.priors_data.shape, (100, 100))
+        self.assertEqual(self.workflow.gold_standard.shape, (50, 100))
 
-    def test_filter_priors(self):
-        self.workflow.read_expression()
-        self.workflow.read_tfs()
-        self.workflow.split_priors_for_gold_standard = True
+    def test_workflow_cv_priors_tfs(self):
+        self.workflow.split_gold_standard_for_crossvalidation = True
         self.workflow.cv_split_ratio = 0.5
         self.workflow.cv_split_axis = 1
-        self.workflow.set_gold_standard_and_priors()
+        self.workflow.process_priors_and_gold_standard()
         self.assertEqual(self.workflow.priors_data.shape, (100, 50))
-        self.workflow.filter_expression_and_priors()
+        self.assertEqual(self.workflow.gold_standard.shape, (100, 50))
+        self.assertListEqual(self.workflow.priors_data.index.tolist(), self.workflow.gold_standard.index.tolist())
+        self.workflow.align_priors_and_expression()
+        self.assertEqual(self.workflow.priors_data.shape, (100, 50))
+        self.assertEqual(self.workflow.gold_standard.shape, (100, 50))
+
+    def test_workflow_cv_priors_flat(self):
+        self.workflow.split_gold_standard_for_crossvalidation = True
+        self.workflow.cv_split_ratio = 0.5
+        self.workflow.cv_split_axis = None
+        self.workflow.process_priors_and_gold_standard()
         self.assertEqual(self.workflow.priors_data.shape, (100, 100))
+        self.workflow.align_priors_and_expression()
+        self.assertEqual(self.workflow.priors_data.shape, (100, 100))
+
+    def test_workflow_priors_filter(self):
+        self.workflow.split_gold_standard_for_crossvalidation = True
+        self.workflow.cv_split_ratio = 0.5
+        self.workflow.cv_split_axis = 0
+        self.workflow.tf_names = list(map(lambda x: "G" + str(x), list(range(1, 21))))
+        self.workflow.gene_metadata = pd.DataFrame({"genes": list(map(lambda x: "G" + str(x), list(range(1, 51))))})
+        self.workflow.gene_list_index = "genes"
+        self.workflow.process_priors_and_gold_standard()
+
+        self.assertEqual(self.workflow.gold_standard.shape, (50, 100))
+        self.assertListEqual(self.workflow.priors_data.columns.tolist(), self.workflow.tf_names)
+
+        self.workflow.align_priors_and_expression()
+        self.assertEqual(self.workflow.priors_data.shape, (50, 20))
+        self.assertEqual(self.workflow.expression_matrix.shape, (50, 421))
+        self.assertListEqual(self.workflow.priors_data.index.tolist(), self.workflow.expression_matrix.index.tolist())
 
     def test_get_bootstraps(self):
         bootstrap_0 = [37, 235, 396, 72, 255, 393, 203, 133, 335, 144, 129, 71, 237, 390, 281, 178, 276, 254, 357, 402,
@@ -133,7 +233,6 @@ class TestWorkflow(unittest.TestCase):
                        295, 230, 83, 239, 176, 317, 269, 164, 279, 406, 122, 249, 351, 53, 393, 169, 344, 365, 246, 221,
                        244, 204, 338, 362, 395, 105, 36, 112, 144, 158, 115, 106, 212, 291, 337, 258]
 
-        self.workflow.read_expression()
         self.workflow.response = self.workflow.expression_matrix
         self.workflow.random_seed = 1
         self.workflow.num_bootstraps = 5
@@ -148,16 +247,14 @@ class TestWorkflow(unittest.TestCase):
         temp_dir = tempfile.mkdtemp()
         self.workflow.input_dir = temp_dir
         self.workflow.create_output_dir()
-
         self.assertTrue(os.path.exists(self.workflow.output_dir))
         os.rmdir(self.workflow.output_dir)
         os.rmdir(temp_dir)
 
     def test_shuffle_prior_labels(self):
         self.workflow.shuffle_prior_axis = 0
-        self.workflow.set_gold_standard_and_priors()
         np.testing.assert_array_almost_equal_nulp(self.workflow.priors_data.values, self.workflow.gold_standard.values)
-        self.workflow.shuffle_priors()
+        self.workflow.process_priors_and_gold_standard()
         self.assertTrue(all(self.workflow.priors_data.columns == self.workflow.gold_standard.columns))
         self.assertTrue(all(self.workflow.priors_data.index == self.workflow.gold_standard.index))
         self.assertTrue(all(self.workflow.priors_data.sum(axis=0) == self.workflow.gold_standard.sum(axis=0)))
@@ -167,9 +264,8 @@ class TestWorkflow(unittest.TestCase):
 
     def test_shuffle_prior_labels_2(self):
         self.workflow.shuffle_prior_axis = 1
-        self.workflow.set_gold_standard_and_priors()
         np.testing.assert_array_almost_equal_nulp(self.workflow.priors_data.values, self.workflow.gold_standard.values)
-        self.workflow.shuffle_priors()
+        self.workflow.process_priors_and_gold_standard()
         self.assertTrue(all(self.workflow.priors_data.columns == self.workflow.gold_standard.columns))
         self.assertTrue(all(self.workflow.priors_data.index == self.workflow.gold_standard.index))
         self.assertTrue(all(self.workflow.priors_data.sum(axis=1) == self.workflow.gold_standard.sum(axis=1)))
@@ -197,10 +293,10 @@ class TestWorkflowFactory(unittest.TestCase):
 
     def test_amusr(self):
         from inferelator.regression.amusr_regression import AMUSRRegressionWorkflow
-        from inferelator.amusr_workflow import SingleCellMultiTask
+        from inferelator.amusr_workflow import MultitaskLearningWorkflow
         worker = workflow.inferelator_workflow(regression="amusr", workflow="amusr")
         self.assertTrue(isinstance(worker, AMUSRRegressionWorkflow))
-        self.assertTrue(isinstance(worker, SingleCellMultiTask))
+        self.assertTrue(isinstance(worker, MultitaskLearningWorkflow))
 
     def test_bad_inputs(self):
         with self.assertRaises(ValueError):

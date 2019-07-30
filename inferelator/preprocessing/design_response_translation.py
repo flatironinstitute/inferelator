@@ -1,24 +1,18 @@
 from __future__ import division
 
 from inferelator import utils
+from inferelator import default
+from inferelator.preprocessing.metadata_parser import MetadataHandler
+from inferelator.preprocessing.metadata_parser import ConditionDoesNotExistError, MultipleConditionsError
 import pandas as pd
 import numpy as np
 
-DEFAULT_tau = 45
-DEFAULT_delTmin = 0
-DEFAULT_delTmax = 120
 
-TS_COLUMN_NAME = 'isTs'
-PREV_COLUMN_NAME = 'prevCol'
-DELT_COLUMN_NAME = 'del.t'
-COND_COLUMN_NAME = 'condName'
-
-
-class PythonDRDriver:
+class PythonDRDriver(object):
     # Parameters for response matrix
-    tau = DEFAULT_tau
-    delTmin = DEFAULT_delTmin
-    delTmax = DEFAULT_delTmax
+    tau = default.DEFAULT_TAU
+    delTmin = default.DEFAULT_DELTMIN
+    delTmax = default.DEFAULT_DELTMAX
 
     # Strict checking will raise exception if there are potential inconsistencies
     # Strict_checking_for_metadata raises an exception if there are any missing experiments in the metadata
@@ -34,31 +28,16 @@ class PythonDRDriver:
     return_half_tau = False
 
     # Expression data
-    exp_data = None
-    conds = None
+    sample_names = None
 
     # Metadata
-    meta_data = None
     steady_idx = None
     ts_group = None
 
-    # Metadata column names
-    ts_col = TS_COLUMN_NAME
-    prev_col = PREV_COLUMN_NAME
-    delt_col = DELT_COLUMN_NAME
-    cond_col = COND_COLUMN_NAME
-
-    # Output data
-    included = None
-    col_labels = None
-    design = None
-    response = None
-    response_half = None
-
-    def __init__(self, tau=DEFAULT_tau, deltmin=DEFAULT_delTmin, deltmax=DEFAULT_delTmax, return_half_tau=False):
-        self.tau = tau
-        self.delTmin = deltmin
-        self.delTmax = deltmax
+    def __init__(self, tau=None, deltmin=None, deltmax=None, return_half_tau=False):
+        self.tau = tau if tau is not None else default.DEFAULT_TAU
+        self.delTmin = deltmin if deltmin is not None else default.DEFAULT_DELTMIN
+        self.delTmax = deltmax if deltmax is not None else default.DEFAULT_DELTMAX
         self.return_half_tau = return_half_tau
 
     def run(self, exp_data, meta_data):
@@ -68,187 +47,119 @@ class PythonDRDriver:
         :param meta_data: pd.DataFrame [N x 5]
         :return design, response: pd.DataFrame [G x N], pd.DataFrame [G x N]
         """
-        (k, n) = exp_data.shape
-        self.exp_data = exp_data
-        self.meta_data = meta_data
 
-        self._fix_NAs()  # Turn NA in the dataframe into np.NaN
-        self._process_groups()  # Parse metadata into dicts
-        self._check_for_dupes()  # Make sure that the conditions can be properly matched with metadata
+        (k, n) = exp_data.shape
+        processor = MetadataHandler.get_handler()
+
+        # Turn NA in the dataframe into np.NaN
+        meta_data = processor.fix_NAs(meta_data)
+
+        # Validate metadata alignment to expression
+        processor.validate_metadata(exp_data, meta_data)
+
+        # Turn the metadata into a set of dicts keyed by sample
+        steady_idx, ts_group = processor.process_groups(meta_data)
+
+        # Check and make sure that the metadata matches experimental data and whatnot
+        steady_idx = processor.check_for_dupes(exp_data, meta_data, steady_idx,
+                                               strict_checking_for_metadata=self.strict_checking_for_metadata,
+                                               strict_checking_for_duplicates=self.strict_checking_for_duplicates)
 
         # Pull apart the expression dataframe into indexes and an ndarray
         genes = exp_data.index.values
-        self.conds = exp_data.columns.values.astype(str)
-        self.exp_data = exp_data.values.astype(np.dtype('float64'))
+        self.sample_names = exp_data.columns.values.astype(str)
+        exp_data = exp_data.values.astype(np.dtype('float64'))
 
         # Construct empty arrays for the output data
-        self.col_labels = []
-        self.included = np.zeros((n, 1), dtype=bool)
-        self.design = []
-        self.response = []
-        if self.return_half_tau:
-            self.response_half = []
+        col_labels = []
+        included = np.zeros((n, 1), dtype=bool)
+        design = []
+        response = []
+        response_half = []
 
         # Walk through all the conditions in the expression data
-        for c, cc in enumerate(self.conds):
-            utils.Debug.vprint("Processing condition {cc} [{c} / {tot}]".format(cc=cc, c=c + 1, tot=n), level=3)
-            if self.steady_idx[cc]:
+        for c_idx, cc in enumerate(self.sample_names):
+            utils.Debug.vprint("Processing condition {cc} [{c} / {tot}]".format(cc=cc, c=c_idx + 1, tot=n), level=3)
+            if steady_idx[cc]:
                 # This is a steady-state experiment
-                self.static_exp(c)
+                self.static_exp(c_idx, cc, col_labels, included, exp_data, design, response, response_half)
             else:
                 # This is a timecourse experiment
-                for prev_cond, prev_delt in self._get_prior_timepoints(cc):
-                    self.timecourse_exp(c, self._get_index(prev_cond), prev_delt)
+                for prev_cond, prev_delt in self._get_prior_timepoints(ts_group, cc):
+                    prev_idx = self._get_index(self.sample_names, prev_cond)
+                    self.timecourse_exp(c_idx, prev_idx, prev_delt, col_labels, included, exp_data, design, response,
+                                        response_half)
                     if not self.deep_walk_timecourse_exps:
                         break
 
-        for c in np.where(~self.included)[0].tolist():
+        for c_idx in np.where(~included)[0].tolist():
             # Run anything that wasn't included initially in as a steady-state experiment
-            self.static_exp(c)
+            cc = self.sample_names[c_idx]
+            self.static_exp(c_idx, cc, col_labels, included, exp_data, design, response, response_half)
 
-        self.design = pd.DataFrame(np.array(self.design), index=self.col_labels, columns=genes).transpose()
-        self.response = pd.DataFrame(np.array(self.response), index=self.col_labels, columns=genes).transpose()
-        if self.return_half_tau:
-            self.response_half = pd.DataFrame(np.array(self.response_half), index=self.col_labels, columns=genes).transpose()
+        design = pd.DataFrame(np.array(design), index=col_labels, columns=genes).transpose()
+        response = pd.DataFrame(np.array(response), index=col_labels, columns=genes).transpose()
 
         if self.return_half_tau:
-            return self.design, self.response, self.response_half
+            response_half = pd.DataFrame(np.array(response_half), index=col_labels, columns=genes).transpose()
+            return design, response, response_half
         else:
-            return self.design, self.response
+            return design, response
 
-    def static_exp(self, idx):
+    @staticmethod
+    def static_exp(c_idx, c_name, col_labels, included, exp_data, design, response, response_half):
         """
         Concatenate expression data onto design, response & response half
-        :param idx: int
+
+        :param c_idx: int
+        :param c_name: str
+        :param col_labels: list
+        :param included: dict
+        :param exp_data: np.ndarray
+        :param design: list(np.ndarray)
+        :param response: list(np.ndarray)
+        :param response_half: list(np.ndarray)
         """
-        self.col_labels.append(self.conds[idx])
-        self.included[idx] = True
-        self.design.append(self.exp_data[:, idx].flatten())
-        self.response.append(self.exp_data[:, idx].flatten())
+        col_labels.append(c_name)
+        included[c_idx] = True
+        design.append(exp_data[:, c_idx].flatten())
+        response.append(exp_data[:, c_idx].flatten())
+        response_half.append(exp_data[:, c_idx].flatten())
 
-        if self.return_half_tau:
-            self.response_half.append(self.exp_data[:, idx].flatten())
-
-    def timecourse_exp(self, idx, prev_idx, prev_delt):
+    def timecourse_exp(self, c_idx, prev_idx, prev_delt, col_labels, included, exp_data, design, response,
+                       response_half):
         """
         Concatenate expression data from the prior timepoint onto design.
         Calculate response data based on timecourse and concatenate the result onto response & response half.
-        :param idx: int
+        :param c_idx: int
         :param prev_idx: int
         :param prev_delt: numeric
+        :param col_labels: list
+        :param included: dict
+        :param exp_data: np.ndarray
+        :param design: list(np.ndarray)
+        :param response: list(np.ndarray)
+        :param response_half: list(np.ndarray)
         """
-        new_cond = str(self.conds[prev_idx]) + "-" + str(self.conds[idx])
-        self.col_labels.append(new_cond)
-        self.included[idx] = True
-        self.included[prev_idx] = True
 
-        resp, half_resp = self._calculate_ts_response(self.exp_data, self.tau, prev_delt, idx, prev_idx)
+        col_labels.append(str(self.sample_names[prev_idx]) + "-" + str(self.sample_names[c_idx]))
+        included[c_idx] = True
+        included[prev_idx] = True
 
-        self.design.append(self.exp_data[:, prev_idx].flatten())
-        self.response.append(resp.flatten())
+        resp, half_resp = self._calculate_ts_response(exp_data, self.tau, prev_delt, c_idx, prev_idx)
 
-        if self.return_half_tau:
-            self.response_half.append(half_resp.flatten())
+        design.append(exp_data[:, prev_idx].flatten())
+        response.append(resp.flatten())
+        response_half.append(half_resp.flatten())
 
-    @staticmethod
-    def _calculate_ts_response(exp_data, tau, prev_delt, idx, prev_idx):
-        diff = exp_data[:, idx] - exp_data[:, prev_idx]
-        resp = float(tau) / float(prev_delt) * diff + exp_data[:, prev_idx]
-        half_resp = float(tau) / 2 / float(prev_delt) * diff + exp_data[:, prev_idx]
-        return resp, half_resp
-
-    def _process_groups(self):
-        """
-        Parse the metadata to identify steady-state experiments and link timecourse experiments
-        :return steady_idx, ts_group: dict, dict
-            steady_idx:  Dict keyed by condition, value is boolean (True if the condition is a steady-state experiment)
-            ts_group: Dict keyed by condition. [(Previous_condition_name, Previous_delt),
-                                                (Following_condition_name, Following_delt)]
-        """
-        time_series = self.meta_data[self.ts_col].values.astype(bool)
-        steadies = dict(zip(self.meta_data[self.cond_col].astype(str), np.logical_not(time_series)))
-
-        ts_data = self.meta_data[time_series].fillna(False)
-        ts_dict = dict(zip(ts_data[self.cond_col].astype(str).tolist(),
-                           zip(ts_data[self.prev_col].tolist(),
-                               ts_data[self.delt_col].tolist())))
-        ts_group = {}
-        for cond, (prev, delt) in ts_dict.items():
-            if prev is False or delt is False:
-                prev, delt = None, None
-            try:
-                op, od = ts_group[cond]
-                ts_group[cond] = [(prev, delt), od]
-            except KeyError:
-                ts_group[cond] = [(prev, delt), (None, None)]
-            if prev is not None:
-                try:
-                    op, od = ts_group[prev]
-                    ts_group[prev] = [op, (cond, delt)]
-                except KeyError:
-                    ts_group[prev] = [(None, None), (cond, delt)]
-
-        self.steady_idx = steadies
-        self.ts_group = ts_group
-
-    def _check_for_dupes(self):
-        """
-        Sanity check the metadata and experimental data to ensure that they can be linked. Try to guess as much as
-        possible unless strict checking is on
-        """
-        # Check to make sure that the conditions in the expression data are matched with conditions in the metadata
-        exp_conds = self.exp_data.columns
-        meta_conds = self.meta_data[self.cond_col]
-
-        # Check to find out if there are any conditions which don't have associated metadata
-        # If there are, raise an exception if strict_checking_for_metadata is True
-        # Otherwise just assume they're steady-state data and move on
-        in_exp_not_meta = exp_conds.difference(meta_conds).astype(str).tolist()
-        if len(in_exp_not_meta) != 0:
-            utils.Debug.vprint("{n} conditions cannot be properly matched to metadata".format(n=len(in_exp_not_meta)),
-                               level=1)
-            utils.Debug.vprint(" ".join(in_exp_not_meta), level=2)
-            if self.strict_checking_for_metadata:
-                raise ConditionDoesNotExistError("Conditions exist without associated metadata")
-            else:
-                for condition in in_exp_not_meta:
-                    self.steady_idx[condition] = True
-
-        # Check to find out if the conditions in the expression data are all unique
-        # It's not a problem if they're not, we just assume the metadata applies to all conditions with the same name
-        duplicate_in_exp = self.exp_data.columns.duplicated()
-        n_dup_in_exp = np.sum(duplicate_in_exp)
-        if n_dup_in_exp > 0:
-            c_dup = self.exp_data.columns[duplicate_in_exp].astype(str).tolist()
-            utils.Debug.vprint("The expression data has {n} non-unique condition indexes".format(n=n_dup_in_exp),
-                               level=1)
-            utils.Debug.vprint(" ".join(c_dup), level=2)
-
-        # Check to find out if the conditions in the meta data are all unique
-        # If there are repeats, check and see if the associated information is identical (if it is, just ignore it)
-        # If there are repeated conditions with different characteristics, the outcome may be unexpected
-        # (The parser will just overwrite the first ones it comes to with the characteristics of the last one)
-        duplicate_in_meta = self.meta_data[self.cond_col].duplicated()
-        n_dup_in_meta = np.sum(duplicate_in_meta)
-        if n_dup_in_meta > 0:
-            meta_dup = self.meta_data[self.cond_col][duplicate_in_meta].astype(str).tolist()
-            if np.sum(np.logical_xor(self.meta_data.duplicated(), duplicate_in_meta)) > 0:
-                utils.Debug.vprint("The metadata has non-unique conditions with different characteristics:", level=0)
-                utils.Debug.vprint(" ".join(meta_dup), level=0)
-                if self.strict_checking_for_duplicates:
-                    raise MultipleConditionsError("Identical conditions have non-identical characteristics")
-            else:
-                utils.Debug.vprint("The metadata contains {n} duplicate rows".format(n=n_dup_in_meta), level=1)
-                utils.Debug.vprint(" ".join(meta_dup), level=2)
-
-    def _get_prior_timepoints(self, cond):
+    def _get_prior_timepoints(self, ts_group, cond):
         """
         Walk backwards through timepoints until a total del.t that falls within the acceptable window is located
         :param cond:
         :return:
         """
         total_delt = 0
-        for pcond, pdelt in self._prior_timepoint_generator(cond):
+        for pcond, pdelt in self._prior_timepoint_generator(ts_group, cond):
             total_delt += pdelt
             if self.delTmax is not None:
                 if self.delTmin <= total_delt <= self.delTmax:
@@ -259,24 +170,34 @@ class PythonDRDriver:
                 if self.delTmin <= total_delt:
                     yield pcond, total_delt
 
-    def _prior_timepoint_generator(self, cond):
+    @staticmethod
+    def _calculate_ts_response(exp_data, tau, prev_delt, idx, prev_idx):
+        diff = exp_data[:, idx] - exp_data[:, prev_idx]
+        resp = float(tau) / float(prev_delt) * diff + exp_data[:, prev_idx]
+        half_resp = float(tau) / 2 / float(prev_delt) * diff + exp_data[:, prev_idx]
+        return resp, half_resp
+
+    @staticmethod
+    def _prior_timepoint_generator(ts_group, cond):
         """
         Yield the previous timepoint condition name and delt until it gets back to the first timepoint
         :param cond:
         """
-        prev_cond, prev_delt = self.ts_group[cond][0]
+        prev_cond, prev_delt = ts_group[cond][0]
         while prev_cond is not None:
             yield prev_cond, prev_delt
-            prev_cond, prev_delt = self.ts_group[prev_cond][0]
+            prev_cond, prev_delt = ts_group[prev_cond][0]
 
-    def _get_index(self, cond):
+    @staticmethod
+    def _get_index(sample_names, cond):
         """
         Look up the index in the expression data of a specific condition. Raise errors if it doesn't exist, or if it's
         not unique
-        :param cond:
+        :param sample_names: list
+        :param cond: str
         :return idx: int
         """
-        idx = np.where(self.conds == cond)[0].tolist()
+        idx = np.where(sample_names == cond)[0].tolist()
         if len(idx) == 0:
             raise ConditionDoesNotExistError("{cond} cannot be identified in expression conditions".format(cond=cond))
         if len(idx) > 1:
@@ -284,14 +205,3 @@ class PythonDRDriver:
         else:
             idx = idx[0]
         return idx
-
-    def _fix_NAs(self):
-        self.meta_data = self.meta_data.replace('NA', np.nan, regex=False)
-
-
-class ConditionDoesNotExistError(IndexError):
-    pass
-
-
-class MultipleConditionsError(ValueError):
-    pass
