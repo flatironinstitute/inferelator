@@ -28,8 +28,6 @@ You will also need
 
 # Ubuntu Instructions
 
-These are the commands that I (Kostya) ran on Ubuntu:
-
 ## Fork the flatiron institute repository (once)
 
 In order to make changes to the repository you will work in your own copy
@@ -49,10 +47,10 @@ other tools.
 ```
 sudo apt-get install python-dev
 sudo apt-get install python-pip
-pip install pandas
 sudo apt-get install python-nose
 sudo apt-get install git
-sudo apt-get -y install r-base
+python -m pip install numpy
+python -m pip install pandas
 ```
 
 ## Configuring your `git` command line interface
@@ -75,10 +73,6 @@ To clone the fork onto your workstation type in the terminal:
 ```
 git clone $URL
 ```
-
-For me, this was:
-
-```git clone https://github.com/kostyat/inferelator.git```
 
 ## Set up the "remote" repository (once)
 
@@ -119,17 +113,20 @@ Run unit tests from the shell with the [nosetests](http://pythontesting.net/fram
 (this runs the unit tests):
 
 ```bash
-nosetests
+python -m nose
 ```
 
 Output should look like this:
 
 ```
-.......S...............
+...........................................SS.........................
+......................................................................
+......................................................................
+........................
 ----------------------------------------------------------------------
-Ran 23 tests in 2.179s
+Ran 241 tests in 14.257s
 
-OK (SKIP=1)
+OK (SKIP=2)
 ```
 
 Each dot stands for a unit test that ran, "S" stands for "Skipped".  If there are
@@ -139,8 +136,7 @@ For debugging purposes it is sometimes useful to use `print` statements and invo
 nosetests with the `--nocapture` option in order to see the output.
 
 ```bash
-export SKIP_KVS_TESTS=true
-nosetests --nocapture
+python -m nose --nocapture
 ```
 
 # Making a contribution to the project
@@ -166,7 +162,7 @@ Change one of the files (for example the `utils.py` file), by adding a blank lin
 run nosetests (this runs the unit tests):
 
 ```
-nosetests
+python -m nose
 ```
 
 ## Push your changes to your Github directory
