@@ -13,8 +13,9 @@ utils.Debug.set_verbose_level(1)
 DATA_DIR = '../data/yeast'
 OUTPUT_DIR = '~/yeast_inference/'
 
-EXPRESSION_FILE_NAME = 'expression.tsv.gz'
-META_DATA_FILE_NAME = 'meta_data.tsv'
+EXPRESSION_FILE_NAME = 'yeast_microarray_expression.tsv.gz'
+META_DATA_FILE_NAME = 'yeast_microarray_meta_data.tsv'
+PRIORS_FILE_NAME = 'gold_standard.tsv'
 GOLD_STANDARD_FILE_NAME = 'gold_standard.tsv'
 TF_LIST_FILE_NAME = 'tf_names_restrict.tsv'
 
@@ -42,6 +43,7 @@ def set_up_workflow(wkf):
     wkf.expression_matrix_file = EXPRESSION_FILE_NAME
     wkf.meta_data_file = META_DATA_FILE_NAME
     wkf.tf_names_file = TF_LIST_FILE_NAME
+    wkf.priors_file = PRIORS_FILE_NAME
     wkf.gold_standard_file = GOLD_STANDARD_FILE_NAME
     wkf.gene_metadata_file = GENE_METADATA_FILE_NAME
     wkf.gene_list_index = GENE_METADATA_COLUMN
