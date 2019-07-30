@@ -13,7 +13,7 @@ utils.Debug.set_verbose_level(1)
 DATA_DIR = '../data/yeast'
 OUTPUT_DIR = '~/yeast_inference/'
 
-EXPRESSION_FILE_NAME = 'expression.tsv'
+EXPRESSION_FILE_NAME = 'expression.tsv.gz'
 META_DATA_FILE_NAME = 'meta_data.tsv'
 GOLD_STANDARD_FILE_NAME = 'gold_standard.tsv'
 TF_LIST_FILE_NAME = 'tf_names_restrict.tsv'
