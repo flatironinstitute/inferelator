@@ -15,12 +15,14 @@ Install required python libraries:
 ```
 python -m pip install -r requirements.txt
 ```
-Install required libraries for parallelization:
+Install required libraries for parallelization (running on a single machine requires only `python -m pip install pathos`):
 ```
 python -m pip install -r requirements-multiprocessing.txt
 ```
-(running on a single machine requires only pathos which can be installed with python -m pip install pathos)
-
+Install the inferelator package
+```
+python setup.py develop --user
+```
 
 ## Set Up the Inferelator using pip
 
@@ -46,7 +48,38 @@ Change the value of `DATA_DIR =` in the example scripts to point to the just-cre
 python examples/yeast_network_inference_run_script.py
 ```
 
-## Construct a new run script for a different organism
+## Acquire necessary data for network inference in a different organism
 
 Obtain expression data and save it as a TSV file of [Genes x Samples]
 Obtain prior interaction data between TFs and target genes and save it as a TSV file of [Genes x TFs]
+Create a list of TFs to model for inference and save it as a text file (each TF on a separate line)
+
+## Construct a new run script (`new_organism.py`) for a different organism
+
+Select parallelization options:
+```
+from inferelator.distributed.inferelator_mp import MPControl
+if __name__ == '__main__':
+    MPControl.set_multiprocess_engine("multiprocessing")
+    MPControl.client.processes = 4
+    MPControl.connect()
+```
+Create an inferelator workflow
+```
+from inferelator import workflow
+worker = workflow.inferelator_workflow(regression="bbsr", workflow="tfa")
+```
+Set file names and paths:
+```
+worker.input_dir = 'data/new_organism'
+worker.output_dir = '~/new_organism/'
+worker.expression_matrix_file = 'new_expression.tsv.gz'
+worker.tf_names_file = 'tf_list.txt'
+worker.priors_file = 'new_prior.tsv.gz'
+worker.gold_standard_file = 'new_prior.tsv.gz'
+```
+Add a line to execute inference:
+```
+worker.run()
+```
+This script can now be run from the command line as `python new_organism.py`
