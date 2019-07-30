@@ -51,8 +51,12 @@ python examples/yeast_network_inference_run_script.py
 ## Acquire necessary data for network inference in a different organism
 
 Obtain expression data and save it as a TSV file of [Genes x Samples]
+
 Obtain prior interaction data between TFs and target genes and save it as a TSV file of [Genes x TFs]
-Create a list of TFs to model for inference and save it as a text file (each TF on a separate line)
+
+Create a list of TFs to model for inference and save it as a text file with each TF on a separate line [TFs]
+
+Note that the TF and Gene names must match between files, and these files can be compressed with `gzip` if needed
 
 ## Construct a new run script (`new_organism.py`) for a different organism
 
