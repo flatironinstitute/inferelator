@@ -11,6 +11,7 @@ elif sys.version_info[0] == 3:
 else:
     raise ValueError("Python isn't py2 or py3. What have you done.")
 
+
 # Require coverage and nose for testing
 tests_require = ["coverage", "nose"]
 
