@@ -18,7 +18,9 @@ tests_require = ["coverage", "nose"]
 # Current Inferelator Version Number
 version = "0.3.0"
 
-# Release Date
+# Description from README.md
+base_dir = os.path.dirname(os.path.abspath(__file__))
+long_description = "\n\n".join([open(os.path.join(base_dir, "README.md"), "r").read()])
 
 setup(
     name="inferelator",
