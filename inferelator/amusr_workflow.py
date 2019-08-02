@@ -281,6 +281,7 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
 
             self.set_metadata_handler(task_id)
             task = self.new_puppet(expr_data, meta_data, seed=self.random_seed, priors_data=task_prior)
+            task.process_priors_and_gold_standard()
             task.startup_finish()
             self.task_design.append(task.design)
             self.task_response.append(task.response)
