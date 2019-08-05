@@ -29,7 +29,8 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
     """
 
     prior_weight = default.DEFAULT_prior_weight
-    task_expression_filter = "intersection"
+    regulator_expression_filter = "intersection"
+    target_expression_filter = "union"
 
     # Task-specific data
     n_tasks = None
@@ -291,8 +292,8 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow, crossva
             regulators.append(task.design.index)
             targets.append(task.response.index)
 
-        self.targets = amusr_regression.filter_genes_on_tasks(targets, self.task_expression_filter)
-        self.regulators = amusr_regression.filter_genes_on_tasks(regulators, self.task_expression_filter)
+        self.targets = amusr_regression.filter_genes_on_tasks(targets, self.target_expression_filter)
+        self.regulators = amusr_regression.filter_genes_on_tasks(regulators, self.regulator_expression_filter)
         self.expression_matrix = None
 
         utils.Debug.vprint("Processed data into design/response [{g} x {k}]".format(g=len(self.targets),
