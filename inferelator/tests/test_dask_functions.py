@@ -19,13 +19,14 @@ except ImportError:
 
 
 @unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
-@unittest.skipIf("TRAVIS" in os.environ and os.environ["TRAVIS"] == "true", "Dask unittests not compatible with travis")
+@unittest.skipIf("TRAVIS" in os.environ and os.environ["TRAVIS"] == "true", "Skip Travis for Dask")
 class TestDaskLocalMPController(unittest.TestCase):
     name = "dask-local"
     tempdir = None
 
     @classmethod
     @unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
+    @unittest.skipIf("TRAVIS" in os.environ and os.environ["TRAVIS"] == "true", "Skip Travis for Dask")
     def setUpClass(cls):
         cls.tempdir = tempfile.mkdtemp()
         MPControl.shutdown()
@@ -34,6 +35,7 @@ class TestDaskLocalMPController(unittest.TestCase):
 
     @classmethod
     @unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
+    @unittest.skipIf("TRAVIS" in os.environ and os.environ["TRAVIS"] == "true", "Skip Travis for Dask")
     def tearDownClass(cls):
         MPControl.shutdown()
         MPControl.set_multiprocess_engine("local")
@@ -41,6 +43,7 @@ class TestDaskLocalMPController(unittest.TestCase):
         if cls.tempdir is not None:
             shutil.rmtree(cls.tempdir)
 
+    @unittest.skipIf("TRAVIS" in os.environ and os.environ["TRAVIS"] == "true", "Skip Travis for Dask")
     def test_dask_function_mi(self):
         """Compute mi for identical arrays [[1, 2, 1], [2, 4, 6]]."""
 
@@ -51,6 +54,7 @@ class TestDaskLocalMPController(unittest.TestCase):
         expected = np.array([[0.63651417, 0.63651417], [0.63651417, 1.09861229]])
         np.testing.assert_almost_equal(mi, expected)
 
+    @unittest.skipIf("TRAVIS" in os.environ and os.environ["TRAVIS"] == "true", "Skip Travis for Dask")
     def test_dask_function_bbsr(self):
         pp_mat = pd.DataFrame([[1, 1], [1, 1]], index=['gene1', 'gene2'], columns=['gene1', 'gene2'])
         X = pd.DataFrame([1, 2], index=['gene1', 'gene2'], columns=['ss'])
