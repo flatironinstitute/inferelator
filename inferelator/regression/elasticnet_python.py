@@ -76,7 +76,7 @@ class ElasticNet(base_regression.BaseRegression):
 
     def __init__(self, X, Y, random_seed):
         self.random_seed = random_seed
-        self.params = copy.copy(ELASTICNET_PARAMETERS)
+        self.params = copy.copy(self.params)
         self.params["random_state"] = random_seed
         super(ElasticNet, self).__init__(X, Y)
 

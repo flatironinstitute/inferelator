@@ -1,4 +1,5 @@
 import unittest
+import warnings
 
 from inferelator import tfa_workflow
 from inferelator import workflow
@@ -7,7 +8,6 @@ from inferelator.artifacts.test_stubs import TaskDataStub
 from inferelator.crossvalidation_workflow import create_puppet_workflow
 from inferelator.regression.bbsr_multitask import BBSRByTaskRegressionWorkflow
 from inferelator.regression.elasticnet_multitask import ElasticNetByTaskRegressionWorkflow
-
 
 class TestRegressionFactory(unittest.TestCase):
 
@@ -49,7 +49,11 @@ class TestSingleTaskRegressionFactory(TestRegressionFactory):
         self.workflow.tf_names = self.tf_names
         self.workflow.meta_data_file = None
         self.workflow.read_metadata()
-        self.workflow.run()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self.workflow.run()
+            
         self.assertEqual(self.workflow.aupr, 1)
 
 class TestMultitaskFactory(TestRegressionFactory):
@@ -87,5 +91,7 @@ class TestMultitaskFactory(TestRegressionFactory):
         self.workflow = workflow.inferelator_workflow(workflow="amusr", regression=ElasticNetByTaskRegressionWorkflow)
         self.reset_workflow()
 
-        self.workflow.run()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self.workflow.run()
         self.assertEqual(self.workflow.aupr, 1)
