@@ -3,6 +3,7 @@ Run Multitask Network Inference with TFA-AMuSR.
 """
 import copy
 import gc
+import warnings
 
 # Shadow built-in zip with itertools.izip if this is python2 (This puts out a memory dumpster fire)
 try:
@@ -19,7 +20,7 @@ from inferelator import default
 from inferelator.regression import amusr_regression
 from inferelator.postprocessing.results_processor_mtl import ResultsProcessorMultiTask
 
-TRANSFER_ATTRIBUTES = ['count_minimum', 'preprocessing_workflow', 'input_dir']
+TRANSFER_ATTRIBUTES = ['count_minimum', 'preprocessing_workflow', 'input_dir', 'num_bootstraps']
 
 
 class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
@@ -97,6 +98,9 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         task_object.priors_file = priors_file
         task_object.gold_standard_file = gold_standard_file
         task_object.preprocessing_workflow = preprocessing_workflow
+
+        if gold_standard_file is not None:
+            warnings.warn("Task-specific gold standards are not implemented. This setting will be ignored.")
 
         # Pass forward any kwargs (raising errors if they're for attributes that don't exist)
         for attr, val in kwargs.items():
