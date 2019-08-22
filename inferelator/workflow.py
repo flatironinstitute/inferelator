@@ -9,22 +9,25 @@ But does not have any functions for regression or analysis
 """
 from __future__ import unicode_literals, print_function
 
-from inferelator import utils
-from inferelator import default
-from inferelator.preprocessing.priors import ManagePriors
-from inferelator.preprocessing.metadata_parser import MetadataHandler
-from inferelator.regression.base_regression import RegressionWorkflow
-
-from inferelator.distributed.inferelator_mp import MPControl
-
-import inspect
-import numpy as np
-import os
 import datetime
+import inspect
+import os
+
+import numpy as np
 import pandas as pd
 
+from inferelator import default
+from inferelator import utils
+from inferelator.distributed.inferelator_mp import MPControl
+from inferelator.preprocessing.metadata_parser import MetadataHandler
+from inferelator.preprocessing.priors import ManagePriors
+from inferelator.regression.base_regression import RegressionWorkflow
 
-class WorkflowBase(object):
+
+class WorkflowBaseLoader(object):
+    """
+    WorkflowBaseLoader is the class to load raw data. It does no processing.
+    """
     # Paths to the input and output locations
     input_dir = None
     output_dir = None
@@ -42,16 +45,20 @@ class WorkflowBase(object):
     priors_file = default.DEFAULT_PRIORS_FILE
     gold_standard_file = default.DEFAULT_GOLDSTANDARD_FILE
 
+    # Metadata handler
+    metadata_handler = "branching"
+
     # Gene list & associated metadata
     gene_metadata_file = None
     gene_metadata = None
     gene_list_index = default.DEFAULT_GENE_LIST_INDEX_COLUMN
 
-    # Flags to control splitting priors into a prior/gold-standard set
-    split_gold_standard_for_crossvalidation = False
-    cv_split_ratio = default.DEFAULT_GS_SPLIT_RATIO
-    cv_split_axis = default.DEFAULT_GS_SPLIT_AXIS
-    shuffle_prior_axis = None
+    # Loaded data structures [G: Genes, K: Predictors, N: Conditions
+    expression_matrix = None  # expression_matrix dataframe [G x N]
+    tf_names = None  # tf_names list [k,]
+    meta_data = None  # meta data dataframe [G x ?]
+    priors_data = None  # priors data dataframe [G x K]
+    gold_standard = None  # gold standard dataframe [G x K]
 
     # Flag to identify orientation of the expression matrix (True for samples x genes & False for genes x samples)
     expression_matrix_columns_are_genes = False  # bool
@@ -60,18 +67,188 @@ class WorkflowBase(object):
     extract_metadata_from_expression_matrix = default.DEFAULT_EXTRACT_METADATA_FROM_EXPR  # bool
     expression_matrix_metadata = default.DEFAULT_EXPRESSION_MATRIX_METADATA  # str
 
+    def get_data(self):
+        """
+        Read data files in to data structures.
+        """
+
+        self.read_expression()
+        self.read_tfs()
+        self.read_metadata()
+        self.read_genes()
+        self.read_priors()
+
+        # Transpose expression data to [Genes x Samples] if the columns_are_genes flag is set
+        self.transpose_expression_matrix()
+
+    def transpose_expression_matrix(self):
+        # Transpose expression data
+        if self.expression_matrix_columns_are_genes:
+            self.expression_matrix = self.expression_matrix.transpose()
+            utils.Debug.vprint("Transposing expression matrix to {sh}".format(sh=self.expression_matrix.shape), level=2)
+
+    def input_dataframe(self, filename, **kwargs):
+        """
+        Read a file in as a pandas dataframe
+        """
+
+        # Set defaults for index_col and header
+        kwargs['index_col'] = kwargs.pop('index_col', 0)
+        kwargs['header'] = kwargs.pop('header', 0)
+
+        # Use any kwargs for this function and any file settings from default
+        file_settings = self.file_format_settings.copy()
+        file_settings.update(kwargs)
+
+        # Update the file settings with anything that's in file-specific overrides
+        if filename in self.file_format_overrides:
+            file_settings.update(self.file_format_overrides[filename])
+
+        utils.Debug.vprint("Loading data file: {a}".format(a=self.input_path(filename)), level=2)
+        # Load a dataframe
+        return pd.read_csv(self.input_path(filename), **file_settings)
+
+    def append_to_path(self, var_name, to_append):
+        """
+        Add a string to an existing path variable in class
+        """
+        path = getattr(self, var_name, None)
+        if path is None:
+            raise ValueError("Cannot append {to_append} to {var_name} (Which is None)".format(to_append=to_append,
+                                                                                              var_name=var_name))
+        setattr(self, var_name, os.path.join(path, to_append))
+
+    def read_expression(self, file=None):
+        """
+        Read expression matrix file into expression_matrix
+        """
+        file = file if file is not None else self.expression_matrix_file
+        utils.Debug.vprint("Loading expression data file {file}".format(file=file), level=1)
+        self.expression_matrix = self.input_dataframe(file)
+
+    def read_tfs(self, file=None):
+        """
+        Read tf names file into tf_names
+        """
+
+        # Load the class variable if no file is passed
+        file = self.tf_names_file if file is None else file
+
+        if file is None:
+            return
+
+        utils.Debug.vprint("Loading TF feature names from file {file}".format(file=file), level=1)
+        # Read in a dataframe with no header or index
+        tfs = self.input_dataframe(file, header=None, index_col=None)
+
+        # Cast the dataframe into a list
+        assert tfs.shape[1] == 1
+        self.tf_names = tfs.values.flatten().tolist()
+
+    def read_metadata(self, file=None):
+        """
+        Read metadata file into meta_data or make fake metadata
+        """
+
+        file = file if file is not None else self.meta_data_file
+
+        # If the metadata is embedded in the expression matrix, extract it
+        if self.extract_metadata_from_expression_matrix:
+            utils.Debug.vprint("Slicing metadata from expression matrix", level=1)
+            self.expression_matrix, self.meta_data = self.dataframe_split(self.expression_matrix,
+                                                                          self.expression_matrix_metadata)
+        elif file is not None:
+            utils.Debug.vprint("Loading metadata file {file}".format(file=file), level=1)
+            self.meta_data = self.input_dataframe(file, index_col=None)
+        else:
+            utils.Debug.vprint("No metadata provided. Creating a generic metadata", level=0)
+            self.metadata_handler = MetadataHandler.handler_class(self.metadata_handler)
+            self.meta_data = self.metadata_handler.create_default_meta_data(self.expression_matrix)
+
+    def read_genes(self, file=None):
+        """
+        Read in a list of genes which should be modeled for network inference
+        """
+
+        file = file if file is not None else self.gene_metadata_file
+
+        if file is not None:
+            utils.Debug.vprint("Loading Gene metadata from file {file}".format(file=file), level=1)
+            self.gene_metadata = self.input_dataframe(self.gene_metadata_file, index_col=None)
+        else:
+            return
+
+        if self.gene_list_index is None or self.gene_list_index not in self.gene_metadata.columns:
+            raise ValueError("The gene list file must have headers and workflow.gene_list_index must be a valid column")
+
+    def read_priors(self, priors_file=None, gold_standard_file=None):
+        """
+        Read in the priors and gold standard files
+        """
+        priors_file = priors_file if priors_file is not None else self.priors_file
+        gold_standard_file = gold_standard_file if gold_standard_file is not None else self.gold_standard_file
+
+        if priors_file is not None:
+            utils.Debug.vprint("Loading prior data from file {file}".format(file=priors_file), level=1)
+            self.priors_data = self.input_dataframe(priors_file)
+        if gold_standard_file is not None:
+            utils.Debug.vprint("Loading gold_standard data from file {file}".format(file=gold_standard_file), level=1)
+            self.gold_standard = self.input_dataframe(gold_standard_file)
+
+        if self.priors_data is None and self.gold_standard is None:
+            raise ValueError("No gold standard or priors have been provided")
+
+    def input_path(self, filename):
+        """
+        Join filename to input_dir
+        """
+
+        if filename is None:
+            raise ValueError("Cannot create a path to a filename set as None")
+        elif self.input_dir is not None:
+            return self.make_path_safe(os.path.join(self.input_dir, filename))
+        else:
+            return self.make_path_safe(filename)
+
+    @staticmethod
+    def make_path_safe(path):
+        """
+        Expand relative paths to absolute paths. Pass None through.
+        :param path: str
+        :return: str
+        """
+        if path is not None:
+            return os.path.abspath(os.path.expanduser(path))
+        else:
+            return None
+
+    @staticmethod
+    def dataframe_split(data_frame, remove_columns):
+        """
+        Take a dataframe and extract specific columns. Return the dataframe, minus those columns, and a second
+        dataframe which is only those columns.
+        :param data_frame: pd.DataFrame
+        :param remove_columns: list(str)
+        :return data_frame, data_frame_two: pd.DataFrame, pd.DataFrame
+        """
+
+        data_frame_two = data_frame.loc[:, remove_columns].copy()
+        data_frame = data_frame.drop(remove_columns, axis=1)
+        return data_frame, data_frame_two
+
+
+class WorkflowBase(WorkflowBaseLoader):
+    # Flags to control splitting priors into a prior/gold-standard set
+    split_gold_standard_for_crossvalidation = False
+    cv_split_ratio = default.DEFAULT_GS_SPLIT_RATIO
+    cv_split_axis = default.DEFAULT_GS_SPLIT_AXIS
+    shuffle_prior_axis = None
+
     # The random seed for sampling, etc
     random_seed = default.DEFAULT_RANDOM_SEED
 
     # The number of inference bootstraps to run
     num_bootstraps = default.DEFAULT_NUM_BOOTSTRAPS
-
-    # Computed data structures [G: Genes, K: Predictors, N: Conditions
-    expression_matrix = None  # expression_matrix dataframe [G x N]
-    tf_names = None  # tf_names list [k,]
-    meta_data = None  # meta data dataframe [G x ?]
-    priors_data = None  # priors data dataframe [G x K]
-    gold_standard = None  # gold standard dataframe [G x K]
 
     # Multiprocessing controller
     initialize_mp = True
@@ -127,101 +304,6 @@ class WorkflowBase(object):
         """
         raise NotImplementedError  # implement in subclass
 
-    def get_data(self):
-        """
-        Read data files in to data structures.
-        """
-
-        self.read_expression()
-        self.read_tfs()
-        self.read_metadata()
-        self.read_genes()
-        self.read_priors()
-
-        # Transpose expression data to [Genes x Samples] if the columns_are_genes flag is set
-        self.transpose_expression_matrix()
-
-    def transpose_expression_matrix(self):
-        # Transpose expression data
-        if self.expression_matrix_columns_are_genes:
-            self.expression_matrix = self.expression_matrix.transpose()
-            utils.Debug.vprint("Transposing expression matrix to {sh}".format(sh=self.expression_matrix.shape), level=2)
-
-    def read_expression(self, file=None):
-        """
-        Read expression matrix file into expression_matrix
-        """
-        file = file if file is not None else self.expression_matrix_file
-        utils.Debug.vprint("Loading expression data file {file}".format(file=file), level=1)
-        self.expression_matrix = self.input_dataframe(file)
-
-    def read_tfs(self, file=None):
-        """
-        Read tf names file into tf_names
-        """
-
-        # Load the class variable if no file is passed
-        file = self.tf_names_file if file is None else file
-        utils.Debug.vprint("Loading TF feature names from file {file}".format(file=file), level=1)
-        # Read in a dataframe with no header or index
-        tfs = self.input_dataframe(file, header=None, index_col=None)
-
-        # Cast the dataframe into a list
-        assert tfs.shape[1] == 1
-        self.tf_names = tfs.values.flatten().tolist()
-
-    def read_metadata(self, file=None):
-        """
-        Read metadata file into meta_data or make fake metadata
-        """
-
-        file = file if file is not None else self.meta_data_file
-
-        # If the metadata is embedded in the expression matrix, extract it
-        if self.extract_metadata_from_expression_matrix:
-            utils.Debug.vprint("Slicing metadata from expression matrix", level=1)
-            self.expression_matrix, self.meta_data = self.dataframe_split(self.expression_matrix,
-                                                                          self.expression_matrix_metadata)
-        elif file is not None:
-            utils.Debug.vprint("Loading metadata file {file}".format(file=file), level=1)
-            self.meta_data = self.input_dataframe(file, index_col=None)
-        else:
-            utils.Debug.vprint("No metadata provided. Creating a generic metadata", level=0)
-            self.meta_data = MetadataHandler.get_handler().create_default_meta_data(self.expression_matrix)
-
-    def read_genes(self, file=None):
-        """
-        Read in a list of genes which should be modeled for network inference
-        """
-
-        file = file if file is not None else self.gene_metadata_file
-
-        if file is not None:
-            utils.Debug.vprint("Loading Gene metadata from file {file}".format(file=file), level=1)
-            self.gene_metadata = self.input_dataframe(self.gene_metadata_file, index_col=None)
-        else:
-            return
-
-        if self.gene_list_index is None or self.gene_list_index not in self.gene_metadata.columns:
-            raise ValueError("The gene list file must have headers and workflow.gene_list_index must be a valid column")
-
-    def read_priors(self, priors_file=None, gold_standard_file=None):
-        """
-        Read in the priors and gold standard files
-        """
-        priors_file = priors_file if priors_file is not None else self.priors_file
-        gold_standard_file = gold_standard_file if gold_standard_file is not None else self.gold_standard_file
-
-        if priors_file is not None:
-            utils.Debug.vprint("Loading prior data from file {file}".format(file=priors_file), level=1)
-            self.priors_data = self.input_dataframe(priors_file)
-        if gold_standard_file is not None:
-            utils.Debug.vprint("Loading gold_standard data from file {file}".format(file=gold_standard_file), level=1)
-            self.gold_standard = self.input_dataframe(gold_standard_file)
-
-        if self.priors_data is None and self.gold_standard is None:
-            raise ValueError("No gold standard or priors have been provided")
-
     def process_priors_and_gold_standard(self):
         """
         Run split, shuffle, etc called for by the workflow flags
@@ -239,13 +321,11 @@ class WorkflowBase(object):
         # Filter priors to a list of regulators
         if self.tf_names is not None:
             self.priors_data = self.prior_manager.filter_to_tf_names_list(self.priors_data, self.tf_names)
+        else:
+            self.tf_names = self.priors_data.columns.tolist()
 
         # Filter priors and expression to a list of genes
-        if self.gene_metadata is not None and self.gene_list_index is not None:
-            gene_list = self.gene_metadata[self.gene_list_index].tolist()
-            self.priors_data, self.expression_matrix = self.prior_manager.filter_to_gene_list(self.priors_data,
-                                                                                              self.expression_matrix,
-                                                                                              gene_list)
+        self.filter_to_gene_list()
 
         # Shuffle prior labels
         if self.shuffle_prior_axis is not None:
@@ -257,50 +337,21 @@ class WorkflowBase(object):
         self.priors_data, self.gold_standard = self.prior_manager.validate_priors_gold_standard(self.priors_data,
                                                                                                 self.gold_standard)
 
+    def filter_to_gene_list(self):
+        """
+        Filter the priors and expression matrix to just genes in gene_metadata
+        """
+        if self.gene_metadata is not None and self.gene_list_index is not None:
+            gene_list = self.gene_metadata[self.gene_list_index].tolist()
+            self.priors_data, self.expression_matrix = self.prior_manager.filter_to_gene_list(self.priors_data,
+                                                                                              self.expression_matrix,
+                                                                                              gene_list)
+
     def align_priors_and_expression(self):
         """
         Align prior to the expression matrix
         """
         self.priors_data = self.prior_manager.align_priors_to_expression(self.priors_data, self.expression_matrix)
-
-    def input_path(self, filename):
-        """
-        Join filename to input_dir
-        """
-
-        return os.path.abspath(os.path.expanduser(os.path.join(self.input_dir, filename)))
-
-    def input_dataframe(self, filename, **kwargs):
-        """
-        Read a file in as a pandas dataframe
-        """
-
-        # Set defaults for index_col and header
-        kwargs['index_col'] = kwargs.pop('index_col', 0)
-        kwargs['header'] = kwargs.pop('header', 0)
-
-        # Use any kwargs for this function and any file settings from default
-        file_settings = self.file_format_settings.copy()
-        file_settings.update(kwargs)
-
-        # Update the file settings with anything that's in file-specific overrides
-        if filename in self.file_format_overrides:
-            file_settings.update(self.file_format_overrides[filename])
-
-        utils.Debug.vprint("Loading data file: {a}".format(a=self.input_path(filename)), level=2)
-        # Load a dataframe
-        return pd.read_csv(self.input_path(filename), **file_settings)
-
-    def append_to_path(self, var_name, to_append):
-        """
-        Add a string to an existing path variable in class
-        """
-        path = getattr(self, var_name, None)
-        if path is None:
-            raise ValueError("Cannot append {to_append} to {var_name} (Which is None)".format(to_append=to_append,
-                                                                                              var_name=var_name))
-        setattr(self, var_name, os.path.join(path, to_append))
-
 
     def get_bootstraps(self):
         """
@@ -338,31 +389,11 @@ class WorkflowBase(object):
         except FileExistsError:
             pass
 
-    @staticmethod
-    def make_path_safe(path):
+    def create_task(self, **kwargs):
         """
-        Expand relative paths to absolute paths. Pass None through.
-        :param path: str
-        :return: str
+        Create a task data object
         """
-        if path is not None:
-            return os.path.abspath(os.path.expanduser(path))
-        else:
-            return None
-
-    @staticmethod
-    def dataframe_split(data_frame, remove_columns):
-        """
-        Take a dataframe and extract specific columns. Return the dataframe, minus those columns, and a second
-        dataframe which is only those columns.
-        :param data_frame: pd.DataFrame
-        :param meta_columns: list(str)
-        :return data_frame, data_frame_two: pd.DataFrame, pd.DataFrame
-        """
-
-        data_frame_two = data_frame.loc[:, remove_columns].copy()
-        data_frame = data_frame.drop(remove_columns, axis=1)
-        return data_frame, data_frame_two
+        raise NotImplementedError("This workflow does not support multiple tasks")
 
 
 def create_inferelator_workflow(regression=RegressionWorkflow, workflow=WorkflowBase):
@@ -408,7 +439,10 @@ def create_inferelator_workflow(regression=RegressionWorkflow, workflow=Workflow
         return workflow_class
     # String arguments are parsed for convenience in the run script
     elif utils.is_string(regression):
-        if regression == "bbsr":
+        if regression == "base":
+            from inferelator.regression.base_regression import BaseRegression
+            regression_class = BaseRegression
+        elif regression == "bbsr":
             from inferelator.regression.bbsr_python import BBSRRegressionWorkflow
             regression_class = BBSRRegressionWorkflow
         elif regression == "elasticnet":
