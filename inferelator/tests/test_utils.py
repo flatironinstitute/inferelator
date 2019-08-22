@@ -82,11 +82,6 @@ class TestValidator(unittest.TestCase):
         with self.assertRaises(ValueError):
             check.indexes_align([index1, index1, None], allow_none=False)
 
-    def test_index_unique(self):
-        index1 = self.frame1.index
-        index2 = self.frame3.index
-        index3 = self.frame1.columns
-
     def test_frame_numeric(self):
         self.assertTrue(check.dataframe_is_numeric(None, allow_none=True))
         self.assertTrue(check.dataframe_is_numeric(self.frame1))

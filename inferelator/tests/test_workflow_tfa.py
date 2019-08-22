@@ -2,42 +2,18 @@
 Test TFA workflow stepwise.
 """
 
-import unittest
 import os
 import types
+import unittest
+
 import numpy as np
 
-from inferelator import workflow
 from inferelator import tfa_workflow
+from inferelator import workflow
+from inferelator.artifacts.test_stubs import FakeResultProcessor, FakeRegression, FakeDRD
 from inferelator.preprocessing import tfa
-from inferelator.regression.base_regression import RegressionWorkflow
 
 my_dir = os.path.dirname(__file__)
-
-
-class FakeDRD:
-    def __init__(self, *args, **kwargs):
-        pass
-
-    def run(self, expr, meta):
-        return expr, expr, expr
-
-
-class FakeRegression(RegressionWorkflow):
-
-    def run_bootstrap(self, bootstrap):
-        return True
-
-
-class FakeResultProcessor:
-
-    network_data = None
-
-    def __init__(self, *args, **kwargs):
-        pass
-
-    def summarize_network(self, *args, **kwargs):
-        pass
 
 
 class TestTFAWorkflow(unittest.TestCase):
@@ -66,6 +42,7 @@ class TestTFAWorkflow(unittest.TestCase):
     def test_abstractness(self):
         with self.assertRaises(NotImplementedError):
             self.workflow.run_bootstrap([])
+
 
 class TestTFAWorkflowRegression(unittest.TestCase):
 
