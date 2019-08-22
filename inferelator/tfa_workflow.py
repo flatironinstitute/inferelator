@@ -26,6 +26,7 @@ class TFAWorkFlow(workflow.WorkflowBase):
     tfa_driver = TFA
 
     # Design-Response Driver implementation
+    metadata_handler = "branching"
     drd_driver = design_response_translation.PythonDRDriver
 
     # Result Processor implementation
@@ -92,7 +93,7 @@ class TFAWorkFlow(workflow.WorkflowBase):
 
         if self.drd_driver is not None:
             # If there is a design-response driver, run it to create design and response
-            drd = self.drd_driver(return_half_tau=True)
+            drd = self.drd_driver(metadata_handler=self.metadata_handler, return_half_tau=True)
             utils.Debug.vprint('Creating design and response matrix ... ')
             drd.delTmin, drd.delTmax, drd.tau = self.delTmin, self.delTmax, self.tau
             self.design, self.response, self.half_tau_response = drd.run(self.expression_matrix, self.meta_data)

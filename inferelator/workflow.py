@@ -162,8 +162,8 @@ class WorkflowBaseLoader(object):
             self.meta_data = self.input_dataframe(file, index_col=None)
         else:
             utils.Debug.vprint("No metadata provided. Creating a generic metadata", level=0)
-            self.metadata_handler = MetadataHandler.handler_class(self.metadata_handler)
-            self.meta_data = self.metadata_handler.create_default_meta_data(self.expression_matrix)
+            metadata_processor = MetadataHandler.get_handler(self.metadata_handler)
+            self.meta_data = metadata_processor.create_default_meta_data(self.expression_matrix)
 
     def read_genes(self, file=None):
         """

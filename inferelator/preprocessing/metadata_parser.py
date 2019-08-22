@@ -269,14 +269,9 @@ class MetadataHandler(object):
     """
     This keeps track of how to process metadata
     """
-    handler = MetadataParserBranching
 
     @classmethod
-    def set_handler(cls, handler_ref):
-        cls.handler = cls.handler_class(handler_ref)
-
-    @classmethod
-    def handler_class(cls, handler_ref):
+    def get_handler(cls, handler_ref):
         """
         This wrappers a metadata reference so that strings can be used instead of python imports
         Will either return a metadata handling class or will raise an error
@@ -296,14 +291,6 @@ class MetadataHandler(object):
             return handler_ref
         else:
             raise ValueError("Handler must be a string or a MetadataParser class")
-
-    @classmethod
-    def get_handler(cls):
-        return cls.handler
-
-    @classmethod
-    def make_default_metadata(cls, expression_data):
-        return cls.handler.create_default_meta_data(expression_data)
 
 
 class ConditionDoesNotExistError(IndexError):
