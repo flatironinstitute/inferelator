@@ -20,8 +20,8 @@ from inferelator import default
 from inferelator.regression import amusr_regression
 from inferelator.postprocessing.results_processor_mtl import ResultsProcessorMultiTask
 
-TRANSFER_ATTRIBUTES = ['count_minimum', 'preprocessing_workflow', 'input_dir', 'num_bootstraps']
-
+TRANSFER_ATTRIBUTES = ['count_minimum', 'preprocessing_workflow', 'input_dir']
+NON_TASK_ATTRIBUTES = ["gold_standard_file", "random_seed", "num_bootstraps"]
 
 class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
     """
@@ -71,8 +71,8 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         self._process_task_data()
 
     def create_task(self, task_name=None, expression_matrix_file=None, input_dir=None, meta_data_file=None,
-                    tf_names_file=None, priors_file=None, gold_standard_file=None, workflow_type="single-cell",
-                    preprocessing_workflow=None, **kwargs):
+                    tf_names_file=None, priors_file=None, workflow_type="single-cell", preprocessing_workflow=None,
+                    **kwargs):
         """
         Create a task object and set any arguments to this function as attributes of that task object
         This creates a TaskData class and puts it in self.task_objects
@@ -83,7 +83,6 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         :param meta_data_file: str
         :param tf_names_file: str
         :param priors_file: str
-        :param gold_standard_file: str
         :param workflow_type: str
         :param kwargs:
         """
@@ -96,11 +95,14 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         task_object.meta_data_file = meta_data_file
         task_object.tf_names_file = tf_names_file
         task_object.priors_file = priors_file
-        task_object.gold_standard_file = gold_standard_file
         task_object.preprocessing_workflow = preprocessing_workflow
 
-        if gold_standard_file is not None:
-            warnings.warn("Task-specific gold standards are not implemented. This setting will be ignored.")
+        # Warn if there is an attempt to set something that isn't supported
+        msg = "Task-specific {} is not supported. This setting will be ignored. Set this in the parent workflow."
+        for bad in NON_TASK_ATTRIBUTES:
+            if bad in kwargs:
+                del kwargs[bad]
+                warnings.warn(msg.format(bad))
 
         # Pass forward any kwargs (raising errors if they're for attributes that don't exist)
         for attr, val in kwargs.items():
@@ -124,12 +126,19 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
             raise ValueError("Tasks have not been created with .create_task()")
 
         for tobj in self.task_objects:
+            # Transfer attributes from parent if they haven't been set in the task
             for attr in TRANSFER_ATTRIBUTES:
                 try:
                     if getattr(self, attr) is not None and getattr(tobj, attr) is None:
                         setattr(tobj, attr, getattr(self, attr))
                 except AttributeError:
                     pass
+
+            # Set the random seed in the task to the same as the parent
+            tobj.random_seed = self.random_seed
+
+            # Set the num_bootstraps in the task to the same as the parent
+            tobj.num_bootstraps = self.num_bootstraps
 
         # Run load_task_data and create a list of lists of TaskData objects
         # This allows a TaskData object to copy and split itself if needed
