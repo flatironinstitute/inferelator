@@ -108,6 +108,7 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         for attr, val in kwargs.items():
             if hasattr(task_object, attr):
                 setattr(task_object, attr, val)
+                task_object.str_attrs.append(attr)
             else:
                 raise ValueError("Argument {attr} cannot be set as an attribute".format(attr=attr))
 
@@ -299,9 +300,7 @@ def create_task_data_class(workflow_class="single-cell"):
 
         task_workflow_class = str(workflow_class)
 
-        str_attrs = ["input_dir", "expression_matrix_file", "tf_names_file", "meta_data_file", "priors_file",
-                     "gold_standard_file", "expression_matrix_columns_are_genes",
-                     "extract_metadata_from_expression_matrix", "expression_matrix_metadata"]
+        str_attrs = ["input_dir", "expression_matrix_file", "tf_names_file", "meta_data_file", "priors_file"]
 
         def __str__(self):
             """
