@@ -34,8 +34,8 @@ class AMuSR_OneGene:
         """
 
         for k in range(self.n_tasks):
-            X[k] = StandardScaler().fit_transform(X[k])
-            Y[k] = StandardScaler().fit_transform(Y[k])
+            X[k] = StandardScaler().fit_transform(X[k].astype(float))
+            Y[k] = StandardScaler().fit_transform(Y[k].astype(float))
 
         return((X, Y))
 
@@ -499,7 +499,7 @@ class AMUSRRegressionWorkflow(base_regression.RegressionWorkflow):
             y.append(self.task_response[k].iloc[:, self.task_bootstraps[k][bootstrap_idx]].transpose())
 
         MPControl.sync_processes(pref="amusr_pre")
-        regress = AMuSR_regression(x, y, tfs=self.regulators, genes=self.targets, priors=self.priors_data,
+        regress = AMuSR_regression(x, y, tfs=self.regulators, genes=self.targets, priors=self.task_priors,
                                    prior_weight=self.prior_weight)
         return regress.run()
 
