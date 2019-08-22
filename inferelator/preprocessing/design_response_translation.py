@@ -40,6 +40,7 @@ class PythonDRDriver(object):
         self.delTmin = deltmin if deltmin is not None else default.DEFAULT_DELTMIN
         self.delTmax = deltmax if deltmax is not None else default.DEFAULT_DELTMAX
         self.return_half_tau = return_half_tau
+        self.metadata_handler = metadata_handler if metadata_handler is not None else self.metadata_handler
 
     def run(self, exp_data, meta_data):
         """
