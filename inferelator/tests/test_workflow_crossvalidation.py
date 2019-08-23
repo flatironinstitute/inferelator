@@ -5,6 +5,7 @@ import pandas as pd
 
 from inferelator import workflow
 from inferelator import crossvalidation_workflow
+from inferelator import default
 
 my_dir = os.path.dirname(__file__)
 
@@ -14,6 +15,11 @@ class TestCVWorkers(unittest.TestCase):
     def setUp(self):
         self.data = workflow.WorkflowBase()
         self.data.input_dir = os.path.join(my_dir, "../../data/dream4")
+        self.data.expression_matrix_file = default.DEFAULT_EXPRESSION_FILE
+        self.data.tf_names_file = default.DEFAULT_TFNAMES_FILE
+        self.data.meta_data_file = default.DEFAULT_METADATA_FILE
+        self.data.priors_file = default.DEFAULT_PRIORS_FILE
+        self.data.gold_standard_file = default.DEFAULT_GOLDSTANDARD_FILE
         self.data.get_data()
         self.beta = [pd.DataFrame(np.array([[0, 1], [0.5, 0.05]]), index=['gene1', 'gene2'], columns=['tf1', 'tf2'])]
         self.beta_resc = [pd.DataFrame(np.array([[0, 1], [1, 0.05]]), index=['gene1', 'gene2'], columns=['tf1', 'tf2'])]
@@ -47,6 +53,11 @@ class TestCVMakers(unittest.TestCase):
     def setUp(self):
         self.workflow = WorkflowPuppeteer()
         self.workflow.input_dir = os.path.join(my_dir, "../../data/dream4")
+        self.workflow.expression_matrix_file = default.DEFAULT_EXPRESSION_FILE
+        self.workflow.tf_names_file = default.DEFAULT_TFNAMES_FILE
+        self.workflow.meta_data_file = default.DEFAULT_METADATA_FILE
+        self.workflow.priors_file = default.DEFAULT_PRIORS_FILE
+        self.workflow.gold_standard_file = default.DEFAULT_GOLDSTANDARD_FILE
         self.workflow.get_data()
 
     def test_puppet_maker(self):

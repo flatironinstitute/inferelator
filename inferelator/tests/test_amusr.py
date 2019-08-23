@@ -7,7 +7,7 @@ import pandas as pd
 import pandas.util.testing as pdt
 
 from inferelator import workflow
-from inferelator.artifacts.test_stubs import TaskDataStub
+from inferelator.tests.artifacts.test_stubs import TaskDataStub
 from inferelator.regression import amusr_regression
 
 data_path = os.path.join(os.path.dirname(__file__), "../../data/dream4")

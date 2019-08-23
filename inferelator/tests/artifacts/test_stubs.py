@@ -1,6 +1,9 @@
 from inferelator import amusr_workflow
 from inferelator.regression.base_regression import RegressionWorkflow
-from inferelator.artifacts.test_data import TestDataSingleCellLike
+from inferelator.tests.artifacts.test_data import TestDataSingleCellLike
+
+import pandas as pd
+import numpy as np
 
 
 class TaskDataStub(amusr_workflow.create_task_data_class(workflow_class="single-cell")):
@@ -30,19 +33,25 @@ class FakeDRD:
     def run(self, expr, meta):
         return expr, expr, expr
 
+class FakeWriter(object):
+    def writerow(self, *args, **kwargs):
+        pass
 
 class FakeRegression(RegressionWorkflow):
+
+    def run_regression(self):
+        beta = [pd.DataFrame(np.array([[0, 1], [0.5, 0.05]]), index=['gene1', 'gene2'], columns=['tf1', 'tf2'])]
+        beta_resc = [pd.DataFrame(np.array([[0, 1], [1, 0.05]]), index=['gene1', 'gene2'], columns=['tf1', 'tf2'])]
+        return beta, beta_resc
 
     def run_bootstrap(self, bootstrap):
         return True
 
-
 class FakeResultProcessor:
-
     network_data = None
 
     def __init__(self, *args, **kwargs):
         pass
 
     def summarize_network(self, *args, **kwargs):
-        pass
+        return 1, 0, 0

@@ -2,7 +2,8 @@ import unittest
 from inferelator.single_cell_workflow import SingleCellWorkflow
 from inferelator.preprocessing import single_cell, metadata_parser
 from inferelator.crossvalidation_workflow import create_puppet_workflow
-from inferelator.artifacts.test_data import TestDataSingleCellLike
+from inferelator.tests.artifacts.test_stubs import TestDataSingleCellLike
+from inferelator import default
 import numpy as np
 import pandas as pd
 import os
@@ -116,6 +117,11 @@ class TestSingleCellWorkflow(unittest.TestCase):
         self.workflow = SingleCellWorkflow()
         self.workflow.expression_matrix_columns_are_genes = True
         self.workflow.input_dir = os.path.join(my_dir, "../../data/dream4")
+        self.workflow.expression_matrix_file = default.DEFAULT_EXPRESSION_FILE
+        self.workflow.tf_names_file = default.DEFAULT_TFNAMES_FILE
+        self.workflow.meta_data_file = default.DEFAULT_METADATA_FILE
+        self.workflow.priors_file = default.DEFAULT_PRIORS_FILE
+        self.workflow.gold_standard_file = default.DEFAULT_GOLDSTANDARD_FILE
 
     def tearDown(self):
         del self.workflow

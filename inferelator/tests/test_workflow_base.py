@@ -11,6 +11,7 @@ import pandas as pd
 import pandas.testing as pdt
 
 from inferelator import workflow
+from inferelator import default
 from inferelator.regression.base_regression import RegressionWorkflow
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.preprocessing.metadata_parser import MetadataParserBranching
@@ -23,6 +24,11 @@ class TestWorkflowLoadData(unittest.TestCase):
     def setUp(self):
         self.workflow = workflow.WorkflowBase()
         self.workflow.input_dir = os.path.join(my_dir, "../../data/dream4")
+        self.workflow.expression_matrix_file = default.DEFAULT_EXPRESSION_FILE
+        self.workflow.tf_names_file = default.DEFAULT_TFNAMES_FILE
+        self.workflow.meta_data_file = default.DEFAULT_METADATA_FILE
+        self.workflow.priors_file = default.DEFAULT_PRIORS_FILE
+        self.workflow.gold_standard_file = default.DEFAULT_GOLDSTANDARD_FILE
 
     def tearDown(self):
         del self.workflow
@@ -34,6 +40,7 @@ class TestWorkflowLoadData(unittest.TestCase):
 
     def test_load_tf_names(self):
         self.workflow.read_tfs()
+        print(self.workflow.tf_names)
         self.assertEqual(len(self.workflow.tf_names), 100)
         tf_names = list(map(lambda x: "G" + str(x), list(range(1, 101))))
         self.assertListEqual(self.workflow.tf_names, tf_names)

@@ -10,7 +10,8 @@ import numpy as np
 
 from inferelator import tfa_workflow
 from inferelator import workflow
-from inferelator.artifacts.test_stubs import FakeResultProcessor, FakeRegression, FakeDRD
+from inferelator import default
+from inferelator.tests.artifacts.test_stubs import FakeResultProcessor, FakeRegression, FakeDRD
 from inferelator.preprocessing import tfa
 
 my_dir = os.path.dirname(__file__)
@@ -22,6 +23,11 @@ class TestTFAWorkflow(unittest.TestCase):
         self.workflow = workflow.create_inferelator_workflow(regression=None,
                                                              workflow=tfa_workflow.TFAWorkFlow)()
         self.workflow.input_dir = os.path.join(my_dir, "../../data/dream4")
+        self.workflow.expression_matrix_file = default.DEFAULT_EXPRESSION_FILE
+        self.workflow.tf_names_file = default.DEFAULT_TFNAMES_FILE
+        self.workflow.meta_data_file = default.DEFAULT_METADATA_FILE
+        self.workflow.priors_file = default.DEFAULT_PRIORS_FILE
+        self.workflow.gold_standard_file = default.DEFAULT_GOLDSTANDARD_FILE
         self.workflow.get_data()
 
     def tearDown(self):
@@ -50,6 +56,11 @@ class TestTFAWorkflowRegression(unittest.TestCase):
         self.workflow = workflow.create_inferelator_workflow(regression=FakeRegression,
                                                              workflow=tfa_workflow.TFAWorkFlow)()
         self.workflow.input_dir = os.path.join(my_dir, "../../data/dream4")
+        self.workflow.expression_matrix_file = default.DEFAULT_EXPRESSION_FILE
+        self.workflow.tf_names_file = default.DEFAULT_TFNAMES_FILE
+        self.workflow.meta_data_file = default.DEFAULT_METADATA_FILE
+        self.workflow.priors_file = default.DEFAULT_PRIORS_FILE
+        self.workflow.gold_standard_file = default.DEFAULT_GOLDSTANDARD_FILE
         self.workflow.get_data()
 
     def tearDown(self):
