@@ -214,6 +214,10 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
                 task_obj.gene_metadata = copy.copy(self.gene_metadata)
                 task_obj.gene_list_index = self.gene_list_index
 
+            # Set tf_names if task-specific tf names are not present
+            if task_obj.tf_names is None:
+                task_obj.tf_names = copy.copy(self.tf_names)
+
             # Process priors in the task data
             task_obj.process_priors_and_gold_standard(gold_standard=self.gold_standard,
                                                       cv_flag=self.split_gold_standard_for_crossvalidation,
