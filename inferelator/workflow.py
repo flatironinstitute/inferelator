@@ -39,11 +39,11 @@ class WorkflowBaseLoader(object):
     file_format_overrides = dict()
 
     # File names for each of the data files which can be used in the inference workflow
-    expression_matrix_file = default.DEFAULT_EXPRESSION_FILE
-    tf_names_file = default.DEFAULT_TFNAMES_FILE
-    meta_data_file = default.DEFAULT_METADATA_FILE
-    priors_file = default.DEFAULT_PRIORS_FILE
-    gold_standard_file = default.DEFAULT_GOLDSTANDARD_FILE
+    expression_matrix_file = None
+    tf_names_file = None
+    meta_data_file = None
+    priors_file = None
+    gold_standard_file = None
 
     # Metadata handler
     metadata_handler = "branching"
@@ -51,7 +51,7 @@ class WorkflowBaseLoader(object):
     # Gene list & associated metadata
     gene_metadata_file = None
     gene_metadata = None
-    gene_list_index = default.DEFAULT_GENE_LIST_INDEX_COLUMN
+    gene_list_index = None
 
     # Loaded data structures [G: Genes, K: Predictors, N: Conditions
     expression_matrix = None  # expression_matrix dataframe [G x N]
