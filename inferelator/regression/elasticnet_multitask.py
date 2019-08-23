@@ -13,10 +13,6 @@ class ElasticNetByTaskRegressionWorkflow(AMUSRRegressionWorkflow, ElasticNetWork
     def run_bootstrap(self, bootstrap_idx):
         betas, betas_resc = [], []
 
-        # Make sure that the priors align to the expression matrix
-        priors_data = self.priors_data.reindex(labels=self.targets, axis=0).fillna(value=0)
-        priors_data = priors_data.reindex(labels=self.regulators, axis=1).fillna(value=0)
-
         # Select the appropriate bootstrap from each task and stash the data into X and Y
         for k in range(self.n_tasks):
             X = self.task_design[k].iloc[:, self.task_bootstraps[k][bootstrap_idx]].loc[self.regulators, :]
