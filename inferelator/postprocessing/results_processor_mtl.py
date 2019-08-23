@@ -107,7 +107,7 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
             overall_sign += np.sign(task_sign)
             overall_threshold += task_threshold
 
-            utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=pr_calc.aupr), level=0)
+            utils.Debug.vprint("Model {m} AUPR:\t{aupr}".format(m=task_id, aupr=pr_calc.aupr), level=0)
 
             if self.write_task_files is True and output_dir is not None:
                 task_net = self.write_output_files(pr_calc, os.path.join(output_dir, task_dir), priors[task_id],
@@ -121,7 +121,7 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
         overall_resc_betas_mean, overall_resc_betas_median = self.mean_and_median(overall_resc_betas)
         network_data = {'beta.sign.sum': overall_sign, 'var.exp.median': overall_resc_betas_median}
 
-        utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=overall_pr_calc.aupr), level=0)
+        utils.Debug.vprint("Model (Aggregate) AUPR:\t{aupr}".format(aupr=overall_pr_calc.aupr), level=0)
 
         priors = None if skip_final_prior else priors[0]
 
