@@ -61,8 +61,10 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         self._load_tasks()
 
         # Priors, gold standard, tf_names, and gene metadata will be loaded if set
+        self.read_tfs()
         self.read_priors()
         self.read_genes()
+        self.validate_data()
 
     def startup_finish(self):
         # Make sure tasks are set correctly
@@ -149,19 +151,12 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         self.task_objects = [tobj for tobj_list in self.task_objects for tobj in tobj_list]
         self.n_tasks = len(self.task_objects)
 
-    def read_priors(self, priors_file=None, gold_standard_file=None):
+    def validate_data(self):
         """
-        Load priors and gold standard. Make sure all tasks have priors
+        Make sure that the data that's loaded is acceptable
+        :return:
         """
-
-        priors_file = priors_file if priors_file is not None else self.priors_file
-        gold_standard_file = gold_standard_file if gold_standard_file is not None else self.gold_standard_file
-
-        if priors_file is not None:
-            self.priors_data = self.input_dataframe(priors_file)
-        if gold_standard_file is not None:
-            self.gold_standard = self.input_dataframe(gold_standard_file)
-        else:
+        if self.gold_standard is None:
             raise ValueError("A gold standard must be provided to `gold_standard_file` in MultiTaskLearningWorkflow")
 
         # Check to see if there are any tasks which don't have priors
@@ -351,6 +346,12 @@ def create_task_data_class(workflow_class="single-cell"):
                 return self.separate_tasks_by_metadata()
             else:
                 return [self]
+
+        def validate_data(self):
+            """
+            Don't validate data in TaskData. The parent workflow will check.
+            """
+            pass
 
         def process_priors_and_gold_standard(self, gold_standard=None, cv_flag=None, cv_axis=None, shuffle_priors=None):
             """
