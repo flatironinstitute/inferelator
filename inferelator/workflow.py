@@ -51,7 +51,7 @@ class WorkflowBaseLoader(object):
     # Gene list & associated metadata
     gene_metadata_file = None
     gene_metadata = None
-    gene_list_index = None
+    gene_list_index = default.DEFAULT_GENE_LIST_INDEX_COLUMN
 
     # Loaded data structures [G: Genes, K: Predictors, N: Conditions
     expression_matrix = None  # expression_matrix dataframe [G x N]
