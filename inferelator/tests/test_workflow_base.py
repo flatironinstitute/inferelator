@@ -58,7 +58,7 @@ class TestWorkflowLoadData(unittest.TestCase):
         self.workflow.gold_standard = None
 
         with self.assertRaises(ValueError):
-            self.workflow.read_priors()
+            self.workflow.validate_data()
 
     def test_load_metadata(self):
         self.workflow.read_metadata()
@@ -98,11 +98,11 @@ class TestWorkflowLoadData(unittest.TestCase):
 
         self.workflow.gene_list_index = None
         with self.assertRaises(ValueError):
-            self.workflow.read_genes()
+            self.workflow.validate_data()
 
         self.workflow.gene_list_index = "SillyName"
         with self.assertRaises(ValueError):
-            self.workflow.read_genes()
+            self.workflow.validate_data()
 
         shutil.rmtree(self.workflow.input_dir)
 

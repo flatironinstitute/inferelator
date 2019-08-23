@@ -78,6 +78,9 @@ class WorkflowBaseLoader(object):
         self.read_genes()
         self.read_priors()
 
+        # Validate that necessary input settings exist
+        self.validate_data()
+
         # Transpose expression data to [Genes x Samples] if the columns_are_genes flag is set
         self.transpose_expression_matrix()
 
@@ -134,16 +137,14 @@ class WorkflowBaseLoader(object):
         # Load the class variable if no file is passed
         file = self.tf_names_file if file is None else file
 
-        if file is None:
-            return
+        if file is not None:
+            utils.Debug.vprint("Loading TF feature names from file {file}".format(file=file), level=1)
+            # Read in a dataframe with no header or index
+            tfs = self.input_dataframe(file, header=None, index_col=None)
 
-        utils.Debug.vprint("Loading TF feature names from file {file}".format(file=file), level=1)
-        # Read in a dataframe with no header or index
-        tfs = self.input_dataframe(file, header=None, index_col=None)
-
-        # Cast the dataframe into a list
-        assert tfs.shape[1] == 1
-        self.tf_names = tfs.values.flatten().tolist()
+            # Cast the dataframe into a list
+            assert tfs.shape[1] == 1
+            self.tf_names = tfs.values.flatten().tolist()
 
     def read_metadata(self, file=None):
         """
@@ -175,11 +176,6 @@ class WorkflowBaseLoader(object):
         if file is not None:
             utils.Debug.vprint("Loading Gene metadata from file {file}".format(file=file), level=1)
             self.gene_metadata = self.input_dataframe(self.gene_metadata_file, index_col=None)
-        else:
-            return
-
-        if self.gene_list_index is None or self.gene_list_index not in self.gene_metadata.columns:
-            raise ValueError("The gene list file must have headers and workflow.gene_list_index must be a valid column")
 
     def read_priors(self, priors_file=None, gold_standard_file=None):
         """
@@ -195,6 +191,16 @@ class WorkflowBaseLoader(object):
             utils.Debug.vprint("Loading gold_standard data from file {file}".format(file=gold_standard_file), level=1)
             self.gold_standard = self.input_dataframe(gold_standard_file)
 
+    def validate_data(self):
+        """
+        Make sure that the data that's loaded is acceptable
+        """
+
+        # Validate that the gene_metadata can be properly read, if loaded
+        if self.gene_metadata is not None and self.gene_list_index not in self.gene_metadata.columns:
+            raise ValueError("The gene list file must have headers and workflow.gene_list_index must be a valid column")
+
+        # Validate that some network information exists and has been loaded
         if self.priors_data is None and self.gold_standard is None:
             raise ValueError("No gold standard or priors have been provided")
 
