@@ -121,6 +121,8 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
 
         utils.Debug.vprint(str(task_object), level=0)
 
+        return task_object
+
     def _load_tasks(self):
         """
         Run load_task_data in all the TaskData objects created with create_task
