@@ -25,10 +25,9 @@ NON_TASK_ATTRIBUTES = ["gold_standard_file", "random_seed", "num_bootstraps"]
 
 class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
     """
-    Class that implements AMuSR multitask learning for single cell data
+    Class that implements multitask learning for single cell data
 
     Extends SingleCellWorkflow
-    Inherits from PuppeteerWorkflow so that task preprocessing can be done more easily
     """
 
     prior_weight = default.DEFAULT_prior_weight
@@ -44,6 +43,8 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
     task_priors = None
     task_names = None
     task_objects = None
+
+    task_results = None
 
     # Axis labels to keep
     targets = None
@@ -278,12 +279,13 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         if self.is_master():
             self.create_output_dir()
             rp = self.result_processor_driver(betas, rescaled_betas, filter_method=self.gold_standard_filter_method,
-                                              tasks_names=self.task_names)
-            results = rp.summarize_network(self.output_dir, gold_standard, priors_data)
-            self.aupr, self.n_interact, self.precision_interact = results
-            return rp.network_data
+                                              metric=self.metric)
+            rp.tasks_names = self.task_names
+            self.results = rp.summarize_network(self.output_dir, gold_standard, self.task_priors)
+            self.task_results = rp.tasks_networks
+            return self.results
         else:
-            self.aupr, self.n_interact, self.precision_interact = None, None, None
+            return None
 
 
 def create_task_data_object(workflow_class="single-cell"):
@@ -294,6 +296,9 @@ def create_task_data_class(workflow_class="single-cell"):
     task_parent = workflow.create_inferelator_workflow(regression="base", workflow=workflow_class)
 
     class TaskData(task_parent):
+        """
+        TaskData is a workflow object which only loads and preprocesses data from files.
+        """
 
         task_name = None
         tasks_from_metadata = False
@@ -337,6 +342,7 @@ def create_task_data_class(workflow_class="single-cell"):
             """
             Load all the data and then return a list of references to TaskData objects
             There will be multiple objects returned if tasks_from_metadata is set.
+            If tasks_from_metadata is not set, the list contains only this task (self)
             :return: list(TaskData)
                 List of TaskData objects with loaded data
             """

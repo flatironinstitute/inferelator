@@ -22,6 +22,7 @@ from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.preprocessing.metadata_parser import MetadataHandler
 from inferelator.preprocessing.priors import ManagePriors
 from inferelator.regression.base_regression import RegressionWorkflow
+from inferelator.postprocessing.results_processor import ResultsProcessor
 
 
 class WorkflowBaseLoader(object):
@@ -262,6 +263,14 @@ class WorkflowBase(WorkflowBaseLoader):
 
     # Prior manager
     prior_manager = ManagePriors
+
+    # Result processing & model metrics
+    result_processor_driver = ResultsProcessor
+    gold_standard_filter_method = default.DEFAULT_GS_FILTER_METHOD
+    metric = "precision-recall"
+
+    # Output results in an InferelatorResults object
+    results = None
 
     def __init__(self):
         # Get environment variables

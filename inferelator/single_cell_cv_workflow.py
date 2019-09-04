@@ -11,6 +11,7 @@ from inferelator.utils import Validator as check
 
 from inferelator.distributed.inferelator_mp import MPControl
 
+
 class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, crossvalidation_workflow.PuppeteerWorkflow):
     seeds = default.DEFAULT_SEED_RANGE
 
@@ -98,7 +99,7 @@ class SingleCellPuppeteerWorkflow(single_cell_workflow.SingleCellWorkflow, cross
 
 class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
     sizes = default.DEFAULT_SIZE_SAMPLING
-    csv_header = ["Size", "Num_Sampled", "Seed", "AUPR", "Num_Confident_Int", "Num_Precision_Int"]
+    csv_header = ["Size", "Num_Sampled", "Seed", "AUPR"]
 
     def modeling_method(self, *args, **kwargs):
         return self.get_aupr_for_subsampled_data()
@@ -107,7 +108,6 @@ class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
         aupr_data = []
         for s_ratio in self.sizes:
             for seed in self.seeds:
-
                 np.random.seed(seed)
                 nidx = self.get_sample_index(sample_ratio=s_ratio)
                 puppet = self.new_puppet(self.expression_matrix.iloc[:, nidx], self.meta_data.iloc[nidx, :], seed=seed)
@@ -115,7 +115,7 @@ class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
                     puppet.network_file_name = "network_{size}_s{seed}.tsv".format(size=s_ratio, seed=seed)
                     puppet.pr_curve_file_name = "pr_curve_{size}_s{seed}.pdf".format(size=s_ratio, seed=seed)
                 puppet.run()
-                size_aupr = (s_ratio, len(nidx), seed, puppet.aupr, puppet.n_interact, puppet.precision_interact)
+                size_aupr = (s_ratio, len(nidx), seed, puppet.results.score)
                 aupr_data.append(size_aupr)
                 if self.is_master():
                     self.csv_writer.writerow(size_aupr)
@@ -124,7 +124,7 @@ class SingleCellSizeSampling(SingleCellPuppeteerWorkflow):
 
 
 class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
-    csv_header = ["Dropout", "Seed", "AUPR", "Num_Confident_Int", "Num_Precision_Int"]
+    csv_header = ["Dropout", "Seed", "AUPR"]
 
     # Sampling batches
     sample_batches_to_size = default.DEFAULT_BATCH_SIZE
@@ -216,7 +216,7 @@ class SingleCellDropoutConditionSampling(SingleCellPuppeteerWorkflow):
                 puppet.network_file_name = "network_drop_{drop}_s{seed}.tsv".format(drop=r_name, seed=seed)
                 puppet.pr_curve_file_name = "pr_curve_{drop}_s{seed}.pdf".format(drop=r_name, seed=seed)
             puppet.run()
-            drop_data = (r_name, seed, puppet.aupr, puppet.n_interact, puppet.precision_interact)
+            drop_data = (r_name, seed, puppet.results.score)
             aupr_data.append(drop_data)
             if self.is_master():
                 self.csv_writer.writerow(drop_data)
