@@ -381,3 +381,37 @@ def make_array_2d(arr):
     """
     if arr.ndim == 1:
         arr.shape = (arr.shape[0], 1)
+
+
+def melt_and_reindex_dataframe(data_frame, value_name, idx_name="target", col_name="regulator"):
+    """
+    Take a pandas dataframe and melt it into a one column dataframe (with the column `value_name`) and a multiindex
+    of the original index + column
+    :param data_frame: pd.DataFrame [M x N]
+        Meltable dataframe
+    :param value_name: str
+        The column name for the values of the dataframe
+    :param idx_name: str
+        The name to assign to the original data_frame index values
+    :param col_name: str
+        The name to assign to the original data_frame column values
+    :return: pd.DataFrame [(M*N) x 1]
+        Melted dataframe with a single column of values and a multiindex that is the original index + column for
+        that value
+    """
+
+    assert Validator.argument_type(data_frame, pd.DataFrame)
+
+    # Copy the dataframe and move the index to a column
+    data_frame = data_frame.copy()
+    data_frame[idx_name] = data_frame.index
+
+    # Melt it into a [(M*N) x 3] dataframe
+    data_frame = data_frame.melt(id_vars=idx_name, var_name=col_name, value_name=value_name)
+
+    # Create a multiindex and then drop the columns that are now in the index
+    data_frame.index = pd.MultiIndex.from_frame(data_frame.loc[:, [idx_name, col_name]])
+    del data_frame[idx_name]
+    del data_frame[col_name]
+
+    return data_frame
