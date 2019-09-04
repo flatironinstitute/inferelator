@@ -39,9 +39,7 @@ class TestCVWorkers(unittest.TestCase):
         self.puppet_workflow.gold_standard_filter_method = 'keep_all_gold_standard'
         self.puppet_workflow.emit_results(betas=self.beta, rescaled_betas=self.beta_resc, priors=self.prior,
                                           gold_standard=self.gold_standard)
-        self.assertEqual(self.puppet_workflow.aupr, 1)
-        self.assertEqual(self.puppet_workflow.precision_interact, 3)
-        self.assertEqual(self.puppet_workflow.n_interact, 0)
+        self.assertEqual(self.puppet_workflow.results.score, 1)
 
 
 class WorkflowPuppeteer(crossvalidation_workflow.PuppeteerWorkflow, workflow.WorkflowBase):

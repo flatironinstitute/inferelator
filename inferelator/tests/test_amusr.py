@@ -121,9 +121,7 @@ class TestAMuSRWorkflow(unittest.TestCase):
                                    [[rb1, rb1], [rb2, rb2], [rb3, rb3]],
                                    self.workflow.gold_standard,
                                    self.workflow.priors_data)
-        self.assertAlmostEqual(self.workflow.aupr, 0.3416666666666667)
-        self.assertEqual(self.workflow.n_interact, 0)
-        self.assertEqual(self.workflow.precision_interact, 0)
+        self.assertAlmostEqual(self.workflow.results.score, 0.37777, places=4)
 
     def test_result_processor_perfect(self):
         self.workflow.task_objects = [TaskDataStub()]
@@ -147,7 +145,7 @@ class TestAMuSRWorkflow(unittest.TestCase):
                                    [[rb1, rb1], [rb2, rb2], [rb3, rb3]],
                                    self.workflow.gold_standard,
                                    self.workflow.priors_data)
-        self.assertAlmostEqual(self.workflow.aupr, 1)
+        self.assertAlmostEqual(self.workflow.results.score, 1)
 
 
 class TestAMuSRrunner(unittest.TestCase):

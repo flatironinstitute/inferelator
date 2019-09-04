@@ -40,7 +40,7 @@ class TestSingleTaskRegressionFactory(TestRegressionFactory):
         self.workflow.meta_data_file = None
         self.workflow.read_metadata()
         self.workflow.run()
-        self.assertEqual(self.workflow.aupr, 1)
+        self.assertEqual(self.workflow.results.score, 1)
 
     def test_elasticnet(self):
         self.workflow = create_puppet_workflow(base_class="tfa", regression_class="elasticnet")
@@ -54,7 +54,8 @@ class TestSingleTaskRegressionFactory(TestRegressionFactory):
             warnings.simplefilter("ignore")
             self.workflow.run()
             
-        self.assertEqual(self.workflow.aupr, 1)
+        self.assertEqual(self.workflow.results.score, 1)
+
 
 class TestMultitaskFactory(TestRegressionFactory):
 
@@ -78,14 +79,14 @@ class TestMultitaskFactory(TestRegressionFactory):
         self.reset_workflow()
 
         self.workflow.run()
-        self.assertAlmostEqual(self.workflow.aupr, 0.77678, places=4)
+        self.assertAlmostEqual(self.workflow.results.score, 0.85, places=4)
 
     def test_mtl_bbsr(self):
         self.workflow = workflow.inferelator_workflow(workflow="amusr", regression=BBSRByTaskRegressionWorkflow)
         self.reset_workflow()
 
         self.workflow.run()
-        self.assertEqual(self.workflow.aupr, 1)
+        self.assertEqual(self.workflow.results.score, 1)
 
     def test_mtl_elasticnet(self):
         self.workflow = workflow.inferelator_workflow(workflow="amusr", regression=ElasticNetByTaskRegressionWorkflow)
@@ -94,4 +95,4 @@ class TestMultitaskFactory(TestRegressionFactory):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             self.workflow.run()
-        self.assertEqual(self.workflow.aupr, 1)
+        self.assertEqual(self.workflow.results.score, 1)
