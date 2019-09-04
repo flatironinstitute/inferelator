@@ -97,7 +97,7 @@ class InferelatorResults(object):
             data_frame.to_csv(os.path.join(output_dir, output_file_name), sep="\t", index=False, header=True)
 
 
-class ResultsProcessor:
+class ResultsProcessor(object):
     # Data
     betas = None
     rescaled_betas = None
