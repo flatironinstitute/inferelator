@@ -36,9 +36,9 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
 
         super(ResultsProcessorMultiTask, self).__init__(betas, rescaled_betas, threshold, filter_method, metric)
 
-        # If there are no task names then make up some defaults
-        if self.tasks_names is None:
-            self.tasks_names = list(map(str, range(len(self.betas))))
+        # Make up some default names
+        # The workflow will have to replace these with real names if necessary
+        self.tasks_names = list(map(str, range(len(self.betas))))
 
     @staticmethod
     def validate_init_args(betas, rescaled_betas, threshold=None, filter_method=None, metric=None):
@@ -106,8 +106,8 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
             m_name, score = task_rs_calc.score()
             utils.Debug.vprint("Task {t} Model {m}:\t{score}".format(t=task_name, m=m_name, score=score), level=0)
 
-            task_result = results_processor.InferelatorResults(task_network_data, task_threshold,
-                                                               task_rs_calc.all_confidences, task_rs_calc)
+            task_result = self.result_object(task_network_data, task_threshold, task_rs_calc.all_confidences,
+                                             task_rs_calc)
 
             if self.write_task_files is True and output_dir is not None:
                 task_result.write_result_files(os.path.join(output_dir, task_name))
@@ -126,8 +126,8 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
         network_data = self.process_network(overall_rs_calc, None, beta_threshold=overall_threshold,
                                             extra_columns=extra_cols)
 
-        overall_result = results_processor.InferelatorResults(network_data, overall_threshold,
-                                                              overall_rs_calc.all_confidences, overall_rs_calc)
+        overall_result = self.result_object(network_data, overall_threshold, overall_rs_calc.all_confidences,
+                                            overall_rs_calc)
         overall_result.write_result_files(output_dir)
 
         return overall_result

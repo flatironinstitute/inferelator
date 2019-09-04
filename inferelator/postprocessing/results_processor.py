@@ -13,6 +13,90 @@ DEFAULT_BOOTSTRAP_THRESHOLD = 0.5
 DEFAULT_FILTER_METHOD = "overlap"
 DEFAULT_METRIC = "precision-recall"
 
+
+class InferelatorResults(object):
+    # Results name
+    name = None
+
+    # Network data
+    network = None
+    betas_stack = None
+    betas_sign = None
+    combined_confidences = None
+
+    # File names
+    network_file_name = "network.tsv"
+    confidence_file_name = "combined_confidences.tsv"
+    threshold_file_name = "betas_stack.tsv"
+    curve_file_name = "pr_curve.pdf"
+    curve_data_file_name = "pr_curve_data.tsv"
+
+    # Performance metrics
+    metric = None
+    curve = None
+    score = None
+
+    def __init__(self, network_data, betas_stack, combined_confidences, metric_object, betas_sign=None):
+        self.network = network_data
+        self.betas_stack = betas_stack
+        self.combined_confidences = combined_confidences
+        self.metric = metric_object
+        self.curve = metric_object.curve_dataframe()
+        _, self.score = metric_object.score()
+        self.betas_sign = betas_sign
+
+    def write_result_files(self, output_dir):
+        """
+        Write all of the output files. Any individual file output can be overridden by setting the file name to None.
+        All files can be suppressed by calling output_dir as None
+        :param output_dir: str
+            Path to outputs
+        """
+
+        # Write TSV files
+        self.write_to_tsv(self.network, output_dir, self.network_file_name)
+        self.write_to_tsv(self.combined_confidences, output_dir, self.confidence_file_name)
+        self.write_to_tsv(self.betas_stack, output_dir, self.threshold_file_name)
+        self.write_to_tsv(self.curve, output_dir, self.curve_data_file_name)
+
+        if self.curve_file_name is None:
+            pass
+        else:
+            self.metric.output_curve_pdf(output_dir, self.curve_file_name)
+
+    def clear_output_file_names(self):
+        """
+        Reset the output file names (nothing will be output if this is called, unless new file names are set)
+        """
+
+        self.network_file_name = None
+        self.confidence_file_name = None
+        self.threshold_file_name = None
+        self.curve_file_name = None
+        self.curve_data_file_name = None
+
+
+    @staticmethod
+    def write_to_tsv(data_frame, output_dir, output_file_name):
+        """
+        Save a DataFrame to a TSV file
+        :param data_frame: pd.DataFrame
+            Data to write
+        :param output_dir: str
+            The path to the output file. If None, don't save anything
+        :param output_file_name: str
+            The output file name. If None, don't save anything
+        """
+
+        assert check.argument_type(data_frame, pd.DataFrame, allow_none=True)
+        assert check.argument_path(output_dir, allow_none=True)
+        assert check.argument_type(output_file_name, str, allow_none=True)
+
+        # Write output
+        if output_dir is not None and output_file_name is not None and data_frame is not None:
+            data_frame.to_csv(os.path.join(output_dir, output_file_name), sep="\t", index=False, header=True)
+
+
 class ResultsProcessor:
     # Data
     betas = None
@@ -30,6 +114,12 @@ class ResultsProcessor:
     confidence_file_name = "combined_confidences.tsv"
     threshold_file_name = "betas_stack.tsv"
     pr_curve_file_name = "pr_curve.pdf"
+
+    # Flag to write results
+    write_results = True
+
+    # Model result object
+    result_object = InferelatorResults
 
     # Model metric
     metric = None
@@ -98,8 +188,10 @@ class ResultsProcessor:
         network_data = self.process_network(rs_calc, priors, beta_threshold=beta_threshold, extra_columns=extra_cols)
 
         # Create a InferelatorResult object and have it write output files
-        result = InferelatorResults(network_data, beta_threshold, rs_calc.all_confidences, rs_calc)
-        result.write_result_files(output_dir)
+        result = self.result_object(network_data, beta_threshold, rs_calc.all_confidences, rs_calc)
+
+        if self.write_results and output_dir is not None:
+            result.write_result_files(output_dir)
 
         return result
 
@@ -236,74 +328,3 @@ class ResultsProcessor:
         mean_data = pd.DataFrame(np.mean(matrix_stack, axis=0), index=stack[0].index, columns=stack[0].columns)
         median_data = pd.DataFrame(np.median(matrix_stack, axis=0), index=stack[0].index, columns=stack[0].columns)
         return mean_data, median_data
-
-
-class InferelatorResults(object):
-    # Results name
-    name = None
-
-    # Network data
-    network = None
-    betas_stack = None
-    betas_sign = None
-    combined_confidences = None
-
-    # File names
-    network_file_name = "network.tsv"
-    confidence_file_name = "combined_confidences.tsv"
-    threshold_file_name = "betas_stack.tsv"
-    curve_file_name = "pr_curve.pdf"
-    curve_data_file_name = "pr_curve_data.tsv"
-
-    # Performance metrics
-    metric = None
-    curve = None
-    score = None
-
-    def __init__(self, network_data, betas_stack, combined_confidences, metric_object, betas_sign=None):
-        self.network = network_data
-        self.betas_stack = betas_stack
-        self.combined_confidences = combined_confidences
-        self.metric = metric_object
-        self.curve = metric_object.curve_dataframe()
-        _, self.score = metric_object.score()
-        self.betas_sign = betas_sign
-
-    def write_result_files(self, output_dir):
-        """
-        Write all of the output files. Any individual file output can be overridden by setting the file name to None.
-        All files can be suppressed by calling output_dir as None
-        :param output_dir: str
-            Path to outputs
-        """
-
-        # Write TSV files
-        self.write_to_tsv(self.network, output_dir, self.network_file_name)
-        self.write_to_tsv(self.combined_confidences, output_dir, self.confidence_file_name)
-        self.write_to_tsv(self.betas_stack, output_dir, self.threshold_file_name)
-        self.write_to_tsv(self.curve, output_dir, self.curve_data_file_name)
-
-        if self.curve_file_name is None:
-            pass
-        else:
-            self.metric.output_curve_pdf(output_dir, self.curve_file_name)
-
-    @staticmethod
-    def write_to_tsv(data_frame, output_dir, output_file_name):
-        """
-        Save a DataFrame to a TSV file
-        :param data_frame: pd.DataFrame
-            Data to write
-        :param output_dir: str
-            The path to the output file. If None, don't save anything
-        :param output_file_name: str
-            The output file name. If None, don't save anything
-        """
-
-        assert check.argument_type(data_frame, pd.DataFrame, allow_none=True)
-        assert check.argument_path(output_dir, allow_none=True)
-        assert check.argument_type(output_file_name, str, allow_none=True)
-
-        # Write output
-        if output_dir is not None and output_file_name is not None and data_frame is not None:
-            data_frame.to_csv(os.path.join(output_dir, output_file_name), sep="\t", index=False, header=True)
