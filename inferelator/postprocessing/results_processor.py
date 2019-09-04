@@ -1,16 +1,17 @@
 import numpy as np
 import pandas as pd
 import os
-import csv
 
 from inferelator import utils
 from inferelator.utils import Validator as check
-from inferelator.postprocessing.model_performance import RankSummaryPR, RankSumming
+from inferelator.postprocessing.model_performance import RankSummingMetric, MetricHandler
+from inferelator.postprocessing import BETA_SIGN_COLUMN, MEDIAN_EXPLAIN_VAR_COLUMN, CONFIDENCE_COLUMN
+from inferelator.postprocessing import BETA_THRESHOLD_COLUMN, TARGET_COLUMN, REGULATOR_COLUMN, PRIOR_COLUMN
 
 FILTER_METHODS = ("overlap", "keep_all_gold_standard")
 DEFAULT_BOOTSTRAP_THRESHOLD = 0.5
 DEFAULT_FILTER_METHOD = "overlap"
-
+DEFAULT_METRIC = "precision-recall"
 
 class ResultsProcessor:
     # Data
@@ -30,7 +31,10 @@ class ResultsProcessor:
     threshold_file_name = "betas_stack.tsv"
     pr_curve_file_name = "pr_curve.pdf"
 
-    def __init__(self, betas, rescaled_betas, threshold=None, filter_method=None):
+    # Model metric
+    metric = None
+
+    def __init__(self, betas, rescaled_betas, threshold=None, filter_method=None, metric=None):
         """
         :param betas: list(pd.DataFrame[G x K]) [B]
             A list of model weights per bootstrap
@@ -40,23 +44,30 @@ class ResultsProcessor:
             The proportion of bootstraps which an model weight must be non-zero for inclusion in the network output
         :param filter_method: str
             How to handle gold standard filtering ('overlap' filters to beta, 'keep_all_gold_standard' doesn't filter)
+        :param metric: str / RankSummingMetric
+            The scoring metric to use
         """
 
+        self.validate_init_args(betas, rescaled_betas, threshold=threshold, filter_method=filter_method, metric=metric)
+
+        self.betas = betas
+        self.rescaled_betas = rescaled_betas
+        self.filter_method = self.filter_method if filter_method is None else filter_method
+        self.threshold = self.threshold if threshold is None else threshold
+
+        metric = metric if metric is not None else DEFAULT_METRIC
+        self.metric = MetricHandler.get_metric(metric)
+
+    @staticmethod
+    def validate_init_args(betas, rescaled_betas, threshold=None, filter_method=None, metric=None):
         assert check.argument_type(betas, list)
         assert check.argument_type(betas[0], pd.DataFrame)
         assert check.dataframes_align(betas)
-        self.betas = betas
-
         assert check.argument_type(rescaled_betas, list)
         assert check.argument_type(rescaled_betas[0], pd.DataFrame)
         assert check.dataframes_align(rescaled_betas)
-        self.rescaled_betas = rescaled_betas
-
         assert check.argument_enum(filter_method, FILTER_METHODS, allow_none=True)
-        self.filter_method = self.filter_method if filter_method is None else filter_method
-
         assert check.argument_numeric(threshold, 0, 1, allow_none=True)
-        self.threshold = self.threshold if threshold is None else threshold
 
     def summarize_network(self, output_dir, gold_standard, priors):
         """
@@ -67,69 +78,36 @@ class ResultsProcessor:
             Gold standard to test the network against
         :param priors: pd.DataFrame [G x K]
             Prior data
-        :return aupr: float
-            Returns the AUPR calculated from the network and gold standard
+        :return result: InferelatorResult
+            Returns an InferelatorResult
         """
 
         assert check.argument_path(output_dir, allow_none=True)
         assert check.argument_type(gold_standard, pd.DataFrame)
         assert check.argument_type(priors, pd.DataFrame)
 
-        pr_calc = RankSummaryPR(self.rescaled_betas, gold_standard, filter_method=self.filter_method)
+        rs_calc = self.metric(self.rescaled_betas, gold_standard, filter_method=self.filter_method)
         beta_threshold, beta_sign, beta_nonzero = self.threshold_and_summarize(self.betas, self.threshold)
         resc_betas_mean, resc_betas_median = self.mean_and_median(self.rescaled_betas)
-        extra_cols = {'beta.sign.sum': beta_sign, 'var.exp.median': resc_betas_median}
+        extra_cols = {BETA_SIGN_COLUMN: beta_sign, MEDIAN_EXPLAIN_VAR_COLUMN: resc_betas_median}
 
-        utils.Debug.vprint("Model AUPR:\t{aupr}".format(aupr=pr_calc.aupr), level=0)
+        m_name, score = rs_calc.score()
+        utils.Debug.vprint("Model {metric}:\t{score}".format(metric=m_name, score=score), level=0)
 
-        # Plot PR curve & Output results to a TSV
-        self.network_data = self.write_output_files(pr_calc, output_dir, priors, beta_threshold, extra_cols)
+        # Process data into a network dataframe
+        network_data = self.process_network(rs_calc, priors, beta_threshold=beta_threshold, extra_columns=extra_cols)
 
-        return pr_calc.aupr
+        # Create a InferelatorResult object and have it write output files
+        result = InferelatorResults(network_data, beta_threshold, rs_calc.all_confidences, rs_calc)
+        result.write_result_files(output_dir)
 
-    def write_output_files(self, pr_calc, output_dir, priors, beta_threshold, extra_cols, threshold_network=True):
-
-        assert check.argument_type(pr_calc, RankSummaryPR)
-        assert check.argument_path(output_dir, allow_none=True, create_if_needed=True)
-
-        self.write_csv(pr_calc.combined_confidences(), output_dir, self.confidence_file_name)
-        self.write_csv(beta_threshold, output_dir, self.threshold_file_name)
-        pr_calc.output_pr_curve_pdf(output_dir, file_name=self.pr_curve_file_name)
-
-        # Threshold the network with the boolean beta_threshold if threshold_network is True
-        beta_threshold = beta_threshold if threshold_network else None
-
-        # Process data into a network dataframe, write it out, and return it
-        network_data = self.process_network(pr_calc, priors, beta_threshold=beta_threshold, extra_columns=extra_cols)
-        self.save_network_to_tsv(network_data, output_dir, output_file_name=self.network_file_name)
-        return network_data
+        return result
 
     @staticmethod
-    def save_network_to_tsv(network_data, output_dir, output_file_name="network.tsv"):
-        """
-        Create a network file and save it
-        :param network_data: pd.DataFrame
-            The network as an edge dataframe
-        :param output_dir: str
-            The path to the output file. If None, don't save anything
-        :param output_file_name: str
-            The output file name. If None, don't save anything
-
-        """
-
-        assert check.argument_type(network_data, pd.DataFrame)
-        assert check.argument_path(output_dir, allow_none=True)
-        assert check.argument_type(output_file_name, str, allow_none=True)
-
-        # Write output
-        if output_dir is not None and output_file_name is not None:
-            network_data.to_csv(os.path.join(output_dir, output_file_name), sep="\t", index=False, header=True)
-
-    @staticmethod
-    def process_network(pr_calc, priors, confidence_threshold=0, beta_threshold=None, extra_columns=None):
+    def process_network(metric, priors, confidence_threshold=0, beta_threshold=None, extra_columns=None):
         """
         Process rank-summed results into a network data frame
-        :param pr_calc: RankSummaryPR
+        :param metric: RankSummingMetric
             The rank-sum object with the math in it
         :param priors: pd.DataFrame [G x K]
             Prior data
@@ -144,46 +122,32 @@ class ResultsProcessor:
 
         """
 
-        assert check.argument_type(pr_calc, RankSumming)
+        assert check.argument_type(metric, RankSummingMetric)
         assert check.argument_type(priors, pd.DataFrame, allow_none=True)
         assert check.argument_type(beta_threshold, pd.DataFrame, allow_none=True)
         assert check.argument_numeric(confidence_threshold, 0, 1)
 
-        recall_data, precision_data = pr_calc.dataframe_recall_precision()
-
-        # Get the combined confidences in order, convert them to a dataframe, and subset for confidence threshold
-        network_data = list(pr_calc.confidence_ordered_generator())
-        network_data = pd.DataFrame(network_data, columns=['target', 'regulator', 'combined_confidences'])
-        network_data = network_data.loc[network_data['combined_confidences'] > confidence_threshold,
-                                        ['regulator', 'target', 'combined_confidences']]
+        # Get the combined confidences and subset for confidence threshold
+        network_data = metric.confidence_dataframe()
+        network_data = network_data.loc[network_data[CONFIDENCE_COLUMN] > confidence_threshold, :]
 
         # If beta_threshold has been provided, melt and join it to the network data
         # Then discard anything which isn't meeting the threshold
         if beta_threshold is not None and False:
-            beta_data = ResultsProcessor.melt_and_reindex_dataframe(beta_threshold, 'beta_threshold')
-            network_data = network_data.join(beta_data, on=["target", "regulator"])
-            network_data = network_data.loc[network_data['beta_threshold'] == 1, :]
-            del network_data['beta_threshold']
-
-        # Convert each column's data to a dataframe with a multiindex
-        gold_data = ResultsProcessor.melt_and_reindex_dataframe(pr_calc.gold_standard, "gold_standard")
-        recall_data = ResultsProcessor.melt_and_reindex_dataframe(recall_data, "recall")
-        precision_data = ResultsProcessor.melt_and_reindex_dataframe(precision_data, "precision")
+            beta_data = utils.melt_and_reindex_dataframe(beta_threshold, BETA_THRESHOLD_COLUMN)
+            network_data = network_data.join(beta_data, on=[TARGET_COLUMN, REGULATOR_COLUMN])
+            network_data = network_data.loc[network_data[BETA_THRESHOLD_COLUMN] == 1, :]
+            del network_data[BETA_THRESHOLD_COLUMN]
 
         if priors is not None:
-            prior_data = ResultsProcessor.melt_and_reindex_dataframe(priors, "prior")
-            network_data = network_data.join(prior_data, on=["target", "regulator"])
-
-        # Join each column's data to the network edges
-        network_data = network_data.join(gold_data, on=["target", "regulator"])
-        network_data = network_data.join(precision_data, on=["target", "regulator"])
-        network_data = network_data.join(recall_data, on=["target", "regulator"])
+            prior_data = utils.melt_and_reindex_dataframe(priors, PRIOR_COLUMN)
+            network_data = network_data.join(prior_data, on=[TARGET_COLUMN, REGULATOR_COLUMN])
 
         # Add any extra columns as needed
         if extra_columns is not None:
             for k in sorted(extra_columns.keys()):
-                extra_data = ResultsProcessor.melt_and_reindex_dataframe(extra_columns[k], k)
-                network_data = network_data.join(extra_data, on=["target", "regulator"])
+                extra_data = utils.melt_and_reindex_dataframe(extra_columns[k], k)
+                network_data = network_data.join(extra_data, on=[TARGET_COLUMN, REGULATOR_COLUMN])
 
         # Make sure all missing values are NaN
         network_data[pd.isnull(network_data)] = np.nan
@@ -191,50 +155,18 @@ class ResultsProcessor:
         return network_data
 
     @staticmethod
-    def melt_and_reindex_dataframe(data_frame, value_name, idx_name="target", col_name="regulator"):
-        """
-        Take a pandas dataframe and melt it into a one column dataframe (with the column `value_name`) and a multiindex
-        of the original index + column
-        :param data_frame: pd.DataFrame [M x N]
-            Meltable dataframe
-        :param value_name: str
-            The column name for the values of the dataframe
-        :param idx_name: str
-            The name to assign to the original data_frame index values
-        :param col_name: str
-            The name to assign to the original data_frame column values
-        :return: pd.DataFrame [(M*N) x 1]
-            Melted dataframe with a single column of values and a multiindex that is the original index + column for
-            that value
-        """
-
-        assert check.argument_type(data_frame, pd.DataFrame)
-
-        # Copy the dataframe and move the index to a column
-        data_frame = data_frame.copy()
-        data_frame[idx_name] = data_frame.index
-
-        # Melt it into a [(M*N) x 3] dataframe
-        data_frame = data_frame.melt(id_vars=idx_name, var_name=col_name, value_name=value_name)
-
-        # Create a multiindex and then drop the columns that are now in the index
-        data_frame.index = pd.MultiIndex.from_frame(data_frame.loc[:, [idx_name, col_name]])
-        del data_frame[idx_name]
-        del data_frame[col_name]
-
-        return data_frame
-
-    @staticmethod
-    def write_csv(data, pathname, filename):
-        assert check.argument_path(pathname, allow_none=True)
-        assert check.argument_type(filename, str, allow_none=True)
-        assert check.argument_type(data, pd.DataFrame)
-
-        if pathname is not None and filename is not None:
-            data.to_csv(os.path.join(pathname, filename), sep='\t')
-
-    @staticmethod
     def threshold_and_summarize(betas, threshold):
+        """
+        Summarize a stack of betas
+        Returns dataframes
+        :param betas: list(pd.DataFrame)
+            A list of dataframes that are aligned on both axes
+        :param threshold: numeric
+            The proportion of bootstraps an interaction must occur in to be valid
+        :return betas_threshold: pd.DataFrame
+        :return betas_sign: pd.DataFrame
+        :return betas_non_zero: pd.DataFrame
+        """
         betas_sign, betas_non_zero = ResultsProcessor.summarize(betas)
         betas_threshold = ResultsProcessor.passes_threshold(betas_non_zero, len(betas), threshold)
         return betas_threshold, betas_sign, betas_non_zero
@@ -245,12 +177,15 @@ class ResultsProcessor:
         Compute summary information about betas
 
         :param betas: list(pd.DataFrame) B x [M x N]
-            A dataframe with the original data
+            A list of dataframes that are aligned on both axes
         :return betas_sign: pd.DataFrame [M x N]
             A dataframe with the summation of np.sign() for each bootstrap
         :return betas_non_zero: pd.DataFrame [M x N]
             A dataframe with a count of the number of non-zero betas for an interaction
         """
+
+        assert check.dataframes_align(betas)
+
         betas_sign = pd.DataFrame(np.zeros(betas[0].shape), index=betas[0].index, columns=betas[0].columns)
         betas_non_zero = pd.DataFrame(np.zeros(betas[0].shape), index=betas[0].index, columns=betas[0].columns)
         for beta in betas:
@@ -275,11 +210,100 @@ class ResultsProcessor:
             A bool dataframe where 1 corresponds to interactions that are in more than the threshold proportion of
             bootstraps
         """
+
+        assert check.argument_type(betas_non_zero, pd.DataFrame)
+        assert check.argument_integer(max_num)
+        assert check.argument_numeric(threshold, low=0, high=1)
+
         return ((betas_non_zero / max_num) >= threshold).astype(int)
 
     @staticmethod
     def mean_and_median(stack):
+        """
+        Calculate the mean and median values of a list of dataframes
+        Returns dataframes with the same dimensions as any one of the input stack
+        :param stack: list(pd.DataFrame)
+            List of dataframes which have the same size and dimensions
+        :return mean_data: pd.DataFrame
+            Mean values
+        :return median_data:
+            Median values
+        """
+
+        assert check.dataframes_align(stack)
+
         matrix_stack = [x.values for x in stack]
         mean_data = pd.DataFrame(np.mean(matrix_stack, axis=0), index=stack[0].index, columns=stack[0].columns)
         median_data = pd.DataFrame(np.median(matrix_stack, axis=0), index=stack[0].index, columns=stack[0].columns)
         return mean_data, median_data
+
+
+class InferelatorResults(object):
+    # Results name
+    name = None
+
+    # Network data
+    network = None
+    betas_stack = None
+    betas_sign = None
+    combined_confidences = None
+
+    # File names
+    network_file_name = "network.tsv"
+    confidence_file_name = "combined_confidences.tsv"
+    threshold_file_name = "betas_stack.tsv"
+    curve_file_name = "pr_curve.pdf"
+    curve_data_file_name = "pr_curve_data.tsv"
+
+    # Performance metrics
+    metric = None
+    curve = None
+    score = None
+
+    def __init__(self, network_data, betas_stack, combined_confidences, metric_object, betas_sign=None):
+        self.network = network_data
+        self.betas_stack = betas_stack
+        self.combined_confidences = combined_confidences
+        self.metric = metric_object
+        self.curve = metric_object.curve_dataframe()
+        _, self.score = metric_object.score()
+        self.betas_sign = betas_sign
+
+    def write_result_files(self, output_dir):
+        """
+        Write all of the output files. Any individual file output can be overridden by setting the file name to None.
+        All files can be suppressed by calling output_dir as None
+        :param output_dir: str
+            Path to outputs
+        """
+
+        # Write TSV files
+        self.write_to_tsv(self.network, output_dir, self.network_file_name)
+        self.write_to_tsv(self.combined_confidences, output_dir, self.confidence_file_name)
+        self.write_to_tsv(self.betas_stack, output_dir, self.threshold_file_name)
+        self.write_to_tsv(self.curve, output_dir, self.curve_data_file_name)
+
+        if self.curve_file_name is None:
+            pass
+        else:
+            self.metric.output_curve_pdf(output_dir, self.curve_file_name)
+
+    @staticmethod
+    def write_to_tsv(data_frame, output_dir, output_file_name):
+        """
+        Save a DataFrame to a TSV file
+        :param data_frame: pd.DataFrame
+            Data to write
+        :param output_dir: str
+            The path to the output file. If None, don't save anything
+        :param output_file_name: str
+            The output file name. If None, don't save anything
+        """
+
+        assert check.argument_type(data_frame, pd.DataFrame, allow_none=True)
+        assert check.argument_path(output_dir, allow_none=True)
+        assert check.argument_type(output_file_name, str, allow_none=True)
+
+        # Write output
+        if output_dir is not None and output_file_name is not None and data_frame is not None:
+            data_frame.to_csv(os.path.join(output_dir, output_file_name), sep="\t", index=False, header=True)
