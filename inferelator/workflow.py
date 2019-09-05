@@ -12,6 +12,7 @@ from __future__ import unicode_literals, print_function
 import datetime
 import inspect
 import os
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -67,6 +68,62 @@ class WorkflowBaseLoader(object):
     # Flag to extract metadata from specific columns of the expression matrix instead of a separate file
     extract_metadata_from_expression_matrix = default.DEFAULT_EXTRACT_METADATA_FROM_EXPR  # bool
     expression_matrix_metadata = default.DEFAULT_EXPRESSION_MATRIX_METADATA  # str
+
+    def set_file_paths(self, input_dir=None, output_dir=None, expression_matrix_file=None, tf_names_file=None,
+                       meta_data_file=None, priors_file=None, gold_standard_file=None, gene_metadata_file=None):
+        """
+        Set the file paths necessary for the inferelator to run
+        :param input_dir: str
+        :param output_dir: str
+        :param expression_matrix_file: str
+        :param tf_names_file: str
+        :param meta_data_file: str
+        :param priors_file: str
+        :param gold_standard_file: str
+        :param gene_metadata_file: str
+        """
+
+        self._set_with_warning("input_dir", input_dir)
+        self._set_with_warning("output_dir", output_dir)
+        self._set_with_warning("expression_matrix_file", expression_matrix_file)
+        self._set_with_warning("tf_names_file", tf_names_file)
+        self._set_with_warning("meta_data_file", meta_data_file)
+        self._set_with_warning("priors_file", priors_file)
+        self._set_with_warning("gold_standard_file", gold_standard_file)
+        self._set_with_warning("gene_metadata_file", gene_metadata_file)
+
+    def set_file_properties(self, extract_metadata_from_expression_matrix=None, expression_matrix_metadata=None,
+                            expression_matrix_columns_are_genes=None, gene_list_index=None, metadata_handler=None):
+        """
+        Set properties associated with the input data files
+        :param extract_metadata_from_expression_matrix: str
+        :param expression_matrix_metadata: str
+        :param expression_matrix_columns_are_genes: str
+        :param gene_list_index: str
+        :param metadata_handler: str
+        """
+
+        self._set_with_warning("extract_metadata_from_expression_matrix", extract_metadata_from_expression_matrix)
+        self._set_with_warning("expression_matrix_metadata", expression_matrix_metadata)
+        self._set_with_warning("expression_matrix_columns_are_genes", expression_matrix_columns_are_genes)
+        self._set_with_warning("gene_list_index", gene_list_index)
+        self._set_with_warning("metadata_handler", metadata_handler)
+
+    def _set_with_warning(self, attr_name, value):
+        """
+        Set an attribute name. Warn if it's already not None
+        :param attr_name: str
+        :param value:
+        """
+
+        if value is None:
+            return
+
+        current_value = getattr(self, attr_name)
+        if current_value is not None:
+            warnings.warn("Setting {a} although it has a value ({val}".format(a=attr_name, val=value))
+
+        setattr(self, attr_name, value)
 
     def get_data(self):
         """
@@ -210,10 +267,19 @@ class WorkflowBaseLoader(object):
         Join filename to input_dir
         """
 
+        # Raise an error if filename is None
         if filename is None:
             raise ValueError("Cannot create a path to a filename set as None")
+
+        # Return an absolute path unchanged
+        elif os.path.isabs(filename):
+            return filename
+
+        # If input_dir is set, join file name to it and return that
         elif self.input_dir is not None:
             return self.make_path_safe(os.path.join(self.input_dir, filename))
+
+        # If input_dir is not set, convert the filename to absolute and return it
         else:
             return self.make_path_safe(filename)
 
@@ -247,8 +313,8 @@ class WorkflowBaseLoader(object):
 class WorkflowBase(WorkflowBaseLoader):
     # Flags to control splitting priors into a prior/gold-standard set
     split_gold_standard_for_crossvalidation = False
-    cv_split_ratio = default.DEFAULT_GS_SPLIT_RATIO
-    cv_split_axis = default.DEFAULT_GS_SPLIT_AXIS
+    cv_split_ratio = None
+    cv_split_axis = 0
     shuffle_prior_axis = None
 
     # The random seed for sampling, etc
@@ -275,6 +341,39 @@ class WorkflowBase(WorkflowBaseLoader):
     def __init__(self):
         # Get environment variables
         self.get_environmentals()
+
+    def set_crossvalidation_parameters(self, split_gold_standard_for_crossvalidation=None, cv_split_ratio=None,
+                                       cv_split_axis=None):
+        """
+        Set parameters for crossvalidation
+        :param split_gold_standard_for_crossvalidation: bool
+        :param cv_split_ratio: float
+        :param cv_split_axis: int (0, 1)
+        """
+
+        self._set_with_warning("split_gold_standard_for_crossvalidation", split_gold_standard_for_crossvalidation)
+        self._set_with_warning("cv_split_ratio", cv_split_ratio)
+        self._set_with_warning("cv_split_axis", cv_split_axis)
+
+        if split_gold_standard_for_crossvalidation is None and (cv_split_axis is not None or cv_split_ratio is not None):
+            warnings.warn("The split_gold_standard_for_crossvalidation flag is not set. Other options may be ignored")
+
+    def set_shuffle_parameters(self, shuffle_prior_axis=None):
+        """
+        Set parameters for shuffling labels on a prior axis
+        :param shuffle_prior_axis:
+        """
+        self._set_with_warning("shuffle_prior_axis", shuffle_prior_axis)
+
+    def set_postprocessing_parameters(self, gold_standard_filter_method=None, metric=None):
+        """
+        Set parameters for the postprocessing engine
+        :param gold_standard_filter_method:
+        :param metric:
+        """
+
+        self._set_with_warning("shuffle_prior_axis", gold_standard_filter_method)
+        self._set_with_warning("metric", metric)
 
     def initialize_multiprocessing(self):
         """
