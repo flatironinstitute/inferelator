@@ -31,6 +31,17 @@ class MultiprocessingController(AbstractController):
         return True
 
     @classmethod
+    def set_processes(cls, process_count):
+        """
+        Set the number of dask workers to use
+        :param process_count: int
+        :return:
+        """
+        check.argument_integer(process_count, low=1)
+
+        cls.processes = process_count
+
+    @classmethod
     def map(cls, func, *args, **kwargs):
         """
         Map a function across iterable(s) and return a list of results

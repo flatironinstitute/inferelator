@@ -16,6 +16,7 @@ try:
 except KeyError:
     DEFAULT_LOCAL_DIR = 'dask-worker-space'
 
+
 class DaskController(AbstractController):
     """
     The DaskController class launches a local dask cluster and connects as a client
@@ -35,7 +36,7 @@ class DaskController(AbstractController):
     local_cluster = None
 
     # Settings for dask workers
-    processes = default.DEFAULT_PROCESS_COUNT
+    processes = 4
     local_dir = DEFAULT_LOCAL_DIR
 
     @classmethod
@@ -65,6 +66,15 @@ class DaskController(AbstractController):
     @classmethod
     def map(cls, func, *args, **kwargs):
         raise NotImplementedError
+
+    @classmethod
+    def set_processes(cls, process_count):
+        """
+        Set the number of dask workers to use
+        :param process_count: int
+        :return:
+        """
+        cls.processes = process_count
 
     @classmethod
     def sync_processes(self, *args, **kwargs):

@@ -98,6 +98,15 @@ class KVSController(AbstractController):
             cls.client.get(kvs_key)
 
     @classmethod
+    def set_processes(cls, process_count):
+        """
+        Set the number of dask workers to use
+        :param process_count: int
+        :return:
+        """
+        utils.Debug.vprint("The KVS engine does not support changing process numbers at runtime", level=0)
+
+    @classmethod
     def sync_processes(cls, pref="", value=True):
         """
         Block all processes until they reach this point, then release them
