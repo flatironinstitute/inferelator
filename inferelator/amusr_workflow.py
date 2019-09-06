@@ -293,7 +293,7 @@ def create_task_data_object(workflow_class="single-cell"):
 
 
 def create_task_data_class(workflow_class="single-cell"):
-    task_parent = workflow.create_inferelator_workflow(regression="base", workflow=workflow_class)
+    task_parent = workflow._factory_build_inferelator(regression="base", workflow=workflow_class)
 
     class TaskData(task_parent):
         """

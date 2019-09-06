@@ -20,8 +20,8 @@ my_dir = os.path.dirname(__file__)
 class TestTFAWorkflow(unittest.TestCase):
 
     def setUp(self):
-        self.workflow = workflow.create_inferelator_workflow(regression=None,
-                                                             workflow=tfa_workflow.TFAWorkFlow)()
+        self.workflow = workflow._factory_build_inferelator(regression=None,
+                                                            workflow=tfa_workflow.TFAWorkFlow)()
         self.workflow.input_dir = os.path.join(my_dir, "../../data/dream4")
         self.workflow.expression_matrix_file = default.DEFAULT_EXPRESSION_FILE
         self.workflow.tf_names_file = default.DEFAULT_TFNAMES_FILE
@@ -53,8 +53,8 @@ class TestTFAWorkflow(unittest.TestCase):
 class TestTFAWorkflowRegression(unittest.TestCase):
 
     def setUp(self):
-        self.workflow = workflow.create_inferelator_workflow(regression=FakeRegression,
-                                                             workflow=tfa_workflow.TFAWorkFlow)()
+        self.workflow = workflow._factory_build_inferelator(regression=FakeRegression,
+                                                            workflow=tfa_workflow.TFAWorkFlow)()
         self.workflow.input_dir = os.path.join(my_dir, "../../data/dream4")
         self.workflow.expression_matrix_file = default.DEFAULT_EXPRESSION_FILE
         self.workflow.tf_names_file = default.DEFAULT_TFNAMES_FILE

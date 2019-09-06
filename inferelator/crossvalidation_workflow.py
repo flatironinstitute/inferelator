@@ -95,7 +95,7 @@ def create_puppet_workflow(regression_class=base_regression.RegressionWorkflow,
                            base_class=workflow.WorkflowBase,
                            result_processor_class=None):
 
-    puppet_parent = workflow.create_inferelator_workflow(regression=regression_class, workflow=base_class)
+    puppet_parent = workflow._factory_build_inferelator(regression=regression_class, workflow=base_class)
 
     class PuppetClass(puppet_parent):
         """

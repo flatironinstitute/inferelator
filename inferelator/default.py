@@ -5,11 +5,6 @@ Mostly I did this so I could easily reuse defaults and change them to match my d
 Don't look at me like that.
 """
 
-"""Defaults for Multiprocessing"""
-
-DEFAULT_MULTIPROCESSING_ENGINE = "kvs"
-DEFAULT_PROCESS_COUNT = 4
-
 """Default Environmental Variable Lookup"""
 
 # This is a dict, keyed by the class setattr variable name, of tuples (env name, coercion function, default value)

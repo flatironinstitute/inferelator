@@ -69,6 +69,10 @@ class WorkflowBaseLoader(object):
     extract_metadata_from_expression_matrix = default.DEFAULT_EXTRACT_METADATA_FROM_EXPR  # bool
     expression_matrix_metadata = default.DEFAULT_EXPRESSION_MATRIX_METADATA  # str
 
+    # Flag to indicate the inferelator should be run without existing network data
+    use_no_prior = False  # bool
+    use_no_gold_standard = False  # bool
+
     def set_file_paths(self, input_dir=None, output_dir=None, expression_matrix_file=None, tf_names_file=None,
                        meta_data_file=None, priors_file=None, gold_standard_file=None, gene_metadata_file=None):
         """
@@ -109,6 +113,17 @@ class WorkflowBaseLoader(object):
         self._set_with_warning("gene_list_index", gene_list_index)
         self._set_with_warning("metadata_handler", metadata_handler)
 
+    def set_network_data_flags(self, use_no_prior=None, use_no_gold_standard=None):
+        """
+        Set flags to skip using existing network data. Note that these flags will be ignored if network data is
+        provided
+        :param use_no_prior: bool
+        :param use_no_gold_standard: bool
+        """
+
+        self._set_with_warning("use_no_prior", use_no_prior)
+        self._set_with_warning("use_no_gold_standard", use_no_gold_standard)
+
     def _set_with_warning(self, attr_name, value):
         """
         Set an attribute name. Warn if it's already not None
@@ -136,13 +151,13 @@ class WorkflowBaseLoader(object):
         self.read_genes()
         self.read_priors()
 
+        # Transpose expression data to [Genes x Samples] if the columns_are_genes flag is set
+        self._transpose_expression_matrix()
+
         # Validate that necessary input settings exist
         self.validate_data()
 
-        # Transpose expression data to [Genes x Samples] if the columns_are_genes flag is set
-        self.transpose_expression_matrix()
-
-    def transpose_expression_matrix(self):
+    def _transpose_expression_matrix(self):
         # Transpose expression data
         if self.expression_matrix_columns_are_genes:
             self.expression_matrix = self.expression_matrix.transpose()
@@ -258,6 +273,20 @@ class WorkflowBaseLoader(object):
         if self.gene_metadata is not None and self.gene_list_index not in self.gene_metadata.columns:
             raise ValueError("The gene list file must have headers and workflow.gene_list_index must be a valid column")
 
+        # Create a null prior if the flag is set
+        if self.use_no_prior and self.priors_data is not None:
+            warnings.warn("The use_no_prior flag will be ignored because prior data exists")
+        elif self.use_no_prior:
+            utils.Debug.vprint("A null prior is has been created", level=0)
+            self.priors_data = self._create_null_prior(self.expression_matrix, self.tf_names)
+
+        # Create a null gold standard if the flag is set
+        if self.use_no_gold_standard and self.gold_standard is not None:
+            warnings.warn("The use_no_gold_standard flag will be ignored because gold standard data exists")
+        elif self.use_no_prior:
+            utils.Debug.vprint("A null gold standard has been created", level=0)
+            self.gold_standard = self._create_null_prior(self.expression_matrix, self.tf_names)
+
         # Validate that some network information exists and has been loaded
         if self.priors_data is None and self.gold_standard is None:
             raise ValueError("No gold standard or priors have been provided")
@@ -282,6 +311,16 @@ class WorkflowBaseLoader(object):
         # If input_dir is not set, convert the filename to absolute and return it
         else:
             return self.make_path_safe(filename)
+
+    @staticmethod
+    def _create_null_prior(expression_data, tf_names):
+        """
+        Create a prior data matrix that is all 0s
+        :param expression_data: pd.DataFrame
+        :param tf_names: list
+        :return priors: pd.DataFrame
+        """
+        return pd.DataFrame(0, index=expression_data.columns, columns=tf_names)
 
     @staticmethod
     def make_path_safe(path):
@@ -510,7 +549,7 @@ class WorkflowBase(WorkflowBaseLoader):
         raise NotImplementedError("This workflow does not support multiple tasks")
 
 
-def create_inferelator_workflow(regression=RegressionWorkflow, workflow=WorkflowBase):
+def _factory_build_inferelator(regression=RegressionWorkflow, workflow=WorkflowBase):
     """
     This is the factory method to create workflow classes that combine preprocessing and postprocessing (from workflow)
     with a regression method (from regression)
@@ -592,4 +631,4 @@ def inferelator_workflow(regression=RegressionWorkflow, workflow=WorkflowBase):
         This returns an initialized object which is the multi-inheritance result of both the regression workflow and
         the preprocessing/postprocessing workflow
     """
-    return create_inferelator_workflow(regression=regression, workflow=workflow)()
+    return _factory_build_inferelator(regression=regression, workflow=workflow)()
