@@ -19,6 +19,99 @@ from inferelator.preprocessing.metadata_parser import MetadataParserBranching
 my_dir = os.path.dirname(__file__)
 
 
+class TestWorkflowSetParameters(unittest.TestCase):
+
+    def setUp(self):
+        self.workflow=workflow.WorkflowBase()
+
+    def test_set_file_names(self):
+
+        self.assertIsNone(self.workflow.expression_matrix_file)
+        self.assertIsNone(self.workflow.tf_names_file)
+        self.assertIsNone(self.workflow.meta_data_file)
+        self.assertIsNone(self.workflow.priors_file)
+        self.assertIsNone(self.workflow.gold_standard_file)
+        self.assertIsNone(self.workflow.input_dir)
+        self.assertIsNone(self.workflow.output_dir)
+
+        self.workflow.set_file_paths(expression_matrix_file="A",
+                                     tf_names_file="B",
+                                     meta_data_file="C",
+                                     priors_file="D",
+                                     gold_standard_file="E",
+                                     gene_metadata_file="F",
+                                     input_dir="G",
+                                     output_dir="H")
+
+        self.assertListEqual([self.workflow.expression_matrix_file,
+                              self.workflow.tf_names_file,
+                              self.workflow.meta_data_file,
+                              self.workflow.priors_file,
+                              self.workflow.gold_standard_file,
+                              self.workflow.gene_metadata_file,
+                              self.workflow.input_dir,
+                              self.workflow.output_dir],
+                             ["A", "B", "C", "D", "E", "F", "G", "H"])
+
+        with self.assertWarns(Warning):
+            self.workflow.set_file_paths(expression_matrix_file="K")
+            self.assertEqual(self.workflow.expression_matrix_file, "K")
+
+    def test_set_file_properties(self):
+        self.assertFalse(self.workflow.expression_matrix_columns_are_genes)
+        self.assertFalse(self.workflow.extract_metadata_from_expression_matrix)
+        self.assertIsNone(self.workflow.expression_matrix_metadata)
+        self.assertIsNone(self.workflow.gene_list_index)
+
+        self.workflow.set_file_properties(expression_matrix_columns_are_genes=True,
+                                          extract_metadata_from_expression_matrix=True,
+                                          expression_matrix_metadata=["A"],
+                                          gene_list_index=["B"])
+
+        self.assertTrue(self.workflow.expression_matrix_columns_are_genes)
+        self.assertTrue(self.workflow.extract_metadata_from_expression_matrix)
+        self.assertListEqual(self.workflow.expression_matrix_metadata, ["A"])
+        self.assertListEqual(self.workflow.gene_list_index, ["B"])
+
+        with self.assertWarns(Warning):
+            self.workflow.set_file_properties(expression_matrix_metadata=["K"])
+            self.assertListEqual(self.workflow.expression_matrix_metadata, ["K"])
+
+    def test_set_network_flags(self):
+        self.assertFalse(self.workflow.use_no_prior)
+        self.assertFalse(self.workflow.use_no_gold_standard)
+
+        with self.assertWarns(Warning):
+            self.workflow.set_network_data_flags(use_no_prior=True,
+                                                 use_no_gold_standard=True)
+
+        self.assertTrue(self.workflow.use_no_prior)
+        self.assertTrue(self.workflow.use_no_gold_standard)
+
+    def test_set_cv_params(self):
+        self.assertIsNone(self.workflow.cv_split_ratio)
+        self.assertFalse(self.workflow.split_gold_standard_for_crossvalidation)
+
+        with self.assertWarns(Warning):
+            self.workflow.set_crossvalidation_parameters(cv_split_ratio=0.2)
+
+        self.assertEqual(self.workflow.cv_split_ratio, 0.2)
+        self.workflow.set_crossvalidation_parameters(split_gold_standard_for_crossvalidation=True)
+        self.assertTrue(self.workflow.split_gold_standard_for_crossvalidation)
+
+    def test_set_run_params(self):
+
+        self.workflow.set_run_parameters(num_bootstraps=12345678, random_seed=87654321)
+        self.assertEqual(self.workflow.num_bootstraps, 12345678)
+        self.assertEqual(self.workflow.random_seed, 87654321)
+
+    def test_set_postprocessing_params(self):
+
+        with self.assertWarns(Warning):
+            self.workflow.set_postprocessing_parameters(gold_standard_filter_method="red", metric="blue")
+        self.assertListEqual([self.workflow.gold_standard_filter_method, self.workflow.metric], ["red", "blue"])
+
+
 class TestWorkflowLoadData(unittest.TestCase):
 
     def setUp(self):
@@ -113,6 +206,51 @@ class TestWorkflowLoadData(unittest.TestCase):
         self.assertTrue(self.workflow.gold_standard is not None)
         self.assertTrue(self.workflow.tf_names is not None)
         self.assertTrue(self.workflow.meta_data is not None)
+
+    def test_transpose_expression(self):
+        self.workflow.expression_matrix = pd.DataFrame(0, index=[1, 2, 3], columns=[4, 5])
+        self.workflow.expression_matrix_columns_are_genes = False
+        self.workflow._transpose_expression_matrix()
+        self.assertEqual(self.workflow.expression_matrix.shape, (3, 2))
+        self.workflow.expression_matrix_columns_are_genes = True
+        self.workflow._transpose_expression_matrix()
+        self.assertEqual(self.workflow.expression_matrix.shape, (2, 3))
+
+    def test_input_path(self):
+        self.workflow.input_dir = None
+        self.assertEqual(self.workflow.input_path("C"), os.path.abspath("C"))
+
+        tempdir = tempfile.gettempdir()
+        self.workflow.input_dir = tempdir
+        self.assertEqual(self.workflow.input_path("A"), os.path.join(tempdir, "A"))
+
+        absfile = os.path.join(os.path.abspath(os.sep), "B")
+        self.assertEqual(self.workflow.input_path(absfile), absfile)
+
+        with self.assertRaises(ValueError):
+            self.assertIsNone(self.workflow.input_path(None))
+
+    def test_null_network_generation(self):
+        self.workflow.read_expression()
+        self.workflow.read_tfs()
+        self.assertIsNone(self.workflow.priors_data)
+        self.assertIsNone(self.workflow.gold_standard)
+
+        self.workflow.use_no_prior = True
+        self.workflow.validate_data()
+
+        self.assertIsNotNone(self.workflow.priors_data)
+        self.assertListEqual(self.workflow.priors_data.columns.tolist(), self.workflow.tf_names)
+        self.assertTrue(all(self.workflow.expression_matrix.columns == self.workflow.priors_data.index))
+        self.assertIsNone(self.workflow.gold_standard)
+
+        with self.assertWarns(Warning):
+            self.workflow.use_no_gold_standard = True
+            self.workflow.validate_data()
+
+        self.assertIsNotNone(self.workflow.gold_standard)
+        self.assertListEqual(self.workflow.gold_standard.columns.tolist(), self.workflow.tf_names)
+        self.assertTrue(all(self.workflow.expression_matrix.columns == self.workflow.gold_standard.index))
 
 
 class TestWorkflowFunctions(unittest.TestCase):

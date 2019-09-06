@@ -53,7 +53,7 @@ class WorkflowBaseLoader(object):
     # Gene list & associated metadata
     gene_metadata_file = None
     gene_metadata = None
-    gene_list_index = default.DEFAULT_GENE_LIST_INDEX_COLUMN
+    gene_list_index = None
 
     # Loaded data structures [G: Genes, K: Predictors, N: Conditions
     expression_matrix = None  # expression_matrix dataframe [G x N]
@@ -66,8 +66,8 @@ class WorkflowBaseLoader(object):
     expression_matrix_columns_are_genes = False  # bool
 
     # Flag to extract metadata from specific columns of the expression matrix instead of a separate file
-    extract_metadata_from_expression_matrix = default.DEFAULT_EXTRACT_METADATA_FROM_EXPR  # bool
-    expression_matrix_metadata = default.DEFAULT_EXPRESSION_MATRIX_METADATA  # str
+    extract_metadata_from_expression_matrix = False  # bool
+    expression_matrix_metadata = None  # str
 
     # Flag to indicate the inferelator should be run without existing network data
     use_no_prior = False  # bool
@@ -107,9 +107,10 @@ class WorkflowBaseLoader(object):
         :param metadata_handler: str
         """
 
-        self._set_with_warning("extract_metadata_from_expression_matrix", extract_metadata_from_expression_matrix)
+        self._set_without_warning("extract_metadata_from_expression_matrix", extract_metadata_from_expression_matrix)
+        self._set_without_warning("expression_matrix_columns_are_genes", expression_matrix_columns_are_genes)
+
         self._set_with_warning("expression_matrix_metadata", expression_matrix_metadata)
-        self._set_with_warning("expression_matrix_columns_are_genes", expression_matrix_columns_are_genes)
         self._set_with_warning("gene_list_index", gene_list_index)
         self._set_with_warning("metadata_handler", metadata_handler)
 
@@ -121,8 +122,22 @@ class WorkflowBaseLoader(object):
         :param use_no_gold_standard: bool
         """
 
-        self._set_with_warning("use_no_prior", use_no_prior)
-        self._set_with_warning("use_no_gold_standard", use_no_gold_standard)
+        warnings.warn("Omitting prior network data is not recommended. Use at your own risk.")
+
+        self._set_without_warning("use_no_prior", use_no_prior)
+        self._set_without_warning("use_no_gold_standard", use_no_gold_standard)
+
+    def _set_without_warning(self, attr_name, value):
+        """
+        Set an attribute name.
+        :param attr_name: str
+        :param value:
+        """
+
+        if value is None:
+            return
+
+        setattr(self, attr_name, value)
 
     def _set_with_warning(self, attr_name, value):
         """
@@ -136,7 +151,9 @@ class WorkflowBaseLoader(object):
 
         current_value = getattr(self, attr_name)
         if current_value is not None:
-            warnings.warn("Setting {a} although it has a value ({val}".format(a=attr_name, val=value))
+            warnings.warn("Setting {a}: replacing value {vo} with value {vn}".format(a=attr_name,
+                                                                                     vo=current_value,
+                                                                                     vn=value))
 
         setattr(self, attr_name, value)
 
@@ -283,7 +300,7 @@ class WorkflowBaseLoader(object):
         # Create a null gold standard if the flag is set
         if self.use_no_gold_standard and self.gold_standard is not None:
             warnings.warn("The use_no_gold_standard flag will be ignored because gold standard data exists")
-        elif self.use_no_prior:
+        elif self.use_no_gold_standard:
             utils.Debug.vprint("A null gold standard has been created", level=0)
             self.gold_standard = self._create_null_prior(self.expression_matrix, self.tf_names)
 
@@ -390,11 +407,11 @@ class WorkflowBase(WorkflowBaseLoader):
         :param cv_split_axis: int (0, 1)
         """
 
-        self._set_with_warning("split_gold_standard_for_crossvalidation", split_gold_standard_for_crossvalidation)
+        self._set_without_warning("split_gold_standard_for_crossvalidation", split_gold_standard_for_crossvalidation)
         self._set_with_warning("cv_split_ratio", cv_split_ratio)
         self._set_with_warning("cv_split_axis", cv_split_axis)
 
-        if split_gold_standard_for_crossvalidation is None and (cv_split_axis is not None or cv_split_ratio is not None):
+        if not split_gold_standard_for_crossvalidation and (cv_split_axis is not None or cv_split_ratio is not None):
             warnings.warn("The split_gold_standard_for_crossvalidation flag is not set. Other options may be ignored")
 
     def set_shuffle_parameters(self, shuffle_prior_axis=None):
@@ -411,8 +428,16 @@ class WorkflowBase(WorkflowBaseLoader):
         :param metric:
         """
 
-        self._set_with_warning("shuffle_prior_axis", gold_standard_filter_method)
+        self._set_with_warning("gold_standard_filter_method", gold_standard_filter_method)
         self._set_with_warning("metric", metric)
+
+    def set_run_parameters(self, num_bootstraps=None, random_seed=None):
+        """
+        Set parameters used during runtime
+        """
+
+        self._set_without_warning("num_bootstraps", num_bootstraps)
+        self._set_without_warning("random_seed", random_seed)
 
     def initialize_multiprocessing(self):
         """
