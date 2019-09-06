@@ -4,6 +4,7 @@ Test base workflow stepwise.
 
 import unittest
 import os
+import sys
 import tempfile
 import shutil
 import numpy as np
@@ -16,6 +17,7 @@ from inferelator.regression.base_regression import RegressionWorkflow
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.preprocessing.metadata_parser import MetadataParserBranching
 
+PYTHON2_FLAG = sys.version_info[0] == 2
 my_dir = os.path.dirname(__file__)
 
 
@@ -24,6 +26,7 @@ class TestWorkflowSetParameters(unittest.TestCase):
     def setUp(self):
         self.workflow=workflow.WorkflowBase()
 
+    @unittest.skipIf(PYTHON2_FLAG, "Py2")
     def test_set_file_names(self):
 
         self.assertIsNone(self.workflow.expression_matrix_file)
@@ -57,6 +60,7 @@ class TestWorkflowSetParameters(unittest.TestCase):
             self.workflow.set_file_paths(expression_matrix_file="K")
             self.assertEqual(self.workflow.expression_matrix_file, "K")
 
+    @unittest.skipIf(PYTHON2_FLAG, "Py2")
     def test_set_file_properties(self):
         self.assertFalse(self.workflow.expression_matrix_columns_are_genes)
         self.assertFalse(self.workflow.extract_metadata_from_expression_matrix)
@@ -77,6 +81,7 @@ class TestWorkflowSetParameters(unittest.TestCase):
             self.workflow.set_file_properties(expression_matrix_metadata=["K"])
             self.assertListEqual(self.workflow.expression_matrix_metadata, ["K"])
 
+    @unittest.skipIf(PYTHON2_FLAG, "Py2")
     def test_set_network_flags(self):
         self.assertFalse(self.workflow.use_no_prior)
         self.assertFalse(self.workflow.use_no_gold_standard)
@@ -88,6 +93,7 @@ class TestWorkflowSetParameters(unittest.TestCase):
         self.assertTrue(self.workflow.use_no_prior)
         self.assertTrue(self.workflow.use_no_gold_standard)
 
+    @unittest.skipIf(PYTHON2_FLAG, "Py2")
     def test_set_cv_params(self):
         self.assertIsNone(self.workflow.cv_split_ratio)
         self.assertFalse(self.workflow.split_gold_standard_for_crossvalidation)
@@ -105,6 +111,7 @@ class TestWorkflowSetParameters(unittest.TestCase):
         self.assertEqual(self.workflow.num_bootstraps, 12345678)
         self.assertEqual(self.workflow.random_seed, 87654321)
 
+    @unittest.skipIf(PYTHON2_FLAG, "Py2")
     def test_set_postprocessing_params(self):
 
         with self.assertWarns(Warning):
@@ -230,6 +237,7 @@ class TestWorkflowLoadData(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.assertIsNone(self.workflow.input_path(None))
 
+    @unittest.skipIf(PYTHON2_FLAG, "Py2")
     def test_null_network_generation(self):
         self.workflow.read_expression()
         self.workflow.read_tfs()
