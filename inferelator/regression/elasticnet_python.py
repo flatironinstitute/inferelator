@@ -74,10 +74,14 @@ def elastic_net(X, Y, params):
 class ElasticNet(base_regression.BaseRegression):
     params = ELASTICNET_PARAMETERS
 
-    def __init__(self, X, Y, random_seed):
+    def __init__(self, X, Y, random_seed, parameters=None):
         self.random_seed = random_seed
         self.params = copy.copy(self.params)
         self.params["random_state"] = random_seed
+
+        if parameters is not None:
+            self.params.update(parameters)
+
         super(ElasticNet, self).__init__(X, Y)
 
     def regress(self):
@@ -87,7 +91,6 @@ class ElasticNet(base_regression.BaseRegression):
         :return: list
             Returns a list of regression results that base_regression's pileup_data can process
         """
-
 
         if MPControl.is_dask():
             from inferelator.distributed.dask_functions import elasticnet_regress_dask
@@ -108,9 +111,19 @@ class ElasticNetWorkflow(base_regression.RegressionWorkflow):
     Add elasticnet regression into a workflow object
     """
 
+    elastic_net_parameters = None
+
+    def set_regression_parameters(self, **kwargs):
+        """
+        Set regression parameters for elastic_net
+        """
+
+        if len(kwargs.keys()) > 0:
+            self.elastic_net_parameters = kwargs
+
     def run_bootstrap(self, bootstrap):
         X = self.design.iloc[:, bootstrap]
         Y = self.response.iloc[:, bootstrap]
         utils.Debug.vprint('Calculating betas using MEN', level=0)
         MPControl.sync_processes("pre-bootstrap")
-        return ElasticNet(X, Y, self.random_seed).run()
+        return ElasticNet(X, Y, self.random_seed, parameters=self.elastic_net_parameters).run()

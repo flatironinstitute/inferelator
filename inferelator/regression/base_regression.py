@@ -126,8 +126,12 @@ class RegressionWorkflow(object):
     RegressionWorkflow implements run_regression and run_bootstrap
     Each regression method needs to extend this to implement run_bootstrap (and also run_regression if necessary)
     """
-    random_seed = default.DEFAULT_RANDOM_SEED
-    num_bootstraps = default.DEFAULT_NUM_BOOTSTRAPS
+
+    def set_regression_parameters(self, **kwargs):
+        """
+        Set any parameters which are specific to one or another regression method
+        """
+        pass
 
     def run_regression(self):
         betas = []

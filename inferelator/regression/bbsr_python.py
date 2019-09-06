@@ -156,6 +156,18 @@ class BBSRRegressionWorkflow(base_regression.RegressionWorkflow):
     no_prior_weight = default.DEFAULT_no_prior_weight
     bsr_feature_num = default.DEFAULT_nS
 
+    def set_regression_parameters(self, prior_weight=None, no_prior_weight=None, bsr_feature_num=None):
+        """
+        Set regression parameters for BBSR
+        :param prior_weight:
+        :param no_prior_weight:
+        :param bsr_feature_num:
+        """
+
+        self._set_with_warning("prior_weight", prior_weight)
+        self._set_with_warning("no_prior_weight", no_prior_weight)
+        self._set_with_warning("bsr_feature_num", bsr_feature_num)
+
     def run_bootstrap(self, bootstrap):
         X = self.design.iloc[:, bootstrap]
         Y = self.response.iloc[:, bootstrap]
