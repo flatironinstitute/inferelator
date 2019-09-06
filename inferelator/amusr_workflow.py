@@ -23,6 +23,7 @@ from inferelator.postprocessing.results_processor_mtl import ResultsProcessorMul
 TRANSFER_ATTRIBUTES = ['count_minimum', 'preprocessing_workflow', 'input_dir']
 NON_TASK_ATTRIBUTES = ["gold_standard_file", "random_seed", "num_bootstraps"]
 
+
 class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
     """
     Class that implements multitask learning for single cell data
@@ -30,7 +31,6 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
     Extends SingleCellWorkflow
     """
 
-    prior_weight = default.DEFAULT_prior_weight
     regulator_expression_filter = "intersection"
     target_expression_filter = "union"
 
@@ -55,6 +55,16 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
 
     # Workflow type for task processing
     cv_workflow_type = single_cell_workflow.SingleCellWorkflow
+
+    def set_task_filters(self, regulator_expression_filter = None, target_expression_filter = None):
+        """
+        Set the filtering criteria for regulators and targets between tasks
+        :param regulator_expression_filter:
+        :param target_expression_filter:
+        """
+
+        self._set_without_warning("regulator_expression_filter", regulator_expression_filter)
+        self._set_without_warning("target_expression_filter", target_expression_filter)
 
     def startup_run(self):
 
