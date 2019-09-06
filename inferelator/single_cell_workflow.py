@@ -13,7 +13,7 @@ from inferelator import default
 
 class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
     # Single-cell expression data manipulations
-    count_minimum = default.DEFAULT_COUNT_MINIMUM  # float
+    count_minimum = 0  # float
 
     # Preprocessing workflow holder
     preprocessing_workflow = None
@@ -56,6 +56,14 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
 
         # Transpose the expression matrix from [N x G] to [G x N] for the rest of the workflow
         self.expression_matrix = self.expression_matrix.transpose()
+
+    def set_count_minimum(self, count_minimum=None):
+        """
+        Set the minimum count value for each gene (averaged over all samples)
+        :param count_minimum:
+        """
+
+        self._set_without_warning("count_minimum", count_minimum)
 
     def add_preprocess_step(self, fun, **kwargs):
         if self.preprocessing_workflow is None:

@@ -8,6 +8,7 @@ from sklearn.linear_model import LinearRegression
 
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator import utils
+from inferelator import default
 from inferelator.regression import base_regression
 
 # Shadow built-in zip with itertools.izip if this is python2 (This puts out a memory dumpster fire)
@@ -473,6 +474,16 @@ class AMUSRRegressionWorkflow(base_regression.RegressionWorkflow):
     """
     Add AMuSR regression into a workflow object
     """
+
+    prior_weight = default.DEFAULT_prior_weight
+
+    def set_regression_parameters(self, prior_weight=None):
+        """
+        Set regression parameters for AmUSR
+        :param prior_weight:
+        """
+
+        self._set_with_warning("prior_weight", prior_weight)
 
     def run_regression(self):
 
