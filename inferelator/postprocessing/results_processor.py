@@ -53,6 +53,9 @@ class InferelatorResults(object):
             Path to outputs
         """
 
+        # Validate that the output path exists (create it if necessary)
+        check.argument_path(output_dir, allow_none=True, create_if_needed=True)
+
         # Write TSV files
         self.write_to_tsv(self.network, output_dir, self.network_file_name)
         self.write_to_tsv(self.combined_confidences, output_dir, self.confidence_file_name)
