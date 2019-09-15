@@ -16,6 +16,7 @@ import warnings
 
 import numpy as np
 import pandas as pd
+from pandas.io.common import _infer_compression
 
 from inferelator import default
 from inferelator import utils
@@ -73,6 +74,9 @@ class WorkflowBaseLoader(object):
     use_no_prior = False  # bool
     use_no_gold_standard = False  # bool
 
+    # Inferred file types
+    _file_types = None
+
     def set_file_paths(self, input_dir=None, output_dir=None, expression_matrix_file=None, tf_names_file=None,
                        meta_data_file=None, priors_file=None, gold_standard_file=None, gene_metadata_file=None):
         """
@@ -89,12 +93,12 @@ class WorkflowBaseLoader(object):
 
         self._set_with_warning("input_dir", input_dir)
         self._set_with_warning("output_dir", output_dir)
-        self._set_with_warning("expression_matrix_file", expression_matrix_file)
-        self._set_with_warning("tf_names_file", tf_names_file)
-        self._set_with_warning("meta_data_file", meta_data_file)
-        self._set_with_warning("priors_file", priors_file)
-        self._set_with_warning("gold_standard_file", gold_standard_file)
-        self._set_with_warning("gene_metadata_file", gene_metadata_file)
+        self._set_file_name("expression_matrix_file", expression_matrix_file)
+        self._set_file_name("tf_names_file", tf_names_file)
+        self._set_file_name("meta_data_file", meta_data_file)
+        self._set_file_name("priors_file", priors_file)
+        self._set_file_name("gold_standard_file", gold_standard_file)
+        self._set_file_name("gene_metadata_file", gene_metadata_file)
 
     def set_file_properties(self, extract_metadata_from_expression_matrix=None, expression_matrix_metadata=None,
                             expression_matrix_columns_are_genes=None, gene_list_index=None, metadata_handler=None):
@@ -126,6 +130,43 @@ class WorkflowBaseLoader(object):
 
         self._set_without_warning("use_no_prior", use_no_prior)
         self._set_without_warning("use_no_gold_standard", use_no_gold_standard)
+
+    def _set_file_name(self, attr_name, value):
+        """
+        Set a file name. Store inferred information about the file in _file_types.
+        Also print a warning if the file doesn't exist
+        :param attr_name:
+        :param value:
+        """
+
+        if value is None:
+            return
+
+        compression = _infer_compression(value, compression="infer")
+
+        try:
+            if compression is not None:
+                type = os.path.splitext(value[0:(-1*len(compression)-1)])[1]
+            else:
+                type = os.path.splitext(value)[1]
+        except IndexError:
+            type = ""
+
+        type = type[0:-1] if len(type) > 0 else type
+
+        if self._file_types is None:
+            self._file_types = {}
+
+        self._file_types[value] = (type, compression)
+
+        if not os.path.isfile(self.input_path(value)):
+            utils.Debug.vprint("File {f} does not exist".format(f=value))
+
+        if type == "hd5":
+            utils.Debug.vprint("HDF5 support is currently experimental")
+            utils.Debug.vprint("HDF5 args for read_hdf are in workflow.file_format_overrides[{f}]").format(f=value)
+
+        self._set_with_warning(attr_name, value)
 
     def _set_without_warning(self, attr_name, value):
         """
@@ -185,21 +226,26 @@ class WorkflowBaseLoader(object):
         Read a file in as a pandas dataframe
         """
 
-        # Set defaults for index_col and header
-        kwargs['index_col'] = kwargs.pop('index_col', 0)
-        kwargs['header'] = kwargs.pop('header', 0)
-
-        # Use any kwargs for this function and any file settings from default
-        file_settings = self.file_format_settings.copy()
-        file_settings.update(kwargs)
-
-        # Update the file settings with anything that's in file-specific overrides
-        if filename in self.file_format_overrides:
-            file_settings.update(self.file_format_overrides[filename])
-
         utils.Debug.vprint("Loading data file: {a}".format(a=self.input_path(filename)), level=2)
         # Load a dataframe
-        return pd.read_csv(self.input_path(filename), **file_settings)
+        if self._file_types is not None and filename in self._file_types and self._file_types[filename][0] == "hd5":
+            if filename in self.file_format_overrides:
+                kwargs.update(self.file_format_overrides[filename])
+            return pd.read_hdf(self.input_path(filename), **kwargs)
+        else:
+            # Set defaults for index_col and header
+            kwargs['index_col'] = kwargs.pop('index_col', 0)
+            kwargs['header'] = kwargs.pop('header', 0)
+
+            # Use any kwargs for this function and any file settings from default
+            file_settings = self.file_format_settings.copy()
+            file_settings.update(kwargs)
+
+            # Update the file settings with anything that's in file-specific overrides
+            if filename in self.file_format_overrides:
+                file_settings.update(self.file_format_overrides[filename])
+
+            return pd.read_csv(self.input_path(filename), **file_settings)
 
     def append_to_path(self, var_name, to_append):
         """
