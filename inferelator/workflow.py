@@ -13,10 +13,10 @@ import datetime
 import inspect
 import os
 import warnings
+import copy
 
 import numpy as np
 import pandas as pd
-from pandas.io.common import _infer_compression
 
 from inferelator import default
 from inferelator import utils
@@ -34,12 +34,6 @@ class WorkflowBaseLoader(object):
     # Paths to the input and output locations
     input_dir = None
     output_dir = None
-
-    # Settings that will be used by pd.read_table to import data files
-    file_format_settings = default.DEFAULT_PD_INPUT_SETTINGS
-    # A dict, keyed by file name, of settings to override the defaults in file_format_settings
-    # Used when input files are perhaps not processed into perfect TSVs
-    file_format_overrides = dict()
 
     # File names for each of the data files which can be used in the inference workflow
     expression_matrix_file = None
@@ -74,8 +68,12 @@ class WorkflowBaseLoader(object):
     use_no_prior = False  # bool
     use_no_gold_standard = False  # bool
 
-    # Inferred file types
-    _file_types = None
+    # Settings that will be used by pd.read_table to import data files
+    _file_format_settings = None
+
+    def __init__(self):
+        if self._file_format_settings is None:
+            self._file_format_settings = dict()
 
     def set_file_paths(self, input_dir=None, output_dir=None, expression_matrix_file=None, tf_names_file=None,
                        meta_data_file=None, priors_file=None, gold_standard_file=None, gene_metadata_file=None):
@@ -131,42 +129,68 @@ class WorkflowBaseLoader(object):
         self._set_without_warning("use_no_prior", use_no_prior)
         self._set_without_warning("use_no_gold_standard", use_no_gold_standard)
 
-    def _set_file_name(self, attr_name, value):
+    def set_file_loading_arguments(self, file_name, **kwargs):
         """
-        Set a file name. Store inferred information about the file in _file_types.
-        Also print a warning if the file doesn't exist
-        :param attr_name:
-        :param value:
+        Update the settings for a given file name
+        :param file_name: str
         """
 
-        if value is None:
+        # Check and see if file_name is actually an object attribute holding a file name. Use that if so.
+        file_name = self._get_file_name_from_attribute(file_name)
+        if file_name is None:
             return
 
-        compression = _infer_compression(value, compression="infer")
+        self._file_format_settings[file_name].update(kwargs)
+        self.print_file_loading_arguments(file_name)
 
-        try:
-            if compression is not None:
-                type = os.path.splitext(value[0:(-1*len(compression)-1)])[1]
+    def print_file_loading_arguments(self, file_name):
+        """
+        Print the settings for a given file name
+        :param file_name: str
+        """
+
+        # Check and see if file_name is actually an object attribute holding a file name. Use that if so.
+        file_name = self._get_file_name_from_attribute(file_name)
+        if file_name is None:
+            return
+
+        msg = "File {f} has the following settings:".format(f=file_name)
+        msg += "\n\t".join([str(k) + " = " + str(v) for k, v in self._file_format_settings[file_name].items()])
+        utils.Debug.vprint(msg, level=0)
+
+    def _get_file_name_from_attribute(self, file_name):
+        """
+        Check and see if a file name is an object attribute that holds a file namee
+        :param file_name: str
+        :return file_name: str
+        """
+        # Check and see if file_name is actually an object attribute holding a file name. Use that if so.
+        if file_name not in self._file_format_settings:
+            if hasattr(self, file_name) and getattr(self, file_name) in self._file_format_settings:
+                file_name = getattr(self, file_name)
             else:
-                type = os.path.splitext(value)[1]
-        except IndexError:
-            type = ""
+                utils.Debug.vprint("File {f} is unknown".format(f=file_name), level=0)
+                return None
+        return file_name
 
-        type = type[0:-1] if len(type) > 0 else type
+    def _set_file_name(self, attr_name, file_name):
+        """
+        Set a file name. Create a set of default loading parameters and store them in _file_format_settings.
+        Also print a warning if the file doesn't exist
+        :param attr_name: str
+        :param file_name: str
+        """
 
-        if self._file_types is None:
-            self._file_types = {}
+        if file_name is None:
+            return
 
-        self._file_types[value] = (type, compression)
+        if file_name not in self._file_format_settings:
+            self._file_format_settings[file_name] = default.DEFAULT_PD_INPUT_SETTINGS
 
-        if not os.path.isfile(self.input_path(value)):
-            utils.Debug.vprint("File {f} does not exist".format(f=value))
+        if not os.path.isfile(self.input_path(file_name)):
+            utils.Debug.vprint("File {f} does not exist".format(f=file_name))
 
-        if type == "hd5":
-            utils.Debug.vprint("HDF5 support is currently experimental")
-            utils.Debug.vprint("HDF5 args for read_hdf are in workflow.file_format_overrides[{f}]").format(f=value)
-
-        self._set_with_warning(attr_name, value)
+        self._set_with_warning(attr_name, file_name)
 
     def _set_without_warning(self, attr_name, value):
         """
@@ -225,27 +249,18 @@ class WorkflowBaseLoader(object):
         """
         Read a file in as a pandas dataframe
         """
-
         utils.Debug.vprint("Loading data file: {a}".format(a=self.input_path(filename)), level=2)
-        # Load a dataframe
-        if self._file_types is not None and filename in self._file_types and self._file_types[filename][0] == "hd5":
-            if filename in self.file_format_overrides:
-                kwargs.update(self.file_format_overrides[filename])
-            return pd.read_hdf(self.input_path(filename), **kwargs)
+
+        # Use any kwargs for this function and any file settings from default
+        if self._file_format_settings is not None and filename in self._file_format_settings:
+            file_settings = self._file_format_settings[filename]
         else:
-            # Set defaults for index_col and header
-            kwargs['index_col'] = kwargs.pop('index_col', 0)
-            kwargs['header'] = kwargs.pop('header', 0)
+            file_settings = copy.copy(default.DEFAULT_PD_INPUT_SETTINGS)
 
-            # Use any kwargs for this function and any file settings from default
-            file_settings = self.file_format_settings.copy()
-            file_settings.update(kwargs)
+        file_settings.update(kwargs)
 
-            # Update the file settings with anything that's in file-specific overrides
-            if filename in self.file_format_overrides:
-                file_settings.update(self.file_format_overrides[filename])
-
-            return pd.read_csv(self.input_path(filename), **file_settings)
+        # Load a dataframe
+        return pd.read_csv(self.input_path(filename), **file_settings)
 
     def append_to_path(self, var_name, to_append):
         """
@@ -441,6 +456,7 @@ class WorkflowBase(WorkflowBaseLoader):
     results = None
 
     def __init__(self):
+        super(WorkflowBase, self).__init__()
         # Get environment variables
         self.get_environmentals()
 
