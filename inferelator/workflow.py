@@ -185,7 +185,7 @@ class WorkflowBaseLoader(object):
             return
 
         if file_name not in self._file_format_settings:
-            self._file_format_settings[file_name] = default.DEFAULT_PD_INPUT_SETTINGS
+            self._file_format_settings[file_name] = copy.copy(default.DEFAULT_PD_INPUT_SETTINGS)
 
         if not os.path.isfile(self.input_path(file_name)):
             utils.Debug.vprint("File {f} does not exist".format(f=file_name))
