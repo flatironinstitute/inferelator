@@ -242,7 +242,7 @@ class WorkflowBaseLoader(object):
     def _transpose_expression_matrix(self):
         # Transpose expression data
         if self.expression_matrix_columns_are_genes:
-            self.expression_matrix = self.expression_matrix.transpose()
+            self.expression_matrix = utils.transpose_dataframe(self.expression_matrix)
             utils.Debug.vprint("Transposing expression matrix to {sh}".format(sh=self.expression_matrix.shape), level=2)
 
     def input_dataframe(self, filename, **kwargs):

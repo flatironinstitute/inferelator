@@ -415,3 +415,28 @@ def melt_and_reindex_dataframe(data_frame, value_name, idx_name="target", col_na
     del data_frame[col_name]
 
     return data_frame
+
+
+def is_sparse_series(series):
+    """
+    Test a pandas Series (column) to see if it is sparse
+    :param series: pd.Series
+    :return is_sparse: bool
+    """
+    return isinstance(series.dtype, pd.SparseDtype)
+
+
+def transpose_dataframe(data_frame):
+    """
+    Take a pandas dataframe and transpose it. This is a wrapper which does sparse transposition for a sparse matrix.
+    :param data_frame: pd.DataFrame
+    :return data_frame: pd.DataFrame
+    """
+    is_all_sparse = all([is_sparse_series(data_frame.iloc[:, dt]) for dt in range(data_frame.shape[1])])
+
+    if is_all_sparse:
+        return pd.DataFrame.sparse.from_spmatrix(data_frame.sparse.to_coo().transpose(),
+                                                 index=data_frame.columns,
+                                                 columns=data_frame.index)
+    else:
+        return data_frame.transpose()

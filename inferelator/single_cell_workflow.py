@@ -8,7 +8,7 @@ import numpy as np
 from inferelator.utils import Validator as check
 from inferelator import tfa_workflow
 from inferelator.preprocessing import single_cell
-from inferelator import default
+from inferelator import utils
 
 
 class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
@@ -35,7 +35,7 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
         """
 
         # Transpose the expression matrix from [G x N] to [N x G] for preprocessing
-        self.expression_matrix = self.expression_matrix.transpose()
+        self.expression_matrix = utils.transpose_dataframe(self.expression_matrix)
 
         assert check.dataframe_is_numeric(self.expression_matrix)
 
@@ -55,7 +55,7 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
             raise ValueError("NaN values have been introduced into the expression matrix by normalization")
 
         # Transpose the expression matrix from [N x G] to [G x N] for the rest of the workflow
-        self.expression_matrix = self.expression_matrix.transpose()
+        self.expression_matrix = utils.transpose_dataframe(self.expression_matrix)
 
     def set_count_minimum(self, count_minimum=None):
         """
