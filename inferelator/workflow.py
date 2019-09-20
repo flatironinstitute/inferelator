@@ -234,8 +234,7 @@ class WorkflowBaseLoader(object):
         self.read_metadata()
         self.read_genes()
         self.read_priors()
-        print(self.expression_matrix)
-        print(self.expression_matrix.dtypes)
+
         # Transpose expression data to [Genes x Samples] if the columns_are_genes flag is set
         self._transpose_expression_matrix()
 
