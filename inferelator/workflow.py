@@ -26,6 +26,8 @@ from inferelator.preprocessing.priors import ManagePriors
 from inferelator.regression.base_regression import RegressionWorkflow
 from inferelator.postprocessing.results_processor import ResultsProcessor
 
+DEFAULT_PANDAS_TSV_SETTINGS = dict(sep="\t", index_col=0, header=0)
+
 
 class WorkflowBaseLoader(object):
     """
@@ -185,7 +187,7 @@ class WorkflowBaseLoader(object):
             return
 
         if file_name not in self._file_format_settings:
-            self._file_format_settings[file_name] = copy.copy(default.DEFAULT_PD_INPUT_SETTINGS)
+            self._file_format_settings[file_name] = copy.copy(DEFAULT_PANDAS_TSV_SETTINGS)
 
         if not os.path.isfile(self.input_path(file_name)):
             utils.Debug.vprint("File {f} does not exist".format(f=file_name))
@@ -232,7 +234,8 @@ class WorkflowBaseLoader(object):
         self.read_metadata()
         self.read_genes()
         self.read_priors()
-
+        print(self.expression_matrix)
+        print(self.expression_matrix.dtypes)
         # Transpose expression data to [Genes x Samples] if the columns_are_genes flag is set
         self._transpose_expression_matrix()
 
@@ -255,7 +258,7 @@ class WorkflowBaseLoader(object):
         if self._file_format_settings is not None and filename in self._file_format_settings:
             file_settings = self._file_format_settings[filename]
         else:
-            file_settings = copy.copy(default.DEFAULT_PD_INPUT_SETTINGS)
+            file_settings = copy.copy(DEFAULT_PANDAS_TSV_SETTINGS)
 
         file_settings.update(kwargs)
 
