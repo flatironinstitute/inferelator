@@ -28,25 +28,25 @@ class ManagePriors(object):
             check.index_values_unique(priors_data.index)
         except ValueError as v_err:
             utils.Debug.vprint("Duplicate gene(s) in prior index", level=0)
-            utils.Debug.vprint(str(v_err), level=0)
+            utils.Debug.vprint("\t" + str(v_err), level=0)
 
         try:
             check.index_values_unique(priors_data.columns)
         except ValueError as v_err:
             utils.Debug.vprint("Duplicate tf(s) in prior index", level=0)
-            utils.Debug.vprint(str(v_err), level=0)
+            utils.Debug.vprint("\t" + str(v_err), level=0)
 
         try:
-            check.index_values_unique(priors_data.index)
+            check.index_values_unique(gold_standard.index)
         except ValueError as v_err:
             utils.Debug.vprint("Duplicate gene(s) in gold standard index", level=0)
-            utils.Debug.vprint(str(v_err), level=0)
+            utils.Debug.vprint("\t" + str(v_err), level=0)
 
         try:
             check.index_values_unique(gold_standard.columns)
         except ValueError as v_err:
             utils.Debug.vprint("Duplicate tf(s) in gold standard index", level=0)
-            utils.Debug.vprint(str(v_err), level=0)
+            utils.Debug.vprint("\t" + str(v_err), level=0)
 
         return priors_data, gold_standard
 
