@@ -148,6 +148,8 @@ class ManagePriors(object):
         tf_keepers = pd.Index(tf_names).intersection(pd.Index(priors_data.columns))
         priors_data = priors_data.loc[:, tf_keepers]
 
+        utils.Debug.vprint("Filtered to {tfn} TFs from the TF name list".format(tfn=sum(tf_keepers)), level=1)
+
         if priors_data.shape[1] == 0:
             raise ValueError("Prior regulators and regulator list regulators have no overlap")
 
