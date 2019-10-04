@@ -70,6 +70,8 @@ class TFAWorkFlow(workflow.WorkflowBase):
         self.design = tfa_calculator.compute_transcription_factor_activity()
         self.half_tau_response = None
 
+        utils.Debug.vprint("Rebuilt design matrix {d} with TF activity".format(d=self.design.shape), level=1)
+
     def emit_results(self, betas, rescaled_betas, gold_standard, priors):
         """
         Output result report(s) for workflow run.
@@ -98,5 +100,9 @@ class TFAWorkFlow(workflow.WorkflowBase):
             # If there is no design-response driver set, use the expression data for design and response
             self.design = self.expression_matrix
             self.response, self.half_tau_response = self.expression_matrix, self.expression_matrix
+
+        utils.Debug.vprint("Constructed design {d} and response {r} matrices".format(d=self.design.shape,
+                                                                                     r=self.response.shape),
+                           level=1)
 
         self.expression_matrix = None
