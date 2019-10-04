@@ -1,6 +1,8 @@
 from __future__ import print_function, unicode_literals, division
 
 import pandas as pd
+import numpy as np
+import pandas.api.types as pat
 import os
 
 from inferelator.default import SBATCH_VARS
@@ -249,14 +251,26 @@ class Validator(object):
         if allow_none and frame is None:
             return True
 
-        is_num = frame.applymap(lambda x: isinstance(x, (float, int))).sum()
-        is_feature_num = is_num.apply(lambda x: x == frame.shape[0])
+        is_feature_num = pd.Index([pat.is_numeric_dtype(x) for x in frame.dtypes])
 
         if is_feature_num.all():
             return True
         else:
-            bad_features = "\t".join(map(str, is_feature_num.index[is_feature_num].tolist()))
+            bad_features = "\t".join(map(str, frame.columns[~is_feature_num].tolist()))
             raise ValueError("Dataframe has non-numeric features: {f}".format(f=bad_features))
+
+    @staticmethod
+    def dataframe_is_finite(frame, allow_none=False):
+        if allow_none and frame is None:
+            return True
+
+        with pd.option_context('mode.use_inf_as_na', True):
+            non_finites = frame.apply(lambda x: pd.isnull(x).sum()) > 0
+            if non_finites.any():
+                bad_features = "\t".join(map(str, frame.columns[non_finites].tolist()))
+                raise ValueError("Dataframe has non-finite features: {f}".format(f=bad_features))
+            else:
+                return True
 
     @staticmethod
     def indexes_align(index_iterable, allow_none=False, check_order=True):

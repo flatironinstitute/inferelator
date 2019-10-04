@@ -20,6 +20,7 @@ import pandas as pd
 
 from inferelator import default
 from inferelator import utils
+from inferelator.utils import Validator as check
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.preprocessing.metadata_parser import MetadataHandler
 from inferelator.preprocessing.priors import ManagePriors
@@ -281,6 +282,11 @@ class WorkflowBaseLoader(object):
         file = file if file is not None else self.expression_matrix_file
         utils.Debug.vprint("Loading expression data file {file}".format(file=file), level=1)
         self.expression_matrix = self.input_dataframe(file)
+
+        try:
+            check.dataframe_is_finite(self.expression_matrix)
+        except ValueError as err:
+            utils.Debug.vprint("Expression Matrix " + str(err), level=0)
 
     def read_tfs(self, file=None):
         """
