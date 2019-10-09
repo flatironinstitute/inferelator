@@ -13,6 +13,7 @@ try:
 except NameError:
     basestring = str
 
+
 def slurm_envs(var_names=None):
     """
     Get environment variable names and return them as a dict
@@ -251,13 +252,13 @@ class Validator(object):
         if allow_none and frame is None:
             return True
 
-        is_feature_num = pd.Index([pat.is_numeric_dtype(x) for x in frame.dtypes])
+        non_numeric = pd.Index([not pat.is_numeric_dtype(x) for x in frame.dtypes])
 
-        if is_feature_num.all():
-            return True
-        else:
-            bad_features = "\t".join(map(str, frame.columns[~is_feature_num].tolist()))
+        if non_numeric.any():
+            bad_features = "\t".join(map(str, frame.columns[non_numeric].tolist()))
             raise ValueError("Dataframe has non-numeric features: {f}".format(f=bad_features))
+        else:
+            return True
 
     @staticmethod
     def dataframe_is_finite(frame, allow_none=False):
