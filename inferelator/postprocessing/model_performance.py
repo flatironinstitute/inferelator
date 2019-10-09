@@ -57,14 +57,12 @@ class RankSummingMetric(object):
         confidence_data = utils.melt_and_reindex_dataframe(self.all_confidences, CONFIDENCE_COLUMN,
                                                            idx_name=TARGET_COLUMN, col_name=REGULATOR_COLUMN)
 
-        # Sort by confidence (descending)
-        confidence_data = confidence_data.sort_values(by=CONFIDENCE_COLUMN, ascending=False).reset_index()
+        # Attach the gold standard
+        confidence_data = self.attach_gs_to_confidences(confidence_data, gold_standard)
 
-        # Outer join the gold standard into the confidence data
-        gold_standard = utils.melt_and_reindex_dataframe(gold_standard, GOLD_STANDARD_COLUMN, idx_name=TARGET_COLUMN,
-                                                         col_name=REGULATOR_COLUMN)
-
-        self.confidence_data = confidence_data.join(gold_standard, how='outer', on=[TARGET_COLUMN, REGULATOR_COLUMN])
+        # Sort by confidence (descending) and reset the index
+        self.confidence_data = confidence_data.sort_values(by=CONFIDENCE_COLUMN, ascending=False, na_position='last')
+        self.confidence_data.reset_index(inplace=True)
 
         # Filter the gold standard and confidences down to a format that can be directly compared
         utils.Debug.vprint("GS: {gs} edges, Confidences: {conf} edges".format(gs=gold_standard.shape[0],
@@ -88,6 +86,21 @@ class RankSummingMetric(object):
 
     def output_curve_pdf(self, output_dir, file_name):
         raise NotImplementedError
+
+    @staticmethod
+    def attach_gs_to_confidences(confidence_data, gold_standard):
+        """
+        Outer join the gold standard into the confidence data
+
+        :param confidence_data: pd.DataFrame [G*K x n]
+        :param gold_standard: pd.DataFrame [G x K]
+        :return:
+        """
+
+        gold_standard = utils.melt_and_reindex_dataframe(gold_standard, GOLD_STANDARD_COLUMN, idx_name=TARGET_COLUMN,
+                                                         col_name=REGULATOR_COLUMN)
+
+        return confidence_data.join(gold_standard, how='outer', on=[TARGET_COLUMN, REGULATOR_COLUMN])
 
     @staticmethod
     def compute_combined_confidences(rankable_data):

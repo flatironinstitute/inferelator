@@ -1,6 +1,8 @@
 import numpy as np
+import pandas as pd
 import os
 
+from inferelator import utils
 from inferelator.utils import Validator as check
 from inferelator.postprocessing.model_performance import RankSummingMetric
 from inferelator.postprocessing import TARGET_COLUMN, REGULATOR_COLUMN, PRECISION_COLUMN, RECALL_COLUMN
@@ -28,7 +30,7 @@ class RankSummaryPR(RankSummingMetric):
         super(RankSummaryPR, self).__init__(rankable_data, gold_standard, filter_method=filter_method)
 
         # Calculate the precision and recall and store them with confidence data
-        self.filtered_data = self.calculate_precision_recall(self.filtered_data)
+        self.filtered_data = self.calculate_precision_recall(self.filtered_data.copy())
 
         # Calculate the AUC
         self.aupr = self.calculate_aupr(self.filtered_data)
@@ -48,14 +50,17 @@ class RankSummaryPR(RankSummingMetric):
 
     def curve_dataframe(self):
 
-        return self.confidence_data.loc[:, [PRECISION_COLUMN, RECALL_COLUMN]]
+        valid_data = ~pd.isnull(self.confidence_data[PRECISION_COLUMN])
+        assert (valid_data == ~pd.isnull(self.confidence_data[RECALL_COLUMN])).all()
+
+        return self.confidence_data.loc[valid_data, [PRECISION_COLUMN, RECALL_COLUMN]]
 
     def output_curve_pdf(self, output_dir, file_name=None):
 
         file_name = self.curve_file_name if file_name is None else file_name
 
         # Extract the recall and precision data
-        recall, precision = self.modify_pr(self.confidence_data)
+        recall, precision = self.modify_pr(self.curve_dataframe())
 
         # Plot the precision-recall curve
         self.plot_pr_curve(recall, precision, self.aupr, output_dir, file_name)
@@ -104,25 +109,31 @@ class RankSummaryPR(RankSummingMetric):
         """
         Calculate the precision & recall based on the confidence scores and gold standard
         :param data: pd.DataFrame
-            Dataframe with a gold standard and confidence column
+            Dataframe with a gold standard and confidence column, sorted on confidence column
         :return data: pd.DataFrame
             Sorted dataframe with additional precision and recall columns
         """
 
-        # Fill any NAs and then sort by confidences
-        data = data.fillna(0).sort_values(by=CONFIDENCE_COLUMN, ascending=False)
-        data[GOLD_STANDARD_COLUMN] = (data[GOLD_STANDARD_COLUMN] != 0).astype(int)
+        # Make sure data is sorted
+        if not data.loc[~pd.isnull(data[CONFIDENCE_COLUMN]), CONFIDENCE_COLUMN].is_monotonic_decreasing:
+            data = data.sort_values(by=CONFIDENCE_COLUMN, ascending=False, na_position='last')
+            data.reset_index(inplace=True)
+            utils.Debug.vprint("Resorting confidences for PR", level=0)
+
+        # Find the edges that are in the gold standard
+        valid_gs_idx = ~pd.isnull(data[GOLD_STANDARD_COLUMN])
+        valid_gs = (data.loc[valid_gs_idx, GOLD_STANDARD_COLUMN] != 0).astype(int)
 
         # the following mimics the R function ChristophsPR
+        # Add nan columns
+        data[PRECISION_COLUMN] = np.nan
+        data[RECALL_COLUMN] = np.nan
 
         # Calculate precision [TP / (TP + FP)]
-        precision = np.cumsum(data[GOLD_STANDARD_COLUMN]).astype(float)
-        precision /= np.cumsum([1] * len(data[GOLD_STANDARD_COLUMN]))
-        data[PRECISION_COLUMN] = precision
+        data.loc[valid_gs_idx, PRECISION_COLUMN] = np.cumsum(valid_gs).astype(float) / np.cumsum([1] * len(valid_gs))
 
         # Calculate recall [TP / (TP + FN)]
-        recall = np.cumsum(data[GOLD_STANDARD_COLUMN]).astype(float) / sum(data[GOLD_STANDARD_COLUMN])
-        data[RECALL_COLUMN] = recall
+        data.loc[valid_gs_idx, RECALL_COLUMN] = np.cumsum(valid_gs).astype(float) / sum(valid_gs)
 
         return data
 
@@ -137,6 +148,8 @@ class RankSummaryPR(RankSummingMetric):
         :return recall: np.ndarray
             Recall values
         """
+
+        data = data.loc[~pd.isnull(data[PRECISION_COLUMN]), :]
         precision = np.insert(data[PRECISION_COLUMN].values, 0, data[PRECISION_COLUMN].iloc[0])
         recall = np.insert(data[RECALL_COLUMN].values, 0, 0)
         return recall, precision

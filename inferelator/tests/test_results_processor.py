@@ -7,6 +7,7 @@ from inferelator.postprocessing import results_processor
 from inferelator.postprocessing import results_processor_mtl
 from inferelator.postprocessing import model_performance
 import pandas as pd
+import pandas.testing as pdt
 import numpy as np
 import os
 import tempfile
@@ -30,13 +31,15 @@ class TestResults(unittest.TestCase):
         self.beta = pd.DataFrame(np.array([[0, 1], [0.5, 0.05]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
         self.beta_resc = pd.DataFrame(np.array([[0, 1], [1, 0.05]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
         self.prior = pd.DataFrame([[0, 1], [1, 0]], ['gene1', 'gene2'], ['tf1', 'tf2'])
+
         self.gold_standard = pd.DataFrame([[0, 1], [1, 0]], ['gene1', 'gene2'], ['tf1', 'tf2'])
+        self.gold_standard_unaligned = pd.DataFrame([[0, 1], [0, 0]], ['gene1', 'gene3'], ['tf1', 'tf2'])
 
     @staticmethod
     def make_PR_data(gs, confidences):
         data = utils.melt_and_reindex_dataframe(confidences, value_name=CONFIDENCE_COLUMN).reset_index()
         data = data.join(utils.melt_and_reindex_dataframe(gs, value_name=GOLD_STANDARD_COLUMN),
-                         on = [TARGET_COLUMN, REGULATOR_COLUMN])
+                         on=[TARGET_COLUMN, REGULATOR_COLUMN], how='outer')
         return data
 
 
@@ -129,6 +132,13 @@ class TestRankSummary(TestResults):
         super(TestRankSummary, self).setUp()
         self.metric = model_performance.RankSummingMetric
 
+    def test_making_network_dataframe(self):
+        calc = self.metric([self.beta_resc, self.beta_resc], self.gold_standard_unaligned)
+        pdt.assert_frame_equal(calc.gold_standard, self.gold_standard_unaligned)
+        self.assertEqual(calc.confidence_data.shape[0], 6)
+        self.assertEqual(pd.isnull(calc.confidence_data[CONFIDENCE_COLUMN]).sum(), 2)
+        self.assertEqual(pd.isnull(calc.confidence_data[GOLD_STANDARD_COLUMN]).sum(), 2)
+
     def test_combining_confidences_one_beta(self):
         # rescaled betas are only in the
         beta = pd.DataFrame(np.array([[0.5, 0], [0.5, 1]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
@@ -182,13 +192,22 @@ class TestPrecisionRecallMetric(TestResults):
     ####################
 
     def test_precision_recall_perfect_prediction(self):
-        gs = pd.DataFrame(np.array([[1, 0], [1, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        confidences = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        gs = self.gold_standard.copy()
+        confidences = pd.DataFrame(np.array([[0, 1], [0.5, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
         data = self.make_PR_data(gs, confidences)
         data = self.metric.calculate_precision_recall(data)
         recall, precision = self.metric.modify_pr(data)
         np.testing.assert_equal(recall, [0., 0.5, 1., 1., 1.])
         np.testing.assert_equal(precision, [1., 1., 1., 2. / 3, 0.5])
+
+    def test_precision_recall_unaligned_prediction(self):
+        gs = self.gold_standard_unaligned.copy()
+        confidences = pd.DataFrame(np.array([[0, 1], [0.5, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        data = self.make_PR_data(gs, confidences)
+        data = self.metric.calculate_precision_recall(data)
+        recall, precision = self.metric.modify_pr(data)
+        np.testing.assert_equal(recall, [0., 1., 1., 1., 1.])
+        np.testing.assert_equal(precision, [1., 1., 0.5, 1. / 3, 0.25])
 
     def test_precision_recall_prediction_off(self):
         gs = pd.DataFrame(np.array([[1, 0], [0, 1]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
