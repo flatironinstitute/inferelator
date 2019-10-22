@@ -50,10 +50,7 @@ class RankSummaryPR(RankSummingMetric):
 
     def curve_dataframe(self):
 
-        valid_data = ~pd.isnull(self.confidence_data[PRECISION_COLUMN])
-        assert (valid_data == ~pd.isnull(self.confidence_data[RECALL_COLUMN])).all()
-
-        return self.confidence_data.loc[valid_data, [PRECISION_COLUMN, RECALL_COLUMN]]
+        return self.filtered_data.loc[:, [PRECISION_COLUMN, RECALL_COLUMN]]
 
     def output_curve_pdf(self, output_dir, file_name=None):
 
