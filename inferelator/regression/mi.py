@@ -203,6 +203,10 @@ def _make_discrete(arr_vec, num_bins):
     # Create a function to convert continuous values to discrete bins
     arr_min = np.min(arr_vec)
     arr_max = np.max(arr_vec)
+
+    if arr_min == arr_max:
+        return np.zeros(shape=arr_vec.shape, dtype=np.dtype(int))
+
     eps_mod = max(np.finfo(float).eps, np.finfo(float).eps * (arr_max - arr_min))
 
     def _disc_func(x):
