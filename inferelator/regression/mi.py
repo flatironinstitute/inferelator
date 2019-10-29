@@ -193,12 +193,8 @@ def _make_discrete(arr_vec, num_bins):
     """
 
     # Sanity check
-    if not isinstance(arr_vec, list):
-        try:
-            if arr_vec.shape[1] != 1:
-                raise ValueError("make_discrete takes a 1d array")
-        except IndexError:
-            pass
+    assert check.argument_type(arr_vec, np.ndarray)
+    assert len(arr_vec.shape) == 1 or arr_vec.shape[1] == 1
 
     # Create a function to convert continuous values to discrete bins
     arr_min = np.min(arr_vec)
@@ -207,7 +203,12 @@ def _make_discrete(arr_vec, num_bins):
     if arr_min == arr_max:
         return np.zeros(shape=arr_vec.shape, dtype=np.dtype(int))
 
-    eps_mod = max(np.finfo(float).eps, np.finfo(float).eps * (arr_max - arr_min))
+    try:
+        eps = np.finfo(arr_vec.dtype).eps
+    except ValueError:
+        eps = np.finfo(float).eps
+
+    eps_mod = max(eps, eps * (arr_max - arr_min))
 
     def _disc_func(x):
         return np.floor((x - arr_min) / (arr_max - arr_min + eps_mod) * num_bins)
