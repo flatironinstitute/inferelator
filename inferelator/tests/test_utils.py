@@ -176,6 +176,36 @@ class TestValidator(unittest.TestCase):
         with self.assertRaises(ValueError):
             check.argument_callable("string")
 
+    def test_subclass(self):
+
+        class ClassA(object):
+            pass
+
+        class ClassB(object):
+            pass
+
+        class ClassC(ClassA):
+            pass
+
+        self.assertTrue(check.argument_is_subclass(None, ClassA, allow_none=True))
+        with self.assertRaises(ValueError):
+            check.argument_is_subclass(None, ClassA)
+
+        self.assertTrue(check.argument_is_subclass(ClassC, ClassA))
+        self.assertTrue(check.argument_is_subclass(ClassC(), ClassA))
+
+        with self.assertRaises(ValueError):
+            check.argument_is_subclass(ClassA, ClassC)
+
+        with self.assertRaises(ValueError):
+            check.argument_is_subclass(ClassC, ClassB)
+
+        with self.assertRaises(ValueError):
+            check.argument_is_subclass("arg", ClassA)
+
+        with self.assertRaises(ValueError):
+            check.argument_is_subclass(ClassC, "arg")
+
 
 if __name__ == '__main__':
     unittest.main()

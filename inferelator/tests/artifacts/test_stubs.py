@@ -1,9 +1,51 @@
 from inferelator import amusr_workflow
+from inferelator import workflow
 from inferelator.regression.base_regression import RegressionWorkflow
+from inferelator.postprocessing.results_processor import ResultsProcessor
 from inferelator.tests.artifacts.test_data import TestDataSingleCellLike
 
 import pandas as pd
 import numpy as np
+
+
+class NoOutputRP(ResultsProcessor):
+
+    def summarize_network(self, output_dir, gold_standard, priors):
+        return super(NoOutputRP, self).summarize_network(None, gold_standard, priors)
+
+
+# Factory method to spit out a puppet workflow
+def create_puppet_workflow(regression_class=RegressionWorkflow,
+                           base_class=workflow.WorkflowBase,
+                           result_processor_class=NoOutputRP):
+
+    puppet_parent = workflow._factory_build_inferelator(regression=regression_class, workflow=base_class)
+
+    class PuppetClass(puppet_parent):
+        """
+        Standard workflow except it takes all the data as references to __init__ instead of as filenames on disk or
+        as environment variables, and returns the model AUPR and edge counts without writing files (unless told to)
+        """
+
+        write_network = True
+        network_file_name = None
+        pr_curve_file_name = None
+        initialize_mp = False
+
+        def __init__(self, expr_data, meta_data, prior_data, gs_data):
+            self.expression_matrix = expr_data
+            self.meta_data = meta_data
+            self.priors_data = prior_data
+            self.gold_standard = gs_data
+
+        def startup_run(self):
+            # Skip all of the data loading
+            self.process_priors_and_gold_standard()
+
+        def create_output_dir(self, *args, **kwargs):
+            pass
+
+    return PuppetClass
 
 
 class TaskDataStub(amusr_workflow.create_task_data_class(workflow_class="single-cell")):
@@ -26,6 +68,7 @@ class TaskDataStub(amusr_workflow.create_task_data_class(workflow_class="single-
         else:
             return [self]
 
+
 class FakeDRD:
     def __init__(self, *args, **kwargs):
         pass
@@ -33,9 +76,11 @@ class FakeDRD:
     def run(self, expr, meta):
         return expr, expr, expr
 
+
 class FakeWriter(object):
     def writerow(self, *args, **kwargs):
         pass
+
 
 class FakeRegression(RegressionWorkflow):
 
@@ -46,6 +91,7 @@ class FakeRegression(RegressionWorkflow):
 
     def run_bootstrap(self, bootstrap):
         return True
+
 
 class FakeResultProcessor:
     network_data = None

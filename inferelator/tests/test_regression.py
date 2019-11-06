@@ -4,10 +4,10 @@ import warnings
 from inferelator import tfa_workflow
 from inferelator import workflow
 from inferelator.tests.artifacts.test_data import TestDataSingleCellLike
-from inferelator.tests.artifacts.test_stubs import TaskDataStub
-from inferelator.crossvalidation_workflow import create_puppet_workflow
+from inferelator.tests.artifacts.test_stubs import TaskDataStub, create_puppet_workflow
 from inferelator.regression.bbsr_multitask import BBSRByTaskRegressionWorkflow
 from inferelator.regression.elasticnet_multitask import ElasticNetByTaskRegressionWorkflow
+
 
 class TestRegressionFactory(unittest.TestCase):
 
