@@ -20,7 +20,7 @@ class ElasticNetByTaskRegressionWorkflow(AMUSRRegressionWorkflow, ElasticNetWork
 
             MPControl.sync_processes(pref="en_pre")
 
-            utils.Debug.vprint('Calculating task {k} betas using BBSR'.format(k=k), level=0)
+            utils.Debug.vprint('Calculating task {k} betas using MEN'.format(k=k), level=0)
             t_beta, t_br = ElasticNet(X, Y, random_seed=self.random_seed).run()
             betas.append(t_beta)
             betas_resc.append(t_br)
