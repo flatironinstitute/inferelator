@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import pandas.api.types as pat
 import os
+import inspect
 
 from inferelator.default import SBATCH_VARS
 
@@ -343,6 +344,19 @@ class Validator(object):
             raise ValueError("{num} arguments are not None; only {nnum} are allowed".format(num=n_not_none,
                                                                                             nnum=num_none))
         return True
+
+    @staticmethod
+    def argument_is_subclass(arg, subclass, allow_none=False):
+        if allow_none and arg is None:
+            return True
+        elif not inspect.isclass(arg):
+            raise ValueError("Argument is not a class")
+        elif not inspect.isclass(subclass):
+            raise ValueError("Subclass to test argument is itself not an argument")
+        elif not issubclass(arg, subclass):
+            raise ValueError("Argument is not a subclass of {sc}".format(sc=str(subclass)))
+        else:
+            return True
 
 
 def df_from_tsv(file_like, has_index=True):
