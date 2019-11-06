@@ -332,7 +332,6 @@ class Validator(object):
         :param num_none: int
             The number of arguments which should not be None (so 1 means exactly 1 argument should be not None)
             If None, all arguments should not be None
-        :return:
         """
         n_not_none = 0
         for ar in args:
@@ -347,12 +346,24 @@ class Validator(object):
 
     @staticmethod
     def argument_is_subclass(arg, subclass, allow_none=False):
+        """
+
+        :param arg:
+            Argument to check
+        :param subclass:
+            Class that the argument must be a subclass of
+        :param allow_none:
+        """
         if allow_none and arg is None:
             return True
-        elif not inspect.isclass(arg):
-            raise ValueError("Argument is not a class")
-        elif not inspect.isclass(subclass):
-            raise ValueError("Subclass to test argument is itself not an argument")
+        elif arg is None:
+            raise ValueError("None is not an acceptable argument")
+
+        if not inspect.isclass(arg) and inspect.isclass(type(arg)):
+            arg = type(arg)
+
+        if not inspect.isclass(subclass):
+            raise ValueError("Subclass to test argument is itself not a class")
         elif not issubclass(arg, subclass):
             raise ValueError("Argument is not a subclass of {sc}".format(sc=str(subclass)))
         else:
