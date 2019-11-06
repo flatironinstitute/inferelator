@@ -458,7 +458,7 @@ class WorkflowBase(WorkflowBaseLoader):
     # Result processing & model metrics
     result_processor_driver = ResultsProcessor
     gold_standard_filter_method = default.DEFAULT_GS_FILTER_METHOD
-    metric = "precision-recall"
+    metric = "aupr"
 
     # Output results in an InferelatorResults object
     results = None
