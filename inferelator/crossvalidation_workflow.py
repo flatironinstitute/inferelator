@@ -2,146 +2,183 @@ from __future__ import print_function
 
 import os
 import csv
+import types
+import copy
+import itertools
 
+from inferelator.distributed.inferelator_mp import MPControl
+from inferelator.utils import Validator as check
 from inferelator import utils, default
 from inferelator.regression import base_regression
 from inferelator.postprocessing import results_processor
 from inferelator import workflow
 
-# The variable names that get set in the main workflow, but need to get copied to the puppets
-SHARED_CLASS_VARIABLES = ['tf_names', 'gene_metadata', 'gene_list_index', 'num_bootstraps', 'mi_sync_path',
-                          'count_minimum', 'gold_standard_filter_method', 'cv_split_ratio',
-                          'split_gold_standard_for_crossvalidation', 'cv_split_axis', 'preprocessing_workflow',
-                          'shuffle_prior_axis', 'write_network', 'output_dir', 'tfa_driver', 'drd_driver',
-                          'result_processor_driver', 'prior_manager', 'meta_data_task_column']
 
+class CrossvalidationManager(object):
+    """
+    This does cross-validation for workflows
+    """
 
-class PuppeteerWorkflow(object):
-    """
-    This class contains the methods to create new child Workflow objects
-    It needs to be multi-inherited with a Workflow class (this needs to be the left side)
-    This does not extend WorkflowBase because multiinheritence from subclasses of the same super is a NIGHTMARE
-    """
+    output_dir = None
+    baseline_workflow = None
+
+    # Output settings
     write_network = True  # bool
     csv_writer = None  # csv.csvwriter
     csv_header = ()  # list[]
     output_file_name = "aupr.tsv"  # str
 
-    # Workflow types for the crossvalidation
-    cv_regression_type = base_regression.RegressionWorkflow
-    cv_workflow_type = workflow.WorkflowBase
-    cv_result_processor_type = results_processor.ResultsProcessor
+    # Grid search parameters
+    grid_params = None
+    grid_param_values = None
 
-    def create_writer(self):
+    # Dropin/dropout categories
+    dropout_column = None
+    grouping_column = None
+
+    # Size subsampling categories
+    size_sample_vector = None
+    size_sample_stratified_column = None
+
+    def __init__(self, workflow_object):
+
+        assert check.argument_is_subclass(workflow_object, workflow.WorkflowBase)
+
+        self.baseline_workflow = workflow_object
+
+    def add_gridsearch_parameter(self, param_name, param_vector):
+        """
+        Set a parameter to search through by exhaustive grid search
+
+        :param param_name: str
+            The workflow parameter to change for each run
+        :param param_vector: list, tuple
+            An iterable with values to use for the parameter
+        """
+
+        if self.grid_param_values is None:
+            self.grid_param_values = {}
+
+        if self.grid_params is None:
+            self.grid_params = []
+
+        self.grid_params.append(param_name)
+        self.grid_param_values[param_name] = param_vector
+
+    def add_grouping_dropout(self, metadata_column_name):
+        """
+        Drop each group (defined by a metadata column) and run modeling on all of the other groups
+
+        :param metadata_column_name: str
+        :return:
+        """
+
+    def add_grouping_separately(self, metadata_column_name):
+        """
+
+        :param metadata_column_name: str
+        :return:
+        """
+
+    def add_size_subsampling(self, size_vector, stratified_column_name=None):
+        """
+
+        :param size_vector: list, tuple
+        :param stratified_column_name:
+        """
+
+    def run(self):
+        if self.output_dir is None:
+            self.output_dir = self.baseline_workflow.output_dir
+        self._create_writer()
+        self._initial_data_load()
+
+
+    def _create_writer(self):
         """
         Create a CSVWriter and stash it in self.writer
         """
 
-        if self.is_master():
-            self.create_output_dir()
+        if MPControl.is_master:
+
+            # Create a CSV header from grid search param names
+            self.csv_header = copy.copy(self.grid_params) if self.grid_params is not None else []
+
+            # Add Test & Value columns for dropouts/etc
+            self.csv_header.extend(["Test", "Value"])
+
+            # Also add the metric
+            self.csv_header.append(self.baseline_workflow.metric)
+
+            # Create a CSV writer
+            self._create_output_path()
             self.csv_writer = csv.writer(open(os.path.expanduser(os.path.join(self.output_dir, self.output_file_name)),
                                               mode="w", buffering=1), delimiter="\t", lineterminator="\n",
                                          quoting=csv.QUOTE_NONE)
+
+            # Write the header line
             self.csv_writer.writerow(self.csv_header)
 
-    def new_puppet(self, expr_data, meta_data, seed=default.DEFAULT_RANDOM_SEED, priors_data=None, gold_standard=None):
+    def _create_output_path(self):
         """
-        Create a new puppet workflow to run the inferelator
-        :param expr_data: pd.DataFrame [G x N]
-        :param meta_data: pd.DataFrame [N x ?]
-        :param seed: int
-        :param priors_data: pd.DataFrame [G x K]
-        :param gold_standard: pd.DataFrame [G x K]
-        :return puppet:
+        Create the output path
         """
+        if self.output_dir is None:
+            raise ValueError("No output path has been provided")
+        self.output_dir = os.path.abspath(os.path.expanduser(self.output_dir))
 
-        # Unless told otherwise, use the master priors and master gold standard
-        if gold_standard is None:
-            gold_standard = self.gold_standard
-        if priors_data is None:
-            priors_data = self.priors_data
+        try:
+            os.makedirs(self.output_dir)
+        except FileExistsError:
+            pass
 
-        # Create a new puppet workflow with the factory method and pass in data on instantiation
-        puppet = create_puppet_workflow(base_class=self.cv_workflow_type,
-                                        regression_class=self.cv_regression_type,
-                                        result_processor_class=self.cv_result_processor_type)
-        puppet = puppet(expr_data, meta_data, priors_data, gold_standard)
-
-        # Transfer the class variables necessary to get the puppet to dance (everything in SHARED_CLASS_VARIABLES)
-        self.assign_class_vars(puppet)
-
-        # Set the random seed into the puppet
-        puppet.random_seed = seed
-
-        # Tell the puppet what to name stuff (if write_network is False then no output will be produced)
-        puppet.network_file_name = "network_s{seed}.tsv".format(seed=seed)
-        puppet.pr_curve_file_name = "pr_curve_s{seed}.pdf".format(seed=seed)
-        return puppet
-
-    def assign_class_vars(self, obj):
+    def _initial_data_load(self):
         """
-        Transfer class variables from this object to a target object
-        """
-        for varname in SHARED_CLASS_VARIABLES:
-            try:
-                setattr(obj, varname, getattr(self, varname))
-                utils.Debug.vprint("Variable {var} set to child".format(var=varname), level=3)
-            except AttributeError:
-                utils.Debug.vprint("Variable {var} not assigned to parent".format(var=varname), level=2)
-
-
-# Factory method to spit out a puppet workflow
-def create_puppet_workflow(regression_class=base_regression.RegressionWorkflow,
-                           base_class=workflow.WorkflowBase,
-                           result_processor_class=None):
-
-    puppet_parent = workflow._factory_build_inferelator(regression=regression_class, workflow=base_class)
-
-    class PuppetClass(puppet_parent):
-        """
-        Standard workflow except it takes all the data as references to __init__ instead of as filenames on disk or
-        as environment variables, and returns the model AUPR and edge counts without writing files (unless told to)
+        Load data into the workflow
         """
 
-        write_network = True
-        network_file_name = None
-        pr_curve_file_name = None
-        initialize_mp = False
+        # Load data with the baseline get_data() function
+        self.baseline_workflow.get_data()
 
-        def __init__(self, expr_data, meta_data, prior_data, gs_data):
-            self.expression_matrix = expr_data
-            self.meta_data = meta_data
-            self.priors_data = prior_data
-            self.gold_standard = gs_data
+        # Blow up the get_data() function so that it doesn't get re-run
+        def mock_get_data(slf):
+            pass
 
-        def startup_run(self):
-            # Skip all of the data loading
-            self.process_priors_and_gold_standard()
+        self.baseline_workflow.get_data = types.MethodType(mock_get_data, self.baseline_workflow)
 
-        def emit_results(self, betas, rescaled_betas, gold_standard, priors):
+    def _get_workflow_copy(self):
+        """
+        Copies and returns the workflow which has loaded data
+        """
 
-            if self.is_master():
+        return copy.deepcopy(self.baseline_workflow)
 
-                # Create a processor
-                rp = self.result_processor_driver(betas, rescaled_betas, filter_method=self.gold_standard_filter_method,
-                                                  metric=self.metric)
+    def _grid_search(self, test=None, value=None):
 
-                # Assign task names if they're a thing
-                rp.tasks_names = getattr(self, "tasks_names", None)
+        # This is unpacked in the same order that is used in the header
+        ordered_unpack = [self.grid_param_values[param] for param in self.grid_params]
 
-                # Process into results
-                self.results = rp.summarize_network(None, gold_standard, priors)
+        for param_values in itertools.product(*ordered_unpack):
+            params = zip(self.grid_params, param_values)
+            csv_line = []
 
-                # Write the network if that flag is set
-                if self.write_network:
-                    self.results.clear_output_file_names()
-                    self.results.network_file_name = self.network_file_name
-                    self.results.curve_file_name = self.pr_curve_file_name
-                    self.results.write_result_files(self.make_path_safe(self.output_dir))
-            else:
-                self.results = None
+            # Get the workflow and set the CV parameters
+            cv_workflow = self._get_workflow_copy()
+            for name, param_value in params:
+                csv_line.append(param_value)
+                setattr(cv_workflow, name, param_value)
 
-    if result_processor_class is not None:
-        PuppetClass.result_processor_driver = result_processor_class
+            # Set the parameters into the output path
+            cv_workflow.append_to_path("_".join(map(str, csv_line)))
 
-    return PuppetClass
+            # Run the workflow
+            result = cv_workflow.run()
+            csv_line.append(test)
+            csv_line.append(value)
+            csv_line.append(result.score)
+
+            del cv_workflow
+
+
+
+
