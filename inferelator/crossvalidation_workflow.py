@@ -24,8 +24,9 @@ class CrossValidationManager(object):
 
     # Output settings
     csv_writer = None  # csv.csvwriter
-    csv_header = ()  # list[]
+    csv_header = None  # list[]
     output_file_name = "aupr.tsv"  # str
+    _csv_writer_object = csv.writer
 
     # Grid search parameters
     grid_params = None
@@ -33,7 +34,12 @@ class CrossValidationManager(object):
 
     # Dropin/dropout categories
     dropout_column = None
+    dropout_max_size = None
+    dropout_seed = None
+
     dropin_column = None
+    dropin_max_size = None
+    dropin_seed = None
 
     # Size subsampling categories
     size_sample_vector = None
@@ -66,23 +72,30 @@ class CrossValidationManager(object):
         self.grid_params.append(param_name)
         self.grid_param_values[param_name] = param_vector
 
-    def add_grouping_dropout(self, metadata_column_name):
+    def add_grouping_dropout(self, metadata_column_name, group_size=None, seed=42):
         """
         Drop each group (defined by a metadata column) and run modeling on all of the other groups
 
         :param metadata_column_name: str
+        :param group_size: int
+        :param seed: int
         """
 
         self.dropout_column = metadata_column_name
+        self.dropout_max_size = group_size
+        self.dropout_seed = seed
 
-    def add_grouping_dropin(self, metadata_column_name):
+    def add_grouping_dropin(self, metadata_column_name, group_size=None, seed=42):
         """
 
         :param metadata_column_name: str
-        :return:
+        :param group_size: int
+        :param seed: int
         """
 
         self.dropin_column = metadata_column_name
+        self.dropin_max_size = group_size
+        self.dropin_seed = seed
 
     def add_size_subsampling(self, size_vector, stratified_column_name=None, with_replacement=False, seed=42):
         """
@@ -143,7 +156,6 @@ class CrossValidationManager(object):
         """
 
         if MPControl.is_master:
-
             # Create a CSV header from grid search param names
             self.csv_header = copy.copy(self.grid_params) if self.grid_params is not None else []
 
@@ -155,12 +167,19 @@ class CrossValidationManager(object):
 
             # Create a CSV writer
             self._create_output_path()
-            self.csv_writer = csv.writer(open(os.path.expanduser(os.path.join(self.output_dir, self.output_file_name)),
-                                              mode="w", buffering=1), delimiter="\t", lineterminator="\n",
-                                         quoting=csv.QUOTE_NONE)
+
+            self.csv_writer = self._csv_writer_object(self._create_csv_handle(),
+                                                      delimiter="\t", lineterminator="\n", quoting=csv.QUOTE_NONE)
 
             # Write the header line
             self.csv_writer.writerow(self.csv_header)
+
+    def _create_csv_handle(self):
+        """
+        Open and return a file handle to the CSV output file
+        """
+        csv_file_name = os.path.join(self.output_dir, self.output_file_name)
+        return open(csv_file_name, mode="w", buffering=1)
 
     def _create_output_path(self):
         """
@@ -228,13 +247,16 @@ class CrossValidationManager(object):
 
             # Set the parameters into the output path
             if test is not None:
-                cv_workflow.append_to_path("_".join(map(str, csv_line + [test, value])))
+                cv_workflow.append_to_path("output_dir", "_".join(map(str, csv_line + [test, value])))
             else:
-                cv_workflow.append_to_path("_".join(map(str, csv_line)))
+                cv_workflow.append_to_path("output_dir", "_".join(map(str, csv_line)))
 
             # Run the workflow
             result = cv_workflow.run()
             csv_line.extend([test, value, result.score])
+
+            if MPControl.is_master:
+                self.csv_writer.writerow(csv_line)
 
             del cv_workflow
 
@@ -247,7 +269,7 @@ class CrossValidationManager(object):
             if hasattr(self.baseline_workflow, param):
                 pass
             else:
-                utils.Debug.vprint("Parameter {p} for GridCV does not appear to be a valid parameter".format(p=param))
+                raise ValueError("Parameter {p} for GridCV does not appear to be a valid parameter".format(p=param))
 
     def _check_metadata(self):
         """
@@ -280,12 +302,21 @@ class CrossValidationManager(object):
 
         meta_data = self.baseline_workflow.meta_data.copy()
         col = self.dropout_column
+        max_size = self.dropout_max_size
 
         unique_groups = meta_data[col].unique().tolist()
 
-        for group in unique_groups:
+        for i, group in enumerate(unique_groups):
+            rgen = np.random.RandomState(self.dropin_seed + i)
+
             def mask_function():
-                return meta_data[col] != group
+                include_mask = meta_data[col] != group
+                if max_size is None:
+                    return include_mask
+                else:
+                    # For each factor in the stratified column
+                    for g in unique_groups:
+                        include_mask = include_mask & group_index(meta_data, col, g, rgen=rgen, max_size=max_size)
 
             self._grid_search(test="dropin", value="group", mask_function=mask_function)
 
@@ -296,13 +327,18 @@ class CrossValidationManager(object):
 
         meta_data = self.baseline_workflow.meta_data.copy()
         col = self.dropin_column
+        max_size = self.dropin_max_size
 
         unique_groups = meta_data[col].unique().tolist()
 
-        for group in unique_groups:
+        for i, group in enumerate(unique_groups):
+            rgen = np.random.RandomState(self.dropin_seed + i)
 
             def mask_function():
-                return meta_data[col] == group
+                if max_size is None:
+                    return meta_data[col] == group
+                else:
+                    return group_index(meta_data, col, group, rgen=rgen, max_size=max_size)
 
             self._grid_search(test="dropin", value="group", mask_function=mask_function)
 
@@ -324,17 +360,8 @@ class CrossValidationManager(object):
 
                     # For each factor in the stratified column
                     for group in unique_groups:
-                        # Find the observations in this group
-                        group_mask = meta_data[strat_col] == group
-                        n_group = group_mask.sum()
-
-                        # Decide how big to make the group (size * size_ratio)
-                        size = max(int(n_group * size_ratio), 1)
-                        size_mask = [True] * size + [False] * (n_group - size)
-                        rgen.shuffle(size_mask)
-
-                        group_mask.loc[group_mask is True] = size_mask
-                        data_mask = data_mask | group_mask
+                        data_mask = data_mask | group_index(meta_data, strat_col, group, size_ratio=size_ratio,
+                                                            rgen=rgen)
 
                     return data_mask
 
@@ -350,8 +377,29 @@ class CrossValidationManager(object):
             self._grid_search(test="size", value=str(size_ratio), mask_function=data_masker)
 
 
+def group_index(meta, meta_col, group, size_ratio=None, rgen=None, max_size=None):
+    rgen = rgen if rgen is not None else np.random
 
+    # Find the observations in this group
+    group_mask = meta[meta_col] == group
+    n_group = group_mask.sum()
 
+    if n_group == 0:
+        return group_mask
 
+    # Decide how big to make the group (size * size_ratio)
+    if size_ratio is not None:
+        size = max(int(n_group * size_ratio), 1)
+    else:
+        size = max(n_group, 1)
 
+    # Set max_size if that argument has been provided
+    if max_size is not None:
+        size = min(size, max_size)
 
+    if size != n_group:
+        size_mask = [True] * size + [False] * (n_group - size)
+        rgen.shuffle(size_mask)
+        group_mask.loc[group_mask] = size_mask
+
+    return group_mask
