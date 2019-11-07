@@ -47,12 +47,14 @@ def elastic_net(X, Y, params):
     X[bool_idx, :] = 0
     X[np.isnan(X) | np.isinf(X)] = 0
 
+    min_coef = params.pop('min_coef', MIN_COEF)
+
     # Fit the linear model using the elastic net
     model = ElasticNetCV(**params).fit(X, Y)
 
     # Set coefficients below threshold to 0
     coefs = model.coef_  # Get all model coefficients [K, ]
-    coefs[np.abs(coefs) < MIN_COEF] = 0.  # Threshold coefficients
+    coefs[np.abs(coefs) < min_coef] = 0.  # Threshold coefficients
     coef_nonzero = coefs != 0  # Create a boolean array where coefficients are nonzero [K, ]
 
     # If there are non-zero coefficients, redo the linear regression with them alone
