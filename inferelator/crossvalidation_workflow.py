@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import os
+import warnings
 import csv
 import types
 import copy
@@ -20,7 +21,6 @@ class CrossValidationManager(object):
     """
 
     output_dir = None
-    baseline_workflow = None
 
     # Output settings
     csv_writer = None  # csv.csvwriter
@@ -47,11 +47,24 @@ class CrossValidationManager(object):
     size_sample_with_replacement = False
     size_sample_seed = None
 
-    def __init__(self, workflow_object):
+    # Workflow storage
+    _baseline_workflow = None
 
-        assert check.argument_is_subclass(workflow_object, workflow.WorkflowBase)
+    @property
+    def workflow(self):
+        if self._baseline_workflow is None:
+            raise AttributeError("No workflow has been provided")
+        return self._baseline_workflow
 
-        self.baseline_workflow = workflow_object
+    @workflow.setter
+    def workflow(self, wkf):
+        assert check.argument_is_subclass(wkf, workflow.WorkflowBase, allow_none=True)
+        if self._baseline_workflow is not None:
+            warnings.warn("Replacing stored workflow with a new workflow")
+        self._baseline_workflow = wkf
+
+    def __init__(self, workflow_object=None):
+        self.workflow = workflow_object
 
     def add_gridsearch_parameter(self, param_name, param_vector):
         """
@@ -125,7 +138,7 @@ class CrossValidationManager(object):
 
         # Create output path
         if self.output_dir is None:
-            self.output_dir = self.baseline_workflow.output_dir
+            self.output_dir = self.workflow.output_dir
 
         # Open a CSV file handle
         self._create_writer()
@@ -150,6 +163,16 @@ class CrossValidationManager(object):
         if self.dropout_column is not None:
             self._dropout_cv()
 
+    def append_to_path(self, var_name, to_append):
+        """
+        Add a string to an existing path variable in class
+        """
+        path = getattr(self, var_name, None)
+        if path is None:
+            raise ValueError("Cannot append {to_append} to {var_name} (Which is None)".format(to_append=to_append,
+                                                                                              var_name=var_name))
+        setattr(self, var_name, os.path.join(path, to_append))
+
     def _create_writer(self):
         """
         Create a CSVWriter and stash it in self.writer
@@ -163,7 +186,7 @@ class CrossValidationManager(object):
             self.csv_header.extend(["Test", "Value", "Num_Obs"])
 
             # Also add the metric
-            self.csv_header.append(self.baseline_workflow.metric)
+            self.csv_header.append(self.workflow.metric)
 
             # Create a CSV writer
             self._create_output_path()
@@ -200,20 +223,20 @@ class CrossValidationManager(object):
         """
 
         # Load data with the baseline get_data() function
-        self.baseline_workflow.get_data()
+        self.workflow.get_data()
 
         # Blow up the get_data() function so that it doesn't get re-run
         def mock_get_data(slf):
             pass
 
-        self.baseline_workflow.get_data = types.MethodType(mock_get_data, self.baseline_workflow)
+        self.workflow.get_data = types.MethodType(mock_get_data, self.workflow)
 
     def _get_workflow_copy(self):
         """
         Copies and returns the workflow which has loaded data
         """
 
-        return copy.deepcopy(self.baseline_workflow)
+        return copy.deepcopy(self.workflow)
 
     def _grid_search(self, test=None, value=None, mask_function=None):
         """
@@ -277,7 +300,7 @@ class CrossValidationManager(object):
         """
 
         for param in self.grid_params:
-            if hasattr(self.baseline_workflow, param):
+            if hasattr(self.workflow, param):
                 pass
             else:
                 raise ValueError("Parameter {p} for GridCV does not appear to be a valid parameter".format(p=param))
@@ -301,7 +324,7 @@ class CrossValidationManager(object):
         :param col_name: str
         """
 
-        if col_name in self.baseline_workflow.meta_data.columns:
+        if col_name in self.workflow.meta_data.columns:
             return True
         else:
             raise ValueError("Column {col} is not present in the loaded metadata".format(col=col_name))
@@ -311,7 +334,7 @@ class CrossValidationManager(object):
         Run grid search on all data minus one group at a time
         """
 
-        meta_data = self.baseline_workflow.meta_data.copy()
+        meta_data = self.workflow.meta_data.copy()
         col = self.dropout_column
         max_size = self.dropout_max_size
 
@@ -336,7 +359,7 @@ class CrossValidationManager(object):
         Run grid search on one group from the data at a time
         """
 
-        meta_data = self.baseline_workflow.meta_data.copy()
+        meta_data = self.workflow.meta_data.copy()
         col = self.dropin_column
         max_size = self.dropin_max_size
 
@@ -360,7 +383,7 @@ class CrossValidationManager(object):
 
         for i, size_ratio in enumerate(self.size_sample_vector):
             rgen = np.random.RandomState(self.size_sample_seed + i)
-            meta_data = self.baseline_workflow.meta_data.copy()
+            meta_data = self.workflow.meta_data.copy()
 
             if self.size_sample_stratified_column is not None:
                 strat_col = self.size_sample_stratified_column

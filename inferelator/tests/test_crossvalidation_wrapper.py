@@ -96,16 +96,16 @@ class TestCVSampleIndexing(unittest.TestCase):
 
     def test_load_initial(self):
 
-        self.assertEqual(self.cv.baseline_workflow.get_data(), "GotData")
+        self.assertEqual(self.cv.workflow.get_data(), "GotData")
         self.cv._initial_data_load()
-        self.assertIsNone(self.cv.baseline_workflow.get_data())
+        self.assertIsNone(self.cv.workflow.get_data())
 
     def test_get_copy(self):
 
         copied_work = self.cv._get_workflow_copy()
         copied_work.seed = 50
 
-        self.assertEqual(self.cv.baseline_workflow.seed, 10)
+        self.assertEqual(self.cv.workflow.seed, 10)
         self.assertEqual(copied_work.seed, 50)
 
     def test_csv(self):
