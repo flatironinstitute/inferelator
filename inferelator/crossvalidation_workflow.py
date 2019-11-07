@@ -167,7 +167,15 @@ class CrossValidationManager(object):
         """
         Add a string to an existing path variable in class
         """
+
+        # Get the wrapper attribute
         path = getattr(self, var_name, None)
+
+        # If the wrapper attribute is not set, try the worker
+        if path is None:
+            path = getattr(self.workflow, var_name, to_append)
+
+        # If neither are set just die
         if path is None:
             raise ValueError("Cannot append {to_append} to {var_name} (Which is None)".format(to_append=to_append,
                                                                                               var_name=var_name))
