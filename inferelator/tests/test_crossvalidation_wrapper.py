@@ -114,7 +114,7 @@ class TestCVSampleIndexing(unittest.TestCase):
 
         self.assertIsNone(self.cv.csv_header)
         self.cv._create_writer()
-        self.assertListEqual(self.cv.csv_header, ["seed", "test", "Test", "Value", "aupr"])
+        self.assertListEqual(self.cv.csv_header, ["seed", "test", "Test", "Value", "Num_Obs", "aupr"])
 
     def test_validate_params(self):
         self.cv.add_gridsearch_parameter("seed", [1, 2, 3])

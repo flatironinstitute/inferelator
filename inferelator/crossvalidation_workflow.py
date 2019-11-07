@@ -246,7 +246,7 @@ class CrossValidationManager(object):
                 cv_workflow.meta_data.drop(cv_workflow.meta_data.index[~mask], axis=0, inplace=True)
                 n_obs = mask.sum()
             else:
-                n_obs = cv_workflow.expression_matrix.shape[1]
+                n_obs = cv_workflow.meta_data.shape[0]
 
             for name, param_value in params:
                 csv_line.append(param_value)
