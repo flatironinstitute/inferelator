@@ -160,7 +160,7 @@ class CrossValidationManager(object):
             self.csv_header = copy.copy(self.grid_params) if self.grid_params is not None else []
 
             # Add Test & Value columns for dropouts/etc
-            self.csv_header.extend(["Test", "Value"])
+            self.csv_header.extend(["Test", "Value", "Num_Obs"])
 
             # Also add the metric
             self.csv_header.append(self.baseline_workflow.metric)
@@ -225,12 +225,16 @@ class CrossValidationManager(object):
         :return:
         """
 
+        if test is not None:
+            utils.Debug.vprint("Grid search for  {t} [{v}]".format(t=test, v=value))
+
         # This is unpacked in the same order that is used in the header
         ordered_unpack = [self.grid_param_values[param] for param in self.grid_params]
 
         for param_values in itertools.product(*ordered_unpack):
             params = zip(self.grid_params, param_values)
             csv_line = []
+            output_path = []
 
             # Get the workflow and set the CV parameters
             cv_workflow = self._get_workflow_copy()
@@ -240,20 +244,27 @@ class CrossValidationManager(object):
                 mask = mask_function()
                 cv_workflow.expression_matrix.drop(cv_workflow.expression_matrix.columns[~mask], axis=1, inplace=True)
                 cv_workflow.meta_data.drop(cv_workflow.meta_data.index[~mask], axis=0, inplace=True)
+                n_obs = mask.sum()
+            else:
+                n_obs = cv_workflow.expression_matrix.shape[1]
 
             for name, param_value in params:
                 csv_line.append(param_value)
+                output_path.append(str(name) + "_" + str(param_value))
                 setattr(cv_workflow, name, param_value)
+                utils.Debug.vprint("Setting crossvalidation param {p} to {v}".format(p=name, v=param_value))
 
             # Set the parameters into the output path
             if test is not None:
-                cv_workflow.append_to_path("output_dir", "_".join(map(str, csv_line + [test, value])))
+                output_path = "_".join(map(str, output_path + [test, value]))
+
             else:
-                cv_workflow.append_to_path("output_dir", "_".join(map(str, csv_line)))
+                output_path = "_".join(map(str, output_path))
 
             # Run the workflow
+            cv_workflow.append_to_path("output_dir", output_path)
             result = cv_workflow.run()
-            csv_line.extend([test, value, result.score])
+            csv_line.extend([test, value, n_obs, result.score])
 
             if MPControl.is_master:
                 self.csv_writer.writerow(csv_line)
