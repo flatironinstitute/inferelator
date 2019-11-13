@@ -53,7 +53,7 @@ class TestCVSampleIndexing(unittest.TestCase):
         wkf.output_dir = tempfile.gettempdir()
         self.cv = crossvalidation_workflow.CrossValidationManager(wkf)
         self.cv._csv_writer_object = FakeWriter
-        self.cv._create_csv_handle = types.MethodType(fake_class_method, self.cv)
+        self.cv._open_csv_handle = types.MethodType(fake_class_method, self.cv)
         self.cv._create_output_path = types.MethodType(fake_class_method, self.cv)
 
     def test_dropin_set(self):
@@ -112,9 +112,9 @@ class TestCVSampleIndexing(unittest.TestCase):
         self.cv.add_gridsearch_parameter("seed", [1, 2, 3])
         self.cv.add_gridsearch_parameter("test", [3, 4, 5])
 
-        self.assertIsNone(self.cv.csv_header)
+        self.assertIsNone(self.cv._csv_header)
         self.cv._create_writer()
-        self.assertListEqual(self.cv.csv_header, ["seed", "test", "Test", "Value", "Num_Obs", "aupr"])
+        self.assertListEqual(self.cv._csv_header, ["seed", "test", "Test", "Value", "Num_Obs", "aupr"])
 
     def test_validate_params(self):
         self.cv.add_gridsearch_parameter("seed", [1, 2, 3])
@@ -154,4 +154,4 @@ class TestCVSampleIndexing(unittest.TestCase):
         self.cv._create_writer()
         self.cv._grid_search()
 
-        self.assertEqual(len(self.cv.csv_writer.csv_lil), 4)
+        self.assertEqual(len(self.cv._csv_writer.csv_lil), 4)

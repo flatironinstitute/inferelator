@@ -20,13 +20,12 @@ class CrossValidationManager(object):
     This does cross-validation for workflows
     """
 
-    output_dir = None
-
     # Output settings
-    csv_writer = None  # csv.csvwriter
-    csv_header = None  # list[]
+    _csv_writer = None  # csv.csvwriter
+    _csv_header = None  # list[]
     output_file_name = "aupr.tsv"  # str
     _csv_writer_object = csv.writer
+    _csv_file_handle = None
 
     # Grid search parameters
     grid_params = None
@@ -49,6 +48,36 @@ class CrossValidationManager(object):
 
     # Workflow storage
     _baseline_workflow = None
+    _baseline_output_dir = None
+    _baseline_input_dir = None
+
+    @property
+    def output_dir(self):
+        if self._baseline_workflow is None or self._baseline_output_dir is not None:
+            return self._baseline_output_dir
+        else:
+            return self._baseline_workflow.output_dir
+
+    @output_dir.setter
+    def output_dir(self, path):
+        if self._baseline_workflow is not None:
+            self._baseline_workflow.output_dir = path
+
+        self._baseline_output_dir = path
+
+    @property
+    def input_dir(self):
+        if self._baseline_workflow is None or self._baseline_input_dir is not None:
+            return self._baseline_input_dir
+        else:
+            return self._baseline_workflow.input_dir
+
+    @input_dir.setter
+    def input_dir(self, path):
+        if self._baseline_workflow is not None:
+            self._baseline_workflow.input_dir = path
+
+        self._baseline_input_dir = path
 
     @property
     def workflow(self):
@@ -137,8 +166,7 @@ class CrossValidationManager(object):
     def run(self):
 
         # Create output path
-        if self.output_dir is None:
-            self.output_dir = self.workflow.output_dir
+        self._harmonize_paths()
 
         # Open a CSV file handle
         self._create_writer()
@@ -163,17 +191,15 @@ class CrossValidationManager(object):
         if self.dropout_column is not None:
             self._dropout_cv()
 
+        self._destroy_writer()
+
     def append_to_path(self, var_name, to_append):
         """
         Add a string to an existing path variable in class
         """
 
-        # Get the wrapper attribute
-        path = getattr(self, var_name, None)
-
-        # If the wrapper attribute is not set, try the worker
-        if path is None:
-            path = getattr(self.workflow, var_name, to_append)
+        # Get the path
+        path = getattr(self, var_name)
 
         # If neither are set just die
         if path is None:
@@ -188,29 +214,59 @@ class CrossValidationManager(object):
 
         if MPControl.is_master:
             # Create a CSV header from grid search param names
-            self.csv_header = copy.copy(self.grid_params) if self.grid_params is not None else []
+            self._csv_header = copy.copy(self.grid_params) if self.grid_params is not None else []
 
             # Add Test & Value columns for dropouts/etc
-            self.csv_header.extend(["Test", "Value", "Num_Obs"])
+            self._csv_header.extend(["Test", "Value", "Num_Obs"])
 
             # Also add the metric
-            self.csv_header.append(self.workflow.metric)
+            self._csv_header.append(self.workflow.metric)
 
             # Create a CSV writer
             self._create_output_path()
+            self._open_csv_handle()
 
-            self.csv_writer = self._csv_writer_object(self._create_csv_handle(),
-                                                      delimiter="\t", lineterminator="\n", quoting=csv.QUOTE_NONE)
+            self._csv_writer = self._csv_writer_object(self._csv_file_handle,
+                                                       delimiter="\t", lineterminator="\n", quoting=csv.QUOTE_NONE)
 
             # Write the header line
-            self.csv_writer.writerow(self.csv_header)
+            self._csv_writer.writerow(self._csv_header)
 
-    def _create_csv_handle(self):
+    def _destroy_writer(self):
+        """
+        Delete the CSVWriter and close the file handle
+        """
+        if MPControl.is_master:
+            self._csv_file_handle.close()
+            self._csv_writer = None
+
+    def _harmonize_paths(self):
+        """
+        If _baseline is set, copy it to the workflow
+        If _baseline is not set, copy to it from the workflow
+        """
+        if self._baseline_output_dir is None and self.workflow.output_dir is None:
+            raise ValueError("No output path has been provided to either crossvalidation or workflow")
+
+        if self._baseline_output_dir is None:
+            self._baseline_output_dir = self.workflow.output_dir
+        if self.workflow.output_dir is None:
+            self.workflow.output_dir = self._baseline_output_dir
+
+        if self._baseline_input_dir is None and self.workflow.input_dir is None:
+            raise ValueError("No input path has been provided to either crossvalidation or workflow")
+
+        if self._baseline_input_dir is None:
+            self._baseline_input_dir = self.workflow.input_dir
+        if self.workflow.input_dir is None:
+            self.workflow.input_dir = self._baseline_input_dir
+
+    def _open_csv_handle(self):
         """
         Open and return a file handle to the CSV output file
         """
         csv_file_name = os.path.join(self.output_dir, self.output_file_name)
-        return open(csv_file_name, mode="w", buffering=1)
+        self._csv_file_handle = open(csv_file_name, mode="w", buffering=1)
 
     def _create_output_path(self):
         """
@@ -298,7 +354,7 @@ class CrossValidationManager(object):
             csv_line.extend([test, value, n_obs, result.score])
 
             if MPControl.is_master:
-                self.csv_writer.writerow(csv_line)
+                self._csv_writer.writerow(csv_line)
 
             del cv_workflow
 
