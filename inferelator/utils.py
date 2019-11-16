@@ -186,6 +186,36 @@ class Validator(object):
             return True
 
     @staticmethod
+    def argument_subpath(arg, is_subpath_of, allow_none=False):
+        """
+        Check and see if an argument is a subpath of a path
+        :param arg: str
+            Path
+        :param is_subpath_of: str
+            Path for comparison
+        :param allow_none: bool
+            Allow arg to be None
+        :return:
+        """
+
+        if allow_none and arg is None:
+            return True
+        elif arg is None or is_subpath_of is None:
+            raise ValueError("Path argument {a} cannot be compared to path {b}".format(a=arg, b=is_subpath_of))
+
+        arg = os.path.abspath(os.path.expanduser(arg))
+        is_subpath_of = os.path.abspath(os.path.expanduser(is_subpath_of))
+
+        if arg == is_subpath_of:
+            return True
+        elif is_subpath_of == os.path.abspath(os.sep):
+            return True
+        elif arg.startswith(is_subpath_of + os.sep):
+            return True
+        else:
+            raise ValueError("Path {a} is not a subpath of path {b}".format(a=arg, b=is_subpath_of))
+
+    @staticmethod
     def argument_type(arg, arg_type, allow_none=False):
         if allow_none and arg is None:
             return True

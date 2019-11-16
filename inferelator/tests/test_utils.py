@@ -156,6 +156,24 @@ class TestValidator(unittest.TestCase):
         self.assertTrue(check.argument_path(None, allow_none=True))
         shutil.rmtree(temp_dir)
 
+    def test_is_subpath(self):
+        temp_dir = tempfile.gettempdir()
+        temp_test = os.path.join(temp_dir, "test_path")
+
+        self.assertTrue(check.argument_subpath(temp_test, temp_dir))
+        self.assertTrue(check.argument_subpath(temp_test, "/"))
+        self.assertTrue(check.argument_subpath("~" + temp_test, "~"))
+        self.assertTrue(check.argument_subpath(None, None, allow_none=True))
+
+        with self.assertRaises(ValueError):
+            check.argument_subpath(None, "~")
+        with self.assertRaises(ValueError):
+            check.argument_subpath("~", None)
+        with self.assertRaises(ValueError):
+            check.argument_subpath(temp_dir, temp_test)
+        with self.assertRaises(ValueError):
+            check.argument_subpath("..", ".")
+
     def test_callable(self):
         def callable_function(x):
             return x
