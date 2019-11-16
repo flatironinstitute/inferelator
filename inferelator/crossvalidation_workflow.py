@@ -53,7 +53,7 @@ class CrossValidationManager(object):
 
     @property
     def output_dir(self):
-        if self._baseline_workflow is None or self._baseline_output_dir is not None:
+        if self._baseline_workflow is None:
             return self._baseline_output_dir
         else:
             return self._baseline_workflow.output_dir
@@ -62,12 +62,12 @@ class CrossValidationManager(object):
     def output_dir(self, path):
         if self._baseline_workflow is not None:
             self._baseline_workflow.output_dir = path
-
-        self._baseline_output_dir = path
+        else:
+            self._baseline_output_dir = path
 
     @property
     def input_dir(self):
-        if self._baseline_workflow is None or self._baseline_input_dir is not None:
+        if self._baseline_workflow is None:
             return self._baseline_input_dir
         else:
             return self._baseline_workflow.input_dir
@@ -76,8 +76,8 @@ class CrossValidationManager(object):
     def input_dir(self, path):
         if self._baseline_workflow is not None:
             self._baseline_workflow.input_dir = path
-
-        self._baseline_input_dir = path
+        else:
+            self._baseline_input_dir = path
 
     @property
     def workflow(self):
@@ -167,15 +167,12 @@ class CrossValidationManager(object):
 
         # Create output path
         self._harmonize_paths()
-
         # Open a CSV file handle
         self._create_writer()
-
         # Load and check data into a workflow object
         self._initial_data_load()
         self._check_metadata()
         self._check_grid_search_params_exist()
-
         # Run base grid search
         self._grid_search()
 
@@ -247,10 +244,16 @@ class CrossValidationManager(object):
         """
         if self._baseline_output_dir is None and self.workflow.output_dir is None:
             raise ValueError("No output path has been provided to either crossvalidation or workflow")
-
-        if self._baseline_output_dir is None:
+        elif self._baseline_output_dir is None:
             self._baseline_output_dir = self.workflow.output_dir
-        if self.workflow.output_dir is None:
+        elif self.workflow.output_dir is None:
+            self.workflow.output_dir = self._baseline_output_dir
+
+        try:
+            check.argument_subpath(self.workflow.output_dir, self._baseline_output_dir)
+        except ValueError:
+            warnings.warn("Workflow output path is {p}; resetting to {a}".format(a=self.workflow.output_dir,
+                                                                                 p=self._baseline_output_dir))
             self.workflow.output_dir = self._baseline_output_dir
 
         if self._baseline_input_dir is None and self.workflow.input_dir is None:
@@ -272,8 +275,6 @@ class CrossValidationManager(object):
         """
         Create the output path
         """
-        if self.output_dir is None:
-            raise ValueError("No output path has been provided")
         self.output_dir = os.path.abspath(os.path.expanduser(self.output_dir))
 
         try:
@@ -285,7 +286,6 @@ class CrossValidationManager(object):
         """
         Load data into the workflow
         """
-
         # Load data with the baseline get_data() function
         self.workflow.get_data()
 
@@ -325,6 +325,7 @@ class CrossValidationManager(object):
 
             # Get the workflow and set the CV parameters
             cv_workflow = self._get_workflow_copy()
+            cv_workflow.create_output_dir()
 
             # Drop any observations which are False in the mask (if set)
             if mask_function is not None:
@@ -339,7 +340,7 @@ class CrossValidationManager(object):
                 csv_line.append(param_value)
                 output_path.append(str(name) + "_" + str(param_value))
                 setattr(cv_workflow, name, param_value)
-                utils.Debug.vprint("Setting crossvalidation param {p} to {v}".format(p=name, v=param_value))
+                utils.Debug.vprint("Setting crossvalidation param {p} to {v}".format(p=name, v=param_value), level=0)
 
             # Set the parameters into the output path
             if test is not None:
@@ -350,6 +351,7 @@ class CrossValidationManager(object):
 
             # Run the workflow
             cv_workflow.append_to_path("output_dir", output_path)
+            utils.Debug.vprint("Writing results to {p} ".format(p=cv_workflow.output_dir), level=1)
             result = cv_workflow.run()
             csv_line.extend([test, value, n_obs, result.score])
 
