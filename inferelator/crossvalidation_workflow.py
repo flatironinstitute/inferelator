@@ -1,4 +1,5 @@
 from __future__ import print_function
+from builtins import FileExistsError
 
 import os
 import warnings
@@ -8,6 +9,7 @@ import copy
 import itertools
 import numpy as np
 import pandas as pd
+
 
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.utils import Validator as check

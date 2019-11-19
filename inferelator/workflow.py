@@ -8,6 +8,7 @@ The base workflow has functions for loading and managing data
 But does not have any functions for regression or analysis
 """
 from __future__ import unicode_literals, print_function
+from builtins import FileExistsError
 
 import datetime
 import inspect
