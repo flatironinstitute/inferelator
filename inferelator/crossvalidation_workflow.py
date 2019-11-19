@@ -1,5 +1,10 @@
 from __future__ import print_function
-from builtins import FileExistsError
+
+# I hate py2 now
+try:
+    from builtins import FileExistsError
+except ImportError:
+    FileExistsError = OSError
 
 import os
 import warnings
