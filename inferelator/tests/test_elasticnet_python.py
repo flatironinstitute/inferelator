@@ -26,6 +26,10 @@ class TestElasticNet(unittest.TestCase):
                              'positive': False,
                              'random_state': 99,
                              'selection': 'random'}
+
+        raw_result = elasticnet_python.ElasticNetCV(**params).fit(X.T, Y.flatten())
+        np.testing.assert_array_equal([0.0, 0.0, 0.0, 0.0, 0.0], raw_result.coef_)
+
         result = elasticnet_python.elastic_net(X, Y, params)
         print(result)
         pp = np.array([True, True, True, True, True])
@@ -56,6 +60,10 @@ class TestElasticNet(unittest.TestCase):
                              'positive': False,
                              'random_state': 99,
                              'selection': 'random'}
+
+        raw_result = elasticnet_python.ElasticNetCV(**params).fit(X.T, Y.flatten())
+        np.testing.assert_almost_equal([0.0, 0.354414, 0.0, 0.0, 0.0], raw_result.coef_, 3)
+
         result = elasticnet_python.elastic_net(X, Y, params)
         print(result)
         pp = np.array([False, True, False, False, False])
