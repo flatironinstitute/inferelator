@@ -37,6 +37,7 @@ def normalize_medians_for_batch(expression_matrix, meta_data, **kwargs):
     """
     Calculate the median UMI count per cell for each batch. Transform all batches by dividing by a size correction
     factor, so that all batches have the same median UMI count (which is the median batch median UMI count)
+
     :param expression_matrix: pd.DataFrame
     :param meta_data: pd.DataFrame
     :param batch_factor_column: str
@@ -100,6 +101,7 @@ def normalize_sizes_within_batch(expression_matrix, meta_data, **kwargs):
 def log10_data(expression_matrix, meta_data, **kwargs):
     """
     Transform the expression data by adding one and then taking log10. Ignore any kwargs.
+
     :param expression_matrix: pd.DataFrame
     :param meta_data: pd.DataFrame
     :return expression_matrix, meta_data: pd.DataFrame, pd.DataFrame
@@ -111,6 +113,7 @@ def log10_data(expression_matrix, meta_data, **kwargs):
 def log2_data(expression_matrix, meta_data, **kwargs):
     """
     Transform the expression data by adding one and then taking log2. Ignore any kwargs.
+
     :param expression_matrix: pd.DataFrame
     :param meta_data: pd.DataFrame
     :return expression_matrix, meta_data: pd.DataFrame, pd.DataFrame
@@ -122,6 +125,7 @@ def log2_data(expression_matrix, meta_data, **kwargs):
 def ln_data(expression_matrix, meta_data, **kwargs):
     """
     Transform the expression data by adding one and then taking ln. Ignore any kwargs.
+
     :param expression_matrix: pd.DataFrame
     :param meta_data: pd.DataFrame
     :return expression_matrix, meta_data: pd.DataFrame, pd.DataFrame
@@ -134,6 +138,7 @@ def tf_sqrt_data(expression_matrix, meta_data, **kwargs):
     """
     Transform the expression data by sqrt(x) + sqrt(x+1) and restore sparsity with x - 1
     Based on Freeman & Tukey: https://projecteuclid.org/euclid.aoms/1177729756
+
     :param expression_matrix: pd.DataFrame
     :param meta_data: pd.DataFrame
     :return expression_matrix, meta_data: pd.DataFrame, pd.DataFrame
@@ -146,6 +151,7 @@ def tf_sqrt_data(expression_matrix, meta_data, **kwargs):
 def filter_genes_for_var(expression_matrix, meta_data, **kwargs):
     """
     Filter out any genes which have a variance of 0 (the min and max are identical)
+
     :param expression_matrix: pd.DataFrame
     :param meta_data: pd.DataFrame
     :return expression_matrix, meta_data: pd.DataFrame, pd.DataFrame
@@ -159,6 +165,7 @@ def filter_genes_for_count(expression_matrix, meta_data, count_minimum=None, che
     """
     Filter out any genes which have a variance of 0 by calling filter_genes_for_var. Filter out any genes which don't
     reach the minimum count (if count is not none)
+
     :param expression_matrix: pd.DataFrame
     :param meta_data: pd.DataFrame
     :param count_minimum: num
