@@ -14,9 +14,9 @@ class ElasticNetByTaskRegressionWorkflow(AMUSRRegressionWorkflow, ElasticNetWork
         betas, betas_resc = [], []
 
         # Select the appropriate bootstrap from each task and stash the data into X and Y
-        for k in range(self.n_tasks):
-            X = self.task_design[k].iloc[:, self.task_bootstraps[k][bootstrap_idx]].loc[self.regulators, :]
-            Y = self.task_response[k].iloc[:, self.task_bootstraps[k][bootstrap_idx]].loc[self.targets, :]
+        for k in range(self._n_tasks):
+            X = self._task_design[k].iloc[:, self._task_bootstraps[k][bootstrap_idx]].loc[self._regulators, :]
+            Y = self._task_response[k].iloc[:, self._task_bootstraps[k][bootstrap_idx]].loc[self._targets, :]
 
             MPControl.sync_processes(pref="en_pre")
 

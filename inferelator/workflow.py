@@ -462,7 +462,7 @@ class WorkflowBase(WorkflowBaseLoader):
     prior_manager = ManagePriors
 
     # Result processing & model metrics
-    result_processor_driver = ResultsProcessor
+    _result_processor_driver = ResultsProcessor
     gold_standard_filter_method = default.DEFAULT_GS_FILTER_METHOD
     metric = "aupr"
 

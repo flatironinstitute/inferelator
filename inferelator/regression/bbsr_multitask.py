@@ -14,13 +14,13 @@ class BBSRByTaskRegressionWorkflow(AMUSRRegressionWorkflow, BBSRRegressionWorkfl
         betas, betas_resc = [], []
 
         # Select the appropriate bootstrap from each task and stash the data into X and Y
-        for k in range(self.n_tasks):
-            X = self.task_design[k].iloc[:, self.task_bootstraps[k][bootstrap_idx]].loc[self.regulators, :]
-            Y = self.task_response[k].iloc[:, self.task_bootstraps[k][bootstrap_idx]].loc[self.targets, :]
+        for k in range(self._n_tasks):
+            X = self._task_design[k].iloc[:, self._task_bootstraps[k][bootstrap_idx]].loc[self._regulators, :]
+            Y = self._task_response[k].iloc[:, self._task_bootstraps[k][bootstrap_idx]].loc[self._targets, :]
 
             # Make sure that the priors align to the expression matrix
-            priors_data = self.task_priors[k].reindex(labels=self.targets, axis=0).fillna(value=0)
-            priors_data = priors_data.reindex(labels=self.regulators, axis=1).fillna(value=0)
+            priors_data = self._task_priors[k].reindex(labels=self._targets, axis=0).fillna(value=0)
+            priors_data = priors_data.reindex(labels=self._regulators, axis=1).fillna(value=0)
 
             MPControl.sync_processes(pref="bbsr_pre")
 

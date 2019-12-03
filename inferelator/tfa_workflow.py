@@ -78,8 +78,8 @@ class TFAWorkFlow(workflow.WorkflowBase):
         """
         if self.is_master():
             self.create_output_dir()
-            rp = self.result_processor_driver(betas, rescaled_betas, filter_method=self.gold_standard_filter_method,
-                                              metric=self.metric)
+            rp = self._result_processor_driver(betas, rescaled_betas, filter_method=self.gold_standard_filter_method,
+                                               metric=self.metric)
             self.results = rp.summarize_network(self.output_dir, gold_standard, priors)
             return self.results
         else:

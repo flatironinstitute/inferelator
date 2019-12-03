@@ -16,7 +16,6 @@ from inferelator import utils
 from inferelator.utils import Validator as check
 from inferelator import workflow
 from inferelator import single_cell_workflow
-from inferelator import default
 from inferelator.regression import amusr_regression
 from inferelator.postprocessing.results_processor_mtl import ResultsProcessorMultiTask
 
@@ -26,47 +25,54 @@ NON_TASK_ATTRIBUTES = ["gold_standard_file", "random_seed", "num_bootstraps"]
 
 class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
     """
-    Class that implements multitask learning for single cell data
-
-    Extends SingleCellWorkflow
+    Class that implements multitask learning. Handles loading and validation of multiple data packages.
     """
 
-    regulator_expression_filter = "intersection"
-    target_expression_filter = "union"
+    _regulator_expression_filter = "intersection"
+    _target_expression_filter = "union"
 
     # Task-specific data
-    n_tasks = None
-    task_design = None
-    task_response = None
-    task_meta_data = None
-    task_bootstraps = None
-    task_priors = None
-    task_names = None
-    task_objects = None
+    _n_tasks = None
+    _task_design = None
+    _task_response = None
+    _task_meta_data = None
+    _task_bootstraps = None
+    _task_priors = None
+    _task_names = None
+    _task_objects = None
 
     task_results = None
 
     # Axis labels to keep
-    targets = None
-    regulators = None
+    _targets = None
+    _regulators = None
 
     # Multi-task result processor
-    result_processor_driver = ResultsProcessorMultiTask
+    _result_processor_driver = ResultsProcessorMultiTask
 
-    # Workflow type for task processing
-    cv_workflow_type = single_cell_workflow.SingleCellWorkflow
-
-    def set_task_filters(self, regulator_expression_filter = None, target_expression_filter = None):
+    def set_task_filters(self, regulator_expression_filter=None, target_expression_filter=None):
         """
         Set the filtering criteria for regulators and targets between tasks
+
         :param regulator_expression_filter:
+            "union" includes regulators which are present in any task,
+            "intersection" includes regulators which are present in all tasks
+        :type regulator_expression_filter: str, optional
         :param target_expression_filter:
+            "union" includes targets which are present in any task,
+            "intersection" includes targets which are present in all tasks
+        :type target_expression_filter: str, optional
         """
 
         self._set_without_warning("regulator_expression_filter", regulator_expression_filter)
         self._set_without_warning("target_expression_filter", target_expression_filter)
 
     def startup_run(self):
+        """
+        Load data.
+
+        This is called when `.startup()` is run. It is not necessary to call separately.
+        """
 
         # Task data has expression & metadata and may have task-specific files for anything else
         self._load_tasks()
@@ -78,26 +84,43 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         self.validate_data()
 
     def startup_finish(self):
+        """
+        Process task data and priors.
+
+        This is called when `.startup()` is run. It is not necessary to call separately.
+        """
+
         # Make sure tasks are set correctly
         self._process_default_priors()
         self._process_task_priors()
         self._process_task_data()
 
-    def create_task(self, task_name=None, expression_matrix_file=None, input_dir=None, meta_data_file=None,
-                    tf_names_file=None, priors_file=None, workflow_type="single-cell", preprocessing_workflow=None,
-                    **kwargs):
+    def create_task(self, task_name=None, input_dir=None, expression_matrix_file=None, meta_data_file=None,
+                    tf_names_file=None, priors_file=None, workflow_type="single-cell", **kwargs):
         """
-        Create a task object and set any arguments to this function as attributes of that task object
-        This creates a TaskData class and puts it in self.task_objects
+        Create a task object and set any arguments to this function as attributes of that task object. TaskData objects
+        are stored internally in _task_objects.
 
-        :param task_name: str
-        :param expression_matrix_file: str
-        :param input_dir: str
-        :param meta_data_file: str
-        :param tf_names_file: str
-        :param priors_file: str
-        :param workflow_type: str
-        :param kwargs:
+        :param task_name: A descriptive name for this task
+        :type task_name: str
+        :param input_dir: A path containing the input files
+        :type input_dir: str
+        :param expression_matrix_file: Path to the expression data
+        :type expression_matrix_file: str
+        :param meta_data_file: Path to the meta data
+        :type meta_data_file: str, optional
+        :param tf_names_file: Path to a list of regulator names to include in the model
+        :type tf_names_file: str
+        :param priors_file: Path to a prior data file
+        :type priors_file: str
+        :param workflow_type: The type of workflow for data preprocessing.
+            "tfa" uses the TFA workflow,
+            "single-cell" uses the Single-Cell TFA workflow
+        :type workflow_type: str, `inferelator.BaseWorkflow` subclass
+        :param kwargs: Any additional arguments are assigned to the task object.
+        :return: Returns a task reference which can be additionally modified by calling any valid Workflow function to
+            set task parameters
+        :rtype: TaskData instance
         """
 
         # Create a TaskData object from a workflow and set the formal arguments into it
@@ -108,7 +131,6 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         task_object.meta_data_file = meta_data_file
         task_object.tf_names_file = tf_names_file
         task_object.priors_file = priors_file
-        task_object.preprocessing_workflow = preprocessing_workflow
 
         # Warn if there is an attempt to set something that isn't supported
         msg = "Task-specific {} is not supported. This setting will be ignored. Set this in the parent workflow."
@@ -125,10 +147,10 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
             else:
                 raise ValueError("Argument {attr} cannot be set as an attribute".format(attr=attr))
 
-        if self.task_objects is None:
-            self.task_objects = [task_object]
+        if self._task_objects is None:
+            self._task_objects = [task_object]
         else:
-            self.task_objects.append(task_object)
+            self._task_objects.append(task_object)
 
         utils.Debug.vprint(str(task_object), level=0)
 
@@ -138,10 +160,10 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         """
         Run load_task_data in all the TaskData objects created with create_task
         """
-        if self.task_objects is None:
+        if self._task_objects is None:
             raise ValueError("Tasks have not been created with .create_task()")
 
-        for tobj in self.task_objects:
+        for tobj in self._task_objects:
             # Transfer attributes from parent if they haven't been set in the task
             for attr in TRANSFER_ATTRIBUTES:
                 try:
@@ -158,22 +180,25 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
 
         # Run load_task_data and create a list of lists of TaskData objects
         # This allows a TaskData object to copy and split itself if needed
-        self.task_objects = [tobj.get_data() for tobj in self.task_objects]
+        self._task_objects = [tobj.get_data() for tobj in self._task_objects]
 
         # Flatten the list
-        self.task_objects = [tobj for tobj_list in self.task_objects for tobj in tobj_list]
-        self.n_tasks = len(self.task_objects)
+        self._task_objects = [tobj for tobj_list in self._task_objects for tobj in tobj_list]
+        self._n_tasks = len(self._task_objects)
 
     def validate_data(self):
         """
         Make sure that the data that's loaded is acceptable
-        :return:
+
+        This is called when `.startup()` is run. It is not necessary to call separately.
+
+        :raises ValueError: Raises a ValueError if any tasks have invalid priors or gold standard structures
         """
         if self.gold_standard is None:
             raise ValueError("A gold standard must be provided to `gold_standard_file` in MultiTaskLearningWorkflow")
 
         # Check to see if there are any tasks which don't have priors
-        no_priors = sum(map(lambda x: x.priors_data is None, self.task_objects))
+        no_priors = sum(map(lambda x: x.priors_data is None, self._task_objects))
         if no_priors > 0 and self.priors_data is None:
             raise ValueError("{n} tasks have no priors (no default prior is set)".format(n=no_priors))
 
@@ -210,7 +235,7 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         """
         Process & align the default priors for crossvalidation or shuffling
         """
-        for task_obj in self.task_objects:
+        for task_obj in self._task_objects:
 
             # Set priors if task-specific priors are not present
             if task_obj.priors_data is None:
@@ -242,12 +267,12 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         This is chosen based on the filtering strategy set in self.target_expression_filter and
         self.regulator_expression_filter
         """
-        self.task_design, self.task_response, self.task_meta_data = [], [], []
-        self.task_bootstraps, self.task_names, self.task_priors = [], [], []
+        self._task_design, self._task_response, self._task_meta_data = [], [], []
+        self._task_bootstraps, self._task_names, self._task_priors = [], [], []
         targets, regulators = [], []
 
         # Iterate through a list of TaskData objects holding data
-        for task_id, task_obj in enumerate(self.task_objects):
+        for task_id, task_obj in enumerate(self._task_objects):
             # Get task name from Task
             task_name = task_obj.task_name if task_obj.task_name is not None else str(task_id)
 
@@ -258,12 +283,12 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
             task_obj.startup_finish()
 
             # Put the processed data into lists
-            self.task_design.append(task_obj.design)
-            self.task_response.append(task_obj.response)
-            self.task_meta_data.append(task_obj.meta_data)
-            self.task_bootstraps.append(task_obj.get_bootstraps())
-            self.task_names.append(task_name)
-            self.task_priors.append(task_obj.priors_data)
+            self._task_design.append(task_obj.design)
+            self._task_response.append(task_obj.response)
+            self._task_meta_data.append(task_obj.meta_data)
+            self._task_bootstraps.append(task_obj.get_bootstraps())
+            self._task_names.append(task_name)
+            self._task_priors.append(task_obj.priors_data)
 
             regulators.append(task_obj.design.index)
             targets.append(task_obj.response.index)
@@ -272,26 +297,28 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
             utils.Debug.vprint(task_str.format(tid=task_id, t=task_name, sh=task_obj.design.shape,
                                                sh2=task_obj.response.shape), level=1)
 
-        self.targets = amusr_regression.filter_genes_on_tasks(targets, self.target_expression_filter)
-        self.regulators = amusr_regression.filter_genes_on_tasks(regulators, self.regulator_expression_filter)
+        self._targets = amusr_regression.filter_genes_on_tasks(targets, self._target_expression_filter)
+        self._regulators = amusr_regression.filter_genes_on_tasks(regulators, self._regulator_expression_filter)
 
-        utils.Debug.vprint("Processed data into design/response [{g} x {k}]".format(g=len(self.targets),
-                                                                                    k=len(self.regulators)), level=0)
+        utils.Debug.vprint("Processed data into design/response [{g} x {k}]".format(g=len(self._targets),
+                                                                                    k=len(self._regulators)), level=0)
 
         # Clean up the TaskData objects and force a cyclic collection
-        del self.task_objects
+        del self._task_objects
         gc.collect()
 
     def emit_results(self, betas, rescaled_betas, gold_standard, priors_data):
         """
         Output result report(s) for workflow run.
+
+        This is called when `.startup()` is run. It is not necessary to call separately.
         """
         if self.is_master():
             self.create_output_dir()
-            rp = self.result_processor_driver(betas, rescaled_betas, filter_method=self.gold_standard_filter_method,
-                                              metric=self.metric)
-            rp.tasks_names = self.task_names
-            self.results = rp.summarize_network(self.output_dir, gold_standard, self.task_priors)
+            rp = self._result_processor_driver(betas, rescaled_betas, filter_method=self.gold_standard_filter_method,
+                                               metric=self.metric)
+            rp.tasks_names = self._task_names
+            self.results = rp.summarize_network(self.output_dir, gold_standard, self._task_priors)
             self.task_results = rp.tasks_networks
             return self.results
         else:
@@ -321,8 +348,9 @@ def create_task_data_class(workflow_class="single-cell"):
         def __str__(self):
             """
             Create a printable report of the settings in this TaskData object
-            :return task_str: str
-                Settings in str_attrs in a printable string
+
+            :return: Settings in str_attrs in a printable string
+            :rtype: str
             """
 
             task_str = "{n}:\n\tWorkflow Class: {cl}\n".format(n=self.task_name, cl=self.task_workflow_class)
@@ -353,8 +381,9 @@ def create_task_data_class(workflow_class="single-cell"):
             Load all the data and then return a list of references to TaskData objects
             There will be multiple objects returned if tasks_from_metadata is set.
             If tasks_from_metadata is not set, the list contains only this task (self)
-            :return: list(TaskData)
-                List of TaskData objects with loaded data
+
+            :return: List of TaskData objects with loaded data
+            :rtype: list(TaskData)
             """
             utils.Debug.vprint("Loading data for task {task_name}".format(task_name=self.task_name))
 
@@ -369,7 +398,15 @@ def create_task_data_class(workflow_class="single-cell"):
             """
             Don't validate data in TaskData. The parent workflow will check.
             """
+
             pass
+
+        def set_run_parameters(self):
+            """
+            Set parameters used during runtime
+            """
+
+            warnings.warn("Task-specific `num_bootstraps` and `random_seed` is not supported. Set on parent workflow.")
 
         def process_priors_and_gold_standard(self, gold_standard=None, cv_flag=None, cv_axis=None, shuffle_priors=None):
             """
@@ -404,10 +441,10 @@ def create_task_data_class(workflow_class="single-cell"):
             Take a single expression matrix and break it into multiple dataframes based on meta_data. Return a list of
             TaskData objects which have the task-specific data loaded into them
 
-            :param meta_data_column: str
-                Meta_data column which corresponds to task ID
-            :return new_task_objects: list(TaskData)
-                List of the TaskData objects with only one task's data each
+            :param meta_data_column: Meta_data column which corresponds to task ID
+            :type meta_data_column: str
+            :return new_task_objects: List of the TaskData objects with only one task's data each
+            :rtype: list(TaskData)
 
             """
 

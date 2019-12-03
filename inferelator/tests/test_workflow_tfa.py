@@ -76,7 +76,7 @@ class TestTFAWorkflowRegression(unittest.TestCase):
         self.assertTrue(self.workflow.run_bootstrap([]))
 
     def test_result_processor(self):
-        self.workflow.result_processor_driver = FakeResultProcessor
+        self.workflow._result_processor_driver = FakeResultProcessor
 
         def no_output(self):
             pass

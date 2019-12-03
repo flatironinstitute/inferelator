@@ -61,14 +61,14 @@ class TestMultitaskFactory(TestRegressionFactory):
 
     def setUp(self):
         super(TestMultitaskFactory, self).setUp()
-        self.task_objects = [TaskDataStub(), TaskDataStub()]
-        self.task_objects[0].tasks_from_metadata = False
-        self.task_objects[1].tasks_from_metadata = False
+        self._task_objects = [TaskDataStub(), TaskDataStub()]
+        self._task_objects[0].tasks_from_metadata = False
+        self._task_objects[1].tasks_from_metadata = False
 
     def reset_workflow(self):
         self.workflow.priors_data = self.prior
         self.workflow.gold_standard = self.gold_standard
-        self.workflow.task_objects = self.task_objects
+        self.workflow._task_objects = self._task_objects
         self.workflow.read_priors = lambda *x: None
         self.workflow.create_output_dir = lambda *x: None
         self.workflow.gene_list = self.gene_list

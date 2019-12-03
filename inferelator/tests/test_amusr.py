@@ -21,13 +21,13 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.workflow.gold_standard = TaskDataStub.priors_data.copy()
 
     def test_create_task(self):
-        self.assertIsNone(self.workflow.task_objects)
+        self.assertIsNone(self.workflow._task_objects)
         self.workflow.create_task(expression_matrix_file="expression.tsv", input_dir=data_path,
                                   meta_data_file="meta_data.tsv", tf_names_file="tf_names.tsv",
                                   priors_file="gold_standard.tsv")
-        self.assertEqual(len(self.workflow.task_objects), 1)
+        self.assertEqual(len(self.workflow._task_objects), 1)
 
-        new_task = self.workflow.task_objects[0]
+        new_task = self.workflow._task_objects[0]
 
         self.assertEqual(new_task.expression_matrix_file, "expression.tsv")
         self.assertIsNone(new_task.expression_matrix)
@@ -42,20 +42,20 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.assertIsNone(new_task.tf_names)
 
     def test_taskdata_loading(self):
-        self.assertIsNone(self.workflow.task_objects)
+        self.assertIsNone(self.workflow._task_objects)
         self.workflow.create_task(expression_matrix_file="expression.tsv", input_dir=data_path,
                                   meta_data_file="meta_data.tsv", tf_names_file="tf_names.tsv",
                                   priors_file="gold_standard.tsv")
-        self.assertEqual(len(self.workflow.task_objects), 1)
+        self.assertEqual(len(self.workflow._task_objects), 1)
         self.workflow.create_task(expression_matrix_file="expression.tsv", input_dir=None,
                                   meta_data_file="meta_data.tsv", tf_names_file="tf_names.tsv",
                                   priors_file="gold_standard.tsv")
-        self.assertEqual(len(self.workflow.task_objects), 2)
+        self.assertEqual(len(self.workflow._task_objects), 2)
         self.workflow.input_dir = data_path
         self.workflow._load_tasks()
 
-        task1 = self.workflow.task_objects[0]
-        task2 = self.workflow.task_objects[1]
+        task1 = self.workflow._task_objects[0]
+        task2 = self.workflow._task_objects[1]
 
         self.assertEqual(task1.expression_matrix.shape, (100, 421))
         np.testing.assert_allclose(task1.expression_matrix.sum().sum(), 13507.22145160)
@@ -67,39 +67,39 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.assertEqual(task1.input_dir, task2.input_dir)
 
     def test_taskdata_processing(self):
-        self.workflow.task_objects = [TaskDataStub()]
+        self.workflow._task_objects = [TaskDataStub()]
         # Test the TaskData processing
-        self.assertEqual(len(self.workflow.task_objects), 1)
+        self.assertEqual(len(self.workflow._task_objects), 1)
         self.workflow._load_tasks()
-        self.assertEqual(len(self.workflow.task_objects), 3)
+        self.assertEqual(len(self.workflow._task_objects), 3)
 
         # Test processing the TaskData objects into data structures in MultitaskLearningWorkflow
-        self.assertEqual(self.workflow.n_tasks, 3)
-        self.assertEqual(list(map(lambda x: x.expression_matrix.shape, self.workflow.task_objects)),
+        self.assertEqual(self.workflow._n_tasks, 3)
+        self.assertEqual(list(map(lambda x: x.expression_matrix.shape, self.workflow._task_objects)),
                          [(6, 2), (6, 4), (6, 4)])
-        self.assertEqual(list(map(lambda x: x.meta_data.shape, self.workflow.task_objects)),
+        self.assertEqual(list(map(lambda x: x.meta_data.shape, self.workflow._task_objects)),
                          [(2, 2), (4, 2), (4, 2)])
 
     def test_task_processing(self):
-        self.workflow.task_objects = [TaskDataStub()]
+        self.workflow._task_objects = [TaskDataStub()]
         self.workflow._load_tasks()
         self.workflow.startup_finish()
-        self.assertEqual(self.workflow.regulators.tolist(), ["gene3", "gene6"])
-        self.assertEqual(self.workflow.targets.tolist(), ["gene1", "gene2", "gene4", "gene6"])
-        self.assertEqual(len(self.workflow.task_design), 3)
-        self.assertEqual(len(self.workflow.task_response), 3)
-        self.assertEqual(len(self.workflow.task_meta_data), 3)
-        self.assertEqual(len(self.workflow.task_bootstraps), 3)
-        pdt.assert_frame_equal(self.workflow.task_design[0],
+        self.assertEqual(self.workflow._regulators.tolist(), ["gene3", "gene6"])
+        self.assertEqual(self.workflow._targets.tolist(), ["gene1", "gene2", "gene4", "gene6"])
+        self.assertEqual(len(self.workflow._task_design), 3)
+        self.assertEqual(len(self.workflow._task_response), 3)
+        self.assertEqual(len(self.workflow._task_meta_data), 3)
+        self.assertEqual(len(self.workflow._task_bootstraps), 3)
+        pdt.assert_frame_equal(self.workflow._task_design[0],
                                pd.DataFrame([[16., 5.], [15., 15.]], index=["gene3", "gene6"], columns=[0, 6]),
                                check_dtype=False)
-        pdt.assert_frame_equal(self.workflow.task_response[0],
+        pdt.assert_frame_equal(self.workflow._task_response[0],
                                pd.DataFrame([[2, 3], [28, 27], [16, 5], [3, 4]],
                                             index=["gene1", "gene2", "gene4", "gene6"], columns=[0, 6]),
                                check_dtype=False)
 
     def test_result_processor_random(self):
-        self.workflow.task_objects = [TaskDataStub()]
+        self.workflow._task_objects = [TaskDataStub()]
         self.workflow._load_tasks()
 
         beta1 = pd.DataFrame(np.array([[1, 0], [0.5, 0], [0, 1], [0.5, 0]]),
@@ -124,7 +124,7 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.assertAlmostEqual(self.workflow.results.score, 0.37777, places=4)
 
     def test_result_processor_perfect(self):
-        self.workflow.task_objects = [TaskDataStub()]
+        self.workflow._task_objects = [TaskDataStub()]
         self.workflow._load_tasks()
 
         beta1 = pd.DataFrame(np.array([[0, 1], [0, 1], [1, 0], [0.5, 0]]),
