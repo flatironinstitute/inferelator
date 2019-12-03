@@ -1,11 +1,10 @@
 """
-Base implementation for high level workflow.
+Base implementation for high level Inferelator workflow.
 
-The goal of this design is to make it easy to share
-code among different variants of the Inferelator workflow.
+The base workflow has functions for loading and managing data,
+but does not have any functions for regression or analysis
 
-The base workflow has functions for loading and managing data
-But does not have any functions for regression or analysis
+The functions in these classes are available in all subclassed workflows
 """
 from __future__ import unicode_literals, print_function
 
@@ -24,7 +23,6 @@ import copy
 import numpy as np
 import pandas as pd
 
-from inferelator import default
 from inferelator import utils
 from inferelator.utils import Validator as check
 from inferelator.distributed.inferelator_mp import MPControl
@@ -34,6 +32,7 @@ from inferelator.regression.base_regression import RegressionWorkflow
 from inferelator.postprocessing.results_processor import ResultsProcessor
 
 DEFAULT_PANDAS_TSV_SETTINGS = dict(sep="\t", index_col=0, header=0)
+SBATCH_VARS_FOR_WORKFLOW = ["output_dir", "input_dir"]
 
 
 class WorkflowBaseLoader(object):
@@ -88,14 +87,23 @@ class WorkflowBaseLoader(object):
                        meta_data_file=None, priors_file=None, gold_standard_file=None, gene_metadata_file=None):
         """
         Set the file paths necessary for the inferelator to run
-        :param input_dir: str
-        :param output_dir: str
-        :param expression_matrix_file: str
-        :param tf_names_file: str
-        :param meta_data_file: str
-        :param priors_file: str
-        :param gold_standard_file: str
-        :param gene_metadata_file: str
+
+        :param input_dir: A path containing the input files
+        :type input_dir: str
+        :param output_dir: A path to put the output files
+        :type output_dir: str, optional
+        :param expression_matrix_file: Path to the expression data
+        :type expression_matrix_file: str
+        :param meta_data_file: Path to the meta data
+        :type meta_data_file: str, optional
+        :param tf_names_file: Path to a list of regulator names to include in the model
+        :type tf_names_file: str
+        :param priors_file: Path to a prior data file [Genes x Regulators]
+        :type priors_file: str
+        :param gold_standard_file: Path to a gold standard data file [Genes x Regulators]
+        :type gold_standard_file: str
+        :param gene_metadata_file: Path to a genes annotation file
+        :type gene_metadata_file: str, optional
         """
 
         self._set_with_warning("input_dir", input_dir)
@@ -111,11 +119,28 @@ class WorkflowBaseLoader(object):
                             expression_matrix_columns_are_genes=None, gene_list_index=None, metadata_handler=None):
         """
         Set properties associated with the input data files
-        :param extract_metadata_from_expression_matrix: str
-        :param expression_matrix_metadata: str
-        :param expression_matrix_columns_are_genes: str
-        :param gene_list_index: str
-        :param metadata_handler: str
+
+        :param extract_metadata_from_expression_matrix: A boolean flag that should be set to True if there is
+            non-expression data in the expression matrix. If True, `expression_matrix_metadata` must be provided.
+            Defaults to False.
+        :type extract_metadata_from_expression_matrix: bool, optional
+        :param expression_matrix_metadata: A list of columns which, if provided, will be removed from
+            the expression matrix file and kept as metadata.
+            Defaults to None.
+        :type expression_matrix_metadata: list(str), optional
+        :param expression_matrix_columns_are_genes: A boolean flag indicating the orientation of the expression matrix.
+            False reads the expression matrix as genes on rows, samples on columns.
+            True reads the expression matrix as samples on rows, genes on columns.
+            Defaults to False.
+        :type expression_matrix_columns_are_genes: bool, optional
+        :param gene_list_index: The column name in the gene metadata file which corresponds to the gene labels in the
+            expression and prior data files.
+            Defaults to None.
+            Must be provided if `gene_metadata_file` was provided to `set_file_paths()`.
+        :type gene_list_index: str, optional
+        :param metadata_handler: A string which identifies the specific metadata parsing method to use. Options include
+            "branching" or "nonbranching". Defaults to "branching".
+        :type metadata_handler: str
         """
 
         self._set_without_warning("extract_metadata_from_expression_matrix", extract_metadata_from_expression_matrix)
@@ -129,8 +154,13 @@ class WorkflowBaseLoader(object):
         """
         Set flags to skip using existing network data. Note that these flags will be ignored if network data is
         provided
-        :param use_no_prior: bool
-        :param use_no_gold_standard: bool
+
+        :param use_no_prior: Flag to indicate the inferelator should be run without existing prior data.
+            Will create a mock prior with no information. Highly inadvisable. Defaults to False
+        :type use_no_prior: bool
+        :param use_no_gold_standard: Flag to indicate the inferelator should be run without existing gold standard data.
+            Will create a mock gold standard with no information. Highly inadvisable. Defaults to False
+        :type use_no_gold_standard: bool
         """
 
         warnings.warn("Omitting prior network data is not recommended. Use at your own risk.")
@@ -140,8 +170,14 @@ class WorkflowBaseLoader(object):
 
     def set_file_loading_arguments(self, file_name, **kwargs):
         """
-        Update the settings for a given file name
-        :param file_name: str
+        Update the settings for a given file name. By default we assume all files can be read in as TSV files.
+        Any arguments provided here will be passed to `pandas.read_csv()` for the file name provided.
+
+        `set_file_loading_arguments('expression_matrix_file', sep=",")` will read the expression_matrix_file as a CSV.
+
+        :param file_name: The name of the variable containing the file name (from `set_file_properties`)
+        :type file_name: str
+        :param **kwargs: Arguments to be passed to `pandas.read_csv()`
         """
 
         # Check and see if file_name is actually an object attribute holding a file name. Use that if so.
@@ -154,8 +190,10 @@ class WorkflowBaseLoader(object):
 
     def print_file_loading_arguments(self, file_name):
         """
-        Print the settings for a given file name
-        :param file_name: str
+        Print the settings that will be used to load a given file name.
+
+        :param file_name: The name of the variable containing the file name (from `set_file_properties`)
+        :type file_name: str
         """
 
         # Check and see if file_name is actually an object attribute holding a file name. Use that if so.
@@ -273,7 +311,13 @@ class WorkflowBaseLoader(object):
 
     def append_to_path(self, var_name, to_append):
         """
-        Add a string to an existing path variable in class
+        Add a string to an existing path variable
+
+        :param var_name: The name of the path variable (`input_dir` or `output_dir`)
+        :type var_name: str
+        :param to_append: The path to join to the end of the existing path variable
+        :type to_append: str
+
         """
         path = getattr(self, var_name, None)
         if path is None:
@@ -449,10 +493,10 @@ class WorkflowBase(WorkflowBaseLoader):
     shuffle_prior_axis = None
 
     # The random seed for sampling, etc
-    random_seed = default.DEFAULT_RANDOM_SEED
+    random_seed = 42
 
     # The number of inference bootstraps to run
-    num_bootstraps = default.DEFAULT_NUM_BOOTSTRAPS
+    num_bootstraps = 2
 
     # Multiprocessing controller
     initialize_mp = True
@@ -463,7 +507,7 @@ class WorkflowBase(WorkflowBaseLoader):
 
     # Result processing & model metrics
     _result_processor_driver = ResultsProcessor
-    gold_standard_filter_method = default.DEFAULT_GS_FILTER_METHOD
+    gold_standard_filter_method = "keep_all_gold_standard"
     metric = "aupr"
 
     # Output results in an InferelatorResults object
@@ -477,10 +521,22 @@ class WorkflowBase(WorkflowBaseLoader):
     def set_crossvalidation_parameters(self, split_gold_standard_for_crossvalidation=None, cv_split_ratio=None,
                                        cv_split_axis=None):
         """
-        Set parameters for crossvalidation
-        :param split_gold_standard_for_crossvalidation: bool
-        :param cv_split_ratio: float
-        :param cv_split_axis: int (0, 1)
+        Set parameters for crossvalidation.
+
+        :param split_gold_standard_for_crossvalidation: Boolean flag indicating if the gold standard should be
+            split. Must be set to True for other crossvalidation settings to have an effect. Defaults to False.
+        :type split_gold_standard_for_crossvalidation: bool
+        :param cv_split_ratio: The proportion of the gold standard which should be retained for scoring. The rest will
+            be used to train the model. Must be set betweeen 0 and 1.
+        :type cv_split_ratio: float
+        :param cv_split_axis: How to split the gold standard. If 0, split genes; this will take all the data for certain
+            genes and keep it in the gold standard. These genes will be removed from the prior. If 1, split regulators;
+            this will take all the data for certain regulators and keep it in the gold standard. These regulators will
+            be removed from the prior. Splitting regulators is inadvisable. If None, the prior will be replaced with a
+            downsampled gold standard. Setting this to 0 is generally the best choice.
+            Defaults to None.
+        :type cv_split_axis: int, None
+
         """
 
         self._set_without_warning("split_gold_standard_for_crossvalidation", split_gold_standard_for_crossvalidation)
@@ -492,16 +548,26 @@ class WorkflowBase(WorkflowBaseLoader):
 
     def set_shuffle_parameters(self, shuffle_prior_axis=None):
         """
-        Set parameters for shuffling labels on a prior axis
-        :param shuffle_prior_axis:
+        Set parameters for shuffling labels on a prior axis. This is useful to establish a baseline.
+
+        :param shuffle_prior_axis: The axis for shuffling prior labels. 0 shuffles gene labels. 1 shuffles regulator
+            labels. None means labels will not be shuffled. Defaults to None.
+        :type shuffle_prior_axis: int, None
         """
         self._set_with_warning("shuffle_prior_axis", shuffle_prior_axis)
 
     def set_postprocessing_parameters(self, gold_standard_filter_method=None, metric=None):
         """
         Set parameters for the postprocessing engine
-        :param gold_standard_filter_method:
-        :param metric:
+
+        :param gold_standard_filter_method: A flag that determines if the gold standard should be shrunk to the
+            size of the produced model. "overlap" will only score on overlap between the gold standard and the
+            inferred gene regulatory network. "keep_all_gold_standard" will score on the entire gold standard.
+            Defaults to "keep_all_gold_standard".
+        :type gold_standard_filter_method: str
+        :param metric: The model metric to use for scoring. Currently only "precision-recall" is implemented.
+            Defaults to "precision-recall".
+        :type metric: str
         """
 
         self._set_with_warning("gold_standard_filter_method", gold_standard_filter_method)
@@ -510,6 +576,11 @@ class WorkflowBase(WorkflowBaseLoader):
     def set_run_parameters(self, num_bootstraps=None, random_seed=None):
         """
         Set parameters used during runtime
+
+        :param num_bootstraps: The number of bootstraps to run. Defaults to 2.
+        :type num_bootstraps: int
+        :param random_seed: The random number seed to use. Defaults to 42.
+        :type random_seed: int
         """
 
         self._set_without_warning("num_bootstraps", num_bootstraps)
@@ -527,7 +598,7 @@ class WorkflowBase(WorkflowBaseLoader):
         """
         Load environmental variables into class variables
         """
-        for k, v in utils.slurm_envs(default.SBATCH_VARS_FOR_WORKFLOW).items():
+        for k, v in utils.slurm_envs(SBATCH_VARS_FOR_WORKFLOW).items():
             setattr(self, k, v)
 
     def startup(self):
@@ -705,6 +776,12 @@ def _factory_build_inferelator(regression=RegressionWorkflow, workflow=WorkflowB
         elif regression == "amusr":
             from inferelator.regression.amusr_regression import AMUSRRegressionWorkflow
             regression_class = AMUSRRegressionWorkflow
+        elif regression == "bbsr-by-task":
+            from inferelator.regression.bbsr_multitask import BBSRByTaskRegressionWorkflow
+            regression_class = BBSRByTaskRegressionWorkflow
+        elif regression == "elasticnet-by-task":
+            from inferelator.regression.elasticnet_multitask import ElasticNetByTaskRegressionWorkflow
+            regression_class = ElasticNetByTaskRegressionWorkflow
         else:
             raise ValueError("{val} is not a string that can be mapped to a regression class".format(val=regression))
     # Or just use a regression class directly
@@ -721,15 +798,42 @@ def _factory_build_inferelator(regression=RegressionWorkflow, workflow=WorkflowB
 
 def inferelator_workflow(regression=RegressionWorkflow, workflow=WorkflowBase):
     """
-    Create and instantiate a workflow
+    Create and instantiate an Inferelator workflow.
 
-    :param regression: RegressionWorkflow subclass
-        A class object which implements the run_regression and run_bootstrap methods for a specific regression strategy
-    :param workflow: WorkflowBase subclass
-        A class object which implements the necessary data loading and preprocessing to create design & response data
-        for the regression strategy, and then the postprocessing to turn regression betas into a network
-    :return RegressWorkflow:
-        This returns an initialized object which is the multi-inheritance result of both the regression workflow and
-        the preprocessing/postprocessing workflow
+    :param regression: A class object which implements the run_regression and run_bootstrap methods for a specific
+        regression strategy. This can be provided as a string.
+
+        "base" loads a non-functional regression stub.
+
+        "bbsr" loads Bayesian Best Subset Regression.
+
+        "elasticnet" loads Elastic Net Regression.
+
+        "amusr" loads AMuSR Regression. This requires multitask workflow.
+
+        "bbsr-by-task" loads Bayesian Best Subset Regression for multiple tasks. This requires multitask workflow.
+
+        "elasticnet-by-task" loads Elastic Net Regression for multiple tasks. This requires multitask workflow.
+
+        Defaults to "base".
+    :type regression: str, RegressionWorkflow subclass
+    :param workflow: A class object which implements the necessary data loading and preprocessing to create design &
+        response data for the regression strategy, and then the postprocessing to turn regression betas into a network.
+        This can be provided as a string.
+
+        "base" loads a non-functional workflow stub.
+
+        "tfa" loads the TFA-based workflow.
+
+        "single-cell" loads the Single Cell TFA-based workflow.
+
+        "multitask" loads the multitask workflow.
+
+        Defaults to "base".
+    :type workflow: str, WorkflowBase subclass
+    :return: This returns an initialized object which is the multi-inheritance result of both the regression workflow
+        and the preprocessing/postprocessing workflow. This object can then have settings assigned to it, and can
+        be run with `.run()`
+    :rtype: Workflow instance
     """
     return _factory_build_inferelator(regression=regression, workflow=workflow)()
