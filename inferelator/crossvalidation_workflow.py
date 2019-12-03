@@ -1,3 +1,8 @@
+"""
+This is a manager which will take an Inferelator workflow and repeatedly run it with different parameters.
+This is implemented using deep copies; it is therefore memory-intensive.
+"""
+
 from __future__ import print_function
 
 # I hate py2 now
@@ -24,7 +29,7 @@ from inferelator import workflow
 
 class CrossValidationManager(object):
     """
-    This does cross-validation for workflows
+    Crossvalidate an Inferelator Workflow
     """
 
     # Output settings
@@ -100,16 +105,24 @@ class CrossValidationManager(object):
         self._baseline_workflow = wkf
 
     def __init__(self, workflow_object=None):
+        """
+        Create a new CrossValidationManager instance and give it a workflow
+
+        :param workflow_object: The workflow to run crossvalidation with
+        :type workflow_object: Workflow
+
+        """
         self.workflow = workflow_object
 
     def add_gridsearch_parameter(self, param_name, param_vector):
         """
         Set a parameter to search through by exhaustive grid search
 
-        :param param_name: str
-            The workflow parameter to change for each run
-        :param param_vector: list, tuple
-            An iterable with values to use for the parameter
+        :param param_name: The workflow parameter to change for each run
+        :type param_name: str
+        :param param_vector: An iterable with values to use for the parameter
+        :type param_vector: iterable
+
         """
 
         if self.grid_param_values is None:
@@ -123,11 +136,16 @@ class CrossValidationManager(object):
 
     def add_grouping_dropout(self, metadata_column_name, group_size=None, seed=42):
         """
-        Drop each group (defined by a metadata column) and run modeling on all of the other groups
+        Drop each group (defined by a metadata column) and run modeling on all of the other groups.
 
-        :param metadata_column_name: str
-        :param group_size: int
-        :param seed: int
+        :param metadata_column_name: Metadata column which has different values for each group
+        :type metadata_column_name: str
+        :param group_size: The maximum size of each group. Groups will be downsampled to the same size if this is not
+            set to None. Default is None.
+        :type group_size: int, None
+        :param seed: The random seed to use for the group downsampling
+            (this is not the same as the seed passed to the workflow)
+        :type seed: int
         """
 
         self.dropout_column = metadata_column_name
@@ -136,10 +154,16 @@ class CrossValidationManager(object):
 
     def add_grouping_dropin(self, metadata_column_name, group_size=None, seed=42):
         """
+        Run modeling on each group (defined by a metadata column) individually.
 
-        :param metadata_column_name: str
-        :param group_size: int
-        :param seed: int
+        :param metadata_column_name: Metadata column which has different values for each group
+        :type metadata_column_name: str
+        :param group_size: The maximum size of each group. Groups will be downsampled to the same size if this is not
+            set to None. Default is None.
+        :type group_size: int, None
+        :param seed: The random seed to use for the group downsampling
+            (this is not the same as the seed passed to the workflow)
+        :type seed: int
         """
 
         self.dropin_column = metadata_column_name
@@ -148,15 +172,18 @@ class CrossValidationManager(object):
 
     def add_size_subsampling(self, size_vector, stratified_column_name=None, with_replacement=False, seed=42):
         """
+        Resample expression data to a ratio of the original data.
 
-        :param size_vector: list, tuple
-            An iterable with numeric ratios for downsampling.
-        :param stratified_column_name: str
-            Set this to stratify sampling (to maintain group size ratios)
-        :param with_replacement: bool
-            Do sampling with or without replacement
+        :param size_vector: An iterable with numeric ratios for downsampling. These values must be between 0 and 1.
+        :type size_vector: iterable(floats)
+        :param stratified_column_name: Set this to stratify sampling (to maintain group size ratios). If None, do not
+            maintain group size ratios. Default is None.
+        :type stratified_column_name: str, None
+        :param with_replacement: Do sampling with or without replacement. Defaults to False
+        :type with_replacement: bool
+        :param seed: The random seed to use when selecting observations
+            (this is not the same as the seed passed to the workflow)
         :param seed: int
-            Initial seed for selecting observations (this is not the same as the seed passed to the workflow)
         """
 
         try:
@@ -171,6 +198,9 @@ class CrossValidationManager(object):
         self.size_sample_seed = seed
 
     def run(self):
+        """
+        Execute crossvalidation after all setup
+        """
 
         # Create output path
         self._harmonize_paths()
