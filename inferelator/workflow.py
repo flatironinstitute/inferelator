@@ -37,7 +37,7 @@ SBATCH_VARS_FOR_WORKFLOW = ["output_dir", "input_dir"]
 
 class WorkflowBaseLoader(object):
     """
-    WorkflowBaseLoader is the class to load raw data. It does no processing.
+    WorkflowBaseLoader is the class to load raw data. It does no processing; it only takes data from files.
     """
     # Paths to the input and output locations
     input_dir = None
@@ -486,6 +486,9 @@ class WorkflowBaseLoader(object):
 
 
 class WorkflowBase(WorkflowBaseLoader):
+    """
+    WorkflowBase handles crossvalidation, shuffling, and validating priors and gold standards
+    """
     # Flags to control splitting priors into a prior/gold-standard set
     split_gold_standard_for_crossvalidation = False
     cv_split_ratio = None
