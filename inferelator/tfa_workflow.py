@@ -1,21 +1,24 @@
 """
-Run BSubtilis Network Inference with TFA BBSR.
+Implementation for the Transcription Factor Activity (TFA) based Inferelator workflow.
+This workflow also has a design driver which will incorporate timecourse data.
+This is the standard workflow for most applications.
 """
 
 import numpy as np
 from inferelator import workflow
 from inferelator.preprocessing import design_response_translation  # added python design_response
-from inferelator.preprocessing.tfa import TFA
-from inferelator.postprocessing.results_processor import ResultsProcessor
+from inferelator.preprocessing.tfa import TFA, NoTFA
 from inferelator import utils
-from inferelator import default
 
 
 class TFAWorkFlow(workflow.WorkflowBase):
+    """
+    TFAWorkFlow runs the timecourse driver and the TFA driver prior to regression.
+    """
     # Design/response parameters
-    delTmin = default.DEFAULT_DELTMIN
-    delTmax = default.DEFAULT_DELTMAX
-    tau = default.DEFAULT_TAU
+    delTmin = 0
+    delTmax = 120
+    tau = 45
 
     # Regression data
     design = None
@@ -27,6 +30,52 @@ class TFAWorkFlow(workflow.WorkflowBase):
 
     # Design-Response Driver implementation
     drd_driver = design_response_translation.PythonDRDriver
+
+    def set_design_settings(self, timecourse_response_driver=True, delTmin=None, delTmax=None, tau=None):
+        """
+        Set the parameters used in the timecourse design-response driver.
+
+        :param timecourse_response_driver: A flag to indicate that the timecourse calculations should be performed.
+            If set False, no other timecourse settings will have any effect.
+            Defaults to True.
+        :type timecourse_response_driver: bool
+        :param delTmin: The minimum allowed time difference between timepoints to model as a time series. Provide in the
+            same units as the metadata time column (usually minutes).
+            Defaults to 0.
+        :type delTmin: int, float
+        :param delTmax: The maximum allowed time difference between timepoints to model as a time series. Provide in the
+            same units as the metadata time column (usually minutes).
+            Defaults to 120.
+        :type delTmax: int, float
+        :param tau: The tau parameter. Provide in the same units as the metadata time column (usually minutes).
+            Defaults to 45.
+        :type tau: int, float
+        """
+
+        if timecourse_response_driver:
+            self.drd_driver = design_response_translation.PythonDRDriver
+        else:
+            self.drd_driver = None
+
+        self._set_without_warning("delTmin", delTmin)
+        self._set_without_warning("delTmax", delTmax)
+        self._set_without_warning("tau", tau)
+
+    def set_tfa(self, tfa_driver=True):
+        """
+        Perform or skip the TFA calculations; by default the design matrix will be transcription factor activity.
+        If this is called with `tfa_driver = False`, the design matrix will be transcription factor expression.
+        It is not necessary to call this function unless setting `tfa_driver = False`.
+
+        :param tfa_driver: A flag to indicate that the TFA calculations should be performed.
+            Defaults to True
+        :type tfa_driver: bool
+        """
+
+        if tfa_driver:
+            self.tfa_driver = TFA
+        else:
+            self.tfa_driver = NoTFA
 
     def run(self):
         """
