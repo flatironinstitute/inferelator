@@ -177,7 +177,7 @@ class WorkflowBaseLoader(object):
 
         :param file_name: The name of the variable containing the file name (from `set_file_properties`)
         :type file_name: str
-        :param **kwargs: Arguments to be passed to `pandas.read_csv()`
+        :param kwargs: Arguments to be passed to `pandas.read_csv()`
         """
 
         # Check and see if file_name is actually an object attribute holding a file name. Use that if so.
