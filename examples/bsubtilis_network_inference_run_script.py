@@ -1,6 +1,9 @@
+# Load modules
 from inferelator import utils
-from inferelator import workflow
 from inferelator.distributed.inferelator_mp import MPControl
+
+from inferelator import workflow
+from inferelator.crossvalidation_workflow import CrossValidationManager
 
 # Set verbosity level to "Talky"
 utils.Debug.set_verbose_level(1)
@@ -21,9 +24,10 @@ CV_SEEDS = list(range(42, 52))
 # Multiprocessing uses the pathos implementation of multiprocessing (with dill instead of cPickle)
 # This is suited for a single computer but will not work on a distributed cluster
 
-n_cores_local = 3
+n_cores_local = 10
 local_engine = True
 
+# Multiprocessing needs to be protected with the if __name__ == 'main' pragma
 if __name__ == '__main__' and local_engine:
     MPControl.set_multiprocess_engine("multiprocessing")
     MPControl.client.processes = n_cores_local
@@ -31,51 +35,74 @@ if __name__ == '__main__' and local_engine:
 
 
 # Define the general run parameters
-
 def set_up_workflow(wkf):
-    wkf.input_dir = DATA_DIR
-    wkf.output_dir = OUTPUT_DIR
-    wkf.expression_matrix_file = EXPRESSION_FILE_NAME
-    wkf.priors_file = PRIORS_FILE_NAME
-    wkf.meta_data_file = META_DATA_FILE_NAME
-    wkf.tf_names_file = TF_LIST_FILE_NAME
-    wkf.gold_standard_file = GOLD_STANDARD_FILE_NAME
-    wkf.expression_matrix_columns_are_genes = False
-    wkf.num_bootstraps = 5
+    wkf.set_file_paths(input_dir=DATA_DIR,
+                       output_dir=OUTPUT_DIR,
+                       expression_matrix_file=EXPRESSION_FILE_NAME,
+                       tf_names_file=TF_LIST_FILE_NAME,
+                       meta_data_file=META_DATA_FILE_NAME,
+                       priors_file=PRIORS_FILE_NAME,
+                       gold_standard_file=GOLD_STANDARD_FILE_NAME)
+    wkf.set_file_properties(expression_matrix_columns_are_genes=False)
+    wkf.set_run_parameters(num_bootstraps=5)
+    wkf.set_crossvalidation_parameters(split_gold_standard_for_crossvalidation=True, cv_split_ratio=0.2)
     return wkf
 
-
 # Inference with BBSR (crossvalidation)
+# Using the crossvalidation wrapper
 # Run the regression 10 times and hold 20% of the gold standard out of the priors for testing each time
-for random_seed in CV_SEEDS:
-    worker = workflow.inferelator_workflow(regression="bbsr", workflow="tfa")
-    worker = set_up_workflow(worker)
-    worker.split_gold_standard_for_crossvalidation = True
-    worker.cv_split_ratio = 0.2
-    worker.random_seed = random_seed
-    worker.append_to_path('output_dir', 'bbsr_cv_' + str(random_seed))
-    worker.run()
-    del worker
+# Each run is seeded differently (and therefore has different holdouts)
+
+# Create a crossvalidation wrapper
+cv_wrap = CrossValidationManager()
+
+# Assign variables for grid search
+cv_wrap.add_gridsearch_parameter('random_seed', CV_SEEDS)
+
+# Create a worker
+worker = workflow.inferelator_workflow(regression="bbsr", workflow="tfa")
+worker = set_up_workflow(worker)
+worker.append_to_path("output_dir", "bbsr")
+
+# Assign the worker to the crossvalidation wrapper
+cv_wrap.workflow = worker
+
+# Run
+cv_wrap.run()
 
 # Inference with Elastic Net (crossvalidation)
+# Using the crossvalidation wrapper
 # Run the regression 10 times and hold 20% of the gold standard out of the priors for testing each time
-for random_seed in CV_SEEDS:
-    worker = workflow.inferelator_workflow(regression="elasticnet", workflow="tfa")
-    worker = set_up_workflow(worker)
-    worker.split_gold_standard_for_crossvalidation = True
-    worker.cv_split_ratio = 0.2
-    worker.random_seed = random_seed
-    worker.append_to_path('output_dir', 'elasticnet_cv_' + str(random_seed))
-    worker.run()
-    del worker
+# Each run is seeded differently (and therefore has different holdouts)
+
+# Create a crossvalidation wrapper
+cv_wrap = CrossValidationManager()
+
+# Assign variables for grid search
+cv_wrap.add_gridsearch_parameter('random_seed', CV_SEEDS)
+
+# Create a worker
+worker = workflow.inferelator_workflow(regression="elasticnet", workflow="tfa")
+worker = set_up_workflow(worker)
+worker.append_to_path("output_dir", "elastic_net")
+
+# Set L1 ratio to 1 (This is now LASSO regression instead of Elastic Net)
+# Parameters set with this function are passed to sklearn.linear_model.ElasticNetCV
+worker.set_regression_parameters(l1_ratio=1, max_iter=2000)
+
+# Create a crossvalidation wrapper
+cv_wrap = CrossValidationManager(worker)
+
+# Assign variables for grid search
+cv_wrap.add_gridsearch_parameter('random_seed', CV_SEEDS)
+
+# Run
+cv_wrap.run()
 
 # Final network
 worker = workflow.inferelator_workflow(regression="bbsr", workflow="tfa")
 worker = set_up_workflow(worker)
 worker.append_to_path('output_dir', 'final')
-worker.split_gold_standard_for_crossvalidation = False
-worker.cv_split_ratio = None
-worker.num_bootstraps = 50
-worker.random_seed = 100
+worker.set_crossvalidation_parameters(split_gold_standard_for_crossvalidation=False, cv_split_ratio=None)
+worker.set_run_parameters(num_bootstraps=50, random_seed=100)
 final_network = worker.run()
-del worker
