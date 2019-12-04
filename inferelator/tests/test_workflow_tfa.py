@@ -2,50 +2,32 @@
 Test TFA workflow stepwise.
 """
 
-import unittest
 import os
 import types
+import unittest
+
 import numpy as np
 
-from inferelator import workflow
 from inferelator import tfa_workflow
+from inferelator import workflow
+from inferelator import default
+from inferelator.tests.artifacts.test_stubs import FakeResultProcessor, FakeRegression, FakeDRD
 from inferelator.preprocessing import tfa
-from inferelator.regression.base_regression import RegressionWorkflow
 
 my_dir = os.path.dirname(__file__)
-
-
-class FakeDRD:
-    def __init__(self, *args, **kwargs):
-        pass
-
-    def run(self, expr, meta):
-        return expr, expr, expr
-
-
-class FakeRegression(RegressionWorkflow):
-
-    def run_bootstrap(self, bootstrap):
-        return True
-
-
-class FakeResultProcessor:
-
-    network_data = None
-
-    def __init__(self, *args, **kwargs):
-        pass
-
-    def summarize_network(self, *args, **kwargs):
-        pass
 
 
 class TestTFAWorkflow(unittest.TestCase):
 
     def setUp(self):
-        self.workflow = workflow.create_inferelator_workflow(regression=None,
-                                                             workflow=tfa_workflow.TFAWorkFlow)()
+        self.workflow = workflow._factory_build_inferelator(regression=None,
+                                                            workflow=tfa_workflow.TFAWorkFlow)()
         self.workflow.input_dir = os.path.join(my_dir, "../../data/dream4")
+        self.workflow.expression_matrix_file = default.DEFAULT_EXPRESSION_FILE
+        self.workflow.tf_names_file = default.DEFAULT_TFNAMES_FILE
+        self.workflow.meta_data_file = default.DEFAULT_METADATA_FILE
+        self.workflow.priors_file = default.DEFAULT_PRIORS_FILE
+        self.workflow.gold_standard_file = default.DEFAULT_GOLDSTANDARD_FILE
         self.workflow.get_data()
 
     def tearDown(self):
@@ -67,12 +49,18 @@ class TestTFAWorkflow(unittest.TestCase):
         with self.assertRaises(NotImplementedError):
             self.workflow.run_bootstrap([])
 
+
 class TestTFAWorkflowRegression(unittest.TestCase):
 
     def setUp(self):
-        self.workflow = workflow.create_inferelator_workflow(regression=FakeRegression,
-                                                             workflow=tfa_workflow.TFAWorkFlow)()
+        self.workflow = workflow._factory_build_inferelator(regression=FakeRegression,
+                                                            workflow=tfa_workflow.TFAWorkFlow)()
         self.workflow.input_dir = os.path.join(my_dir, "../../data/dream4")
+        self.workflow.expression_matrix_file = default.DEFAULT_EXPRESSION_FILE
+        self.workflow.tf_names_file = default.DEFAULT_TFNAMES_FILE
+        self.workflow.meta_data_file = default.DEFAULT_METADATA_FILE
+        self.workflow.priors_file = default.DEFAULT_PRIORS_FILE
+        self.workflow.gold_standard_file = default.DEFAULT_GOLDSTANDARD_FILE
         self.workflow.get_data()
 
     def tearDown(self):
@@ -88,7 +76,7 @@ class TestTFAWorkflowRegression(unittest.TestCase):
         self.assertTrue(self.workflow.run_bootstrap([]))
 
     def test_result_processor(self):
-        self.workflow.result_processor_driver = FakeResultProcessor
+        self.workflow._result_processor_driver = FakeResultProcessor
 
         def no_output(self):
             pass

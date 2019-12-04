@@ -1,7 +1,10 @@
 from __future__ import print_function, unicode_literals, division
 
 import pandas as pd
+import numpy as np
+import pandas.api.types as pat
 import os
+import inspect
 
 from inferelator.default import SBATCH_VARS
 
@@ -10,6 +13,7 @@ try:
     basestring
 except NameError:
     basestring = str
+
 
 def slurm_envs(var_names=None):
     """
@@ -182,6 +186,36 @@ class Validator(object):
             return True
 
     @staticmethod
+    def argument_subpath(arg, is_subpath_of, allow_none=False):
+        """
+        Check and see if an argument is a subpath of a path
+        :param arg: str
+            Path
+        :param is_subpath_of: str
+            Path for comparison
+        :param allow_none: bool
+            Allow arg to be None
+        :return:
+        """
+
+        if allow_none and arg is None:
+            return True
+        elif arg is None or is_subpath_of is None:
+            raise ValueError("Path argument {a} cannot be compared to path {b}".format(a=arg, b=is_subpath_of))
+
+        arg = os.path.abspath(os.path.expanduser(arg))
+        is_subpath_of = os.path.abspath(os.path.expanduser(is_subpath_of))
+
+        if arg == is_subpath_of:
+            return True
+        elif is_subpath_of == os.path.abspath(os.sep):
+            return True
+        elif arg.startswith(is_subpath_of + os.sep):
+            return True
+        else:
+            raise ValueError("Path {a} is not a subpath of path {b}".format(a=arg, b=is_subpath_of))
+
+    @staticmethod
     def argument_type(arg, arg_type, allow_none=False):
         if allow_none and arg is None:
             return True
@@ -249,14 +283,26 @@ class Validator(object):
         if allow_none and frame is None:
             return True
 
-        is_num = frame.applymap(lambda x: isinstance(x, (float, int))).sum()
-        is_feature_num = is_num.apply(lambda x: x == frame.shape[0])
+        non_numeric = pd.Index([not pat.is_numeric_dtype(x) for x in frame.dtypes])
 
-        if is_feature_num.all():
-            return True
-        else:
-            bad_features = "\t".join(map(str, is_feature_num.index[is_feature_num].tolist()))
+        if non_numeric.any():
+            bad_features = "\t".join(map(str, frame.columns[non_numeric].tolist()))
             raise ValueError("Dataframe has non-numeric features: {f}".format(f=bad_features))
+        else:
+            return True
+
+    @staticmethod
+    def dataframe_is_finite(frame, allow_none=False):
+        if allow_none and frame is None:
+            return True
+
+        with pd.option_context('mode.use_inf_as_na', True):
+            non_finites = frame.apply(lambda x: pd.isnull(x).sum()) > 0
+            if non_finites.any():
+                bad_features = "\t".join(map(str, frame.columns[non_finites].tolist()))
+                raise ValueError("Dataframe has non-finite features: {f}".format(f=bad_features))
+            else:
+                return True
 
     @staticmethod
     def indexes_align(index_iterable, allow_none=False, check_order=True):
@@ -316,7 +362,6 @@ class Validator(object):
         :param num_none: int
             The number of arguments which should not be None (so 1 means exactly 1 argument should be not None)
             If None, all arguments should not be None
-        :return:
         """
         n_not_none = 0
         for ar in args:
@@ -328,6 +373,31 @@ class Validator(object):
             raise ValueError("{num} arguments are not None; only {nnum} are allowed".format(num=n_not_none,
                                                                                             nnum=num_none))
         return True
+
+    @staticmethod
+    def argument_is_subclass(arg, subclass, allow_none=False):
+        """
+
+        :param arg:
+            Argument to check
+        :param subclass:
+            Class that the argument must be a subclass of
+        :param allow_none:
+        """
+        if allow_none and arg is None:
+            return True
+        elif arg is None:
+            raise ValueError("None is not an acceptable argument")
+
+        if not inspect.isclass(arg) and inspect.isclass(type(arg)):
+            arg = type(arg)
+
+        if not inspect.isclass(subclass):
+            raise ValueError("Subclass to test argument is itself not a class")
+        elif not issubclass(arg, subclass):
+            raise ValueError("Argument is not a subclass of {sc}".format(sc=str(subclass)))
+        else:
+            return True
 
 
 def df_from_tsv(file_like, has_index=True):
@@ -381,3 +451,62 @@ def make_array_2d(arr):
     """
     if arr.ndim == 1:
         arr.shape = (arr.shape[0], 1)
+
+
+def melt_and_reindex_dataframe(data_frame, value_name, idx_name="target", col_name="regulator"):
+    """
+    Take a pandas dataframe and melt it into a one column dataframe (with the column `value_name`) and a multiindex
+    of the original index + column
+    :param data_frame: pd.DataFrame [M x N]
+        Meltable dataframe
+    :param value_name: str
+        The column name for the values of the dataframe
+    :param idx_name: str
+        The name to assign to the original data_frame index values
+    :param col_name: str
+        The name to assign to the original data_frame column values
+    :return: pd.DataFrame [(M*N) x 1]
+        Melted dataframe with a single column of values and a multiindex that is the original index + column for
+        that value
+    """
+
+    assert Validator.argument_type(data_frame, pd.DataFrame)
+
+    # Copy the dataframe and move the index to a column
+    data_frame = data_frame.copy()
+    data_frame[idx_name] = data_frame.index
+
+    # Melt it into a [(M*N) x 3] dataframe
+    data_frame = data_frame.melt(id_vars=idx_name, var_name=col_name, value_name=value_name)
+
+    # Create a multiindex and then drop the columns that are now in the index
+    data_frame.index = pd.MultiIndex.from_frame(data_frame.loc[:, [idx_name, col_name]])
+    del data_frame[idx_name]
+    del data_frame[col_name]
+
+    return data_frame
+
+
+def is_sparse_series(series):
+    """
+    Test a pandas Series (column) to see if it is sparse
+    :param series: pd.Series
+    :return is_sparse: bool
+    """
+    return isinstance(series.dtype, pd.SparseDtype)
+
+
+def transpose_dataframe(data_frame):
+    """
+    Take a pandas dataframe and transpose it. This is a wrapper which does sparse transposition for a sparse matrix.
+    :param data_frame: pd.DataFrame
+    :return data_frame: pd.DataFrame
+    """
+    is_all_sparse = all([is_sparse_series(data_frame.iloc[:, dt]) for dt in range(data_frame.shape[1])])
+
+    if is_all_sparse:
+        return pd.DataFrame.sparse.from_spmatrix(data_frame.sparse.to_coo().transpose(),
+                                                 index=data_frame.columns,
+                                                 columns=data_frame.index)
+    else:
+        return data_frame.transpose()

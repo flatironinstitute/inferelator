@@ -2,6 +2,8 @@ from inferelator.distributed import AbstractController
 from inferelator import utils
 from inferelator import default
 
+DEFAULT_MP_ENGINE = "local"
+
 
 class MPControl(AbstractController):
     """
@@ -88,8 +90,8 @@ class MPControl(AbstractController):
             return True
 
         if cls.client is None:
-            utils.Debug.vprint("Loading default engine {eng}".format(eng=default.DEFAULT_MULTIPROCESSING_ENGINE))
-            cls.set_multiprocess_engine(default.DEFAULT_MULTIPROCESSING_ENGINE)
+            utils.Debug.vprint("Loading default engine {eng}".format(eng=DEFAULT_MP_ENGINE))
+            cls.set_multiprocess_engine(DEFAULT_MP_ENGINE)
 
         connect_return = cls.client.connect(*args, **kwargs)
 
@@ -110,6 +112,15 @@ class MPControl(AbstractController):
         if not cls.is_initialized:
             raise RuntimeError("Connect before calling map()")
         return cls.client.map(*args, **kwargs)
+
+    @classmethod
+    def set_processes(cls, process_count):
+        """
+        Set worker process count
+        """
+        if cls.is_initialized:
+            raise RuntimeError("Cannot set processes after the engine has started")
+        return cls.client.set_processes(process_count)
 
     @classmethod
     def sync_processes(cls, *args, **kwargs):

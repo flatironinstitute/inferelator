@@ -1,35 +1,30 @@
 import unittest
+import warnings
 
-from inferelator.crossvalidation_workflow import create_puppet_workflow
 from inferelator import tfa_workflow
-from inferelator.postprocessing.results_processor_mtl import ResultsProcessorMultiTask
+from inferelator import workflow
+from inferelator.tests.artifacts.test_data import TestDataSingleCellLike
+from inferelator.tests.artifacts.test_stubs import TaskDataStub, create_puppet_workflow
 from inferelator.regression.bbsr_multitask import BBSRByTaskRegressionWorkflow
 from inferelator.regression.elasticnet_multitask import ElasticNetByTaskRegressionWorkflow
-
-import pandas as pd
 
 
 class TestRegressionFactory(unittest.TestCase):
 
     def setUp(self):
-        self.expr = pd.DataFrame([[2, 28, 1, 16, 2, 3], [6, 21, 1, 3, 0, 3], [4, 39, 0, 17, 1, 3],
-                                  [8, 34, 0, 7, 0, 3], [6, 26, 0, 3, 1, 3], [1, 31, 0, 1, 1, 4],
-                                  [3, 27, 1, 5, 2, 4], [8, 34, 2, 9, 2, 3], [1, 22, 2, 3, 3, 4],
-                                  [9, 33, 0, 17, 1, 2]],
-                                 columns=["gene1", "gene2", "gene3", "gene4", "gene5", "gene6"])
-        self.meta = pd.DataFrame({"Condition": ["A", "B", "C", "C", "B", "B", "A", "C", "B", "C"],
-                                  "Genotype": ['WT', 'WT', 'WT', 'WT', 'WT', 'WT', 'WT', 'WT', 'WT', 'WT']})
-        self.prior = pd.DataFrame([[0, 1], [0, 1], [1, 0], [0, 0]], index=["gene1", "gene2", "gene4", "gene5"],
-                                  columns=["gene3", "gene6"])
+        self.expr = TestDataSingleCellLike.expression_matrix
+        self.meta = TestDataSingleCellLike.meta_data
+        self.prior = TestDataSingleCellLike.priors_data
         self.gold_standard = self.prior.copy()
-        self.gene_list = pd.DataFrame({"SystematicName": ["gene1", "gene2", "gene3", "gene4", "gene7", "gene6"]})
-        self.tf_names = ["gene3", "gene6"]
+        self.gene_list = TestDataSingleCellLike.gene_metadata
+        self.tf_names = TestDataSingleCellLike.tf_names
 
+
+class TestSingleTaskRegressionFactory(TestRegressionFactory):
 
     def test_base(self):
-
         self.workflow = create_puppet_workflow(base_class=tfa_workflow.TFAWorkFlow)
-        self.workflow = self.workflow(self.expr.transpose(), self.meta, self.prior, self.gold_standard)
+        self.workflow = self.workflow(self.expr, self.meta, self.prior, self.gold_standard)
         self.workflow.gene_list = self.gene_list
         self.workflow.tf_names = self.tf_names
         self.workflow.meta_data_file = None
@@ -38,71 +33,66 @@ class TestRegressionFactory(unittest.TestCase):
             self.workflow.run()
 
     def test_bbsr(self):
-
-        self.workflow = create_puppet_workflow(base_class="tfa",
-                                               regression_class="bbsr")
-        self.workflow = self.workflow(self.expr.transpose(), self.meta, self.prior, self.gold_standard)
+        self.workflow = create_puppet_workflow(base_class="tfa", regression_class="bbsr")
+        self.workflow = self.workflow(self.expr, self.meta, self.prior, self.gold_standard)
         self.workflow.gene_list = self.gene_list
         self.workflow.tf_names = self.tf_names
         self.workflow.meta_data_file = None
         self.workflow.read_metadata()
         self.workflow.run()
-        self.assertEqual(self.workflow.aupr, 1)
+        self.assertEqual(self.workflow.results.score, 1)
 
     def test_elasticnet(self):
-
-        self.workflow = create_puppet_workflow(base_class="tfa",
-                                               regression_class="elasticnet")
-        self.workflow = self.workflow(self.expr.transpose(), self.meta, self.prior, self.gold_standard)
+        self.workflow = create_puppet_workflow(base_class="tfa", regression_class="elasticnet")
+        self.workflow = self.workflow(self.expr, self.meta, self.prior, self.gold_standard)
         self.workflow.gene_list = self.gene_list
         self.workflow.tf_names = self.tf_names
         self.workflow.meta_data_file = None
         self.workflow.read_metadata()
-        self.workflow.run()
-        self.assertEqual(self.workflow.aupr, 1)
+        
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self.workflow.run()
+            
+        self.assertEqual(self.workflow.results.score, 1)
 
-    @unittest.skip
-    def test_amusr(self):
-        self.workflow = create_puppet_workflow(base_class="amusr",
-                                               regression_class="amusr",
-                                               result_processor_class=ResultsProcessorMultiTask)
 
-        self.workflow = self.workflow([self.expr.transpose(), self.expr.transpose()],
-                                      [self.meta, self.meta], self.prior, self.gold_standard)
+class TestMultitaskFactory(TestRegressionFactory):
 
-        self.workflow.n_tasks = 2
+    def setUp(self):
+        super(TestMultitaskFactory, self).setUp()
+        self._task_objects = [TaskDataStub(), TaskDataStub()]
+        self._task_objects[0].tasks_from_metadata = False
+        self._task_objects[1].tasks_from_metadata = False
+
+    def reset_workflow(self):
+        self.workflow.priors_data = self.prior
+        self.workflow.gold_standard = self.gold_standard
+        self.workflow._task_objects = self._task_objects
+        self.workflow.read_priors = lambda *x: None
+        self.workflow.create_output_dir = lambda *x: None
         self.workflow.gene_list = self.gene_list
         self.workflow.tf_names = self.tf_names
-        self.workflow.meta_data_file = None
+
+    def test_amusr(self):
+        self.workflow = workflow.inferelator_workflow(workflow="amusr", regression="amusr")
+        self.reset_workflow()
+
         self.workflow.run()
-        self.assertAlmostEqual(self.workflow.aupr, 0.81666, places=4)
+        self.assertAlmostEqual(self.workflow.results.score, 0.85, places=4)
 
     def test_mtl_bbsr(self):
-        self.workflow = create_puppet_workflow(base_class="amusr",
-                                               regression_class=BBSRByTaskRegressionWorkflow,
-                                               result_processor_class=ResultsProcessorMultiTask)
+        self.workflow = workflow.inferelator_workflow(workflow="amusr", regression=BBSRByTaskRegressionWorkflow)
+        self.reset_workflow()
 
-        self.workflow = self.workflow([self.expr.transpose(), self.expr.transpose()],
-                                      [self.meta, self.meta], self.prior, self.gold_standard)
-
-        self.workflow.n_tasks = 2
-        self.workflow.gene_list = self.gene_list
-        self.workflow.tf_names = self.tf_names
-        self.workflow.meta_data_file = None
         self.workflow.run()
-        self.assertEqual(self.workflow.aupr, 1)
+        self.assertEqual(self.workflow.results.score, 1)
 
     def test_mtl_elasticnet(self):
-        self.workflow = create_puppet_workflow(base_class="amusr",
-                                               regression_class=ElasticNetByTaskRegressionWorkflow,
-                                               result_processor_class=ResultsProcessorMultiTask)
+        self.workflow = workflow.inferelator_workflow(workflow="amusr", regression=ElasticNetByTaskRegressionWorkflow)
+        self.reset_workflow()
 
-        self.workflow = self.workflow([self.expr.transpose(), self.expr.transpose()],
-                                      [self.meta, self.meta], self.prior, self.gold_standard)
-
-        self.workflow.n_tasks = 2
-        self.workflow.gene_list = self.gene_list
-        self.workflow.tf_names = self.tf_names
-        self.workflow.meta_data_file = None
-        self.workflow.run()
-        self.assertEqual(self.workflow.aupr, 1)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self.workflow.run()
+        self.assertEqual(self.workflow.results.score, 1)

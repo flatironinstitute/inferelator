@@ -1,7 +1,8 @@
 import unittest
 from inferelator.single_cell_workflow import SingleCellWorkflow
 from inferelator.preprocessing import single_cell, metadata_parser
-from inferelator.crossvalidation_workflow import create_puppet_workflow
+from inferelator.tests.artifacts.test_stubs import TestDataSingleCellLike, create_puppet_workflow
+from inferelator import default
 import numpy as np
 import pandas as pd
 import os
@@ -11,18 +12,12 @@ my_dir = os.path.dirname(__file__)
 
 class SingleCellTestCase(unittest.TestCase):
     def setUp(self):
-        self.expr = pd.DataFrame([[2, 28, 0, 16, 1, 3], [6, 21, 0, 3, 1, 3], [4, 39, 0, 17, 1, 3],
-                                  [8, 34, 0, 7, 1, 3], [6, 26, 0, 3, 1, 3], [1, 31, 0, 1, 1, 4],
-                                  [3, 27, 0, 5, 1, 4], [8, 34, 0, 9, 1, 3], [1, 22, 0, 3, 1, 4],
-                                  [9, 33, 0, 17, 1, 2]],
-                                 columns=["gene1", "gene2", "gene3", "gene4", "gene5", "gene6"])
-        self.meta = pd.DataFrame({"Condition": ["A", "B", "C", "C", "B", "B", "A", "C", "B", "C"],
-                                  "Genotype": ['WT', 'WT', 'WT', 'WT', 'WT', 'WT', 'WT', 'WT', 'WT', 'WT']})
-        self.prior = pd.DataFrame([[0, 1], [0, 1], [1, 0], [0, 0]], index=["gene1", "gene2", "gene4", "gene5"],
-                                  columns=["gene3", "gene6"])
+        self.expr = TestDataSingleCellLike.expression_matrix.transpose()
+        self.meta = TestDataSingleCellLike.meta_data
+        self.prior = TestDataSingleCellLike.priors_data
         self.gold_standard = self.prior.copy()
-        self.gene_list = pd.DataFrame({"SystematicName":["gene1", "gene2", "gene3", "gene4", "gene7", "gene6"]})
-        self.tf_names = ["gene3", "gene6"]
+        self.gene_list = TestDataSingleCellLike.gene_metadata
+        self.tf_names = TestDataSingleCellLike.tf_names
         self.workflow = create_puppet_workflow(base_class=SingleCellWorkflow)(self.expr.transpose(), self.meta,
                                                                               self.prior, self.gold_standard)
 
@@ -121,6 +116,11 @@ class TestSingleCellWorkflow(unittest.TestCase):
         self.workflow = SingleCellWorkflow()
         self.workflow.expression_matrix_columns_are_genes = True
         self.workflow.input_dir = os.path.join(my_dir, "../../data/dream4")
+        self.workflow.expression_matrix_file = default.DEFAULT_EXPRESSION_FILE
+        self.workflow.tf_names_file = default.DEFAULT_TFNAMES_FILE
+        self.workflow.meta_data_file = default.DEFAULT_METADATA_FILE
+        self.workflow.priors_file = default.DEFAULT_PRIORS_FILE
+        self.workflow.gold_standard_file = default.DEFAULT_GOLDSTANDARD_FILE
 
     def tearDown(self):
         del self.workflow

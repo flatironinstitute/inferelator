@@ -36,11 +36,14 @@ class TestUtils(unittest.TestCase):
 class TestValidator(unittest.TestCase):
 
     def setUp(self):
-        self.frame1 = pd.DataFrame(index=["A", "B", "C", "D", "E"], columns=["RED", "BLUE", "GREEN"])
-        self.frame1['RED'], self.frame1['BLUE'] = 0, 1
-        self.frame2 = pd.DataFrame(index=["A", "B", "C", "D", "E"], columns=["CYAN", "BLUE", "MAUVE"])
-        self.frame3 = pd.DataFrame(index=["A", "B", "C", "E", "D"], columns=["RED", "BLUE", "GREEN"])
-        self.frame3['RED'], self.frame3['BLUE'], self.frame3['GREEN'] = "zero", 1, "two"
+        self.frame1 = pd.DataFrame([[0, 1, 2]] * 5,
+                                   index=["A", "B", "C", "D", "E"],
+                                   columns=["RED", "BLUE", "GREEN"])
+        self.frame2 = pd.DataFrame(index=["A", "B", "C", "D", "E"],
+                                   columns=["CYAN", "BLUE", "MAUVE"])
+        self.frame3 = pd.DataFrame([["zero", 1, "two"]] * 5,
+                                   index=["A", "B", "C", "E", "D"],
+                                   columns=["RED", "BLUE", "GREEN"])
 
     def test_frame_alignment(self):
         self.assertTrue(check.dataframes_align([self.frame1, self.frame1, self.frame1]))
@@ -82,17 +85,27 @@ class TestValidator(unittest.TestCase):
         with self.assertRaises(ValueError):
             check.indexes_align([index1, index1, None], allow_none=False)
 
-    def test_index_unique(self):
-        index1 = self.frame1.index
-        index2 = self.frame3.index
-        index3 = self.frame1.columns
-
     def test_frame_numeric(self):
         self.assertTrue(check.dataframe_is_numeric(None, allow_none=True))
         self.assertTrue(check.dataframe_is_numeric(self.frame1))
 
         with self.assertRaises(ValueError):
             check.dataframe_is_numeric(self.frame3)
+
+    def test_frame_finite(self):
+        self.assertTrue(check.dataframe_is_finite(None, allow_none=True))
+        self.assertTrue(check.dataframe_is_finite(self.frame1))
+        self.assertTrue(check.dataframe_is_finite(self.frame3))
+
+        with self.assertRaises(ValueError):
+            na_frame = self.frame1.copy()
+            na_frame['RED'] = np.nan
+            check.dataframe_is_finite(na_frame)
+
+        with self.assertRaises(ValueError):
+            inf_frame = self.frame1.copy()
+            inf_frame['RED'] = np.inf
+            check.dataframe_is_finite(inf_frame)
 
     def test_numeric(self):
         self.assertTrue(check.argument_numeric(0))
@@ -143,6 +156,24 @@ class TestValidator(unittest.TestCase):
         self.assertTrue(check.argument_path(None, allow_none=True))
         shutil.rmtree(temp_dir)
 
+    def test_is_subpath(self):
+        temp_dir = tempfile.gettempdir()
+        temp_test = os.path.join(temp_dir, "test_path")
+
+        self.assertTrue(check.argument_subpath(temp_test, temp_dir))
+        self.assertTrue(check.argument_subpath(temp_test, "/"))
+        self.assertTrue(check.argument_subpath("~" + temp_test, "~"))
+        self.assertTrue(check.argument_subpath(None, None, allow_none=True))
+
+        with self.assertRaises(ValueError):
+            check.argument_subpath(None, "~")
+        with self.assertRaises(ValueError):
+            check.argument_subpath("~", None)
+        with self.assertRaises(ValueError):
+            check.argument_subpath(temp_dir, temp_test)
+        with self.assertRaises(ValueError):
+            check.argument_subpath("..", ".")
+
     def test_callable(self):
         def callable_function(x):
             return x
@@ -162,6 +193,36 @@ class TestValidator(unittest.TestCase):
             check.argument_callable(1)
         with self.assertRaises(ValueError):
             check.argument_callable("string")
+
+    def test_subclass(self):
+
+        class ClassA(object):
+            pass
+
+        class ClassB(object):
+            pass
+
+        class ClassC(ClassA):
+            pass
+
+        self.assertTrue(check.argument_is_subclass(None, ClassA, allow_none=True))
+        with self.assertRaises(ValueError):
+            check.argument_is_subclass(None, ClassA)
+
+        self.assertTrue(check.argument_is_subclass(ClassC, ClassA))
+        self.assertTrue(check.argument_is_subclass(ClassC(), ClassA))
+
+        with self.assertRaises(ValueError):
+            check.argument_is_subclass(ClassA, ClassC)
+
+        with self.assertRaises(ValueError):
+            check.argument_is_subclass(ClassC, ClassB)
+
+        with self.assertRaises(ValueError):
+            check.argument_is_subclass("arg", ClassA)
+
+        with self.assertRaises(ValueError):
+            check.argument_is_subclass(ClassC, "arg")
 
 
 if __name__ == '__main__':

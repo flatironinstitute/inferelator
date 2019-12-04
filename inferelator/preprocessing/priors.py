@@ -28,25 +28,25 @@ class ManagePriors(object):
             check.index_values_unique(priors_data.index)
         except ValueError as v_err:
             utils.Debug.vprint("Duplicate gene(s) in prior index", level=0)
-            utils.Debug.vprint(str(v_err), level=0)
+            utils.Debug.vprint("\t" + str(v_err), level=0)
 
         try:
             check.index_values_unique(priors_data.columns)
         except ValueError as v_err:
             utils.Debug.vprint("Duplicate tf(s) in prior index", level=0)
-            utils.Debug.vprint(str(v_err), level=0)
+            utils.Debug.vprint("\t" + str(v_err), level=0)
 
         try:
-            check.index_values_unique(priors_data.index)
+            check.index_values_unique(gold_standard.index)
         except ValueError as v_err:
             utils.Debug.vprint("Duplicate gene(s) in gold standard index", level=0)
-            utils.Debug.vprint(str(v_err), level=0)
+            utils.Debug.vprint("\t" + str(v_err), level=0)
 
         try:
             check.index_values_unique(gold_standard.columns)
         except ValueError as v_err:
             utils.Debug.vprint("Duplicate tf(s) in gold standard index", level=0)
-            utils.Debug.vprint(str(v_err), level=0)
+            utils.Debug.vprint("\t" + str(v_err), level=0)
 
         return priors_data, gold_standard
 
@@ -109,18 +109,29 @@ class ManagePriors(object):
         """
 
         utils.Debug.vprint("Filtering expression and priors to {le} genes from list".format(le=len(gene_list)), level=1)
-        expression_matrix = expression_matrix.loc[expression_matrix.index.intersection(gene_list), :]
-        utils.Debug.vprint("Expression data filtered to {sh}".format(sh=expression_matrix.shape), level=1)
-        priors_data = priors_data.loc[priors_data.index.intersection(gene_list), :]
-        utils.Debug.vprint("Priors data filtered to {sh}".format(sh=priors_data.shape), level=1)
+        expression_matrix = ManagePriors.filter_expression_to_genes(expression_matrix, gene_list)
+        priors_data = ManagePriors.filter_priors_to_genes(priors_data, gene_list)
+        return priors_data, expression_matrix
 
+    @staticmethod
+    def filter_expression_to_genes(expression_matrix, gene_list):
+        expression_matrix = ManagePriors._filter_df_index(expression_matrix, gene_list)
+        utils.Debug.vprint("Expression data filtered to {sh}".format(sh=expression_matrix.shape), level=1)
         if expression_matrix.shape[0] == 0:
             raise ValueError("Expression matrix genes and gene list genes have no overlap")
+        return expression_matrix
 
+    @staticmethod
+    def filter_priors_to_genes(priors_data, gene_list):
+        priors_data = ManagePriors._filter_df_index(priors_data, gene_list)
+        utils.Debug.vprint("Priors data filtered to {sh}".format(sh=priors_data.shape), level=1)
         if priors_data.shape[0] == 0:
             raise ValueError("Prior genes and gene list genes have no overlap")
+        return priors_data
 
-        return priors_data, expression_matrix
+    @staticmethod
+    def _filter_df_index(data_frame, index_list):
+        return data_frame.loc[data_frame.index.intersection(index_list), :]
 
     @staticmethod
     def filter_to_tf_names_list(priors_data, tf_names):
@@ -136,6 +147,8 @@ class ManagePriors(object):
 
         tf_keepers = pd.Index(tf_names).intersection(pd.Index(priors_data.columns))
         priors_data = priors_data.loc[:, tf_keepers]
+
+        utils.Debug.vprint("Filtered to {tfn} TFs from the TF name list".format(tfn=len(tf_keepers)), level=1)
 
         if priors_data.shape[1] == 0:
             raise ValueError("Prior regulators and regulator list regulators have no overlap")

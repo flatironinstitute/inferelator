@@ -44,12 +44,13 @@ class TFA:
 
         # Set the activity of non-zero tfs to the pseudoinverse of the prior matrix times the expression
         if len(non_zero_tfs) > 0:
+            utils.Debug.vprint("Calculating TFA for {nz} TFs from prior targets".format(nz=len(non_zero_tfs)), level=1)
             activity.loc[non_zero_tfs, :] = np.matrix(linalg.pinv2(self.prior[non_zero_tfs])) * np.matrix(
                 self.expression_matrix_halftau)
         else:
             utils.Debug.vprint("No prior information for TFs exists. Using expression for TFA exclusively.", level=0)
 
-        activity_nas = activity.isna().any(axis=0)
+        activity_nas = activity.isna().any(axis=1)
         if activity_nas.sum() > 0:
             lose_tfs = activity_nas.index[activity_nas].tolist()
             utils.Debug.vprint("Dropping TFs with NaN values: {drop}".format(drop=" ".join(lose_tfs)))

@@ -8,6 +8,7 @@ from sklearn.linear_model import LinearRegression
 
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator import utils
+from inferelator import default
 from inferelator.regression import base_regression
 
 # Shadow built-in zip with itertools.izip if this is python2 (This puts out a memory dumpster fire)
@@ -34,8 +35,8 @@ class AMuSR_OneGene:
         """
 
         for k in range(self.n_tasks):
-            X[k] = StandardScaler().fit_transform(X[k])
-            Y[k] = StandardScaler().fit_transform(Y[k])
+            X[k] = StandardScaler().fit_transform(X[k].astype(float))
+            Y[k] = StandardScaler().fit_transform(Y[k].astype(float))
 
         return((X, Y))
 
@@ -474,17 +475,27 @@ class AMUSRRegressionWorkflow(base_regression.RegressionWorkflow):
     Add AMuSR regression into a workflow object
     """
 
+    prior_weight = default.DEFAULT_prior_weight
+
+    def set_regression_parameters(self, prior_weight=None):
+        """
+        Set regression parameters for AmUSR
+        :param prior_weight:
+        """
+
+        self._set_with_warning("prior_weight", prior_weight)
+
     def run_regression(self):
 
-        betas = [[] for _ in range(self.n_tasks)]
-        rescaled_betas = [[] for _ in range(self.n_tasks)]
+        betas = [[] for _ in range(self._n_tasks)]
+        rescaled_betas = [[] for _ in range(self._n_tasks)]
 
         for idx in range(self.num_bootstraps):
             utils.Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps), level=0)
             current_betas, current_rescaled_betas = self.run_bootstrap(idx)
 
             if self.is_master():
-                for k in range(self.n_tasks):
+                for k in range(self._n_tasks):
                     betas[k].append(current_betas[k])
                     rescaled_betas[k].append(current_rescaled_betas[k])
 
@@ -494,12 +505,12 @@ class AMUSRRegressionWorkflow(base_regression.RegressionWorkflow):
         x, y = [], []
 
         # Select the appropriate bootstrap from each task and stash the data into X and Y
-        for k in range(self.n_tasks):
-            x.append(self.task_design[k].iloc[:, self.task_bootstraps[k][bootstrap_idx]].transpose())
-            y.append(self.task_response[k].iloc[:, self.task_bootstraps[k][bootstrap_idx]].transpose())
+        for k in range(self._n_tasks):
+            x.append(self._task_design[k].iloc[:, self._task_bootstraps[k][bootstrap_idx]].transpose())
+            y.append(self._task_response[k].iloc[:, self._task_bootstraps[k][bootstrap_idx]].transpose())
 
         MPControl.sync_processes(pref="amusr_pre")
-        regress = AMuSR_regression(x, y, tfs=self.regulators, genes=self.targets, priors=self.priors_data,
+        regress = AMuSR_regression(x, y, tfs=self._regulators, genes=self._targets, priors=self._task_priors,
                                    prior_weight=self.prior_weight)
         return regress.run()
 

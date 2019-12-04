@@ -31,14 +31,16 @@ class PythonDRDriver(object):
     sample_names = None
 
     # Metadata
+    metadata_handler = "branching"
     steady_idx = None
     ts_group = None
 
-    def __init__(self, tau=None, deltmin=None, deltmax=None, return_half_tau=False):
+    def __init__(self, metadata_handler=None, tau=None, deltmin=None, deltmax=None, return_half_tau=False):
         self.tau = tau if tau is not None else default.DEFAULT_TAU
         self.delTmin = deltmin if deltmin is not None else default.DEFAULT_DELTMIN
         self.delTmax = deltmax if deltmax is not None else default.DEFAULT_DELTMAX
         self.return_half_tau = return_half_tau
+        self.metadata_handler = metadata_handler if metadata_handler is not None else self.metadata_handler
 
     def run(self, exp_data, meta_data):
         """
@@ -49,7 +51,7 @@ class PythonDRDriver(object):
         """
 
         (k, n) = exp_data.shape
-        processor = MetadataHandler.get_handler()
+        processor = MetadataHandler.get_handler(self.metadata_handler)
 
         # Turn NA in the dataframe into np.NaN
         meta_data = processor.fix_NAs(meta_data)

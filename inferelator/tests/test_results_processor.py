@@ -1,10 +1,13 @@
 from __future__ import division
 
 import unittest
+from inferelator import utils
+from inferelator.postprocessing import GOLD_STANDARD_COLUMN, CONFIDENCE_COLUMN, TARGET_COLUMN, REGULATOR_COLUMN
 from inferelator.postprocessing import results_processor
 from inferelator.postprocessing import results_processor_mtl
 from inferelator.postprocessing import model_performance
 import pandas as pd
+import pandas.testing as pdt
 import numpy as np
 import os
 import tempfile
@@ -28,15 +31,24 @@ class TestResults(unittest.TestCase):
         self.beta = pd.DataFrame(np.array([[0, 1], [0.5, 0.05]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
         self.beta_resc = pd.DataFrame(np.array([[0, 1], [1, 0.05]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
         self.prior = pd.DataFrame([[0, 1], [1, 0]], ['gene1', 'gene2'], ['tf1', 'tf2'])
+
         self.gold_standard = pd.DataFrame([[0, 1], [1, 0]], ['gene1', 'gene2'], ['tf1', 'tf2'])
+        self.gold_standard_unaligned = pd.DataFrame([[0, 1], [0, 0]], ['gene1', 'gene3'], ['tf1', 'tf2'])
+
+    @staticmethod
+    def make_PR_data(gs, confidences):
+        data = utils.melt_and_reindex_dataframe(confidences, value_name=CONFIDENCE_COLUMN).reset_index()
+        data = data.join(utils.melt_and_reindex_dataframe(gs, value_name=GOLD_STANDARD_COLUMN),
+                         on=[TARGET_COLUMN, REGULATOR_COLUMN], how='outer')
+        return data
 
 
 class TestResultsProcessor(TestResults):
 
     def test_full_stack(self):
         rp = results_processor.ResultsProcessor([self.beta], [self.beta_resc])
-        aupr = rp.summarize_network(None, self.gold_standard, self.prior)
-        self.assertEqual(aupr, 1)
+        result = rp.summarize_network(None, self.gold_standard, self.prior)
+        self.assertEqual(result.score, 1)
 
     def test_combining_confidences_two_betas_negative_values_assert_nonzero_betas(self):
         _, _, betas_non_zero = results_processor.ResultsProcessor.threshold_and_summarize([self.beta1, self.beta2], 0.5)
@@ -86,8 +98,9 @@ class TestNetworkCreator(TestResults):
 
     def setUp(self):
         super(TestNetworkCreator, self).setUp()
-        self.pr_calc = model_performance.RankSummaryPR([self.rescaled_beta1, self.rescaled_beta2], self.gold_standard,
-                                                       "keep_all_gold_standard")
+        self.metric = model_performance.MetricHandler.get_metric("aupr")
+        self.pr_calc = self.metric([self.rescaled_beta1, self.rescaled_beta2], self.gold_standard,
+                                   "keep_all_gold_standard")
         self.beta_sign, self.beta_nonzero = results_processor.ResultsProcessor.summarize([self.beta1, self.beta2])
         self.beta_threshold = results_processor.ResultsProcessor.passes_threshold(self.beta_nonzero, 2, 0.5)
 
@@ -102,7 +115,9 @@ class TestNetworkCreator(TestResults):
         temp_dir = tempfile.mkdtemp()
         net = results_processor.ResultsProcessor.process_network(self.pr_calc, self.prior,
                                                                  beta_threshold=self.beta_threshold)
-        results_processor.ResultsProcessor.save_network_to_tsv(net, temp_dir)
+        result = results_processor.InferelatorResults(net, self.beta_threshold, self.pr_calc.all_confidences,
+                                                      self.pr_calc)
+        result.write_result_files(temp_dir)
         processed_data = pd.read_csv(os.path.join(temp_dir, "network.tsv"), sep="\t", index_col=None, header=0)
         self.assertEqual(processed_data.shape[0], 3)
         self.assertListEqual(processed_data['regulator'].tolist(), ['tf5', 'tf4', 'tf1'])
@@ -111,39 +126,64 @@ class TestNetworkCreator(TestResults):
         shutil.rmtree(temp_dir)
 
 
-class TestPRProcessor(TestResults):
+class TestRankSummary(TestResults):
+
+    def setUp(self):
+        super(TestRankSummary, self).setUp()
+        self.metric = model_performance.RankSummingMetric
+
+    def test_making_network_dataframe(self):
+        calc = self.metric([self.beta_resc, self.beta_resc], self.gold_standard_unaligned)
+        pdt.assert_frame_equal(calc.gold_standard, self.gold_standard_unaligned)
+        self.assertEqual(calc.confidence_data.shape[0], 6)
+        self.assertEqual(pd.isnull(calc.confidence_data[CONFIDENCE_COLUMN]).sum(), 2)
+        self.assertEqual(pd.isnull(calc.confidence_data[GOLD_STANDARD_COLUMN]).sum(), 2)
 
     def test_combining_confidences_one_beta(self):
-        # rescaled betas are only in the 
+        # rescaled betas are only in the
         beta = pd.DataFrame(np.array([[0.5, 0], [0.5, 1]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        confidences = model_performance.RankSummaryPR.compute_combined_confidences([beta])
+        confidences = self.metric.compute_combined_confidences([beta])
         np.testing.assert_equal(confidences.values,
                                 np.array([[0.5, 0.0], [0.5, 1.0]]))
 
     def test_combining_confidences_one_beta_invariant_to_rescale_division(self):
-        # rescaled betas are only in the 
+        # rescaled betas are only in the
         beta = pd.DataFrame(np.array([[1, 0], [1, 2]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        rescaled_beta = pd.DataFrame((beta / 3.0), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        confidences = model_performance.RankSummaryPR.compute_combined_confidences([rescaled_beta])
+        rescaled_beta = beta / 3.0
+        confidences = self.metric.compute_combined_confidences([rescaled_beta])
         np.testing.assert_equal(confidences.values,
                                 np.array([[0.5, 0.0], [0.5, 1.0]]))
 
     def test_combining_confidences_one_beta_all_negative_values(self):
-        # rescaled betas are only in the 
+        # rescaled betas are only in the
         beta = pd.DataFrame(np.array([[-1, -.5, -3], [-1, -2, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2', 'tf3'])
         rescaled_beta = pd.DataFrame([[0.2, 0.1, 0.4], [0.3, 0.5, 0]], ['gene1', 'gene2'], ['tf1', 'tf2', 'tf3'])
-        confidences = model_performance.RankSummaryPR.compute_combined_confidences([rescaled_beta])
+        confidences = self.metric.compute_combined_confidences([rescaled_beta])
         np.testing.assert_equal(confidences.values,
                                 np.array([[0.4, 0.2, 0.8], [0.6, 1.0, 0]]))
 
     def test_combining_confidences_one_beta_with_negative_values(self):
-        confidences = model_performance.RankSummaryPR.compute_combined_confidences([self.rescaled_beta1])
+        confidences = self.metric.compute_combined_confidences([self.rescaled_beta1])
         np.testing.assert_equal(confidences.values, np.array([[0.75, 0, 0.25, 1, 0.5]]))
 
     def test_combining_confidences_two_betas_negative_values(self):
-        confidences = model_performance.RankSummaryPR.compute_combined_confidences([self.rescaled_beta1,
-                                                                                    self.rescaled_beta2])
+        confidences = self.metric.compute_combined_confidences([self.rescaled_beta1, self.rescaled_beta2])
         np.testing.assert_equal(confidences.values, np.array([[0.1, 0., 0., 0.3, 0.6]]))
+
+    def test_filter_to_left_size_equal(self):
+        left = pd.DataFrame(np.array([[1, 1], [2, 2]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        right = pd.DataFrame(np.array([[0, 0], [2, 2]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+
+        data = self.make_PR_data(left, right)
+        filter_data = self.metric.filter_to_left_size(GOLD_STANDARD_COLUMN, CONFIDENCE_COLUMN, data)
+        self.assertEqual(data.shape, filter_data.shape)
+
+
+class TestPrecisionRecallMetric(TestResults):
+
+    def setUp(self):
+        super(TestPrecisionRecallMetric, self).setUp()
+        self.metric = model_performance.MetricHandler.get_metric("aupr")
 
     ####################
 
@@ -152,222 +192,121 @@ class TestPRProcessor(TestResults):
     ####################
 
     def test_precision_recall_perfect_prediction(self):
-        gs = pd.DataFrame(np.array([[1, 0], [1, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        confidences = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        recall, precision, _ = model_performance.RankSummaryPR.calculate_precision_recall(confidences, gs)
-        recall, precision = model_performance.RankSummaryPR.modify_pr(recall, precision)
+        gs = self.gold_standard.copy()
+        confidences = pd.DataFrame(np.array([[0, 1], [0.5, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        data = self.make_PR_data(gs, confidences)
+        data = self.metric.calculate_precision_recall(data)
+        recall, precision = self.metric.modify_pr(data)
         np.testing.assert_equal(recall, [0., 0.5, 1., 1., 1.])
         np.testing.assert_equal(precision, [1., 1., 1., 2. / 3, 0.5])
 
+    def test_precision_recall_unaligned_prediction(self):
+        gs = self.gold_standard_unaligned.copy()
+        confidences = pd.DataFrame(np.array([[0, 1], [0.5, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        data = self.make_PR_data(gs, confidences)
+        data = self.metric.calculate_precision_recall(data)
+        recall, precision = self.metric.modify_pr(data)
+        np.testing.assert_equal(recall, [0., 1., 1., 1., 1.])
+        np.testing.assert_equal(precision, [1., 1., 0.5, 1. / 3, 0.25])
+
     def test_precision_recall_prediction_off(self):
         gs = pd.DataFrame(np.array([[1, 0], [0, 1]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        confidences = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        recall, precision, _ = model_performance.RankSummaryPR.calculate_precision_recall(confidences, gs)
-        recall, precision = model_performance.RankSummaryPR.modify_pr(recall, precision)
+        confidences = pd.DataFrame(np.array([[1, 0], [0.5, 0.1]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        data = self.make_PR_data(gs, confidences)
+        data = self.metric.calculate_precision_recall(data)
+        recall, precision = self.metric.modify_pr(data)
         np.testing.assert_equal(recall, [0., 0.5, 0.5, 1., 1.])
         np.testing.assert_equal(precision, [1., 1., 0.5, 2. / 3, 0.5])
 
     def test_precision_recall_bad_prediction(self):
         gs = pd.DataFrame(np.array([[0, 1], [1, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
         confidences = pd.DataFrame(np.array([[1, 0], [0, 0.5]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        recall, precision, _ = model_performance.RankSummaryPR.calculate_precision_recall(confidences, gs)
-        recall, precision = model_performance.RankSummaryPR.modify_pr(recall, precision)
+        data = self.make_PR_data(gs, confidences)
+        data = self.metric.calculate_precision_recall(data)
+        recall, precision = self.metric.modify_pr(data)
         np.testing.assert_equal(recall, [0., 0., 0., 0.5, 1.])
         np.testing.assert_equal(precision, [0., 0., 0., 1. / 3, 0.5, ])
 
     def test_aupr_perfect_prediction(self):
         gs = pd.DataFrame(np.array([[1, 0], [1, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
         confidences = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        recall, precision, _ = model_performance.RankSummaryPR.calculate_precision_recall(confidences, gs)
-        aupr = model_performance.RankSummaryPR.calculate_aupr(recall, precision)
+        data = self.make_PR_data(gs, confidences)
+        data = self.metric.calculate_precision_recall(data)
+        aupr = self.metric.calculate_aupr(data)
         np.testing.assert_equal(aupr, 1.0)
 
     def test_negative_gs_aupr_perfect_prediction(self):
         gs = pd.DataFrame(np.array([[-1, 0], [-1, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
         confidences = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        recall, precision, _ = model_performance.RankSummaryPR.calculate_precision_recall(confidences, gs)
-        aupr = model_performance.RankSummaryPR.calculate_aupr(recall, precision)
+        data = self.make_PR_data(gs, confidences)
+        data = self.metric.calculate_precision_recall(data)
+        aupr = self.metric.calculate_aupr(data)
         np.testing.assert_equal(aupr, 1.0)
 
     def test_negative_gs_precision_recall_bad_prediction(self):
         gs = pd.DataFrame(np.array([[0, -1], [-1, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
         confidences = pd.DataFrame(np.array([[1, 0], [0, 0.5]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        recall, precision, _ = model_performance.RankSummaryPR.calculate_precision_recall(confidences, gs)
-        recall, precision = model_performance.RankSummaryPR.modify_pr(recall, precision)
+        data = self.make_PR_data(gs, confidences)
+        data = self.metric.calculate_precision_recall(data)
+        recall, precision = self.metric.modify_pr(data)
         np.testing.assert_equal(recall, [0., 0., 0., 0.5, 1.])
         np.testing.assert_equal(precision, [0., 0., 0., 1. / 3, 0.5, ])
 
     def test_aupr_prediction_off(self):
         gs = pd.DataFrame(np.array([[1, 0], [0, 1]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        confidences = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        recall, precision, _ = model_performance.RankSummaryPR.calculate_precision_recall(confidences, gs)
-        aupr = model_performance.RankSummaryPR.calculate_aupr(recall, precision)
+        confidences = pd.DataFrame(np.array([[1, 0], [0.5, 0.1]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        data = self.make_PR_data(gs, confidences)
+        data = self.metric.calculate_precision_recall(data)
+        aupr = self.metric.calculate_aupr(data)
         np.testing.assert_equal(aupr, 19. / 24)
 
     def test_aupr_bad_prediction(self):
         gs = pd.DataFrame(np.array([[0, 1], [1, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
         confidences = pd.DataFrame(np.array([[1, 0], [0, 0.5]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        recall, precision, _ = model_performance.RankSummaryPR.calculate_precision_recall(confidences, gs)
-        aupr = model_performance.RankSummaryPR.calculate_aupr(recall, precision)
+        data = self.make_PR_data(gs, confidences)
+        data = self.metric.calculate_precision_recall(data)
+        aupr = self.metric.calculate_aupr(data)
         np.testing.assert_approx_equal(aupr, 7. / 24)
-
-    def test_compute_combined_confidences_rank_method_sum(self):
-        rankable_data = [pd.DataFrame(np.array([[1.0, 2.0], [3.0, 4.0]])),
-                         pd.DataFrame(np.array([[5.0, 6.0], [7.0, 8.0]]))]
-        kwargs = {"rank_method": "sum"}
-        rankable_data = model_performance.RankSummaryPR.compute_combined_confidences(rankable_data, **kwargs)
-
-    def test_compute_combined_confidences_rank_method_sum_threshold(self):
-        rankable_data = [pd.DataFrame(np.array([[1.0, 2.0], [3.0, 4.0]])),
-                         pd.DataFrame(np.array([[5.0, 6.0], [7.0, 8.0]]))]
-        kwargs = {"rank_method": "threshold_sum", "data_threshold": 0.9}
-        rankable_data = model_performance.RankSummaryPR.compute_combined_confidences(rankable_data, **kwargs)
-
-    def test_compute_combined_confidences_rank_method_max_value(self):
-        rankable_data = [pd.DataFrame(np.array([[1.0, 2.0], [3.0, 4.0]])),
-                         pd.DataFrame(np.array([[5.0, 6.0], [7.0, 8.0]]))]
-        kwargs = {"rank_method": "max"}
-        rankable_data = model_performance.RankSummaryPR.compute_combined_confidences(rankable_data, **kwargs)
-
-    def test_compute_combined_confidences_rank_method_geo_mean(self):
-        rankable_data = [pd.DataFrame(np.array([[1.0, 2.0], [3.0, 4.0]])),
-                         pd.DataFrame(np.array([[5.0, 6.0], [7.0, 8.0]]))]
-        kwargs = {"rank_method": "geo_mean"}
-        rankable_data = model_performance.RankSummaryPR.compute_combined_confidences(rankable_data, **kwargs)
 
     def test_rank_sum_increasing(self):
         rankable_data = [pd.DataFrame(np.array([[2.0, 4.0], [6.0, 8.0]]))]
-        combine_conf = model_performance.RankSummaryPR.rank_sum(rankable_data)
+        combine_conf = self.metric.compute_combined_confidences(rankable_data)
         np.testing.assert_array_almost_equal(combine_conf, np.array([[0.0, 0.333333], [0.666667, 1.000000]]), 5)
 
     def test_rank_sum_decreasing(self):
         rankable_data = [pd.DataFrame(np.array([[8.0, 6.0], [4.0, 2.0]]))]
-        combine_conf = model_performance.RankSummaryPR.rank_sum(rankable_data)
+        combine_conf = self.metric.compute_combined_confidences(rankable_data)
         np.testing.assert_array_almost_equal(combine_conf, np.array([[1.0, 0.666667], [0.333333, 0.0]]), 5)
 
     def test_rank_sum_random(self):
         rankable_data = [pd.DataFrame(np.array([[3.0, 2.0], [1.0, 4.0]]))]
-        combine_conf = model_performance.RankSummaryPR.rank_sum(rankable_data)
+        combine_conf = self.metric.compute_combined_confidences(rankable_data)
         np.testing.assert_array_almost_equal(combine_conf, np.array([[0.666667, 0.333333], [0.0, 1.0]]), 5)
 
     def test_rank_sum_negative(self):
         rankable_data = [pd.DataFrame(np.array([[-2.0, 4.0], [-6.0, 8.0]]))]
-        combine_conf = model_performance.RankSummaryPR.rank_sum(rankable_data)
+        combine_conf = self.metric.compute_combined_confidences(rankable_data)
         np.testing.assert_array_almost_equal(combine_conf, np.array([[0.333333, 0.666667], [0.0, 1.0]]), 5)
 
     def test_rank_sum_zeros(self):
         rankable_data = [pd.DataFrame(np.array([[0, 0], [0, 0]]))]
-        combine_conf = results_processor.RankSumming.rank_sum(rankable_data)
+        combine_conf = self.metric.compute_combined_confidences(rankable_data)
         np.testing.assert_array_equal(combine_conf, np.array([[0, 0], [0, 0]]))
-
-    def test_rank_sum_threshold_increasing(self):
-        rankable_data = [pd.DataFrame(np.array([[2.0, 4.0], [6.0, 8.0]]))]
-        # pd.set_option('precision',16)
-        combine_conf = model_performance.RankSummaryPR.rank_sum_threshold(rankable_data)
-        np.testing.assert_array_almost_equal(combine_conf, np.array([[0.0, 0.333333], [0.666667, 1.000000]]), 5)
-        # | computed_solution - true_solution | < \epsilon = O(1e-6)
-
-    def test_rank_sum_threshold_decreasing(self):
-        rankable_data = [pd.DataFrame(np.array([[8.0, 6.0], [4.0, 2.0]]))]
-        # pd.set_option('precision',16)
-        combine_conf = model_performance.RankSummaryPR.rank_sum_threshold(rankable_data)
-        np.testing.assert_array_almost_equal(combine_conf, np.array([[1.0, 0.666667], [0.333333, 0.0]]), 5)
-        # | computed_solution - true_solution | < \epsilon = O(1e-6)
-
-    def test_rank_sum_threshold_random(self):
-        rankable_data = [pd.DataFrame(np.array([[3.0, 2.0], [1.0, 4.0]]))]
-        # pd.set_option('precision',16)
-        combine_conf = model_performance.RankSummaryPR.rank_sum_threshold(rankable_data)
-        np.testing.assert_array_almost_equal(combine_conf, np.array([[0.666667, 0.333333], [0.0, 1.0]]), 5)
-        # | computed_solution - true_solution | < \epsilon = O(1e-6)
-
-    def test_rank_sum_threshold_negative(self):
-        rankable_data = [pd.DataFrame(np.array([[-2.0, 4.0], [-6.0, 8.0]]))]
-        # pd.set_option('precision',16)
-        combine_conf = model_performance.RankSummaryPR.rank_sum_threshold(rankable_data)
-        np.testing.assert_array_almost_equal(combine_conf, np.array([[0.0, 0.75], [0.0, 1.0]]), 5)
-        # | computed_solution - true_solution | < \epsilon = O(1e-6)
-
-    def test_rank_sum_threshold_zeros(self):
-        rankable_data = [pd.DataFrame(np.array([[0, 0], [0, 0]]))]
-        combine_conf = results_processor.RankSumming.rank_sum_threshold(rankable_data)
-        with self.assertRaises(ValueError):
-            if any(np.isnan(combine_conf)):
-                raise ValueError("combined_conf contains NaNs")
-
-    def test_rank_max_value_increasing(self):
-        rankable_data = [pd.DataFrame(np.array([[2.0, 4.0], [6.0, 8.0]]))]
-        combine_conf = model_performance.RankSummaryPR.rank_max_value(rankable_data)
-        np.testing.assert_array_almost_equal(combine_conf, np.array([[0.0, 0.333333], [0.666667, 1.000000]]), 5)
-
-    def test_rank_max_value_decreasing(self):
-        rankable_data = [pd.DataFrame(np.array([[8.0, 6.0], [4.0, 2.0]]))]
-        combine_conf = model_performance.RankSummaryPR.rank_max_value(rankable_data)
-        np.testing.assert_array_almost_equal(combine_conf, np.array([[1.0, 0.666667], [0.333333, 0.0]]), 5)
-
-    def test_rank_max_value_random(self):
-        rankable_data = [pd.DataFrame(np.array([[3.0, 2.0], [1.0, 4.0]]))]
-        combine_conf = model_performance.RankSummaryPR.rank_max_value(rankable_data)
-        np.testing.assert_array_almost_equal(combine_conf, np.array([[0.666667, 0.333333], [0.0, 1.0]]), 5)
-
-    def test_rank_max_value_negative(self):
-        rankable_data = [pd.DataFrame(np.array([[-2.0, 4.0], [-6.0, 8.0]]))]
-        combine_conf = model_performance.RankSummaryPR.rank_max_value(rankable_data)
-        np.testing.assert_array_almost_equal(combine_conf, np.array([[0.0, 0.6], [0.0, 1.0]]), 5)
-
-    def test_rank_max_value_zero(self):
-        rankable_data = [pd.DataFrame(np.array([[0, 0], [0, 0]]))]
-        combine_conf = model_performance.RankSumming.rank_max_value(rankable_data)
-        with self.assertRaises(ValueError):
-            if any(np.isnan(combine_conf)):
-                raise ValueError("combined_conf contains NaNs")
-
-    def test_rank_geo_mean_increasing(self):
-        rankable_data = [pd.DataFrame(np.array([[2.0, 4.0], [6.0, 8.0]]))]
-        combine_conf = model_performance.RankSummaryPR.rank_geo_mean(rankable_data)
-        np.testing.assert_array_almost_equal(combine_conf, np.array([[0.0, 0.333333], [0.666667, 1.000000]]), 5)
-
-    def test_rank_geo_mean_decreasing(self):
-        rankable_data = [pd.DataFrame(np.array([[8.0, 6.0], [4.0, 2.0]]))]
-        combine_conf = model_performance.RankSummaryPR.rank_geo_mean(rankable_data)
-        np.testing.assert_array_almost_equal(combine_conf, np.array([[1.0, 0.666667], [0.333333, 0.0]]), 5)
-
-    def test_rank_geo_mean_random(self):
-        rankable_data = [pd.DataFrame(np.array([[3.0, 2.0], [1.0, 4.0]]))]
-        combine_conf = model_performance.RankSummaryPR.rank_geo_mean(rankable_data)
-        np.testing.assert_array_almost_equal(combine_conf, np.array([[0.666667, 0.333333], [0.0, 1.0]]), 5)
-
-    def test_rank_geo_mean_negative(self):
-        rankable_data = [pd.DataFrame(np.array([[-2.0, 4.0], [-6.0, 8.0]]))]
-        combine_conf = model_performance.RankSummaryPR.rank_geo_mean(rankable_data)
-        np.testing.assert_array_almost_equal(combine_conf, np.array([[0.333333, 0.666667], [0.0, 1.0]]), 5)
-
-    def test_rank_geo_mean_zeros(self):
-        rankable_data = [pd.DataFrame(np.array([[0, 0], [0, 0]]))]
-        combine_conf = model_performance.RankSumming.rank_geo_mean(rankable_data)
-        with self.assertRaises(ValueError):
-            if any(np.isnan(combine_conf)):
-                raise ValueError("combined_conf contains NaNs")
-
-    def test_filter_to_left_size(self):
-        left = pd.DataFrame(np.array([[1, 1], [2, 2]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        right = pd.DataFrame(np.array([[0, 0], [2, 2]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        model_performance.RankSummaryPR.filter_to_left_size(left, right)
 
     def test_plot_pr_curve(self):
         temp_dir = tempfile.mkdtemp()
         file_name = os.path.join(temp_dir, "pr_curve.pdf")
-        model_performance.RankSummaryPR.plot_pr_curve([0, 1], [1, 0], "x", temp_dir, "pr_curve.pdf")
+        self.metric.plot_pr_curve([0, 1], [1, 0], "x", temp_dir, "pr_curve.pdf")
         self.assertTrue(os.path.exists(file_name))
         os.remove(file_name)
 
-        model_performance.RankSummaryPR.plot_pr_curve(recall=[0, 1], precision=[1, 0], aupr=0.9, output_dir=temp_dir,
-                                                      file_name="pr_curve.pdf")
+        self.metric.plot_pr_curve(recall=[0, 1], precision=[1, 0], aupr=0.9, output_dir=temp_dir,
+                                  file_name="pr_curve.pdf")
+
         self.assertTrue(os.path.exists(file_name))
         os.remove(file_name)
 
-        model_performance.RankSummaryPR.plot_pr_curve(recall=[0, 1], precision=[1, 0], aupr=0.9, output_dir=temp_dir,
-                                                      file_name=None)
+        self.metric.plot_pr_curve(recall=[0, 1], precision=[1, 0], aupr=0.9, output_dir=temp_dir, file_name=None)
         self.assertFalse(os.path.exists(file_name))
         shutil.rmtree(temp_dir)
 
@@ -377,6 +316,5 @@ class TestMTLResults(TestResults):
     def test_mtl_multiple_priors(self):
         rp = results_processor_mtl.ResultsProcessorMultiTask([[self.beta1], [self.beta1]], [[self.beta2], [self.beta2]])
         rp.write_task_files = False
-        aupr, conf, prec = rp.summarize_network(None, [self.gold_standard, self.gold_standard],
-                                                [self.prior, self.prior])
-        self.assertEqual(aupr, 1)
+        result = rp.summarize_network(None, [self.gold_standard, self.gold_standard], [self.prior, self.prior])
+        self.assertEqual(result.score, 1)

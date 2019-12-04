@@ -269,29 +269,28 @@ class MetadataHandler(object):
     """
     This keeps track of how to process metadata
     """
-    handler = MetadataParserBranching
 
     @classmethod
-    def set_handler(cls, handler_ref):
+    def get_handler(cls, handler_ref):
+        """
+        This wrappers a metadata reference so that strings can be used instead of python imports
+        Will either return a metadata handling class or will raise an error
+        :param handler_ref: str / MetadataParser
+            String or subclass of MetadataParser
+        :return: MetadataParser
+            The metadata parser that corresponds to the string, or the MetadataParser object will be passed through
+        """
         if utils.is_string(handler_ref):
             if handler_ref == "branching":
-                cls.handler = MetadataParserBranching
+                return MetadataParserBranching
             elif handler_ref == "nonbranching":
-                cls.handler = MetadataParserNonbranching
+                return MetadataParserNonbranching
             else:
                 raise ValueError("Parser {parser_str} unknown".format(parser_str=handler_ref))
         elif issubclass(handler_ref, MetadataParser):
-            cls.handler = handler_ref
+            return handler_ref
         else:
             raise ValueError("Handler must be a string or a MetadataParser class")
-
-    @classmethod
-    def get_handler(cls):
-        return cls.handler
-
-    @classmethod
-    def make_default_metadata(cls, expression_data):
-        return cls.handler.create_default_meta_data(expression_data)
 
 
 class ConditionDoesNotExistError(IndexError):

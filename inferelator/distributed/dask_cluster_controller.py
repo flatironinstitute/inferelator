@@ -6,6 +6,7 @@ from dask import distributed
 from dask_jobqueue import SLURMCluster
 
 from inferelator import utils
+from inferelator.utils import Validator as check
 from inferelator.distributed import AbstractController
 
 # Maintain python 2 compatibility
@@ -153,6 +154,18 @@ class DaskHPCClusterController(AbstractController):
     @classmethod
     def map(cls, func, *args, **kwargs):
         raise NotImplementedError
+
+    @classmethod
+    def set_processes(cls, process_count):
+        """
+        Set the number of dask workers to use
+        :param process_count: int
+        :return:
+        """
+        check.argument_integer(process_count, low=1)
+
+        cls.processes = process_count
+        cls.cores = process_count
 
     @classmethod
     def sync_processes(self, *args, **kwargs):

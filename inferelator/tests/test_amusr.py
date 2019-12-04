@@ -1,62 +1,107 @@
+import os
 import unittest
-import pandas as pd
+
 import numpy as np
-from inferelator.regression import amusr_regression
-from inferelator import amusr_workflow
-from inferelator.crossvalidation_workflow import create_puppet_workflow
 import numpy.testing as npt
+import pandas as pd
 import pandas.util.testing as pdt
+
+from inferelator import workflow
+from inferelator.tests.artifacts.test_stubs import TaskDataStub
+from inferelator.regression import amusr_regression
+
+data_path = os.path.join(os.path.dirname(__file__), "../../data/dream4")
 
 
 class TestAMuSRWorkflow(unittest.TestCase):
 
     def setUp(self):
-        self.expr = pd.DataFrame([[2, 28, 0, 16, 1, 3], [6, 21, 0, 3, 1, 3], [4, 39, 0, 17, 1, 3],
-                                  [8, 34, 0, 7, 1, 3], [6, 26, 0, 3, 1, 3], [1, 31, 0, 1, 1, 4],
-                                  [3, 27, 0, 5, 1, 4], [8, 34, 0, 9, 1, 3], [1, 22, 0, 3, 1, 4],
-                                  [9, 33, 0, 17, 1, 2]],
-                                 columns=["gene1", "gene2", "gene3", "gene4", "gene5", "gene6"]).transpose()
-        self.meta = pd.DataFrame({"Condition": ["A", "B", "C", "C", "B", "B", "A", "C", "B", "C"],
-                                  "Genotype": ['WT', 'WT', 'WT', 'WT', 'WT', 'WT', 'WT', 'WT', 'WT', 'WT']})
-        self.prior = pd.DataFrame([[0, 1], [0, 1], [1, 0], [0, 0]], index=["gene1", "gene2", "gene4", "gene5"],
-                                  columns=["gene3", "gene6"])
-        self.gold_standard = self.prior.copy()
-        self.gene_list = pd.DataFrame({"SystematicName": ["gene1", "gene2", "gene3", "gene4", "gene7", "gene6"]})
-        self.tf_names = ["gene3", "gene6"]
-        self.workflow = create_puppet_workflow(base_class=amusr_workflow.MultitaskLearningWorkflow,
-                                               regression_class=amusr_regression.AMUSRRegressionWorkflow,
-                                               result_processor_class=amusr_workflow.ResultsProcessorMultiTask)
-        self.workflow = self.workflow(self.expr, self.meta, self.prior, self.gold_standard)
-        self.workflow.tf_names = self.tf_names
-        self.workflow.gene_metadata = self.gene_list
-        self.workflow.gene_list_index = "SystematicName"
+        self.workflow = workflow.inferelator_workflow(workflow="amusr", regression="amusr")
         self.workflow.create_output_dir = lambda *x: None
+        self.workflow.gold_standard = TaskDataStub.priors_data.copy()
 
-    def test_task_separation(self):
-        self.workflow.process_priors_and_gold_standard()
-        self.workflow.separate_tasks_by_metadata()
-        self.assertEqual(self.workflow.n_tasks, 3)
-        self.assertEqual(self.workflow.tasks_names, ["A", "B", "C"])
-        self.assertEqual(list(map(lambda x: x.shape, self.workflow.expression_matrix)), [(5, 2), (5, 4), (5, 4)])
-        self.assertEqual(list(map(lambda x: x.shape, self.workflow.meta_data)), [(2, 2), (4, 2), (4, 2)])
+    def test_create_task(self):
+        self.assertIsNone(self.workflow._task_objects)
+        self.workflow.create_task(expression_matrix_file="expression.tsv", input_dir=data_path,
+                                  meta_data_file="meta_data.tsv", tf_names_file="tf_names.tsv",
+                                  priors_file="gold_standard.tsv")
+        self.assertEqual(len(self.workflow._task_objects), 1)
+
+        new_task = self.workflow._task_objects[0]
+
+        self.assertEqual(new_task.expression_matrix_file, "expression.tsv")
+        self.assertIsNone(new_task.expression_matrix)
+
+        self.assertEqual(new_task.meta_data_file, "meta_data.tsv")
+        self.assertIsNone(new_task.meta_data)
+
+        self.assertEqual(new_task.priors_file, "gold_standard.tsv")
+        self.assertIsNone(new_task.priors_data)
+
+        self.assertEqual(new_task.tf_names_file, "tf_names.tsv")
+        self.assertIsNone(new_task.tf_names)
+
+    def test_taskdata_loading(self):
+        self.assertIsNone(self.workflow._task_objects)
+        self.workflow.create_task(expression_matrix_file="expression.tsv", input_dir=data_path,
+                                  meta_data_file="meta_data.tsv", tf_names_file="tf_names.tsv",
+                                  priors_file="gold_standard.tsv")
+        self.assertEqual(len(self.workflow._task_objects), 1)
+        self.workflow.create_task(expression_matrix_file="expression.tsv", input_dir=None,
+                                  meta_data_file="meta_data.tsv", tf_names_file="tf_names.tsv",
+                                  priors_file="gold_standard.tsv")
+        self.assertEqual(len(self.workflow._task_objects), 2)
+        self.workflow.input_dir = data_path
+        self.workflow._load_tasks()
+
+        task1 = self.workflow._task_objects[0]
+        task2 = self.workflow._task_objects[1]
+
+        self.assertEqual(task1.expression_matrix.shape, (100, 421))
+        np.testing.assert_allclose(task1.expression_matrix.sum().sum(), 13507.22145160)
+        self.assertEqual(len(task1.tf_names), 100)
+        self.assertListEqual(task1.tf_names, list(map(lambda x: "G" + str(x), list(range(1, 101)))))
+        self.assertEqual(task1.priors_data.shape, (100, 100))
+        self.assertEqual(task1.meta_data.shape, (421, 5))
+
+        self.assertEqual(task1.input_dir, task2.input_dir)
+
+    def test_taskdata_processing(self):
+        self.workflow._task_objects = [TaskDataStub()]
+        # Test the TaskData processing
+        self.assertEqual(len(self.workflow._task_objects), 1)
+        self.workflow._load_tasks()
+        self.assertEqual(len(self.workflow._task_objects), 3)
+
+        # Test processing the TaskData objects into data structures in MultitaskLearningWorkflow
+        self.assertEqual(self.workflow._n_tasks, 3)
+        self.assertEqual(list(map(lambda x: x.expression_matrix.shape, self.workflow._task_objects)),
+                         [(6, 2), (6, 4), (6, 4)])
+        self.assertEqual(list(map(lambda x: x.meta_data.shape, self.workflow._task_objects)),
+                         [(2, 2), (4, 2), (4, 2)])
 
     def test_task_processing(self):
+        self.workflow._task_objects = [TaskDataStub()]
+        self.workflow._load_tasks()
         self.workflow.startup_finish()
-        self.assertEqual(self.workflow.regulators.tolist(), ["gene3", "gene6"])
-        self.assertEqual(self.workflow.targets.tolist(), ["gene1", "gene2", "gene4", "gene6"])
-        self.assertEqual(len(self.workflow.task_design), 3)
-        self.assertEqual(len(self.workflow.task_response), 3)
-        self.assertEqual(len(self.workflow.task_meta_data), 3)
-        self.assertEqual(len(self.workflow.task_bootstraps), 3)
-        pdt.assert_frame_equal(self.workflow.task_design[0],
-                               pd.DataFrame([[16., 5.], [15., 15.]], index=["gene3", "gene6"], columns = [0, 6]),
+        self.assertEqual(self.workflow._regulators.tolist(), ["gene3", "gene6"])
+        self.assertEqual(self.workflow._targets.tolist(), ["gene1", "gene2", "gene4", "gene6"])
+        self.assertEqual(len(self.workflow._task_design), 3)
+        self.assertEqual(len(self.workflow._task_response), 3)
+        self.assertEqual(len(self.workflow._task_meta_data), 3)
+        self.assertEqual(len(self.workflow._task_bootstraps), 3)
+        pdt.assert_frame_equal(self.workflow._task_design[0],
+                               pd.DataFrame([[16., 5.], [15., 15.]], index=["gene3", "gene6"], columns=[0, 6]),
                                check_dtype=False)
-        pdt.assert_frame_equal(self.workflow.task_response[0],
+        pdt.assert_frame_equal(self.workflow._task_response[0],
                                pd.DataFrame([[2, 3], [28, 27], [16, 5], [3, 4]],
-                                            index=["gene1", "gene2", "gene4", "gene6"], columns = [0, 6]),
+                                            index=["gene1", "gene2", "gene4", "gene6"], columns=[0, 6]),
                                check_dtype=False)
 
     def test_result_processor_random(self):
+        self.workflow._task_objects = [TaskDataStub()]
+        self.workflow._load_tasks()
+
         beta1 = pd.DataFrame(np.array([[1, 0], [0.5, 0], [0, 1], [0.5, 0]]),
                              ["gene1", "gene2", "gene4", "gene6"], ["gene3", "gene6"])
         beta2 = pd.DataFrame(np.array([[0, 0], [0.5, 0], [1, 0], [0.5, 0]]),
@@ -69,17 +114,19 @@ class TestAMuSRWorkflow(unittest.TestCase):
                            ["gene1", "gene2", "gene4", "gene6"], ["gene3", "gene6"])
         rb3 = pd.DataFrame(np.array([[0.5, 0.5], [0.5, 0.5], [0.5, 0.5], [0.5, 0.5]]),
                            ["gene1", "gene2", "gene4", "gene6"], ["gene3", "gene6"])
+
         self.workflow.startup_finish()
         self.workflow.gold_standard_filter_method = 'overlap'
         self.workflow.emit_results([[beta1, beta1], [beta2, beta2], [beta3, beta3]],
                                    [[rb1, rb1], [rb2, rb2], [rb3, rb3]],
                                    self.workflow.gold_standard,
                                    self.workflow.priors_data)
-        self.assertAlmostEqual(self.workflow.aupr, 0.3416666666666667)
-        self.assertEqual(self.workflow.n_interact, 0)
-        self.assertEqual(self.workflow.precision_interact, 0)
+        self.assertAlmostEqual(self.workflow.results.score, 0.37777, places=4)
 
     def test_result_processor_perfect(self):
+        self.workflow._task_objects = [TaskDataStub()]
+        self.workflow._load_tasks()
+
         beta1 = pd.DataFrame(np.array([[0, 1], [0, 1], [1, 0], [0.5, 0]]),
                              ["gene1", "gene2", "gene4", "gene6"], ["gene3", "gene6"])
         beta2 = pd.DataFrame(np.array([[0, 1], [0, 1], [1, 0], [0.5, 0]]),
@@ -92,19 +139,18 @@ class TestAMuSRWorkflow(unittest.TestCase):
                            ["gene1", "gene2", "gene4", "gene6"], ["gene3", "gene6"])
         rb3 = pd.DataFrame(np.array([[0, 1], [0, 1], [1, 0], [0.5, 0.5]]),
                            ["gene1", "gene2", "gene4", "gene6"], ["gene3", "gene6"])
+
         self.workflow.startup_finish()
         self.workflow.emit_results([[beta1, beta1], [beta2, beta2], [beta3, beta3]],
                                    [[rb1, rb1], [rb2, rb2], [rb3, rb3]],
                                    self.workflow.gold_standard,
                                    self.workflow.priors_data)
-        self.assertAlmostEqual(self.workflow.aupr, 1)
-
+        self.assertAlmostEqual(self.workflow.results.score, 1)
 
 
 class TestAMuSRrunner(unittest.TestCase):
 
     def test_format_priors_noweight(self):
-        runner = amusr_regression.AMuSR_regression([pd.DataFrame()], [pd.DataFrame()], None)
         tfs = ['tf1', 'tf2']
         priors = [pd.DataFrame([[0, 1], [1, 0]], index=['gene1', 'gene2'], columns=tfs),
                   pd.DataFrame([[0, 0], [1, 0]], index=['gene1', 'gene2'], columns=tfs)]
@@ -114,7 +160,6 @@ class TestAMuSRrunner(unittest.TestCase):
         npt.assert_almost_equal(gene2_prior, np.array([[1., 1.], [1., 1.]]))
 
     def test_format_priors_pweight(self):
-        runner = amusr_regression.AMuSR_regression([pd.DataFrame()], [pd.DataFrame()], None)
         tfs = ['tf1', 'tf2']
         priors = [pd.DataFrame([[0, 1], [1, 0]], index=['gene1', 'gene2'], columns=tfs),
                   pd.DataFrame([[0, 0], [1, 0]], index=['gene1', 'gene2'], columns=tfs)]
@@ -141,9 +186,6 @@ class TestAMuSRrunner(unittest.TestCase):
         targets = ['gene1', 'gene2']
         priors = [pd.DataFrame([[0, 1, 1], [1, 0, 1]], index=targets, columns=tfs),
                   pd.DataFrame([[0, 0, 1], [1, 0, 1]], index=targets, columns=tfs)]
-        runner = amusr_regression.AMuSR_regression([pd.DataFrame(des[0], columns=tfs)],
-                                                   [pd.DataFrame(res[0], columns=["gene1"])],
-                                                   None)
         gene1_prior = amusr_regression.format_prior(priors, 'gene1', [0, 1], 1.)
         gene2_prior = amusr_regression.format_prior(priors, 'gene2', [0, 1], 1.)
         output = []

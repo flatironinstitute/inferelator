@@ -50,6 +50,14 @@ class AbstractController:
 
     @classmethod
     @abstractmethod
+    def set_processes(cls, process_count):
+        """
+        Set the number of processes to use. Return warnings if the number of processes cannot be set
+        """
+        raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
     def sync_processes(cls, *args, **kwargs):
         """
         This synchronizes multiple processes. Multiprocessing methods which have a defined hierarchy and no risk of

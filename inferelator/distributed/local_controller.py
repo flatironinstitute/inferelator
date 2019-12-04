@@ -5,6 +5,7 @@ LocalController just runs everything in a single process
 import collections
 
 from inferelator.distributed import AbstractController
+from inferelator import utils
 from inferelator.utils import Validator as check
 
 
@@ -37,6 +38,15 @@ class LocalController(AbstractController):
         assert check.argument_callable(func)
         assert check.argument_list_type(arg, collections.Iterable)
         return list(map(func, *arg))
+
+    @classmethod
+    def set_processes(cls, process_count):
+        """
+        Set the number of dask workers to use
+        :param process_count: int
+        :return:
+        """
+        utils.Debug.vprint("Local does not support multiple cores", level=0)
 
     @classmethod
     def shutdown(cls):
