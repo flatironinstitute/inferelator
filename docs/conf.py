@@ -22,7 +22,7 @@ copyright = '2019, Flatiron Institute'
 author = 'Chris Jackson'
 
 # The full version, including alpha/beta/rc tags
-release = 'v0.3.2'
+release = 'v0.3.1'
 
 
 # -- General configuration ---------------------------------------------------
@@ -42,6 +42,8 @@ templates_path = ['_templates']
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = ["inferelator.tests*"]
+
+master_doc = 'index'
 
 intersphinx_mapping = dict(
     matplotlib=('https://matplotlib.org/', None),
