@@ -32,7 +32,8 @@ release = 'v0.3.1'
 # ones.
 extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.coverage',
-              'sphinx.ext.napoleon']
+              'sphinx.ext.napoleon',
+              'm2r']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -40,8 +41,16 @@ templates_path = ['_templates']
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ["inferelator.tests*",]
+exclude_patterns = ["inferelator.tests*"]
 
+intersphinx_mapping = dict(
+    matplotlib=('https://matplotlib.org/', None),
+    numpy=('https://docs.scipy.org/doc/numpy/', None),
+    pandas=('http://pandas.pydata.org/pandas-docs/stable/', None),
+    python=('https://docs.python.org/3', None),
+    scipy=('https://docs.scipy.org/doc/scipy/reference/', None),
+    sklearn=('https://scikit-learn.org/stable/', None),
+)
 
 # -- Options for HTML output -------------------------------------------------
 
