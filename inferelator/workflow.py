@@ -430,6 +430,30 @@ class WorkflowBaseLoader(object):
     def input_path(self, filename):
         """
         Join filename to input_dir
+
+        :param filename: Path to some file that needs to be attached to the input path
+        :type filename: str
+        :return: File joined to input_dir instance variable
+        :rtype: str
+        """
+
+        return self._filename_path_join(self.input_dir, filename)
+
+    def output_path(self, filename):
+        """
+        Join filename to output_dir
+
+        :param filename: Path to some file that needs to be attached to the output path
+        :type filename: str
+        :return: File joined to output_dir instance variable
+        :rtype: str
+        """
+        return self._filename_path_join(self.output_dir, filename)
+
+    @staticmethod
+    def _filename_path_join(path, filename):
+        """
+        Join filename to path
         """
 
         # Raise an error if filename is None
@@ -440,13 +464,13 @@ class WorkflowBaseLoader(object):
         elif os.path.isabs(filename):
             return filename
 
-        # If input_dir is set, join file name to it and return that
-        elif self.input_dir is not None:
-            return self.make_path_safe(os.path.join(self.input_dir, filename))
+        # If path is set, join filename to it and return that
+        elif path is not None:
+            return WorkflowBase.make_path_safe(os.path.join(path, filename))
 
-        # If input_dir is not set, convert the filename to absolute and return it
+        # If path is not set, convert the filename to absolute and return it
         else:
-            return self.make_path_safe(filename)
+            return WorkflowBase.make_path_safe(filename)
 
     @staticmethod
     def _create_null_prior(expression_data, tf_names):

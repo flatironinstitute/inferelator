@@ -27,6 +27,7 @@ class TFAWorkFlow(workflow.WorkflowBase):
 
     # TFA implementation
     tfa_driver = TFA
+    _tfa_output_file = None
 
     # Design-Response Driver implementation
     drd_driver = design_response_translation.PythonDRDriver
@@ -61,7 +62,7 @@ class TFAWorkFlow(workflow.WorkflowBase):
         self._set_without_warning("delTmax", delTmax)
         self._set_without_warning("tau", tau)
 
-    def set_tfa(self, tfa_driver=True):
+    def set_tfa(self, tfa_driver=True, tfa_output_file=None):
         """
         Perform or skip the TFA calculations; by default the design matrix will be transcription factor activity.
         If this is called with `tfa_driver = False`, the design matrix will be transcription factor expression.
@@ -70,12 +71,19 @@ class TFAWorkFlow(workflow.WorkflowBase):
         :param tfa_driver: A flag to indicate that the TFA calculations should be performed.
             Defaults to True
         :type tfa_driver: bool
+        :param tfa_output_file: A path to a TSV file which will be created with the calculated TFAs. Note that this file
+            may contain TF expression if the TFA cannot be calculated for that TF.
+            If None, no output file will be produced.
+            Defaults to None
+        :type tfa_output_file: str, optional
         """
 
         if tfa_driver:
             self.tfa_driver = TFA
         else:
             self.tfa_driver = NoTFA
+
+        self._set_with_warning("_tfa_output_file", tfa_output_file)
 
     def run(self):
         """
@@ -118,6 +126,11 @@ class TFAWorkFlow(workflow.WorkflowBase):
         tfa_calculator = self.tfa_driver(self.priors_data, self.design, self.half_tau_response)
         self.design = tfa_calculator.compute_transcription_factor_activity()
         self.half_tau_response = None
+
+        if self._tfa_output_file is not None and self.is_master():
+            self.create_output_dir()
+            self.design.to_csv(self.output_path(self._tfa_output_file), sep="\t")
+
 
         utils.Debug.vprint("Rebuilt design matrix {d} with TF activity".format(d=self.design.shape), level=1)
 
