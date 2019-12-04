@@ -15,7 +15,7 @@ else:
 tests_require = ["coverage", "nose"]
 
 # Current Inferelator Version Number
-version = "0.3.0"
+version = "0.3.2"
 
 # Description from README.md
 base_dir = os.path.dirname(os.path.abspath(__file__))
