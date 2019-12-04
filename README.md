@@ -16,3 +16,5 @@ To install the python packages needed for the inferelator multiprocessing functi
 To install this package, clone the [inferelator GitHub](https://github.com/flatironinstitute/inferelator) repository and run `python setup.py install`, or run `pip install inferelator`.
 
 Basic workflows for ***Bacillus subtilis*** and ***Saccharomyces cerevisiae*** are included with a tutorial. 
+
+All current example data and scripts are available from Zenodo [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3355524.svg)](https://doi.org/10.5281/zenodo.3355524)
