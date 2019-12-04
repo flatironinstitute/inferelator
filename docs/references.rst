@@ -7,7 +7,13 @@ References
 
 `A. Greenfield, A. Madar, H. Ostrer, and R. Bonneau, “DREAM4: Combining Genetic and Dynamic Information to Identify Biological Networks and Dynamical Models,” PLOS ONE, vol. 5, no. 10, p. e13397, Oct. 2010. <https://doi.org/10.1371/journal.pone.0013397>`_
 
+`M. Ciofani et al., “A Validated Regulatory Network for Th17 Cell Specification,” Cell, vol. 151, no. 2, pp. 289–303, Oct. 2012. <https://doi.org/10.1016/j.cell.2012.09.016>`_
+
 `A. Greenfield, C. Hafemeister, and R. Bonneau, “Robust data-driven incorporation of prior knowledge into the inference of dynamic regulatory networks,” Bioinformatics, vol. 29, no. 8, pp. 1060–1067, Apr. 2013. <https://doi.org/10.1093/bioinformatics/btt099>`_
+
+`M. L. Arrieta‐Ortiz et al., “An experimentally supported model of the Bacillus subtilis global transcriptional regulatory network,” Molecular Systems Biology, vol. 11, no. 11, p. 839, Nov. 2015. <https://doi.org/10.15252/msb.20156236>`_
+
+`O. Wilkins et al., “EGRINs (Environmental Gene Regulatory Influence Networks) in Rice That Function in the Response to Water Deficit, High Temperature, and Agricultural Environments,” The Plant Cell, vol. 28, no. 10, pp. 2365–2384, Oct. 2016. <https://doi.org/10.1105/tpc.16.00158>`_
 
 `K. Tchourine, C. Vogel, and R. Bonneau, “Condition-Specific Modeling of Biophysical Parameters Advances Inference of Regulatory Networks,” Cell Reports, vol. 23, no. 2, pp. 376–388, Apr. 2018. <https://doi.org/10.1016/j.celrep.2018.03.048>`_
 
