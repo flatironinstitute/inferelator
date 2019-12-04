@@ -43,6 +43,8 @@ templates_path = ['_templates']
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = ["inferelator.tests*"]
 
+master_doc = 'index'
+
 intersphinx_mapping = dict(
     matplotlib=('https://matplotlib.org/', None),
     numpy=('https://docs.scipy.org/doc/numpy/', None),
