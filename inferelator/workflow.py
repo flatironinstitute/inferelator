@@ -65,6 +65,10 @@ class WorkflowBaseLoader(object):
     priors_data = None  # priors data dataframe [G x K]
     gold_standard = None  # gold standard dataframe [G x K]
 
+    # Calculated data structures
+    design = None  # regulator features [K x N]
+    response = None  # gene features [G x N]
+
     # Flag to identify orientation of the expression matrix (True for samples x genes & False for genes x samples)
     expression_matrix_columns_are_genes = False  # bool
 
@@ -78,6 +82,50 @@ class WorkflowBaseLoader(object):
 
     # Settings that will be used by pd.read_table to import data files
     _file_format_settings = None
+
+    @property
+    def _num_obs(self):
+        """
+        Get the number of observations N
+        :return: Number of observations / samples
+        :rtype: int
+        """
+        if self.response is not None:
+            return self.response.shape[1]
+        elif self.meta_data is not None:
+            return self.meta_data.shape[0]
+        elif self.expression_matrix is not None:
+            return self.expression_matrix.shape[1]
+        else:
+            return None
+
+    @property
+    def _num_tfs(self):
+        """
+        Get the number of regulators K
+        :return: Number of regulators
+        :rtype: int
+        """
+        if self.design is not None:
+            return self.design.shape[0]
+        elif self.tf_names is not None:
+            return len(self.tf_names)
+        else:
+            return None
+
+    @property
+    def _num_genes(self):
+        """
+        Get the number of genes G
+        :return: Number of genes
+        :rtype: int
+        """
+        if self.response is not None:
+            return self.response.shape[0]
+        elif self.expression_matrix is not None:
+            return self.expression_matrix.shape[0]
+        else:
+            return None
 
     def __init__(self):
         if self._file_format_settings is None:
