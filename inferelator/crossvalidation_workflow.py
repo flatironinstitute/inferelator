@@ -534,7 +534,7 @@ def group_index(meta, meta_col, group, size_ratio=None, rgen=None, max_size=None
     if size_ratio is not None:
         size = max(int(n_group * size_ratio), 1)
     else:
-        size = max(n_group, 1)
+            size = max(n_group, 1)
 
     # Set max_size if that argument has been provided
     if max_size is not None:

@@ -3,12 +3,16 @@ import pandas as pd
 import types
 import numpy as np
 import tempfile
+import os
 
 from inferelator import crossvalidation_workflow
 from inferelator.workflow import WorkflowBase
 
 fake_metadata = pd.DataFrame({"CONST": ["A"] * 1000,
                               "VAR": ["A"] * 100 + ["B"] * 200 + ["C"] * 1 + ["D"] * 99 + ["E"] * 500 + ["F"] * 100})
+
+TEMP_DIR = tempfile.gettempdir()
+TEMP_DIR_1 = os.path.join(TEMP_DIR, "test1")
 
 
 class FakeResult(object):
@@ -47,16 +51,22 @@ class FakeWriter(object):
             self.csv_lil = []
         self.csv_lil.append(line)
 
+    def close(self):
+        pass
 
-class TestCVSampleIndexing(unittest.TestCase):
+
+class TestCV(unittest.TestCase):
 
     def setUp(self):
         wkf = FakeWorkflow()
-        wkf.output_dir = tempfile.gettempdir()
+        wkf.output_dir = TEMP_DIR
         self.cv = crossvalidation_workflow.CrossValidationManager(wkf)
         self.cv._csv_writer_object = FakeWriter
         self.cv._open_csv_handle = types.MethodType(fake_class_method, self.cv)
         self.cv._create_output_path = types.MethodType(fake_class_method, self.cv)
+
+
+class TestCVSetup(TestCV):
 
     def test_dropin_set(self):
         self.assertIsNone(self.cv.dropin_column)
@@ -136,8 +146,42 @@ class TestCVSampleIndexing(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.cv._check_metadata()
 
-    def test_group_index_masker(self):
 
+class TestCVProperties(TestCV):
+
+    def test_output_dir_cv(self):
+        self.assertEqual(TEMP_DIR, self.cv.output_dir)
+        self.cv.append_to_path('output_dir', 'test1')
+        self.assertEqual(TEMP_DIR_1, self.cv.output_dir)
+
+    def test_set_output_dir_cv(self):
+        self.cv.output_dir = TEMP_DIR_1
+        self.assertEqual(TEMP_DIR_1, self.cv.workflow.output_dir)
+
+    def test_input_dir_cv(self):
+        self.cv.workflow.input_dir = TEMP_DIR
+        self.assertEqual(TEMP_DIR, self.cv.input_dir)
+
+    def test_set_input_dir_cv(self):
+        self.cv.input_dir = TEMP_DIR_1
+        self.assertEqual(TEMP_DIR_1, self.cv.workflow.input_dir)
+
+    def test_harmonize(self):
+        self.cv.workflow.output_dir = None
+        self.cv.workflow.input_dir = None
+
+        self.cv._baseline_input_dir = TEMP_DIR
+        self.cv._baseline_output_dir = TEMP_DIR_1
+
+        self.cv._harmonize_paths()
+
+        self.assertEqual(TEMP_DIR_1, self.cv.workflow.output_dir)
+        self.assertEqual(TEMP_DIR, self.cv.workflow.input_dir)
+
+
+class TestCVSampleIndexing(TestCV):
+
+    def test_group_index_masker(self):
         self.assertEqual(crossvalidation_workflow.group_index(fake_metadata, "CONST", "A").sum(), 1000)
         self.assertEqual(crossvalidation_workflow.group_index(fake_metadata, "CONST", "B").sum(), 0)
         self.assertEqual(crossvalidation_workflow.group_index(fake_metadata, "CONST", "A", max_size=100).sum(), 100)
@@ -238,13 +282,15 @@ class TestCVSampleIndexing(unittest.TestCase):
             self.assertEqual(test, "size")
             self.assertTrue(value == "0.5")
 
-            self.assertEqual(slf.workflow.meta_data.shape[0] * float(value),
+            self.assertEqual(max(int(slf.workflow.meta_data.shape[0] * float(value)), 1),
                              mask_function().sum())
 
         self.cv._grid_search = types.MethodType(test_grid_search, self.cv)
 
         self.cv.size_sample_vector = [0.5]
         self.cv.size_sample_seed = 50
+
+        self.cv._size_cv()
 
     def test_size_sampling_strat(self):
 
@@ -255,7 +301,7 @@ class TestCVSampleIndexing(unittest.TestCase):
             mask = mask_function()
             for g in slf.workflow.meta_data[slf.size_sample_stratified_column].unique():
                 is_group = slf.workflow.meta_data[slf.size_sample_stratified_column] == g
-                self.assertEqual(is_group.sum() * float(value),
+                self.assertEqual(max(int(is_group.sum() * float(value)), 1),
                                  mask[is_group].sum())
 
         self.cv._grid_search = types.MethodType(test_grid_search, self.cv)
@@ -263,3 +309,5 @@ class TestCVSampleIndexing(unittest.TestCase):
         self.cv.size_sample_vector = [0.5]
         self.cv.size_sample_seed = 50
         self.cv.size_sample_stratified_column = "VAR"
+
+        self.cv._size_cv()
