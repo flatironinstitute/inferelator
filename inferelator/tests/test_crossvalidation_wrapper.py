@@ -19,8 +19,10 @@ class FakeResult(object):
 
 class FakeWorkflow(WorkflowBase):
 
-    meta_data = fake_metadata.copy()
     seed = 10
+
+    def __init__(self):
+        self.meta_data = fake_metadata.copy()
 
     def run(self):
         return FakeResult()
@@ -155,3 +157,109 @@ class TestCVSampleIndexing(unittest.TestCase):
         self.cv._grid_search()
 
         self.assertEqual(len(self.cv._csv_writer.csv_lil), 4)
+
+    def test_group_dropout_no_limit(self):
+
+        def test_grid_search(slf, test=None, value=None, mask_function=None):
+            self.assertEqual(test, "dropout")
+            self.assertTrue(value in slf.workflow.meta_data[slf.dropout_column].unique())
+            self.assertListEqual((slf.workflow.meta_data[slf.dropout_column] != value).tolist(),
+                                 mask_function().tolist())
+
+        self.cv._grid_search = types.MethodType(test_grid_search, self.cv)
+
+        self.cv.dropout_column = "VAR"
+        self.cv.dropout_max_size = None
+        self.cv.dropout_seed = 50
+
+        self.cv._dropout_cv()
+
+    def test_group_dropout_limit(self):
+
+        def test_grid_search(slf, test=None, value=None, mask_function=None):
+            self.assertEqual(test, "dropout")
+            self.assertTrue(value in slf.workflow.meta_data[self.cv.dropout_column].unique())
+
+            uniques = slf.workflow.meta_data[slf.dropout_column].unique()
+            unique_counts = slf.workflow.meta_data[slf.dropout_column].value_counts()
+            unique_counts[unique_counts > slf.dropout_max_size] = slf.dropout_max_size
+            unique_counts[value] = 0
+
+            mask = mask_function()
+            self.assertTrue(value in uniques)
+            self.assertEqual(unique_counts.sum(), mask.sum())
+            self.assertEqual(sum((self.cv.workflow.meta_data[self.cv.dropout_column] == value)[mask]), 0)
+
+        self.cv._grid_search = types.MethodType(test_grid_search, self.cv)
+
+        self.cv.dropout_column = "VAR"
+        self.cv.dropout_max_size = 50
+        self.cv.dropout_seed = 50
+
+        self.cv._dropout_cv()
+
+    def test_group_dropin_no_limit(self):
+
+        def test_grid_search(slf, test=None, value=None, mask_function=None):
+            self.assertEqual(test, "dropin")
+            self.assertTrue(value in slf.workflow.meta_data[slf.dropin_column].unique())
+            self.assertListEqual((slf.workflow.meta_data[slf.dropin_column] == value).tolist(),
+                                 mask_function().tolist())
+
+        self.cv._grid_search = types.MethodType(test_grid_search, self.cv)
+
+        self.cv.dropin_column = "VAR"
+        self.cv.dropin_max_size = None
+        self.cv.dropin_seed = 50
+
+        self.cv._dropin_cv()
+
+    def test_group_dropin_limit(self):
+
+        def test_grid_search(slf, test=None, value=None, mask_function=None):
+            self.assertEqual(test, "dropin")
+            self.assertTrue(value in slf.workflow.meta_data[slf.dropin_column].unique())
+
+            self.assertEqual(min((slf.workflow.meta_data[slf.dropin_column] == value).sum(),
+                                 slf.dropin_max_size),
+                             mask_function().sum())
+
+        self.cv._grid_search = types.MethodType(test_grid_search, self.cv)
+
+        self.cv.dropin_column = "VAR"
+        self.cv.dropin_max_size = 25
+        self.cv.dropin_seed = 50
+
+        self.cv._dropin_cv()
+
+    def test_size_sampling_no_strat(self):
+
+        def test_grid_search(slf, test=None, value=None, mask_function=None):
+            self.assertEqual(test, "size")
+            self.assertTrue(value == "0.5")
+
+            self.assertEqual(slf.workflow.meta_data.shape[0] * float(value),
+                             mask_function().sum())
+
+        self.cv._grid_search = types.MethodType(test_grid_search, self.cv)
+
+        self.cv.size_sample_vector = [0.5]
+        self.cv.size_sample_seed = 50
+
+    def test_size_sampling_strat(self):
+
+        def test_grid_search(slf, test=None, value=None, mask_function=None):
+            self.assertEqual(test, "size")
+            self.assertTrue(value == "0.5")
+
+            mask = mask_function()
+            for g in slf.workflow.meta_data[slf.size_sample_stratified_column].unique():
+                is_group = slf.workflow.meta_data[slf.size_sample_stratified_column] == g
+                self.assertEqual(is_group.sum() * float(value),
+                                 mask[is_group].sum())
+
+        self.cv._grid_search = types.MethodType(test_grid_search, self.cv)
+
+        self.cv.size_sample_vector = [0.5]
+        self.cv.size_sample_seed = 50
+        self.cv.size_sample_stratified_column = "VAR"

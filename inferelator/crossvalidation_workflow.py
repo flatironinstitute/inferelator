@@ -444,18 +444,24 @@ class CrossValidationManager(object):
         unique_groups = meta_data[col].unique().tolist()
 
         for i, group in enumerate(unique_groups):
-            rgen = np.random.RandomState(self.dropin_seed + i)
+            rgen = np.random.RandomState(self.dropout_seed + i)
 
             def mask_function():
-                include_mask = meta_data[col] != group
                 if max_size is None:
-                    return include_mask
+                    return meta_data[col] != group
                 else:
+                    include_mask = pd.Series(False, index=meta_data.index)
+
                     # For each factor in the stratified column
                     for g in unique_groups:
-                        include_mask = include_mask & group_index(meta_data, col, g, rgen=rgen, max_size=max_size)
+                        if g == group:
+                            continue
 
-            self._grid_search(test="dropin", value="group", mask_function=mask_function)
+                        include_mask = include_mask | group_index(meta_data, col, g, rgen=rgen, max_size=max_size)
+
+                    return include_mask
+
+            self._grid_search(test="dropout", value=group, mask_function=mask_function)
 
     def _dropin_cv(self):
         """
@@ -477,7 +483,7 @@ class CrossValidationManager(object):
                 else:
                     return group_index(meta_data, col, group, rgen=rgen, max_size=max_size)
 
-            self._grid_search(test="dropin", value="group", mask_function=mask_function)
+            self._grid_search(test="dropin", value=group, mask_function=mask_function)
 
     def _size_cv(self):
         """
@@ -493,7 +499,7 @@ class CrossValidationManager(object):
 
                 def data_masker():
                     unique_groups = meta_data[strat_col].unique().tolist()
-                    data_mask = pd.Index(False, index=meta_data.index)
+                    data_mask = pd.Series(False, index=meta_data.index)
 
                     # For each factor in the stratified column
                     for group in unique_groups:
