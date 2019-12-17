@@ -183,18 +183,18 @@ cv_wrap.run()
 worker = workflow.inferelator_workflow(regression="amusr", workflow="multitask")
 worker.set_file_paths(input_dir=DATA_DIR, output_dir=OUTPUT_DIR,
                       gold_standard_file=GOLD_STANDARD_FILE_NAME)
-worker.create_task(task_name="Bsubtilis__1",
+worker.create_task(task_name="Bsubtilis_1",
                    input_dir=DATA_DIR,
                    expression_matrix_file=BSUBTILIS_1_EXPRESSION,
                    tf_names_file=TF_LIST_FILE_NAME,
                    meta_data_file=BSUBTILIS_1_METADATA,
                    priors_file=PRIORS_FILE_NAME,
                    workflow_type="tfa")
-worker.create_task(task_name="Bsubtilis__1",
+worker.create_task(task_name="Bsubtilis_2",
                    input_dir=DATA_DIR,
-                   expression_matrix_file=BSUBTILIS_1_EXPRESSION,
+                   expression_matrix_file=BSUBTILIS_2_EXPRESSION,
                    tf_names_file=TF_LIST_FILE_NAME,
-                   meta_data_file=BSUBTILIS_1_METADATA,
+                   meta_data_file=BSUBTILIS_2_METADATA,
                    priors_file=PRIORS_FILE_NAME,
                    workflow_type="tfa")
 worker.set_crossvalidation_parameters(split_gold_standard_for_crossvalidation=False, cv_split_ratio=None)
