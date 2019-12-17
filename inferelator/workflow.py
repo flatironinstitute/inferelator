@@ -757,9 +757,9 @@ class WorkflowBase(WorkflowBaseLoader):
         """
         Generate sequence of bootstrap parameter objects for run.
         """
-        col_range = range(self.response.shape[1])
+        col_range = range(self._num_obs)
         random_state = np.random.RandomState(seed=self.random_seed)
-        return random_state.choice(col_range, size=(self.num_bootstraps, self.response.shape[1])).tolist()
+        return random_state.choice(col_range, size=(self.num_bootstraps, self._num_obs)).tolist()
 
     def emit_results(self, betas, rescaled_betas, gold_standard, priors):
         """
