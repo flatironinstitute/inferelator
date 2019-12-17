@@ -7,3 +7,4 @@
    workflow
    examples
    references
+   changelog
