@@ -85,8 +85,8 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         :type target_expression_filter: str, optional
         """
 
-        self._set_without_warning("regulator_expression_filter", regulator_expression_filter)
-        self._set_without_warning("target_expression_filter", target_expression_filter)
+        self._set_without_warning("_regulator_expression_filter", regulator_expression_filter)
+        self._set_without_warning("_target_expression_filter", target_expression_filter)
 
     def startup_run(self):
         """
