@@ -386,6 +386,8 @@ class WorkflowBaseLoader(object):
         except ValueError as err:
             utils.Debug.vprint("Expression Matrix " + str(err), level=0)
 
+        self.loaded_file_info("Expression Matrix", self.expression_matrix)
+
     def read_tfs(self, file=None):
         """
         Read tf names file into tf_names
@@ -444,9 +446,13 @@ class WorkflowBaseLoader(object):
         if priors_file is not None:
             utils.Debug.vprint("Loading prior data from file {file}".format(file=priors_file), level=1)
             self.priors_data = self.input_dataframe(priors_file)
+            self.loaded_file_info("Priors data", self.priors_data)
+
         if gold_standard_file is not None:
-            utils.Debug.vprint("Loading gold_standard data from file {file}".format(file=gold_standard_file), level=1)
+            utils.Debug.vprint("Loading gold_standard data from file {file}".format(file=gold_standard_file),
+                               level=1)
             self.gold_standard = self.input_dataframe(gold_standard_file)
+            self.loaded_file_info("Gold standard", self.gold_standard)
 
     def validate_data(self):
         """
@@ -555,6 +561,13 @@ class WorkflowBaseLoader(object):
         data_frame_two = data_frame.loc[:, remove_columns].copy()
         data_frame = data_frame.drop(remove_columns, axis=1)
         return data_frame, data_frame_two
+
+    @staticmethod
+    def loaded_file_info(df_name, df):
+
+        utils.Debug.vprint(df_name + " loaded {sh}".format(sh=df.shape), level=2)
+        utils.Debug.vprint(df_name + " index: " + str(df.index[0]) + " ...", level=2)
+        utils.Debug.vprint(df_name + " columns: " + str(df.columns[0]) + " ...", level=2)
 
 
 class WorkflowBase(WorkflowBaseLoader):

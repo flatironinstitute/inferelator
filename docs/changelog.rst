@@ -1,6 +1,21 @@
 Change Log
 ==========
 
+Inferelator v0.3.2
+------------------
+
+New Functionality:
+
+- Improved error messages associated with misaligned data structures
+
+Bug Fixes:
+
+- Corrected several bugs when using the CrossValidationManager on multitask workflows
+
+Code Refactoring:
+
+- Additional unit testing
+
 Inferelator v0.3.1 `December 10, 2019`
 --------------------------------------
 
