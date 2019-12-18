@@ -25,6 +25,8 @@ New Functionality:
   Replaces the single_cell_cv_workflow which was did not generalize well.
 - Workflow parameters are now set through functional setters like set_file_paths(),
   instead of through setting instance variables
+- Calculated transcription factor activities can be saved to a file prior to inference.
+  This is set with `workflow.set_tfa(tfa_output_file = "Filename.tsv")`
 
 Bug Fixes:
 
@@ -50,5 +52,6 @@ Bug Fixes:
 
 Code Refactoring:
 
-- Rebuilt the core workflow so that it is produced from a factory function
+- Rebuilt the core workflow
+- Workflow assembly by inheritance is managed with a factory function
 - Refactored regression to act as a mapped function for easier multiprocessing
