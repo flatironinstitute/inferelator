@@ -5,14 +5,17 @@ Test TFA workflow stepwise.
 import os
 import types
 import unittest
+import tempfile
 
 import numpy as np
+import pandas as pd
 
 from inferelator import tfa_workflow
 from inferelator import workflow
 from inferelator import default
 from inferelator.tests.artifacts.test_stubs import FakeResultProcessor, FakeRegression, FakeDRD
 from inferelator.preprocessing import tfa
+from inferelator.preprocessing import design_response_translation as drt
 
 my_dir = os.path.dirname(__file__)
 
@@ -49,8 +52,27 @@ class TestTFAWorkflow(unittest.TestCase):
         with self.assertRaises(NotImplementedError):
             self.workflow.run_bootstrap([])
 
+    def test_set_tf_params(self):
 
-class TestTFAWorkflowRegression(unittest.TestCase):
+        self.workflow.set_tfa(tfa_driver=False)
+        self.assertIs(self.workflow.tfa_driver, tfa.NoTFA)
+
+        self.workflow.set_tfa(tfa_driver=True)
+        self.assertIs(self.workflow.tfa_driver, tfa.TFA)
+
+        self.workflow.set_tfa(tfa_output_file="test.tsv")
+        self.assertEqual(self.workflow._tfa_output_file, "test.tsv")
+
+    def test_set_drd_params(self):
+
+        self.workflow.set_design_settings(timecourse_response_driver=False)
+        self.assertIsNone(self.workflow.drd_driver)
+
+        self.workflow.set_design_settings(timecourse_response_driver=True)
+        self.assertIs(self.workflow.drd_driver, drt.PythonDRDriver)
+
+
+class TestTFAOnData(unittest.TestCase):
 
     def setUp(self):
         self.workflow = workflow._factory_build_inferelator(regression=FakeRegression,
@@ -63,8 +85,8 @@ class TestTFAWorkflowRegression(unittest.TestCase):
         self.workflow.gold_standard_file = default.DEFAULT_GOLDSTANDARD_FILE
         self.workflow.get_data()
 
-    def tearDown(self):
-        del self.workflow
+
+class TestTFAWorkflowRegression(TestTFAOnData):
 
     def test_regression(self):
         self.workflow.regression_type = FakeRegression
@@ -83,3 +105,26 @@ class TestTFAWorkflowRegression(unittest.TestCase):
 
         self.workflow.create_output_dir = types.MethodType(no_output, self.workflow)
         self.workflow.emit_results(None, None, None, None)
+
+
+class TestTFAWrite(TestTFAOnData):
+
+    def setUp(self):
+        super(TestTFAWrite, self).setUp()
+        self.workflow.output_dir = tempfile.gettempdir()
+        self.workflow.set_tfa(tfa_output_file="test.tsv")
+        self.tfa_file_name = os.path.join(tempfile.gettempdir(), "test.tsv")
+
+    def tearDown(self):
+        os.remove(self.tfa_file_name)
+
+    def test_tfa_tsv(self):
+        self.workflow.startup()
+
+        self.assertTrue(os.path.exists(self.tfa_file_name))
+        tfa = pd.read_csv(self.tfa_file_name, sep="\t", index_col=0)
+
+        self.assertTupleEqual(self.workflow.design.shape, tfa.shape)
+        pd.testing.assert_frame_equal(tfa, self.workflow.design)
+
+

@@ -6,7 +6,7 @@ This is the standard workflow for most applications.
 
 import numpy as np
 from inferelator import workflow
-from inferelator.preprocessing import design_response_translation  # added python design_response
+from inferelator.preprocessing import design_response_translation
 from inferelator.preprocessing.tfa import TFA, NoTFA
 from inferelator import utils
 
@@ -53,7 +53,9 @@ class TFAWorkFlow(workflow.WorkflowBase):
         :type tau: int, float
         """
 
-        if timecourse_response_driver:
+        if timecourse_response_driver is None:
+            pass
+        elif timecourse_response_driver:
             self.drd_driver = design_response_translation.PythonDRDriver
         else:
             self.drd_driver = None
@@ -132,7 +134,6 @@ class TFAWorkFlow(workflow.WorkflowBase):
         if self._tfa_output_file is not None and self.is_master():
             self.create_output_dir()
             self.design.to_csv(self.output_path(self._tfa_output_file), sep="\t")
-
 
         utils.Debug.vprint("Rebuilt design matrix {d} with TF activity".format(d=self.design.shape), level=1)
 
