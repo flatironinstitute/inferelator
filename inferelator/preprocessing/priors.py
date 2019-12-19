@@ -109,29 +109,58 @@ class ManagePriors(object):
         """
 
         utils.Debug.vprint("Filtering expression and priors to {le} genes from list".format(le=len(gene_list)), level=1)
+
         expression_matrix = ManagePriors.filter_expression_to_genes(expression_matrix, gene_list)
         priors_data = ManagePriors.filter_priors_to_genes(priors_data, gene_list)
+
         return priors_data, expression_matrix
 
     @staticmethod
     def filter_expression_to_genes(expression_matrix, gene_list):
-        expression_matrix = ManagePriors._filter_df_index(expression_matrix, gene_list)
-        utils.Debug.vprint("Expression data filtered to {sh}".format(sh=expression_matrix.shape), level=1)
-        if expression_matrix.shape[0] == 0:
-            raise ValueError("Expression matrix genes and gene list genes have no overlap")
+
+        if len(gene_list) == 0:
+            raise ValueError("Filtering to a list of 0 genes is not valid")
+
+        if len(expression_matrix.index) == 0:
+            raise ValueError("Filtering an expression matrix of 0 genes is not valid")
+
+        try:
+            expression_matrix = ManagePriors._filter_df_index(expression_matrix, gene_list)
+        except ValueError as err:
+            err = str(err) + " when filtering expression for gene list. "
+            err += " Expression matrix genes: " + str(expression_matrix.index[0]) + "..."
+            err += " Gene list genes: " + gene_list[0]
+            raise ValueError(err)
+
         return expression_matrix
 
     @staticmethod
     def filter_priors_to_genes(priors_data, gene_list):
-        priors_data = ManagePriors._filter_df_index(priors_data, gene_list)
-        utils.Debug.vprint("Priors data filtered to {sh}".format(sh=priors_data.shape), level=1)
-        if priors_data.shape[0] == 0:
-            raise ValueError("Prior genes and gene list genes have no overlap")
+
+        if len(gene_list) == 0:
+            raise ValueError("Filtering to a list of 0 genes is not valid")
+
+        if len(priors_data.index) == 0:
+            raise ValueError("Filtering a prior matrix of 0 genes is not valid")
+
+        try:
+            priors_data = ManagePriors._filter_df_index(priors_data, gene_list)
+        except ValueError as err:
+            err = str(err) + " when filtering priors for gene list. "
+            err += " Prior matrix genes: " + str(priors_data.index[0]) + "..."
+            err += " Gene list genes: " + gene_list[0]
+            raise ValueError(err)
+
         return priors_data
 
     @staticmethod
     def _filter_df_index(data_frame, index_list):
-        return data_frame.loc[data_frame.index.intersection(index_list), :]
+        new_index = data_frame.index.intersection(index_list)
+
+        if len(new_index) == 0:
+            raise ValueError("Filtering results in 0-length index")
+
+        return data_frame.loc[new_index, :]
 
     @staticmethod
     def filter_to_tf_names_list(priors_data, tf_names):
@@ -168,7 +197,19 @@ class ManagePriors(object):
         """
 
         if len(priors_data.index.intersection(expression_matrix.index)) == 0:
-            raise ValueError("Prior genes and expression matrix genes have no overlap")
+            err = "Prior genes and expression matrix genes have no overlap."
+            if len(priors_data.index) == 0:
+                err += " (Prior matrix has no genes"
+            else:
+                e_genes = map(str, priors_data.index[0:min(len(priors_data.index), 5)])
+                err += " (Prior genes: " + " ".join(e_genes) + "..."
+            if len(expression_matrix.index) == 0:
+                err += " Expression matrix has no genes)"
+            else:
+                e_genes = map(str, expression_matrix.index[0:min(len(expression_matrix.index), 5)])
+                err += " Expression matrix genes: " + " ".join(e_genes) + ")"
+
+            raise ValueError(err)
 
         return priors_data.reindex(index=expression_matrix.index).fillna(value=0)
 

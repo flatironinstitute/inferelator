@@ -1,5 +1,6 @@
 import os
 import unittest
+import copy
 
 import numpy as np
 import numpy.testing as npt
@@ -20,12 +21,37 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.workflow.create_output_dir = lambda *x: None
         self.workflow.gold_standard = TaskDataStub.priors_data.copy()
 
+    def test_set_task_filters(self):
+        self.assertEqual(self.workflow._regulator_expression_filter, "intersection")
+        self.assertEqual(self.workflow._target_expression_filter, "union")
+
+        self.workflow.set_task_filters(regulator_expression_filter="test1",
+                                       target_expression_filter="test2")
+
+        self.assertEqual(self.workflow._regulator_expression_filter, "test1")
+        self.assertEqual(self.workflow._target_expression_filter, "test2")
+
     def test_create_task(self):
         self.assertIsNone(self.workflow._task_objects)
+
+        with self.assertRaises(ValueError):
+            self.workflow._load_tasks()
+
         self.workflow.create_task(expression_matrix_file="expression.tsv", input_dir=data_path,
                                   meta_data_file="meta_data.tsv", tf_names_file="tf_names.tsv",
-                                  priors_file="gold_standard.tsv")
-        self.assertEqual(len(self.workflow._task_objects), 1)
+                                  priors_file="gold_standard.tsv", drd_driver=None)
+
+        with self.assertWarns(Warning):
+            self.workflow.create_task(expression_matrix_file="expression.tsv", input_dir=data_path,
+                                      meta_data_file="meta_data.tsv", tf_names_file="tf_names.tsv",
+                                      priors_file="gold_standard.tsv", gold_standard_file="gold_standard.tsv")
+
+        with self.assertRaises(ValueError):
+            self.workflow.create_task(expression_matrix_file="expression.tsv", input_dir=data_path,
+                                      meta_data_file="meta_data.tsv", tf_names_file="tf_names.tsv",
+                                      priors_file="gold_standard.tsv", does_not_exist=True)
+
+        self.assertEqual(len(self.workflow._task_objects), 2)
 
         new_task = self.workflow._task_objects[0]
 
@@ -40,6 +66,56 @@ class TestAMuSRWorkflow(unittest.TestCase):
 
         self.assertEqual(new_task.tf_names_file, "tf_names.tsv")
         self.assertIsNone(new_task.tf_names)
+
+    def test_num_props(self):
+
+        self.assertIsNone(self.workflow._num_obs)
+        self.assertIsNone(self.workflow._num_tfs)
+        self.assertIsNone(self.workflow._num_genes)
+
+        task_obs = TaskDataStub.expression_matrix.shape[1]
+        task_tfs = TaskDataStub.priors_data.shape[1]
+        task_genes = TaskDataStub.expression_matrix.shape[0]
+
+        self.workflow._task_objects = [TaskDataStub(), TaskDataStub(), TaskDataStub()]
+
+        self.assertEqual(self.workflow._num_obs, task_obs * 3)
+        self.assertEqual(self.workflow._num_genes, task_genes)
+        self.assertEqual(self.workflow._num_tfs, task_tfs)
+
+    def test_align_parent_priors(self):
+
+        self.workflow._process_default_priors()
+
+        self.assertIsNone(self.workflow.priors_data)
+        self.assertTupleEqual(self.workflow.gold_standard.shape, TaskDataStub.priors_data.shape)
+
+        self.workflow.set_crossvalidation_parameters(split_gold_standard_for_crossvalidation=True, cv_split_ratio=0.2)
+        self.workflow._process_default_priors()
+
+        self.assertIsNone(self.workflow.priors_data)
+        self.assertEqual(self.workflow.gold_standard.shape[1], TaskDataStub.priors_data.shape[1])
+        self.assertEqual(max(int(TaskDataStub.priors_data.shape[0] * 0.2), 1), self.workflow.gold_standard.shape[0])
+
+    def test_align_task_priors(self):
+
+        self.workflow.set_crossvalidation_parameters(split_gold_standard_for_crossvalidation=True, cv_split_ratio=0.2)
+        self.workflow._process_default_priors()
+
+        gs_genes = self.workflow.gold_standard.shape[0]
+        self.workflow._task_objects = [copy.deepcopy(TaskDataStub()),
+                                       copy.deepcopy(TaskDataStub()),
+                                       copy.deepcopy(TaskDataStub())]
+
+        self.assertTupleEqual(self.workflow._task_objects[0].priors_data.shape, TaskDataStub.priors_data.shape)
+
+        self.workflow._process_task_priors()
+
+        expect_size = 2
+        prior_sizes = list(map(lambda x: x.priors_data.shape[0], self.workflow._task_objects))
+
+        self.assertListEqual([expect_size] * 3, prior_sizes)
+
 
     def test_taskdata_loading(self):
         self.assertIsNone(self.workflow._task_objects)

@@ -5,5 +5,7 @@
    :hidden:
 
    workflow
+   tutorial
    examples
    references
+   changelog

@@ -65,6 +65,10 @@ class WorkflowBaseLoader(object):
     priors_data = None  # priors data dataframe [G x K]
     gold_standard = None  # gold standard dataframe [G x K]
 
+    # Calculated data structures
+    design = None  # regulator features [K x N]
+    response = None  # gene features [G x N]
+
     # Flag to identify orientation of the expression matrix (True for samples x genes & False for genes x samples)
     expression_matrix_columns_are_genes = False  # bool
 
@@ -78,6 +82,50 @@ class WorkflowBaseLoader(object):
 
     # Settings that will be used by pd.read_table to import data files
     _file_format_settings = None
+
+    @property
+    def _num_obs(self):
+        """
+        Get the number of observations N
+        :return: Number of observations / samples
+        :rtype: int
+        """
+        if self.response is not None:
+            return self.response.shape[1]
+        elif self.meta_data is not None:
+            return self.meta_data.shape[0]
+        elif self.expression_matrix is not None:
+            return self.expression_matrix.shape[1]
+        else:
+            return None
+
+    @property
+    def _num_tfs(self):
+        """
+        Get the number of regulators K
+        :return: Number of regulators
+        :rtype: int
+        """
+        if self.design is not None:
+            return self.design.shape[0]
+        elif self.tf_names is not None:
+            return len(self.tf_names)
+        else:
+            return None
+
+    @property
+    def _num_genes(self):
+        """
+        Get the number of genes G
+        :return: Number of genes
+        :rtype: int
+        """
+        if self.response is not None:
+            return self.response.shape[0]
+        elif self.expression_matrix is not None:
+            return self.expression_matrix.shape[0]
+        else:
+            return None
 
     def __init__(self):
         if self._file_format_settings is None:
@@ -338,6 +386,8 @@ class WorkflowBaseLoader(object):
         except ValueError as err:
             utils.Debug.vprint("Expression Matrix " + str(err), level=0)
 
+        self.loaded_file_info("Expression Matrix", self.expression_matrix)
+
     def read_tfs(self, file=None):
         """
         Read tf names file into tf_names
@@ -396,9 +446,13 @@ class WorkflowBaseLoader(object):
         if priors_file is not None:
             utils.Debug.vprint("Loading prior data from file {file}".format(file=priors_file), level=1)
             self.priors_data = self.input_dataframe(priors_file)
+            self.loaded_file_info("Priors data", self.priors_data)
+
         if gold_standard_file is not None:
-            utils.Debug.vprint("Loading gold_standard data from file {file}".format(file=gold_standard_file), level=1)
+            utils.Debug.vprint("Loading gold_standard data from file {file}".format(file=gold_standard_file),
+                               level=1)
             self.gold_standard = self.input_dataframe(gold_standard_file)
+            self.loaded_file_info("Gold standard", self.gold_standard)
 
     def validate_data(self):
         """
@@ -507,6 +561,13 @@ class WorkflowBaseLoader(object):
         data_frame_two = data_frame.loc[:, remove_columns].copy()
         data_frame = data_frame.drop(remove_columns, axis=1)
         return data_frame, data_frame_two
+
+    @staticmethod
+    def loaded_file_info(df_name, df):
+
+        utils.Debug.vprint(df_name + " loaded {sh}".format(sh=df.shape), level=2)
+        utils.Debug.vprint(df_name + " index: " + str(df.index[0]) + " ...", level=2)
+        utils.Debug.vprint(df_name + " columns: " + str(df.columns[0]) + " ...", level=2)
 
 
 class WorkflowBase(WorkflowBaseLoader):
@@ -709,9 +770,9 @@ class WorkflowBase(WorkflowBaseLoader):
         """
         Generate sequence of bootstrap parameter objects for run.
         """
-        col_range = range(self.response.shape[1])
+        col_range = range(self._num_obs)
         random_state = np.random.RandomState(seed=self.random_seed)
-        return random_state.choice(col_range, size=(self.num_bootstraps, self.response.shape[1])).tolist()
+        return random_state.choice(col_range, size=(self.num_bootstraps, self._num_obs)).tolist()
 
     def emit_results(self, betas, rescaled_betas, gold_standard, priors):
         """

@@ -210,6 +210,7 @@ class CrossValidationManager(object):
         self._initial_data_load()
         self._check_metadata()
         self._check_grid_search_params_exist()
+
         # Run base grid search
         self._grid_search()
 
@@ -371,7 +372,7 @@ class CrossValidationManager(object):
                 cv_workflow.meta_data.drop(cv_workflow.meta_data.index[~mask], axis=0, inplace=True)
                 n_obs = mask.sum()
             else:
-                n_obs = cv_workflow.meta_data.shape[0]
+                n_obs = cv_workflow._num_obs
 
             for name, param_value in params:
                 csv_line.append(param_value)
@@ -443,19 +444,41 @@ class CrossValidationManager(object):
 
         unique_groups = meta_data[col].unique().tolist()
 
-        for i, group in enumerate(unique_groups):
-            rgen = np.random.RandomState(self.dropin_seed + i)
+        # Downsample if max_size is set for a comparable all-group control
+        if len(unique_groups) > 2 and max_size is not None:
+            rgen = np.random.RandomState(self.dropout_seed - 1)
 
             def mask_function():
-                include_mask = meta_data[col] != group
+
+                include_mask = pd.Series(False, index=meta_data.index)
+
+                for g in unique_groups:
+                    include_mask = include_mask | group_index(meta_data, col, g, rgen=rgen, max_size=max_size)
+
+                return include_mask
+
+            self._grid_search(test="dropout", value="all", mask_function=mask_function)
+
+        # Iterate through groups and drop one
+        for i, group in enumerate(unique_groups):
+            rgen = np.random.RandomState(self.dropout_seed + i)
+
+            def mask_function():
                 if max_size is None:
-                    return include_mask
+                    return meta_data[col] != group
                 else:
+                    include_mask = pd.Series(False, index=meta_data.index)
+
                     # For each factor in the stratified column
                     for g in unique_groups:
-                        include_mask = include_mask & group_index(meta_data, col, g, rgen=rgen, max_size=max_size)
+                        if g == group:
+                            continue
 
-            self._grid_search(test="dropin", value="group", mask_function=mask_function)
+                        include_mask = include_mask | group_index(meta_data, col, g, rgen=rgen, max_size=max_size)
+
+                    return include_mask
+
+            self._grid_search(test="dropout", value=group, mask_function=mask_function)
 
     def _dropin_cv(self):
         """
@@ -468,6 +491,14 @@ class CrossValidationManager(object):
 
         unique_groups = meta_data[col].unique().tolist()
 
+        if len(unique_groups) > 1 and max_size:
+            rgen = np.random.RandomState(self.dropin_seed - 1)
+
+            def mask_function():
+                return group_index(meta_data, col, group=None, rgen=rgen, max_size=max_size)
+
+            self._grid_search(test="dropin", value="all", mask_function=mask_function)
+
         for i, group in enumerate(unique_groups):
             rgen = np.random.RandomState(self.dropin_seed + i)
 
@@ -477,7 +508,7 @@ class CrossValidationManager(object):
                 else:
                     return group_index(meta_data, col, group, rgen=rgen, max_size=max_size)
 
-            self._grid_search(test="dropin", value="group", mask_function=mask_function)
+            self._grid_search(test="dropin", value=group, mask_function=mask_function)
 
     def _size_cv(self):
         """
@@ -493,7 +524,7 @@ class CrossValidationManager(object):
 
                 def data_masker():
                     unique_groups = meta_data[strat_col].unique().tolist()
-                    data_mask = pd.Index(False, index=meta_data.index)
+                    data_mask = pd.Series(False, index=meta_data.index)
 
                     # For each factor in the stratified column
                     for group in unique_groups:
@@ -514,11 +545,15 @@ class CrossValidationManager(object):
             self._grid_search(test="size", value=str(size_ratio), mask_function=data_masker)
 
 
-def group_index(meta, meta_col, group, size_ratio=None, rgen=None, max_size=None):
+def group_index(meta, meta_col, group=None, size_ratio=None, rgen=None, max_size=None):
     rgen = rgen if rgen is not None else np.random
 
     # Find the observations in this group
-    group_mask = meta[meta_col] == group
+    if group is None:
+        group_mask = pd.Series(True, index=meta.index)
+    else:
+        group_mask = meta[meta_col] == group
+
     n_group = group_mask.sum()
 
     if n_group == 0:
@@ -528,7 +563,7 @@ def group_index(meta, meta_col, group, size_ratio=None, rgen=None, max_size=None
     if size_ratio is not None:
         size = max(int(n_group * size_ratio), 1)
     else:
-        size = max(n_group, 1)
+            size = max(n_group, 1)
 
     # Set max_size if that argument has been provided
     if max_size is not None:

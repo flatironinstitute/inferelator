@@ -50,6 +50,27 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
     # Multi-task result processor
     _result_processor_driver = ResultsProcessorMultiTask
 
+    @property
+    def _num_obs(self):
+        if self._task_objects is not None:
+            return sum([t if t is not None else 0 for t in map(lambda x: x._num_obs, self._task_objects)])
+        else:
+            return None
+
+    @property
+    def _num_genes(self):
+        if self._task_objects is not None:
+            return max([t if t is not None else 0 for t in map(lambda x: x._num_genes, self._task_objects)])
+        else:
+            return None
+
+    @property
+    def _num_tfs(self):
+        if self._task_objects is not None:
+            return max([t if t is not None else 0 for t in map(lambda x: x._num_tfs, self._task_objects)])
+        else:
+            return None
+
     def set_task_filters(self, regulator_expression_filter=None, target_expression_filter=None):
         """
         Set the filtering criteria for regulators and targets between tasks
@@ -64,8 +85,8 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         :type target_expression_filter: str, optional
         """
 
-        self._set_without_warning("regulator_expression_filter", regulator_expression_filter)
-        self._set_without_warning("target_expression_filter", target_expression_filter)
+        self._set_without_warning("_regulator_expression_filter", regulator_expression_filter)
+        self._set_without_warning("_target_expression_filter", target_expression_filter)
 
     def startup_run(self):
         """
@@ -74,6 +95,10 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         This is called when `.startup()` is run. It is not necessary to call separately.
         """
 
+        self.get_data()
+        self.validate_data()
+
+    def get_data(self):
         # Task data has expression & metadata and may have task-specific files for anything else
         self._load_tasks()
 
@@ -81,7 +106,6 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         self.read_tfs()
         self.read_priors()
         self.read_genes()
-        self.validate_data()
 
     def startup_finish(self):
         """
@@ -386,7 +410,6 @@ def create_task_data_class(workflow_class="single-cell"):
             :rtype: list(TaskData)
             """
             utils.Debug.vprint("Loading data for task {task_name}".format(task_name=self.task_name))
-
             super(TaskData, self).get_data()
 
             if self.tasks_from_metadata:
