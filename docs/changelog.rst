@@ -1,12 +1,13 @@
 Change Log
 ==========
 
-Inferelator v0.3.2
-------------------
+Inferelator v0.3.2 `December 19, 2019`
+--------------------------------------
 
 New Functionality:
 
 - Improved error messages associated with misaligned data structures
+- Added example script and data for the multitask workflows
 
 Bug Fixes:
 
@@ -23,9 +24,9 @@ Inferelator v0.3.1 `December 10, 2019`
 New Functionality:
 
 - Created a CrossValidationManager which handles parameter searches on workflows.
-  Replaces the single_cell_cv_workflow which was did not generalize well.
+  Replaces the single_cell_cv_workflow which did not generalize well.
 - Workflow parameters are now set through functional setters like set_file_paths(),
-  instead of through setting instance variables
+  instead of through setting (cryptic) instance variables
 - Calculated transcription factor activities can be saved to a file prior to inference.
   This is set with `workflow.set_tfa(tfa_output_file = "Filename.tsv")`
 
