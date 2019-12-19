@@ -222,17 +222,19 @@ class TestCVSampleIndexing(TestCV):
 
         def test_grid_search(slf, test=None, value=None, mask_function=None):
             self.assertEqual(test, "dropout")
-            self.assertTrue(value in slf.workflow.meta_data[self.cv.dropout_column].unique())
-
             uniques = slf.workflow.meta_data[slf.dropout_column].unique()
-            unique_counts = slf.workflow.meta_data[slf.dropout_column].value_counts()
-            unique_counts[unique_counts > slf.dropout_max_size] = slf.dropout_max_size
-            unique_counts[value] = 0
 
             mask = mask_function()
-            self.assertTrue(value in uniques)
-            self.assertEqual(unique_counts.sum(), mask.sum())
-            self.assertEqual(sum((self.cv.workflow.meta_data[self.cv.dropout_column] == value)[mask]), 0)
+            unique_counts = slf.workflow.meta_data[slf.dropout_column].value_counts()
+            unique_counts[unique_counts > slf.dropout_max_size] = slf.dropout_max_size
+
+            if value == "all":
+                self.assertEqual(unique_counts.sum(), mask.sum())
+            else:
+                self.assertTrue(value in uniques)
+                unique_counts[value] = 0
+                self.assertEqual(unique_counts.sum(), mask.sum())
+                self.assertEqual(sum((self.cv.workflow.meta_data[self.cv.dropout_column] == value)[mask]), 0)
 
         self.cv._grid_search = types.MethodType(test_grid_search, self.cv)
 
@@ -262,11 +264,17 @@ class TestCVSampleIndexing(TestCV):
 
         def test_grid_search(slf, test=None, value=None, mask_function=None):
             self.assertEqual(test, "dropin")
-            self.assertTrue(value in slf.workflow.meta_data[slf.dropin_column].unique())
 
-            self.assertEqual(min((slf.workflow.meta_data[slf.dropin_column] == value).sum(),
-                                 slf.dropin_max_size),
-                             mask_function().sum())
+            mask = mask_function()
+
+            if value == "all":
+                self.assertEqual(mask.sum(), slf.dropin_max_size)
+            else:
+                self.assertTrue(value in slf.workflow.meta_data[slf.dropin_column].unique())
+
+                self.assertEqual(min((slf.workflow.meta_data[slf.dropin_column] == value).sum(),
+                                     slf.dropin_max_size),
+                                 mask.sum())
 
         self.cv._grid_search = types.MethodType(test_grid_search, self.cv)
 
