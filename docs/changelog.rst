@@ -14,6 +14,7 @@ Bug Fixes:
 
 Code Refactoring:
 
+- This is the final release which will be fully py2.7 compatible
 - Additional unit testing
 
 Inferelator v0.3.1 `December 10, 2019`
