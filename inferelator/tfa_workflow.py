@@ -62,7 +62,7 @@ class TFAWorkFlow(workflow.WorkflowBase):
         self._set_without_warning("delTmax", delTmax)
         self._set_without_warning("tau", tau)
 
-    def set_tfa(self, tfa_driver=True, tfa_output_file=None):
+    def set_tfa(self, tfa_driver=None, tfa_output_file=None):
         """
         Perform or skip the TFA calculations; by default the design matrix will be transcription factor activity.
         If this is called with `tfa_driver = False`, the design matrix will be transcription factor expression.
@@ -78,7 +78,9 @@ class TFAWorkFlow(workflow.WorkflowBase):
         :type tfa_output_file: str, optional
         """
 
-        if tfa_driver:
+        if tfa_driver is None:
+            pass
+        elif tfa_driver:
             self.tfa_driver = TFA
         else:
             self.tfa_driver = NoTFA
