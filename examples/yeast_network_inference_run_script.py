@@ -78,12 +78,6 @@ cv_wrap.run()
 # Run the regression 10 times and hold 20% of the gold standard out of the priors for testing each time
 # Each run is seeded differently (and therefore has different holdouts)
 
-# Create a crossvalidation wrapper
-cv_wrap = CrossValidationManager()
-
-# Assign variables for grid search
-cv_wrap.add_gridsearch_parameter('random_seed', CV_SEEDS)
-
 # Create a worker
 worker = workflow.inferelator_workflow(regression="elasticnet", workflow="tfa")
 worker = set_up_workflow(worker)
@@ -93,7 +87,7 @@ worker.append_to_path("output_dir", "elastic_net")
 # Parameters set with this function are passed to sklearn.linear_model.ElasticNetCV
 worker.set_regression_parameters(l1_ratio=1, max_iter=2000)
 
-# Create a crossvalidation wrapper
+# Create a crossvalidation wrapper and pass it the worker during __init__
 cv_wrap = CrossValidationManager(worker)
 
 # Assign variables for grid search
