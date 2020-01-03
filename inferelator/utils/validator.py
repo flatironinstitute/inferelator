@@ -327,3 +327,12 @@ class Validator(object):
             raise ValueError("Argument is not a subclass of {sc}".format(sc=str(subclass)))
         else:
             return True
+
+
+def is_string(arg):
+    """
+    Check if a argument is a string in a python 2/3 compatible way
+    :param arg:
+    :return:
+    """
+    return isinstance(arg, basestring)

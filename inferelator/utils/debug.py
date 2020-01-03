@@ -1,4 +1,7 @@
 from __future__ import print_function, unicode_literals, division
+import os
+
+from inferelator.default import SBATCH_VARS
 
 
 class Debug:
@@ -45,3 +48,25 @@ class Debug:
             print((" " * level), *args, **kwargs)
         else:
             return
+
+
+def slurm_envs(var_names=None):
+    """
+    Get environment variable names and return them as a dict
+    :param var_names: list
+        A list of environment variable names to get. Will throw an error if they're not keys in the SBATCH_VARS dict
+    :return envs: dict
+        A dict keyed by setattr variable name of the value (or default) from the environment variables
+    """
+    var_names = SBATCH_VARS.keys() if var_names is None else var_names
+    assert set(var_names).issubset(set(SBATCH_VARS.keys()))
+
+    envs = {}
+    for cv in var_names:
+        os_var, mt, de = SBATCH_VARS[cv]
+        try:
+            val = mt(os.environ[os_var])
+        except (KeyError, TypeError):
+            val = de
+        envs[cv] = val
+    return envs
