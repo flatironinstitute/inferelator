@@ -182,7 +182,7 @@ class InferelatorData(object):
 
     @property
     def gene_counts(self):
-        return self._adata.X.sum(axis=1).A.flatten() if self.is_sparse else self._adata.X.sum(axis=1)
+        return self._adata.X.sum(axis=0).A.flatten() if self.is_sparse else self._adata.X.sum(axis=0)
 
     @property
     def sample_names(self):
@@ -190,7 +190,7 @@ class InferelatorData(object):
 
     @property
     def sample_counts(self):
-        return self._adata.X.sum(axis=0).A.flatten() if self.is_sparse else self._adata.X.sum(axis=0)
+        return self._adata.X.sum(axis=1).A.flatten() if self.is_sparse else self._adata.X.sum(axis=1)
 
     @property
     def non_finite(self):
@@ -219,6 +219,14 @@ class InferelatorData(object):
     @property
     def shape(self):
         return self._adata.shape
+
+    @property
+    def num_obs(self):
+        return self._adata.shape[0]
+
+    @property
+    def num_genes(self):
+        return self._adata.shape[1]
 
     def __init__(self, expression_data, transpose_expression=False, meta_data=None, gene_data=None, gene_names=None,
                  sample_names=None, dtype=None):
@@ -278,6 +286,8 @@ class InferelatorData(object):
         float_view = self._data.view(dtype)
         float_view[:] = self._data
         self._data = float_view
+
+        self._is_integer = False
 
     def trim_genes(self, remove_constant_genes=True, trim_gene_list=None):
         """
@@ -381,6 +391,52 @@ class InferelatorData(object):
                 self._adata.X[start:stop, :] = func(self._adata.X[start:stop, :])
         else:
             self._adata.X = func(self._adata.X)
+
+    def divide(self, div_val, axis=None):
+
+        if self._is_integer:
+            self.convert_to_float()
+
+        if self.is_sparse and axis is None:
+            self._adata.X.data /= div_val
+        elif self.is_sparse and ((sparse.isspmatrix_csr(self._adata.X) and axis == 1) or
+                                 (sparse.isspmatrix_csc(self._adata.X) and axis == 0)):
+            if not hasattr(div_val, "ndim") or div_val.ndim != 1 or self.shape[0 if axis else 1] != div_val.shape[0]:
+                raise ValueError("Division array is not aligned")
+            self._adata.X.data /= np.repeat(div_val, self._adata.X.getnnz(axis=axis))
+        elif self.is_sparse:
+            raise ValueError("axis = 1 only works for CSC & axis = 0 only works for CSR")
+        elif axis is None:
+            self._adata.X /= div_val
+        elif axis == 0:
+            self._adata.X /= div_val[None, :]
+        elif axis == 1:
+            self._adata.X /= div_val[:, None]
+        else:
+            raise ValueError("axis must be 0, 1 or None")
+
+    def multiply(self, mult_val, axis=None):
+
+        if self._is_integer:
+            self.convert_to_float()
+
+        if self.is_sparse and axis is None:
+            self._adata.X.data *= mult_val
+        elif self.is_sparse and ((sparse.isspmatrix_csr(self._adata.X) and axis == 1) or
+                                 (sparse.isspmatrix_csc(self._adata.X) and axis == 0)):
+            if not hasattr(mult_val, "ndim") or mult_val.ndim != 1 or self.shape[0 if axis else 1] != mult_val.shape[0]:
+                raise ValueError("Division array is not aligned")
+            self._adata.X.data *= np.repeat(mult_val, self._adata.X.getnnz(axis=axis))
+        elif self.is_sparse:
+            raise ValueError("axis = 1 only works for CSC & axis = 0 only works for CSR")
+        elif axis is None:
+            self._adata.X *= mult_val
+        elif axis == 0:
+            self._adata.X *= mult_val[None, :]
+        elif axis == 1:
+            self._adata.X *= mult_val[:, None]
+        else:
+            raise ValueError("axis must be 0, 1 or None")
 
     def copy(self):
 

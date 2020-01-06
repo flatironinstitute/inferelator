@@ -13,7 +13,7 @@ class TestWrapperSetup(unittest.TestCase):
 
     def setUp(self):
         self.expr = TestDataSingleCellLike.expression_matrix.copy().T
-        self.expr_sparse = sparse.csr_matrix(TestDataSingleCellLike.expression_matrix.values).T.astype(np.int32)
+        self.expr_sparse = sparse.csr_matrix(TestDataSingleCellLike.expression_matrix.values.T).astype(np.int32)
         self.meta = TestDataSingleCellLike.meta_data.copy()
         self.adata = InferelatorData(self.expr, transpose_expression=False)
         self.adata_sparse = InferelatorData(self.expr_sparse,
@@ -117,13 +117,15 @@ class TestProps(TestWrapperSetup):
 
     def test_sample_counts(self):
 
-        umis = np.sum(self.expr.values, axis=0)
+        umis = np.sum(self.expr.values, axis=1)
+        self.assertEqual(umis.shape[0], 10)
         npt.assert_array_equal(umis, self.adata.sample_counts)
         npt.assert_array_equal(umis, self.adata_sparse.sample_counts)
 
     def test_gene_counts(self):
 
-        umis = np.sum(self.expr.values, axis=1)
+        umis = np.sum(self.expr.values, axis=0)
+        self.assertEqual(umis.shape[0], 6)
         npt.assert_array_equal(umis, self.adata.gene_counts)
         npt.assert_array_equal(umis, self.adata_sparse.gene_counts)
 
@@ -271,6 +273,63 @@ class TestFunctions(TestWrapperSetup):
         self.assertEqual(adata2.expression_data[0, 0], 100)
         self.assertNotEqual(self.adata.expression_data[0, 0], 100)
 
+    def test_divide_dense(self):
+
+        self.adata.divide(0.5, axis=None)
+        npt.assert_array_almost_equal(self.adata.expression_data,
+                                      self.expr.loc[:, self.adata.gene_names].values.astype(float) * 2)
+
+        self.adata.divide(self.adata.gene_counts, axis=0)
+
+        npt.assert_array_almost_equal(np.sum(self.adata.expression_data, axis=0),
+                                      np.ones(self.adata.num_genes, dtype=float))
+
+        self.adata.divide(self.adata.sample_counts, axis=1)
+
+        npt.assert_array_almost_equal(np.sum(self.adata.expression_data, axis=1),
+                                      np.ones(self.adata.num_obs, dtype=float))
+
+    def test_divide_sparse(self):
+
+        self.adata_sparse.divide(0.5, axis=None)
+        npt.assert_array_almost_equal(self.adata_sparse.expression_data.A,
+                                      self.expr.loc[:, self.adata_sparse.gene_names].values.astype(float) * 2)
+
+        self.adata_sparse.divide(self.adata_sparse.sample_counts, axis=1)
+
+        npt.assert_array_almost_equal(np.sum(self.adata_sparse.expression_data.A, axis=1),
+                                      np.ones(self.adata_sparse.num_obs, dtype=float))
+
+        with self.assertRaises(ValueError):
+            self.adata_sparse.divide(self.adata_sparse.gene_counts, axis=0)
+
+    def test_multiply_dense(self):
+        self.adata.multiply(2, axis=None)
+        npt.assert_array_almost_equal(self.adata.expression_data,
+                                      self.expr.loc[:, self.adata.gene_names].values.astype(float) / 0.5)
+
+        self.adata.multiply(1 / self.adata.gene_counts, axis=0)
+
+        npt.assert_array_almost_equal(np.sum(self.adata.expression_data, axis=0),
+                                      np.ones(self.adata.num_genes, dtype=float))
+
+        self.adata.multiply(1 / self.adata.sample_counts, axis=1)
+
+        npt.assert_array_almost_equal(np.sum(self.adata.expression_data, axis=1),
+                                      np.ones(self.adata.num_obs, dtype=float))
+
+    def test_multiply_sparse(self):
+        self.adata_sparse.multiply(2, axis=None)
+        npt.assert_array_almost_equal(self.adata_sparse.expression_data.A,
+                                      self.expr.loc[:, self.adata_sparse.gene_names].values.astype(float) / 0.5)
+
+        self.adata_sparse.multiply(1 / self.adata_sparse.sample_counts, axis=1)
+
+        npt.assert_array_almost_equal(np.sum(self.adata_sparse.expression_data.A, axis=1),
+                                      np.ones(self.adata_sparse.num_obs, dtype=float))
+
+        with self.assertRaises(ValueError):
+            self.adata_sparse.multiply(1 / self.adata_sparse.gene_counts, axis=0)
 
 
 if __name__ == '__main__':
