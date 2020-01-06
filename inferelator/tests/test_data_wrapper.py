@@ -12,9 +12,14 @@ from inferelator.utils import InferelatorData
 class TestWrapperSetup(unittest.TestCase):
 
     def setUp(self):
-        self.expr = TestDataSingleCellLike.expression_matrix.copy()
+        self.expr = TestDataSingleCellLike.expression_matrix.copy().T
+        self.expr_sparse = sparse.csr_matrix(TestDataSingleCellLike.expression_matrix.values).T.astype(np.int32)
         self.meta = TestDataSingleCellLike.meta_data.copy()
-        self.adata = InferelatorData(self.expr, transpose_expression=True)
+        self.adata = InferelatorData(self.expr, transpose_expression=False)
+        self.adata_sparse = InferelatorData(self.expr_sparse,
+                                            gene_names=TestDataSingleCellLike.expression_matrix.index,
+                                            transpose_expression=False,
+                                            meta_data=TestDataSingleCellLike.meta_data.copy())
 
 
 class TestCreate(TestWrapperSetup):
@@ -28,24 +33,24 @@ class TestCreate(TestWrapperSetup):
         npt.assert_array_equal(adata.expression_data, self.expr.values.T)
 
     def test_create_array(self):
-        adata = InferelatorData(self.expr.values.T, gene_names=self.expr.index.astype(str),
-                                sample_names=self.expr.columns.astype(str))
+        adata = InferelatorData(self.expr.values, gene_names=self.expr.columns.astype(str),
+                                sample_names=self.expr.index.astype(str))
         InferelatorData._make_idx_str(self.expr)
-        pdt.assert_frame_equal(self.expr.T, adata._adata.to_df())
+        pdt.assert_frame_equal(self.expr, adata._adata.to_df())
 
     def test_create_sparse(self):
-        data = sparse.csr_matrix(self.expr.values.T)
-        adata = InferelatorData(data, gene_names=self.expr.index.astype(str),
-                                sample_names=self.expr.columns.astype(str))
+        data = sparse.csr_matrix(self.expr.values)
+        adata = InferelatorData(data, gene_names=self.expr.columns.astype(str),
+                                sample_names=self.expr.index.astype(str))
         InferelatorData._make_idx_str(self.expr)
-        pdt.assert_frame_equal(self.expr.T, adata._adata.to_df())
+        pdt.assert_frame_equal(self.expr, adata._adata.to_df())
 
     def test_create_metadata(self):
-        adata = InferelatorData(self.expr, transpose_expression=True, meta_data=self.meta)
+        adata = InferelatorData(self.expr, meta_data=self.meta)
         pdt.assert_frame_equal(adata.meta_data, self.meta)
 
     def test_add_metadata(self):
-        adata = InferelatorData(self.expr, transpose_expression=True, meta_data=self.meta)
+        adata = InferelatorData(self.expr, meta_data=self.meta)
         self.meta.index = self.meta.index.astype(str)
         pdt.assert_frame_equal(self.meta, adata.meta_data)
 
@@ -53,24 +58,24 @@ class TestCreate(TestWrapperSetup):
         gene_data = TestDataSingleCellLike.gene_metadata
         gene_data.index = gene_data.iloc[:, 0]
 
-        adata = InferelatorData(self.expr, transpose_expression=True, gene_data=gene_data)
-        pdt.assert_index_equal(adata.gene_names, self.expr.index)
+        adata = InferelatorData(self.expr, gene_data=gene_data)
+        pdt.assert_index_equal(adata.gene_names, self.expr.columns)
         pdt.assert_index_equal(adata._adata.uns["trim_gene_list"], CORRECT_GENES_INTERSECT)
 
 
 class TestProps(TestWrapperSetup):
 
     def test_gene_names(self):
-        pdt.assert_index_equal(self.adata.gene_names, self.expr.index)
+        pdt.assert_index_equal(self.adata.gene_names, self.expr.columns)
 
     def test_sample_names(self):
-        pdt.assert_index_equal(self.adata.gene_names, self.expr.index)
+        pdt.assert_index_equal(self.adata.sample_names, self.expr.index)
 
     def test_non_finite(self):
 
-        adata = InferelatorData(self.expr.values.astype(float), transpose_expression=True,
-                                gene_names=self.expr.index,
-                                sample_names=self.expr.columns)
+        adata = InferelatorData(self.expr.values.astype(float),
+                                gene_names=self.expr.columns,
+                                sample_names=self.expr.index)
 
         nnf, name_nf = adata.non_finite
         self.assertEqual(nnf, 0)
@@ -90,9 +95,9 @@ class TestProps(TestWrapperSetup):
 
     def test_non_finite_sparse(self):
 
-        adata = InferelatorData(sparse.csr_matrix(self.expr.values.astype(float)), transpose_expression=True,
-                                gene_names=self.expr.index,
-                                sample_names=self.expr.columns)
+        adata = InferelatorData(sparse.csr_matrix(self.expr.values.astype(float)),
+                                gene_names=self.expr.columns,
+                                sample_names=self.expr.index)
 
         nnf, name_nf = adata.non_finite
         self.assertEqual(nnf, 0)
@@ -110,74 +115,88 @@ class TestProps(TestWrapperSetup):
         self.assertEqual(nnf, 2)
         self.assertListEqual(name_nf.tolist(), ["gene1", "gene2"])
 
-    def test_trim(self):
+    def test_sample_counts(self):
+
+        umis = np.sum(self.expr.values, axis=0)
+        npt.assert_array_equal(umis, self.adata.sample_counts)
+        npt.assert_array_equal(umis, self.adata_sparse.sample_counts)
+
+    def test_gene_counts(self):
+
+        umis = np.sum(self.expr.values, axis=1)
+        npt.assert_array_equal(umis, self.adata.gene_counts)
+        npt.assert_array_equal(umis, self.adata_sparse.gene_counts)
+
+
+class TestTrim(TestWrapperSetup):
+
+    def test_trim_dense(self):
         gene_data = TestDataSingleCellLike.gene_metadata
         gene_data.index = gene_data.iloc[:, 0]
 
-        adata = InferelatorData(self.expr, transpose_expression=True, gene_data=gene_data)
+        adata = InferelatorData(self.expr, gene_data=gene_data)
         adata.trim_genes(remove_constant_genes=False)
 
-        pdt.assert_frame_equal(self.expr.reindex(CORRECT_GENES_INTERSECT).T.astype(np.int32), adata._adata.to_df())
+        pdt.assert_frame_equal(self.expr.reindex(CORRECT_GENES_INTERSECT, axis=1).astype(np.int32),
+                               adata._adata.to_df())
 
         adata.trim_genes(remove_constant_genes=True)
-        pdt.assert_frame_equal(self.expr.reindex(CORRECT_GENES_NZ_VAR).T.astype(np.int32), adata._adata.to_df())
+        pdt.assert_frame_equal(self.expr.reindex(CORRECT_GENES_NZ_VAR, axis=1).astype(np.int32),
+                               adata._adata.to_df())
 
     def test_trim_sparse(self):
         gene_data = TestDataSingleCellLike.gene_metadata
         gene_data.index = gene_data.iloc[:, 0]
 
-        adata_sparse = InferelatorData(sparse.csr_matrix(TestDataSingleCellLike.expression_matrix.values),
+        adata_sparse = InferelatorData(sparse.csr_matrix(TestDataSingleCellLike.expression_matrix.values.T),
                                        gene_names=TestDataSingleCellLike.expression_matrix.index,
-                                       transpose_expression=True,
                                        meta_data=TestDataSingleCellLike.meta_data.copy(),
                                        gene_data=gene_data)
 
         adata_sparse.trim_genes(remove_constant_genes=False)
-
-        pdt.assert_frame_equal(self.expr.reindex(CORRECT_GENES_INTERSECT).T,
+        pdt.assert_frame_equal(self.expr.reindex(CORRECT_GENES_INTERSECT, axis=1),
                                adata_sparse._adata.to_df())
 
         adata_sparse.trim_genes(remove_constant_genes=True)
-        pdt.assert_frame_equal(self.expr.reindex(CORRECT_GENES_NZ_VAR).T,
+        pdt.assert_frame_equal(self.expr.reindex(CORRECT_GENES_NZ_VAR, axis=1),
                                adata_sparse._adata.to_df())
 
 
-class TestFunctions(unittest.TestCase):
+class TestFunctions(TestWrapperSetup):
 
     def setUp(self):
-        self.expr = TestDataSingleCellLike.expression_matrix.copy().T
-        self.expr_sparse = sparse.csr_matrix(TestDataSingleCellLike.expression_matrix.values).T.astype(np.int32)
-        self.adata = InferelatorData(TestDataSingleCellLike.expression_matrix.copy(),
-                                     transpose_expression=True,
-                                     meta_data=TestDataSingleCellLike.meta_data.copy())
-        self.adata_sparse = InferelatorData(self.expr_sparse,
-                                            gene_names=TestDataSingleCellLike.expression_matrix.index,
-                                            transpose_expression=False,
-                                            meta_data=TestDataSingleCellLike.meta_data.copy())
+        super(TestFunctions, self).setUp()
+
         self.adata.trim_genes()
         self.adata_sparse.trim_genes()
 
     def test_setup(self):
         pdt.assert_frame_equal(self.adata._adata.to_df(), self.adata_sparse._adata.to_df())
 
-    def test_transform(self):
+    def test_transform_pseudocount(self):
         expr_vals = self.expr.loc[:, self.adata.gene_names].values
 
         self.adata.transform(lambda x: x, add_pseudocount=False)
         npt.assert_array_equal(self.adata.expression_data, expr_vals)
 
-        self.adata.transform(lambda x: x, add_pseudocount=True)
-        npt.assert_array_equal(self.adata.expression_data, expr_vals + 1)
+        self.adata.transform(lambda x: x - 1, add_pseudocount=True)
+        npt.assert_array_equal(self.adata.expression_data, expr_vals)
 
-        self.adata.transform(lambda x: x, add_pseudocount=True, memory_efficient=False)
-        npt.assert_array_equal(self.adata.expression_data, expr_vals + 2)
+    def test_transform_log2_d(self):
 
-        self.adata.transform(lambda x: x.astype(float), add_pseudocount=True, memory_efficient=True)
-        npt.assert_array_almost_equal(self.adata.expression_data, expr_vals + 3)
+        self.adata.transform(np.log2, add_pseudocount=True, memory_efficient=True)
+        npt.assert_array_equal(self.adata.expression_data, np.log2(self.expr.loc[:, self.adata.gene_names].values + 1))
 
-        sparse_vals = self.adata_sparse.data.copy()
-        self.adata_sparse.transform(lambda x: x, add_pseudocount=True)
-        npt.assert_array_equal(self.adata_sparse.data, sparse_vals + 1)
+    def test_transform_log2_d_ineff(self):
+
+        self.adata.transform(np.log2, add_pseudocount=True, memory_efficient=False)
+        npt.assert_array_equal(self.adata.expression_data, np.log2(self.expr.loc[:, self.adata.gene_names].values + 1))
+
+    def test_transform_log2_s(self):
+
+        self.adata_sparse.transform(np.log2, add_pseudocount=True)
+        npt.assert_array_equal(self.adata_sparse.expression_data.A,
+                               np.log2(self.expr.loc[:, self.adata.gene_names].values + 1))
 
     def test_dot_dense(self):
         inv_expr = linalg.pinv(self.adata.expression_data)

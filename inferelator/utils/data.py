@@ -121,14 +121,14 @@ class InferelatorData(object):
         return self._adata.X
 
     @property
-    def data(self):
+    def _data(self):
         if self.is_sparse:
             return self._adata.X.data
         else:
             return self._adata.X
 
-    @data.setter
-    def data(self, new_data):
+    @_data.setter
+    def _data(self, new_data):
         if self.is_sparse:
             self._adata.X.data = new_data
         else:
@@ -181,12 +181,20 @@ class InferelatorData(object):
         return self._adata.var_names
 
     @property
+    def gene_counts(self):
+        return self._adata.X.sum(axis=1).A.flatten() if self.is_sparse else self._adata.X.sum(axis=1)
+
+    @property
     def sample_names(self):
         return self._adata.obs_names
 
     @property
+    def sample_counts(self):
+        return self._adata.X.sum(axis=0).A.flatten() if self.is_sparse else self._adata.X.sum(axis=0)
+
+    @property
     def non_finite(self):
-        if min(self.data.shape) == 0:
+        if min(self._data.shape) == 0:
             return 0, None
         elif self.is_sparse and sparse.isspmatrix_csr(self._adata.X):
             nan_indices = np.unique(self._adata.X.indices[~np.isfinite(self._adata.X.data)])
@@ -200,7 +208,7 @@ class InferelatorData(object):
             nnf = np.sum(nan_indices)
             return nnf, self.gene_names[nan_indices.flatten()] if nnf > 0 else None
         else:
-            non_finite = np.apply_along_axis(lambda x: np.sum(~np.isfinite(x)) > 0, 0, self.data)
+            non_finite = np.apply_along_axis(lambda x: np.sum(~np.isfinite(x)) > 0, 0, self._data)
             nnf = np.sum(non_finite)
             return nnf, self.gene_names[non_finite] if nnf > 0 else None
 
@@ -213,7 +221,7 @@ class InferelatorData(object):
         return self._adata.shape
 
     def __init__(self, expression_data, transpose_expression=False, meta_data=None, gene_data=None, gene_names=None,
-                 sample_names=None):
+                 sample_names=None, dtype=None):
 
         if isinstance(expression_data, pd.DataFrame):
             object_cols = expression_data.dtypes == object
@@ -223,13 +231,12 @@ class InferelatorData(object):
                 meta_data = object_data if meta_data is None else pd.concat((meta_data, object_data))
                 expression_data.drop(expression_data.columns[object_cols], inplace=True, axis=1)
 
-            if all(map(lambda x: pat.is_integer_dtype(x), expression_data.dtypes)):
+            if dtype is None and all(map(lambda x: pat.is_integer_dtype(x), expression_data.dtypes)):
                 dtype = 'int32'
-                self._is_integer = True
-            else:
+            elif dtype is None:
                 dtype = 'float64'
-                self._is_integer = False
 
+            self._is_integer = pat.is_integer_dtype(dtype)
             self._make_idx_str(expression_data)
 
             if transpose_expression:
@@ -242,12 +249,13 @@ class InferelatorData(object):
             else:
                 self._adata = AnnData(X=expression_data, dtype=expression_data.dtype)
 
-            if gene_names is not None:
-                self._adata.var_names = gene_names
-            if sample_names is not None:
-                self._adata.obs_names = sample_names
-
             self._is_integer = True if pat.is_integer_dtype(expression_data.dtype) else False
+
+        if gene_names is not None:
+            self._adata.var_names = gene_names
+
+        if sample_names is not None:
+            self._adata.obs_names = sample_names
 
         if meta_data is not None:
             self._make_idx_str(meta_data)
@@ -258,18 +266,18 @@ class InferelatorData(object):
             self.gene_data = gene_data
 
     def convert_to_float(self):
-        if pat.is_float_dtype(self.data.dtype):
+        if pat.is_float_dtype(self._data.dtype):
             return None
-        elif self.data.dtype == np.int32:
+        elif self._data.dtype == np.int32:
             dtype = np.float32
-        elif self.data.dtype == np.int64:
+        elif self._data.dtype == np.int64:
             dtype = np.float64
         else:
             raise ValueError("Data is not float, int32, or int64")
 
-        float_view = self.data.view(dtype)
-        float_view[:] = self.data
-        self.data = float_view
+        float_view = self._data.view(dtype)
+        float_view[:] = self._data
+        self._data = float_view
 
     def trim_genes(self, remove_constant_genes=True, trim_gene_list=None):
         """
@@ -316,9 +324,16 @@ class InferelatorData(object):
 
     def get_genes(self, gene_list, copy=False):
 
-        return self._adata[:, gene_list] if not copy else self._adata[:, gene_list].copy()
+        return self._adata[:, gene_list].X if not copy else self._adata[:, gene_list].X.copy()
 
     def dot(self, other, other_is_right_side=True, force_dense=False):
+        """
+        Calculate dot product
+        :param other:
+        :param other_is_right_side:
+        :param force_dense:
+        :return:
+        """
 
         # If both are sparse use scipy.dot() and make a sparse product
         if self.is_sparse and sparse.issparse(other):
@@ -341,6 +356,7 @@ class InferelatorData(object):
         return dot_product.A if force_dense and sparse.issparse(dot_product) else dot_product
 
     def to_csv(self, file_name, sep="\t"):
+
         if self.is_sparse:
             Debug.vprint("Saving sparse arrays to text files is not supported", level=0)
         else:
