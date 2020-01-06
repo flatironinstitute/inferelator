@@ -14,3 +14,7 @@ class TestDataSingleCellLike(object):
     gene_metadata = pd.DataFrame({"SystematicName": ["gene1", "gene2", "gene3", "gene4", "gene7", "gene6"]})
     gene_list_index = "SystematicName"
     tf_names = ["gene3", "gene6"]
+
+
+CORRECT_GENES_INTERSECT = pd.Index(["gene1", "gene2", "gene3", "gene4", "gene6"])
+CORRECT_GENES_NZ_VAR = pd.Index(["gene1", "gene2", "gene4", "gene6"])
