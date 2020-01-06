@@ -1,5 +1,6 @@
 from __future__ import print_function, unicode_literals, division
 
+import copy
 import pandas as pd
 import numpy as np
 import scipy.sparse as sparse
@@ -108,6 +109,7 @@ def transpose_dataframe(data_frame):
     else:
         return data_frame.transpose()
 
+
 class InferelatorData(object):
     """ Store inferelator data in an AnnData object. This will always be Samples by Genes """
 
@@ -116,10 +118,7 @@ class InferelatorData(object):
 
     @property
     def expression_data(self):
-        if self._adata is not None:
-            return self._adata.X
-        else:
-            return None
+        return self._adata.X
 
     @property
     def data(self):
@@ -128,16 +127,26 @@ class InferelatorData(object):
         else:
             return self._adata.X
 
+    @data.setter
+    def data(self, new_data):
+        if self.is_sparse:
+            self._adata.X.data = new_data
+        else:
+            self._adata.X = new_data
+
     @property
     def meta_data(self):
-        if self._adata is not None:
-            return self._adata.obs
-        else:
-            return None
+        return self._adata.obs
 
     @meta_data.setter
     def meta_data(self, new_meta_data):
-        new_meta_data.index = self._adata.obs.index
+        # Reindex the new metadata to match the existing sample names
+        new_meta_data = new_meta_data.copy()
+        new_meta_data.index = new_meta_data.index.astype(str)
+        new_meta_data = new_meta_data.reindex(self.sample_names)
+
+        # Join any new columns to any existing columns
+        # Update (overwrite) any columns in the existing meta data if they are in the new meta data
         if len(self._adata.obs.columns) > 0:
             keep_columns = self._adata.obs.columns.difference(new_meta_data.columns)
             self._adata.obs = pd.concat((new_meta_data, self._adata.obs.loc[:, keep_columns]))
@@ -146,54 +155,62 @@ class InferelatorData(object):
 
     @property
     def gene_data(self):
-        if self._adata is not None:
-            return self._adata.var
-        else:
-            return None
+        return self._adata.var
 
     @gene_data.setter
     def gene_data(self, new_gene_data):
+
+        new_gene_data = new_gene_data.copy()
+        new_gene_data.index = new_gene_data.index.astype(str)
+
+        # Use the intersection of this and the expression data genes to make a list of gene names to keep
         self._adata.uns["trim_gene_list"] = new_gene_data.index.intersection(self._adata.var.index)
-        self._adata.var = self._adata.var.join(new_gene_data)
+
+        new_gene_data = new_gene_data.reindex(self._adata.var_names)
+
+        # Join any new columns to any existing columns
+        # Update (overwrite) any columns in the existing meta data if they are in the new meta data
+        if len(self._adata.var.columns) > 0:
+            keep_columns = self._adata.var.columns.difference(new_gene_data.columns)
+            self._adata.var = pd.concat((new_gene_data, self._adata.var.loc[:, keep_columns]))
+        else:
+            self._adata.var = new_gene_data
 
     @property
     def gene_names(self):
-        if self._adata is not None:
-            return self._adata.var.index.astype(str)
-        else:
-            return None
+        return self._adata.var_names
 
     @property
     def sample_names(self):
-        if self._adata is not None:
-            return self._adata.obs.index.astype(str)
-        else:
-            return None
+        return self._adata.obs_names
 
     @property
     def non_finite(self):
-        if self.data.ndim == 1:
-            return np.sum(~np.isfinite(self.data)), None
-        elif min(self.data.shape) == 0:
+        if min(self.data.shape) == 0:
             return 0, None
+        elif self.is_sparse and sparse.isspmatrix_csr(self._adata.X):
+            nan_indices = np.unique(self._adata.X.indices[~np.isfinite(self._adata.X.data)])
+            nnf = nan_indices.shape[0]
+            return nnf, self.gene_names[nan_indices] if nnf > 0 else None
+        elif self.is_sparse and sparse.isspmatrix_csc(self._adata.X):
+            nan_indices = sparse.csc_matrix((~np.isfinite(self._adata.X.data),
+                                             self._adata.X.indices,
+                                             self._adata.X.indptr),
+                                            shape=self._adata.shape, dtype=bool).A.sum(axis=0) > 0
+            nnf = np.sum(nan_indices)
+            return nnf, self.gene_names[nan_indices.flatten()] if nnf > 0 else None
         else:
-            non_finite = np.apply_along_axis(lambda x: np.sum(~np.isfinite(x)) > 0, 1, self.data)
+            non_finite = np.apply_along_axis(lambda x: np.sum(~np.isfinite(x)) > 0, 0, self.data)
             nnf = np.sum(non_finite)
             return nnf, self.gene_names[non_finite] if nnf > 0 else None
 
     @property
     def is_sparse(self):
-        if self._adata is not None:
-            return sparse.issparse(self._adata.X)
-        else:
-            return None
+        return sparse.issparse(self._adata.X)
 
     @property
     def shape(self):
-        if self._adata is not None:
-            return self._adata.shape
-        else:
-            return None
+        return self._adata.shape
 
     def __init__(self, expression_data, transpose_expression=False, meta_data=None, gene_data=None, gene_names=None,
                  sample_names=None):
@@ -230,13 +247,29 @@ class InferelatorData(object):
             if sample_names is not None:
                 self._adata.obs_names = sample_names
 
+            self._is_integer = True if pat.is_integer_dtype(expression_data.dtype) else False
+
         if meta_data is not None:
             self._make_idx_str(meta_data)
-            self._adata.obs = meta_data
+            self.meta_data = meta_data
 
         if gene_data is not None:
             self._make_idx_str(gene_data)
-            self._adata = gene_data
+            self.gene_data = gene_data
+
+    def convert_to_float(self):
+        if pat.is_float_dtype(self.data.dtype):
+            return None
+        elif self.data.dtype == np.int32:
+            dtype = np.float32
+        elif self.data.dtype == np.int64:
+            dtype = np.float64
+        else:
+            raise ValueError("Data is not float, int32, or int64")
+
+        float_view = self.data.view(dtype)
+        float_view[:] = self.data
+        self.data = float_view
 
     def trim_genes(self, remove_constant_genes=True, trim_gene_list=None):
         """
@@ -255,12 +288,14 @@ class InferelatorData(object):
             keep_column_bool = np.ones((len(self._adata.var.index),), dtype=bool)
 
         list_trim = len(self._adata.var.index) - np.sum(keep_column_bool)
+        comp = 0 if self._is_integer else np.finfo(self.expression_data.dtype).eps * 10
 
         if remove_constant_genes:
             if self.is_sparse:
-                keep_column_bool &= self.expression_data.getnnz(axis=1) > 0
+                keep_column_bool &= self.expression_data.getnnz(axis=0) > 0
+                nz_var = self.expression_data.min(axis=0).A.flatten() != self.expression_data.max(axis=0).A.flatten()
+                keep_column_bool &= nz_var
             else:
-                comp = 0 if self._is_integer else np.finfo(self.expression_data.dtype).eps * 10
                 keep_column_bool &= np.apply_along_axis(lambda x: np.max(x) - np.min(x), 0, self.expression_data) > comp
 
             var_zero_trim = len(self._adata.var.index) - np.sum(keep_column_bool) + list_trim
@@ -285,28 +320,33 @@ class InferelatorData(object):
 
     def dot(self, other, other_is_right_side=True, force_dense=False):
 
+        # If both are sparse use scipy.dot() and make a sparse product
         if self.is_sparse and sparse.issparse(other):
             dot_product = self._adata.X.dot(other) if other_is_right_side else other.dot(self._adata.X)
-        elif self.is_sparse and not sparse.issparse(other) and other_is_right_side:
+
+        # If this data struture is sparse, convert the other to sparse and use scipy.dot() and make a sparse product
+        elif self.is_sparse and not sparse.issparse(other):
             other = sparse.csr_matrix(other)
             dot_product = self._adata.X.dot(other) if other_is_right_side else other.dot(self._adata.X)
+
+        # If this data structure is dense, convert the other to dense and use np.dot() and make a dense product
         elif not self.is_sparse and sparse.issparse(other):
             dot_product = np.dot(self._adata.X, other.A) if other_is_right_side else np.dot(other.A, self._adata.X)
+
+        # If both data structures are dense, use np.dot() and make a dense product
         else:
             dot_product = np.dot(self._adata.X, other) if other_is_right_side else np.dot(other, self._adata.X)
 
-        if force_dense and sparse.issparse(dot_product):
-            return dot_product.A
-        else:
-            return dot_product
+        # Convert a sparse product to dense if force_dense is set
+        return dot_product.A if force_dense and sparse.issparse(dot_product) else dot_product
 
-    def to_csv(self, file_name):
+    def to_csv(self, file_name, sep="\t"):
         if self.is_sparse:
             Debug.vprint("Saving sparse arrays to text files is not supported", level=0)
         else:
-            np.savetxt(file_name, self.expression_data, delimiter="\t", header="\t".join(self.gene_names))
+            np.savetxt(file_name, self.expression_data, delimiter=sep, header=sep.join(self.gene_names))
 
-    def transform(self, func, add_pseudocount=False):
+    def transform(self, func, add_pseudocount=False, memory_efficient=True, chunksize=1000):
 
         if add_pseudocount and self.is_sparse:
             self._adata.X.data += 1
@@ -317,8 +357,26 @@ class InferelatorData(object):
             self._adata.X.data = func(self._adata.X.data)
         elif self._adata.X.ndim == 1 or self._is_integer:
             self._adata.X = func(self._adata.X)
-        else:
+        elif not memory_efficient and type(func(self._adata.X[0, 0])) == self._adata.X.dtype:
             self._adata.X[...] = func(self._adata.X)
+        elif memory_efficient and type(func(self._adata.X[0, 0])) == self._adata.X.dtype:
+            for i in range(np.ceil(self._adata.shape[0] / chunksize)):
+                start, stop = i * chunksize, min(i + 1 * chunksize, self._adata.shape[0])
+                self._adata.X[start:stop, :] = func(self._adata.X[start:stop, :])
+        else:
+            self._adata.X = func(self._adata.X)
+
+    def copy(self):
+
+        new_data = InferelatorData(self.expression_data.copy(),
+                                   meta_data=self.meta_data.copy(),
+                                   gene_data=self.gene_data.copy())
+
+        new_data._adata.var_names = copy.copy(self._adata.var_names)
+        new_data._adata.obs_names = copy.copy(self._adata.obs_names)
+        new_data._adata.uns = copy.copy(self._adata.uns)
+
+        return new_data
 
     @staticmethod
     def _make_idx_str(df):
