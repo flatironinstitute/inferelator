@@ -187,17 +187,34 @@ class TestFunctions(TestWrapperSetup):
     def test_transform_log2_d(self):
 
         self.adata.transform(np.log2, add_pseudocount=True, memory_efficient=True)
-        npt.assert_array_equal(self.adata.expression_data, np.log2(self.expr.loc[:, self.adata.gene_names].values + 1))
+        npt.assert_array_almost_equal(self.adata.expression_data,
+                                      np.log2(self.expr.loc[:, self.adata.gene_names].values + 1))
+
+    def test_transform_log2_d_float(self):
+
+        self.adata.convert_to_float()
+        self.adata.transform(np.log2, add_pseudocount=True, memory_efficient=True)
+        npt.assert_array_almost_equal(self.adata.expression_data,
+                                      np.log2(self.expr.loc[:, self.adata.gene_names].values + 1))
+
+    def test_transform_log2_d_chunky(self):
+
+        self.adata.convert_to_float()
+        self.adata.transform(np.log2, add_pseudocount=True, memory_efficient=True, chunksize=1)
+        npt.assert_array_almost_equal(self.adata.expression_data,
+                                      np.log2(self.expr.loc[:, self.adata.gene_names].values + 1))
 
     def test_transform_log2_d_ineff(self):
 
+        self.adata.convert_to_float()
         self.adata.transform(np.log2, add_pseudocount=True, memory_efficient=False)
-        npt.assert_array_equal(self.adata.expression_data, np.log2(self.expr.loc[:, self.adata.gene_names].values + 1))
+        npt.assert_array_almost_equal(self.adata.expression_data,
+                                      np.log2(self.expr.loc[:, self.adata.gene_names].values + 1))
 
     def test_transform_log2_s(self):
 
         self.adata_sparse.transform(np.log2, add_pseudocount=True)
-        npt.assert_array_equal(self.adata_sparse.expression_data.A,
+        npt.assert_array_almost_equal(self.adata_sparse.expression_data.A,
                                np.log2(self.expr.loc[:, self.adata.gene_names].values + 1))
 
     def test_dot_dense(self):
@@ -207,8 +224,11 @@ class TestFunctions(TestWrapperSetup):
         dot1 = self.adata.dot(eye_expr)
         npt.assert_array_equal(dot1, self.expr.loc[:, self.adata.gene_names].values)
 
-        dot2 = self.adata.dot(inv_expr, other_is_right_side=False)
-        npt.assert_array_almost_equal(dot2, eye_expr)
+        dot2 = self.adata.dot(sparse.csr_matrix(eye_expr))
+        npt.assert_array_equal(dot2, self.expr.loc[:, self.adata.gene_names].values)
+
+        dot3 = self.adata.dot(inv_expr, other_is_right_side=False)
+        npt.assert_array_almost_equal(dot3, eye_expr)
 
     def test_dot_sparse(self):
         inv_expr = linalg.pinv(self.adata_sparse.expression_data.A)
@@ -330,6 +350,24 @@ class TestFunctions(TestWrapperSetup):
 
         with self.assertRaises(ValueError):
             self.adata_sparse.multiply(1 / self.adata_sparse.gene_counts, axis=0)
+
+    def test_change_sparse(self):
+
+        self.adata.to_csr()
+        self.adata.to_csc()
+        self.assertFalse(sparse.isspmatrix(self.adata.expression_data))
+
+        self.assertTrue(sparse.isspmatrix_csr(self.adata_sparse.expression_data))
+        self.adata_sparse.to_csr()
+        self.assertTrue(sparse.isspmatrix_csr(self.adata_sparse.expression_data))
+
+        self.adata_sparse.to_csc()
+        self.assertFalse(sparse.isspmatrix_csr(self.adata_sparse.expression_data))
+        self.assertTrue(sparse.isspmatrix_csc(self.adata_sparse.expression_data))
+
+        self.adata_sparse.to_csr()
+        self.assertFalse(sparse.isspmatrix_csc(self.adata_sparse.expression_data))
+        self.assertTrue(sparse.isspmatrix_csr(self.adata_sparse.expression_data))
 
 
 if __name__ == '__main__':

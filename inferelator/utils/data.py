@@ -1,6 +1,8 @@
 from __future__ import print_function, unicode_literals, division
 
 import copy
+import gc
+import math
 import pandas as pd
 import numpy as np
 import scipy.sparse as sparse
@@ -330,7 +332,13 @@ class InferelatorData(object):
             # This explicit copy allows the original to be deallocated
             # Otherwise the GC leaves the original because the view reference keeps it alive
             # At some point it will need to copy so why not now
-            self._adata = self._adata[:, keep_column_bool].copy()
+            trim_adata = self._adata[:, keep_column_bool].copy()
+
+            # Make sure that there's no hanging reference to the original object
+            del self._adata
+            gc.collect()
+
+            self._adata = trim_adata
 
     def get_genes(self, gene_list, copy=False):
 
@@ -383,10 +391,10 @@ class InferelatorData(object):
             self._adata.X.data = func(self._adata.X.data)
         elif self._adata.X.ndim == 1 or self._is_integer:
             self._adata.X = func(self._adata.X)
-        elif not memory_efficient and type(func(self._adata.X[0, 0])) == self._adata.X.dtype:
+        elif not memory_efficient and type(func(self._data.flat[0])) == self._adata.X.dtype:
             self._adata.X[...] = func(self._adata.X)
-        elif memory_efficient and type(func(self._adata.X[0, 0])) == self._adata.X.dtype:
-            for i in range(np.ceil(self._adata.shape[0] / chunksize)):
+        elif memory_efficient and type(func(self._data.flat[0])) == self._adata.X.dtype:
+            for i in range(math.ceil(self._adata.shape[0] / chunksize)):
                 start, stop = i * chunksize, min(i + 1 * chunksize, self._adata.shape[0])
                 self._adata.X[start:stop, :] = func(self._adata.X[start:stop, :])
         else:
@@ -449,6 +457,16 @@ class InferelatorData(object):
         new_data._adata.uns = copy.copy(self._adata.uns)
 
         return new_data
+
+    def to_csc(self):
+
+        if self.is_sparse and not sparse.isspmatrix_csc(self._adata.X):
+            self._adata.X = sparse.csc_matrix(self._adata.X)
+
+    def to_csr(self):
+
+        if self.is_sparse and not sparse.isspmatrix_csr(self._adata.X):
+            self._adata.X = sparse.csr_matrix(self._adata.X)
 
     @staticmethod
     def _make_idx_str(df):
