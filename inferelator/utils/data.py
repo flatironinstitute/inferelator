@@ -340,9 +340,14 @@ class InferelatorData(object):
 
             self._adata = trim_adata
 
-    def get_genes(self, gene_list, copy=False):
+    def get_gene_data(self, gene_list, copy=False, force_dense=False):
 
-        return self._adata[:, gene_list].X if not copy else self._adata[:, gene_list].X.copy()
+        if force_dense and self.is_sparse:
+            return self._adata[:, gene_list].X.A
+        elif copy:
+            return self._adata[:, gene_list].X.copy()
+        else:
+            return self._adata[:, gene_list].X
 
     def dot(self, other, other_is_right_side=True, force_dense=False):
         """
