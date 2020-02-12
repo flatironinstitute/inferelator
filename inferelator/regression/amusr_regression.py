@@ -236,8 +236,9 @@ class AMuSR_regression(base_regression.BaseRegression):
                              columns='regulator',
                              values=col,
                              fill_value=0.)
-        del out.columns.name
-        del out.index.name
+
+        out.columns.name = None
+        out.index.name = None
 
         out = pd.concat([out,
                          pd.DataFrame(0., index=out.index,
@@ -247,7 +248,7 @@ class AMuSR_regression(base_regression.BaseRegression):
                                       columns=out.columns)])
         out = out.loc[targets, regs]
 
-        return (out)
+        return out
 
     def regress(self):
         """
