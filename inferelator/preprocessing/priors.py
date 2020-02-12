@@ -185,33 +185,33 @@ class ManagePriors(object):
         return priors_data
 
     @staticmethod
-    def align_priors_to_expression(priors_data, expression_matrix):
+    def align_priors_to_expression(priors_data, gene_list):
         """
         Make sure that the priors align to the expression matrix and fill priors that are created with 0s
         :param priors_data: pd.DataFrame [G x K]
             Prior data
-        :param expression_matrix: pd.DataFrame [G x N]
-            Expression matrix data
+        :param gene_list: pd.Index [G]
+            Expression matrix genes
         :return priors_data:
             Returns priors_data where genes match expression matrix genes
         """
 
-        if len(priors_data.index.intersection(expression_matrix.index)) == 0:
+        if len(priors_data.index.intersection(gene_list)) == 0:
             err = "Prior genes and expression matrix genes have no overlap."
             if len(priors_data.index) == 0:
                 err += " (Prior matrix has no genes"
             else:
                 e_genes = map(str, priors_data.index[0:min(len(priors_data.index), 5)])
                 err += " (Prior genes: " + " ".join(e_genes) + "..."
-            if len(expression_matrix.index) == 0:
+            if len(gene_list) == 0:
                 err += " Expression matrix has no genes)"
             else:
-                e_genes = map(str, expression_matrix.index[0:min(len(expression_matrix.index), 5)])
+                e_genes = map(str, gene_list[0:min(len(gene_list), 5)])
                 err += " Expression matrix genes: " + " ".join(e_genes) + ")"
 
             raise ValueError(err)
 
-        return priors_data.reindex(index=expression_matrix.index).fillna(value=0)
+        return priors_data.reindex(index=gene_list).fillna(value=0)
 
     @staticmethod
     def shuffle_priors(priors_data, shuffle_prior_axis, random_seed):

@@ -55,19 +55,20 @@ class WorkflowBaseLoader(object):
 
     # Gene list & associated metadata
     gene_metadata_file = None
-    gene_metadata = None
     gene_list_index = None
 
     # Loaded data structures [G: Genes, K: Predictors, N: Conditions
-    expression_matrix = None  # expression_matrix dataframe [G x N]
     tf_names = None  # tf_names list [k,]
-    meta_data = None  # meta data dataframe [G x ?]
     priors_data = None  # priors data dataframe [G x K]
     gold_standard = None  # gold standard dataframe [G x K]
 
+    # Loaded experimental data
+    # InferelatorData [N x G]
+    data = None
+
     # Calculated data structures
-    design = None  # regulator features [K x N]
-    response = None  # gene features [G x N]
+    design = None  # InferelatorData [N x K]
+    response = None  # InferelatorData [N x G]
 
     # Flag to identify orientation of the expression matrix (True for samples x genes & False for genes x samples)
     expression_matrix_columns_are_genes = False  # bool
@@ -91,11 +92,9 @@ class WorkflowBaseLoader(object):
         :rtype: int
         """
         if self.response is not None:
-            return self.response.shape[1]
-        elif self.meta_data is not None:
-            return self.meta_data.shape[0]
-        elif self.expression_matrix is not None:
-            return self.expression_matrix.shape[1]
+            return self.response.expression_data.shape[0]
+        elif self.data is not None:
+            return self.data.expression_data.shape[0]
         else:
             return None
 
@@ -107,7 +106,7 @@ class WorkflowBaseLoader(object):
         :rtype: int
         """
         if self.design is not None:
-            return self.design.shape[0]
+            return self.design.expression_data.shape[1]
         elif self.tf_names is not None:
             return len(self.tf_names)
         else:
@@ -121,9 +120,9 @@ class WorkflowBaseLoader(object):
         :rtype: int
         """
         if self.response is not None:
-            return self.response.shape[0]
-        elif self.expression_matrix is not None:
-            return self.expression_matrix.shape[0]
+            return self.response.expression_data.shape[1]
+        elif self.data is not None:
+            return self.data.expression_data.shape[1]
         else:
             return None
 
@@ -328,17 +327,8 @@ class WorkflowBaseLoader(object):
         self.read_genes()
         self.read_priors()
 
-        # Transpose expression data to [Genes x Samples] if the columns_are_genes flag is set
-        self._transpose_expression_matrix()
-
         # Validate that necessary input settings exist
         self.validate_data()
-
-    def _transpose_expression_matrix(self):
-        # Transpose expression data
-        if self.expression_matrix_columns_are_genes:
-            self.expression_matrix = utils.transpose_dataframe(self.expression_matrix)
-            utils.Debug.vprint("Transposing expression matrix to {sh}".format(sh=self.expression_matrix.shape), level=2)
 
     def input_dataframe(self, filename, **kwargs):
         """
@@ -375,18 +365,22 @@ class WorkflowBaseLoader(object):
 
     def read_expression(self, file=None):
         """
-        Read expression matrix file into expression_matrix
+        Read expression matrix file into an InferelatorData object
         """
         file = file if file is not None else self.expression_matrix_file
         utils.Debug.vprint("Loading expression data file {file}".format(file=file), level=1)
-        self.expression_matrix = self.input_dataframe(file)
 
-        try:
-            check.dataframe_is_finite(self.expression_matrix)
-        except ValueError as err:
-            utils.Debug.vprint("Expression Matrix " + str(err), level=0)
+        transpose_flag = not self.expression_matrix_columns_are_genes
+        self.data = utils.InferelatorData(self.input_dataframe(file), transpose_expression=transpose_flag)
 
-        self.loaded_file_info("Expression Matrix", self.expression_matrix)
+        nnf, non_finite_genes = self.data.non_finite
+        if nnf > 0:
+            utils.Debug.vprint("{n} genes with non-finite expression ({g})".format(n=nnf, g=" ".join(non_finite_genes)))
+
+        utils.Debug.vprint("Expression data {sh} loaded".format(sh=self.data.expression_data.shape))
+        if self.data.meta_data is not None:
+            cols = " ".join(self.data.meta_data.columns)
+            utils.Debug.vprint("Metadata columns sliced from expression data: {c}".format(c=cols))
 
     def read_tfs(self, file=None):
         """
@@ -412,18 +406,13 @@ class WorkflowBaseLoader(object):
 
         file = file if file is not None else self.meta_data_file
 
-        # If the metadata is embedded in the expression matrix, extract it
-        if self.extract_metadata_from_expression_matrix:
-            utils.Debug.vprint("Slicing metadata from expression matrix", level=1)
-            self.expression_matrix, self.meta_data = self.dataframe_split(self.expression_matrix,
-                                                                          self.expression_matrix_metadata)
-        elif file is not None:
+        if file is not None:
             utils.Debug.vprint("Loading metadata file {file}".format(file=file), level=1)
-            self.meta_data = self.input_dataframe(file, index_col=None)
+            self.data.meta_data = self.input_dataframe(file, index_col=None)
         else:
             utils.Debug.vprint("No metadata provided. Creating a generic metadata", level=0)
             metadata_processor = MetadataHandler.get_handler(self.metadata_handler)
-            self.meta_data = metadata_processor.create_default_meta_data(self.expression_matrix)
+            self.data.meta_data = metadata_processor.create_default_meta_data(self.data.sample_names)
 
     def read_genes(self, file=None):
         """
@@ -434,7 +423,15 @@ class WorkflowBaseLoader(object):
 
         if file is not None:
             utils.Debug.vprint("Loading Gene metadata from file {file}".format(file=file), level=1)
-            self.gene_metadata = self.input_dataframe(self.gene_metadata_file, index_col=None)
+            gene_metadata = self.input_dataframe(self.gene_metadata_file, index_col=None)
+
+            # Validate that the gene_metadata can be properly read, if loaded
+            if gene_metadata is not None and self.gene_list_index not in gene_metadata.columns:
+                raise ValueError(
+                    "The gene list file must have headers and workflow.gene_list_index must be a valid column")
+
+            gene_metadata.index = gene_metadata[self.gene_list_index]
+            self.data.gene_data = gene_metadata
 
     def read_priors(self, priors_file=None, gold_standard_file=None):
         """
@@ -459,23 +456,19 @@ class WorkflowBaseLoader(object):
         Make sure that the data that's loaded is acceptable
         """
 
-        # Validate that the gene_metadata can be properly read, if loaded
-        if self.gene_metadata is not None and self.gene_list_index not in self.gene_metadata.columns:
-            raise ValueError("The gene list file must have headers and workflow.gene_list_index must be a valid column")
-
         # Create a null prior if the flag is set
         if self.use_no_prior and self.priors_data is not None:
             warnings.warn("The use_no_prior flag will be ignored because prior data exists")
         elif self.use_no_prior:
             utils.Debug.vprint("A null prior is has been created", level=0)
-            self.priors_data = self._create_null_prior(self.expression_matrix, self.tf_names)
+            self.priors_data = self._create_null_prior(self.data.gene_names, self.tf_names)
 
         # Create a null gold standard if the flag is set
         if self.use_no_gold_standard and self.gold_standard is not None:
             warnings.warn("The use_no_gold_standard flag will be ignored because gold standard data exists")
         elif self.use_no_gold_standard:
             utils.Debug.vprint("A null gold standard has been created", level=0)
-            self.gold_standard = self._create_null_prior(self.expression_matrix, self.tf_names)
+            self.gold_standard = self._create_null_prior(self.data.gene_names, self.tf_names)
 
         # Validate that some network information exists and has been loaded
         if self.priors_data is None and self.gold_standard is None:
@@ -527,14 +520,14 @@ class WorkflowBaseLoader(object):
             return WorkflowBase.make_path_safe(filename)
 
     @staticmethod
-    def _create_null_prior(expression_data, tf_names):
+    def _create_null_prior(gene_names, tf_names):
         """
         Create a prior data matrix that is all 0s
-        :param expression_data: pd.DataFrame
+        :param gene_names: Anything that can be used as an index for a dataframe
         :param tf_names: list
         :return priors: pd.DataFrame
         """
-        return pd.DataFrame(0, index=expression_data.columns, columns=tf_names)
+        return pd.DataFrame(0, index=gene_names, columns=tf_names)
 
     @staticmethod
     def make_path_safe(path):
@@ -754,17 +747,15 @@ class WorkflowBase(WorkflowBaseLoader):
         """
         Filter the priors and expression matrix to just genes in gene_metadata
         """
-        if self.gene_metadata is not None and self.gene_list_index is not None:
-            gene_list = self.gene_metadata[self.gene_list_index].tolist()
-            self.priors_data, self.expression_matrix = self.prior_manager.filter_to_gene_list(self.priors_data,
-                                                                                              self.expression_matrix,
-                                                                                              gene_list)
+
+        self.data.trim_genes()
+        self.priors_data = self.prior_manager.filter_priors_to_genes(self.priors_data, self.data.gene_names)
 
     def align_priors_and_expression(self):
         """
         Align prior to the expression matrix
         """
-        self.priors_data = self.prior_manager.align_priors_to_expression(self.priors_data, self.expression_matrix)
+        self.priors_data = self.prior_manager.align_priors_to_expression(self.priors_data, self.data.gene_names)
 
     def get_bootstraps(self):
         """

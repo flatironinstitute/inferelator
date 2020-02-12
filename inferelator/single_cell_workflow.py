@@ -80,25 +80,15 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
         add_preprocess_step() class function
         """
 
-        # Transpose the expression matrix from [G x N] to [N x G] for preprocessing
-        self.expression_matrix = utils.transpose_dataframe(self.expression_matrix)
-
-        assert check.dataframe_is_numeric(self.expression_matrix)
-
-        self.expression_matrix, self.meta_data = single_cell.filter_genes_for_count(self.expression_matrix,
-                                                                                    self.meta_data,
-                                                                                    count_minimum=self.count_minimum)
-
-        if np.sum(~np.isfinite(self.expression_matrix.values), axis=None) > 0:
-            raise ValueError("NaN values are present prior to normalization in the expression matrix")
+        if self.count_minimum is not None:
+            single_cell.filter_genes_for_count(self.data, count_minimum=self.count_minimum)
 
         if self.preprocessing_workflow is not None:
             for sc_func, sc_kwargs in self.preprocessing_workflow:
                 sc_kwargs['random_seed'] = self.random_seed
-                self.expression_matrix, self.meta_data = sc_func(self.expression_matrix, self.meta_data, **sc_kwargs)
+                sc_func(self.data, **sc_kwargs)
 
-        if np.sum(~np.isfinite(self.expression_matrix.values), axis=None) > 0:
+        num_nonfinite, name_nonfinite = self.data.non_finite
+        if num_nonfinite > 0:
+            utils.Debug.vprint("These genes have non-finite values: " + " ".join(name_nonfinite), level=0)
             raise ValueError("NaN values have been introduced into the expression matrix by normalization")
-
-        # Transpose the expression matrix from [N x G] to [G x N] for the rest of the workflow
-        self.expression_matrix = utils.transpose_dataframe(self.expression_matrix)
