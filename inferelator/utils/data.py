@@ -346,7 +346,6 @@ class InferelatorData(object):
             # Otherwise the GC leaves the original because the view reference keeps it alive
             # At some point it will need to copy so why not now
             trim_adata = self._adata[:, keep_column_bool].copy()
-            trim_adata.var_names = self._adata.var_names[keep_column_bool].copy()
 
             # Make sure that there's no hanging reference to the original object
             del self._adata

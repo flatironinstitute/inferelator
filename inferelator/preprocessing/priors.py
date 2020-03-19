@@ -96,45 +96,6 @@ class ManagePriors(object):
         return priors_data, gold_standard
 
     @staticmethod
-    def filter_to_gene_list(priors_data, expression_matrix, gene_list):
-        """
-        Filter the expression matrix and priors to the intersection with a provided list of genes
-        :param priors_data: pd.DataFrame [G x K]
-            Prior data
-        :param expression_matrix: pd.DataFrame [G x N]
-            Expression data matrix
-        :param gene_list: list
-            List of genes to restrict the modeling to
-        :return expression_matrix: pd.DataFrame [g x N]
-        """
-
-        utils.Debug.vprint("Filtering expression and priors to {le} genes from list".format(le=len(gene_list)), level=1)
-
-        expression_matrix = ManagePriors.filter_expression_to_genes(expression_matrix, gene_list)
-        priors_data = ManagePriors.filter_priors_to_genes(priors_data, gene_list)
-
-        return priors_data, expression_matrix
-
-    @staticmethod
-    def filter_expression_to_genes(expression_matrix, gene_list):
-
-        if len(gene_list) == 0:
-            raise ValueError("Filtering to a list of 0 genes is not valid")
-
-        if len(expression_matrix.index) == 0:
-            raise ValueError("Filtering an expression matrix of 0 genes is not valid")
-
-        try:
-            expression_matrix = ManagePriors._filter_df_index(expression_matrix, gene_list)
-        except ValueError as err:
-            err = str(err) + " when filtering expression for gene list. "
-            err += " Expression matrix genes: " + str(expression_matrix.index[0]) + "..."
-            err += " Gene list genes: " + gene_list[0]
-            raise ValueError(err)
-
-        return expression_matrix
-
-    @staticmethod
     def filter_priors_to_genes(priors_data, gene_list):
 
         if len(gene_list) == 0:
