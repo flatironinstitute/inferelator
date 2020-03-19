@@ -233,7 +233,7 @@ class Validator(object):
             elif check_index and pd.isnull(frame.index).any():
                 raise ValueError("NaN values are present in frame index")
             elif check_index and pd.isnull(frame.columns).any():
-                raise ValueError("NaN nalues are present in frame column")
+                raise ValueError("NaN values are present in frame column")
             else:
                 return True
 
