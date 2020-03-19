@@ -1,7 +1,6 @@
 from __future__ import division
 
 from inferelator import utils
-from inferelator.utils.data import InferelatorData
 from inferelator import default
 from inferelator.preprocessing.metadata_parser import MetadataHandler
 from inferelator.preprocessing.metadata_parser import ConditionDoesNotExistError, MultipleConditionsError
@@ -43,15 +42,13 @@ class PythonDRDriver(object):
         self.return_half_tau = return_half_tau
         self.metadata_handler = metadata_handler if metadata_handler is not None else self.metadata_handler
 
-    def run(self, data):
+    def run(self, exp_data, meta_data):
         """
         Process expression data and metadata into design & response data
-        :param data: InferelatorData [N x G]
+        :param exp_data: pd.DataFrame [G x N]
+        :param meta_data: pd.DataFrame [N x 5]
         :return design, response: pd.DataFrame [G x N], pd.DataFrame [G x N]
         """
-
-        exp_data = data.expression_data.T
-        meta_data = data.meta_data
 
         (k, n) = exp_data.shape
         processor = MetadataHandler.get_handler(self.metadata_handler)
@@ -102,11 +99,11 @@ class PythonDRDriver(object):
             cc = self.sample_names[c_idx]
             self.static_exp(c_idx, cc, col_labels, included, exp_data, design, response, response_half)
 
-        design = InferelatorData(np.array(design), sample_names=col_labels, gene_names=genes)
-        response = InferelatorData(np.array(response), sample_names=col_labels, gene_names=genes)
+        design = pd.DataFrame(np.array(design), index=col_labels, columns=genes).transpose()
+        response = pd.DataFrame(np.array(response), index=col_labels, columns=genes).transpose()
 
         if self.return_half_tau:
-            response_half = InferelatorData(np.array(response_half), sample_names=col_labels, gene_names=genes)
+            response_half = pd.DataFrame(np.array(response_half), index=col_labels, columns=genes).transpose()
             return design, response, response_half
         else:
             return design, response

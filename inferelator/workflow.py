@@ -65,6 +65,8 @@ class WorkflowBaseLoader(object):
     # Loaded experimental data
     # InferelatorData [N x G]
     data = None
+    meta_data = None
+    gene_data = None
 
     # Calculated data structures
     design = None  # InferelatorData [N x K]
@@ -92,9 +94,9 @@ class WorkflowBaseLoader(object):
         :rtype: int
         """
         if self.response is not None:
-            return self.response.expression_data.shape[0]
+            return self.response.num_obs
         elif self.data is not None:
-            return self.data.expression_data.shape[0]
+            return self.data.num_obs
         else:
             return None
 
@@ -106,7 +108,7 @@ class WorkflowBaseLoader(object):
         :rtype: int
         """
         if self.design is not None:
-            return self.design.expression_data.shape[1]
+            return self.design.num_genes
         elif self.tf_names is not None:
             return len(self.tf_names)
         else:
@@ -120,9 +122,9 @@ class WorkflowBaseLoader(object):
         :rtype: int
         """
         if self.response is not None:
-            return self.response.expression_data.shape[1]
+            return self.response.num_genes
         elif self.data is not None:
-            return self.data.expression_data.shape[1]
+            return self.data.num_genes
         else:
             return None
 
@@ -190,7 +192,9 @@ class WorkflowBaseLoader(object):
         :type metadata_handler: str
         """
 
-        self._set_without_warning("extract_metadata_from_expression_matrix", extract_metadata_from_expression_matrix)
+        if extract_metadata_from_expression_matrix is not None:
+            warnings.warn("Set expression_matrix_metadata to extract columns", DeprecationWarning)
+
         self._set_without_warning("expression_matrix_columns_are_genes", expression_matrix_columns_are_genes)
 
         self._set_with_warning("expression_matrix_metadata", expression_matrix_metadata)
@@ -370,8 +374,16 @@ class WorkflowBaseLoader(object):
         file = file if file is not None else self.expression_matrix_file
         utils.Debug.vprint("Loading expression data file {file}".format(file=file), level=1)
 
-        transpose_flag = not self.expression_matrix_columns_are_genes
-        self.data = utils.InferelatorData(self.input_dataframe(file), transpose_expression=transpose_flag)
+        data = self.input_dataframe(file)
+        if self.expression_matrix_metadata is not None:
+            meta_cols = data.columns.intersection(self.expression_matrix_metadata)
+            self.meta_data = pd.concat([self.meta_data, data.loc[:, meta_cols].copy()], axis=1)
+            data = data.drop(meta_cols, axis=1)
+
+        self.data = utils.InferelatorData(data,
+                                          transpose_expression=not self.expression_matrix_columns_are_genes,
+                                          meta_data=self.meta_data,
+                                          gene_data=self.gene_data)
 
         nnf, non_finite_genes = self.data.non_finite
         if nnf > 0:
@@ -405,14 +417,18 @@ class WorkflowBaseLoader(object):
         """
 
         file = file if file is not None else self.meta_data_file
+        target = self.data if self.data is not None else self
+        metadata_processor = MetadataHandler.get_handler(self.metadata_handler)
 
         if file is not None:
             utils.Debug.vprint("Loading metadata file {file}".format(file=file), level=1)
-            self.data.meta_data = self.input_dataframe(file, index_col=None)
+            meta_data = metadata_processor.check_loaded_meta_data(self.input_dataframe(file, index_col=None))
+            setattr(target, "meta_data", meta_data)
         else:
             utils.Debug.vprint("No metadata provided. Creating a generic metadata", level=0)
-            metadata_processor = MetadataHandler.get_handler(self.metadata_handler)
-            self.data.meta_data = metadata_processor.create_default_meta_data(self.data.sample_names)
+            if self.data is None:
+                raise ValueError("Unable to create default meta_data; samples have not been loaded")
+            setattr(target, "meta_data", metadata_processor.create_default_meta_data(self.data.sample_names))
 
     def read_genes(self, file=None):
         """
@@ -420,6 +436,7 @@ class WorkflowBaseLoader(object):
         """
 
         file = file if file is not None else self.gene_metadata_file
+        target = self.data if self.data is not None else self
 
         if file is not None:
             utils.Debug.vprint("Loading Gene metadata from file {file}".format(file=file), level=1)
@@ -431,7 +448,7 @@ class WorkflowBaseLoader(object):
                     "The gene list file must have headers and workflow.gene_list_index must be a valid column")
 
             gene_metadata.index = gene_metadata[self.gene_list_index]
-            self.data.gene_data = gene_metadata
+            setattr(target, "gene_data", gene_metadata)
 
     def read_priors(self, priors_file=None, gold_standard_file=None):
         """

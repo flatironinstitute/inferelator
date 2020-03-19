@@ -1,6 +1,6 @@
 from __future__ import print_function, unicode_literals, division
 
-import copy
+import copy as cp
 import gc
 import math
 import pandas as pd
@@ -142,6 +142,10 @@ class InferelatorData(object):
 
     @meta_data.setter
     def meta_data(self, new_meta_data):
+
+        if isinstance(new_meta_data, InferelatorData):
+            new_meta_data = new_meta_data.meta_data
+
         # Reindex the new metadata to match the existing sample names
         new_meta_data = new_meta_data.copy()
         new_meta_data.index = new_meta_data.index.astype(str)
@@ -151,7 +155,7 @@ class InferelatorData(object):
         # Update (overwrite) any columns in the existing meta data if they are in the new meta data
         if len(self._adata.obs.columns) > 0:
             keep_columns = self._adata.obs.columns.difference(new_meta_data.columns)
-            self._adata.obs = pd.concat((new_meta_data, self._adata.obs.loc[:, keep_columns]))
+            self._adata.obs = pd.concat((new_meta_data, self._adata.obs.loc[:, keep_columns]), axis=1)
         else:
             self._adata.obs = new_meta_data
 
@@ -162,9 +166,11 @@ class InferelatorData(object):
     @gene_data.setter
     def gene_data(self, new_gene_data):
 
+        if isinstance(new_gene_data, InferelatorData):
+            new_gene_data = new_gene_data.gene_data
+
         new_gene_data = new_gene_data.copy()
         new_gene_data.index = new_gene_data.index.astype(str)
-
         # Use the intersection of this and the expression data genes to make a list of gene names to keep
         self._adata.uns["trim_gene_list"] = new_gene_data.index.intersection(self._adata.var.index)
 
@@ -230,10 +236,13 @@ class InferelatorData(object):
     def num_genes(self):
         return self._adata.shape[1]
 
-    def __init__(self, expression_data, transpose_expression=False, meta_data=None, gene_data=None, gene_names=None,
-                 sample_names=None, dtype=None):
+    def __getattr__(self, item):
+        return getattr(self._adata, item)
 
-        if isinstance(expression_data, pd.DataFrame):
+    def __init__(self, expression_data=None, transpose_expression=False, meta_data=None, gene_data=None,
+                 gene_names=None, sample_names=None, dtype=None):
+
+        if expression_data is not None and isinstance(expression_data, pd.DataFrame):
             object_cols = expression_data.dtypes == object
 
             if sum(object_cols) > 0:
@@ -253,13 +262,17 @@ class InferelatorData(object):
                 self._adata = AnnData(X=expression_data.T, dtype=dtype)
             else:
                 self._adata = AnnData(X=expression_data, dtype=dtype)
-        else:
+        elif expression_data is not None and isinstance(expression_data, AnnData):
+            self._adata = expression_data
+        elif expression_data is not None:
             if transpose_expression:
                 self._adata = AnnData(X=expression_data.T, dtype=expression_data.dtype)
             else:
                 self._adata = AnnData(X=expression_data, dtype=expression_data.dtype)
 
             self._is_integer = True if pat.is_integer_dtype(expression_data.dtype) else False
+        else:
+            self._adata = AnnData()
 
         if gene_names is not None:
             self._adata.var_names = gene_names
@@ -312,13 +325,13 @@ class InferelatorData(object):
 
         if remove_constant_genes:
             if self.is_sparse:
-                keep_column_bool &= self.expression_data.getnnz(axis=0) > 0
-                nz_var = self.expression_data.min(axis=0).A.flatten() != self.expression_data.max(axis=0).A.flatten()
-                keep_column_bool &= nz_var
+                nz_var = self.expression_data.getnnz(axis=0) > 0
+                nz_var &= self.expression_data.min(axis=0).A.flatten() != self.expression_data.max(axis=0).A.flatten()
             else:
-                keep_column_bool &= np.apply_along_axis(lambda x: np.max(x) - np.min(x), 0, self.expression_data) > comp
+                nz_var = np.apply_along_axis(lambda x: np.max(x) - np.min(x), 0, self.expression_data) > comp
 
-            var_zero_trim = len(self._adata.var.index) - np.sum(keep_column_bool) + list_trim
+            keep_column_bool &= nz_var
+            var_zero_trim = np.sum(nz_var)
         else:
             var_zero_trim = 0
 
@@ -333,6 +346,7 @@ class InferelatorData(object):
             # Otherwise the GC leaves the original because the view reference keeps it alive
             # At some point it will need to copy so why not now
             trim_adata = self._adata[:, keep_column_bool].copy()
+            trim_adata.var_names = self._adata.var_names[keep_column_bool].copy()
 
             # Make sure that there's no hanging reference to the original object
             del self._adata
@@ -457,9 +471,9 @@ class InferelatorData(object):
                                    meta_data=self.meta_data.copy(),
                                    gene_data=self.gene_data.copy())
 
-        new_data._adata.var_names = copy.copy(self._adata.var_names)
-        new_data._adata.obs_names = copy.copy(self._adata.obs_names)
-        new_data._adata.uns = copy.copy(self._adata.uns)
+        new_data._adata.var_names = cp.copy(self._adata.var_names)
+        new_data._adata.obs_names = cp.copy(self._adata.obs_names)
+        new_data._adata.uns = cp.copy(self._adata.uns)
 
         return new_data
 

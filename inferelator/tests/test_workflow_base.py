@@ -63,23 +63,23 @@ class TestWorkflowSetParameters(unittest.TestCase):
     @unittest.skipIf(PYTHON2_FLAG, "Py2")
     def test_set_file_properties(self):
         self.assertFalse(self.workflow.expression_matrix_columns_are_genes)
-        self.assertFalse(self.workflow.extract_metadata_from_expression_matrix)
         self.assertIsNone(self.workflow.expression_matrix_metadata)
         self.assertIsNone(self.workflow.gene_list_index)
 
         self.workflow.set_file_properties(expression_matrix_columns_are_genes=True,
-                                          extract_metadata_from_expression_matrix=True,
                                           expression_matrix_metadata=["A"],
                                           gene_list_index=["B"])
 
         self.assertTrue(self.workflow.expression_matrix_columns_are_genes)
-        self.assertTrue(self.workflow.extract_metadata_from_expression_matrix)
         self.assertListEqual(self.workflow.expression_matrix_metadata, ["A"])
         self.assertListEqual(self.workflow.gene_list_index, ["B"])
 
         with self.assertWarns(Warning):
             self.workflow.set_file_properties(expression_matrix_metadata=["K"])
             self.assertListEqual(self.workflow.expression_matrix_metadata, ["K"])
+
+        with self.assertWarns(DeprecationWarning):
+            self.workflow.set_file_properties(extract_metadata_from_expression_matrix=True)
 
     @unittest.skipIf(PYTHON2_FLAG, "Py2")
     def test_set_network_flags(self):
@@ -135,12 +135,11 @@ class TestWorkflowLoadData(unittest.TestCase):
 
     def test_load_expression(self):
         self.workflow.read_expression()
-        self.assertEqual(self.workflow.expression_matrix.shape, (100, 421))
-        np.testing.assert_allclose(self.workflow.expression_matrix.sum().sum(), 13507.22145160)
+        self.assertEqual(self.workflow.data.shape, (421, 100))
+        np.testing.assert_allclose(np.sum(self.workflow.data.expression_data), 13507.22145160)
 
     def test_load_tf_names(self):
         self.workflow.read_tfs()
-        print(self.workflow.tf_names)
         self.assertEqual(len(self.workflow.tf_names), 100)
         tf_names = list(map(lambda x: "G" + str(x), list(range(1, 101))))
         self.assertListEqual(self.workflow.tf_names, tf_names)
@@ -163,65 +162,68 @@ class TestWorkflowLoadData(unittest.TestCase):
     def test_load_metadata(self):
         self.workflow.read_metadata()
         self.assertEqual(self.workflow.meta_data.shape, (421, 5))
+        meta_data = pd.read_csv(os.path.join(self.workflow.input_dir, "meta_data.tsv"), sep="\t")
+        meta_data.index = meta_data['condName']
+        meta_data.index.name = None
+        pdt.assert_frame_equal(meta_data, self.workflow.meta_data)
+        self.workflow.read_expression()
+        pdt.assert_frame_equal(meta_data, self.workflow.data.meta_data)
 
     def test_make_metadata(self):
         self.workflow.read_expression()
         self.workflow.meta_data_file = None
         self.workflow.read_metadata()
-        self.assertEqual(self.workflow.meta_data.shape, (421, 4))
+        self.assertEqual(self.workflow.data.meta_data.shape, (421, 4))
 
     def test_extract_metadata(self):
         self.workflow.read_expression()
-        meta_data = MetadataParserBranching.create_default_meta_data(self.workflow.expression_matrix)
-        gene_list = self.workflow.expression_matrix.index.tolist()
+        self.workflow.input_dir = tempfile.mkdtemp()
 
-        self.workflow.expression_matrix = self.workflow.expression_matrix.transpose()
-        self.workflow.expression_matrix_columns_are_genes = True
-        self.workflow.extract_metadata_from_expression_matrix = True
-        self.workflow.expression_matrix = pd.concat([self.workflow.expression_matrix, meta_data], axis=1)
-        self.workflow.expression_matrix_metadata = meta_data.columns.tolist()
+        try:
+            meta_data = MetadataParserBranching.create_default_meta_data(self.workflow.data.sample_names)
+            gene_list = self.workflow.data.gene_names
+            test_data = pd.concat([self.workflow.data.to_df(), meta_data], axis=1)
+            test_data.to_csv(os.path.join(self.workflow.input_dir, "expression.tsv"), sep="\t")
+            self.workflow.expression_matrix_metadata = meta_data.columns.tolist()
+            self.workflow.expression_matrix_columns_are_genes = True
+            self.workflow.read_expression()
 
-        self.workflow.read_metadata()
-
-        pdt.assert_frame_equal(self.workflow.meta_data, meta_data)
-        self.assertListEqual(self.workflow.expression_matrix.columns.tolist(), gene_list)
+            pdt.assert_frame_equal(self.workflow.data.meta_data, MetadataParserBranching.fix_NAs(meta_data))
+            self.assertListEqual(self.workflow.data.gene_names.tolist(), gene_list.tolist())
+        finally:
+            shutil.rmtree(self.workflow.input_dir)
 
     def test_load_gene_metadata(self):
+
+        self.workflow.read_expression()
         self.workflow.input_dir = tempfile.mkdtemp()
-        self.workflow.gene_metadata_file = "genes.tsv"
-        self.workflow.gene_list_index = "SystematicName"
-        genes = pd.DataFrame({"SystematicName": ["gene1", "gene2", "gene3", "gene4", "gene7", "gene6"]})
-        genes.to_csv(os.path.join(self.workflow.input_dir, "genes.tsv"), sep="\t", index=False)
 
-        self.workflow.read_genes()
-        pdt.assert_frame_equal(self.workflow.gene_metadata, genes)
+        try:
+            self.workflow.gene_metadata_file = "genes.tsv"
+            self.workflow.gene_list_index = "SystematicName"
+            genes = pd.DataFrame({"SystematicName": ["G1", "G2", "G3", "G4", "G7", "G6"]})
+            genes.to_csv(os.path.join(self.workflow.input_dir, "genes.tsv"), sep="\t", index=False)
+            genes.index = genes['SystematicName']
 
-        self.workflow.gene_list_index = None
-        with self.assertRaises(ValueError):
-            self.workflow.validate_data()
+            self.workflow.read_genes()
+            pdt.assert_frame_equal(self.workflow.data.gene_data, genes.reindex(self.workflow.data.gene_names))
+            self.assertListEqual(genes.index.tolist(), self.workflow.data.uns['trim_gene_list'].tolist())
 
-        self.workflow.gene_list_index = "SillyName"
-        with self.assertRaises(ValueError):
-            self.workflow.validate_data()
+            with self.assertRaises(ValueError):
+                self.workflow.read_genes()
 
-        shutil.rmtree(self.workflow.input_dir)
+            self.workflow.gene_list_index = "SillyName"
+            with self.assertRaises(ValueError):
+                self.workflow.read_genes()
+        finally:
+            shutil.rmtree(self.workflow.input_dir)
 
     def test_get_data(self):
         self.workflow.get_data()
-        self.assertTrue(self.workflow.expression_matrix is not None)
+        self.assertTrue(self.workflow.data is not None)
         self.assertTrue(self.workflow.priors_data is not None)
         self.assertTrue(self.workflow.gold_standard is not None)
         self.assertTrue(self.workflow.tf_names is not None)
-        self.assertTrue(self.workflow.meta_data is not None)
-
-    def test_transpose_expression(self):
-        self.workflow.expression_matrix = pd.DataFrame(0, index=[1, 2, 3], columns=[4, 5])
-        self.workflow.expression_matrix_columns_are_genes = False
-        self.workflow._transpose_expression_matrix()
-        self.assertEqual(self.workflow.expression_matrix.shape, (3, 2))
-        self.workflow.expression_matrix_columns_are_genes = True
-        self.workflow._transpose_expression_matrix()
-        self.assertEqual(self.workflow.expression_matrix.shape, (2, 3))
 
     def test_input_path(self):
         self.workflow.input_dir = None
@@ -249,7 +251,7 @@ class TestWorkflowLoadData(unittest.TestCase):
 
         self.assertIsNotNone(self.workflow.priors_data)
         self.assertListEqual(self.workflow.priors_data.columns.tolist(), self.workflow.tf_names)
-        self.assertTrue(all(self.workflow.expression_matrix.columns == self.workflow.priors_data.index))
+        self.assertTrue(all(self.workflow.data.gene_names == self.workflow.priors_data.index))
         self.assertIsNone(self.workflow.gold_standard)
 
         with self.assertWarns(Warning):
@@ -258,7 +260,7 @@ class TestWorkflowLoadData(unittest.TestCase):
 
         self.assertIsNotNone(self.workflow.gold_standard)
         self.assertListEqual(self.workflow.gold_standard.columns.tolist(), self.workflow.tf_names)
-        self.assertTrue(all(self.workflow.expression_matrix.columns == self.workflow.gold_standard.index))
+        self.assertTrue(all(self.workflow.data.gene_names == self.workflow.gold_standard.index))
 
 
 class TestWorkflowFunctions(unittest.TestCase):
@@ -279,9 +281,10 @@ class TestWorkflowFunctions(unittest.TestCase):
         self.workflow = workflow.WorkflowBase()
         self.workflow.priors_data = self.data.priors_data.copy()
         self.workflow.gold_standard = self.data.gold_standard.copy()
-        self.workflow.expression_matrix = self.data.expression_matrix.copy()
+        self.workflow.data = self.data.data.copy()
         self.workflow.tf_names = self.data.tf_names
         self.workflow.input_dir = os.path.join(my_dir, "../../data/dream4")
+        self.workflow.expression_matrix_file = "expression.tsv"
 
     def test_multiprocessing_init(self):
         MPControl.shutdown()
@@ -309,9 +312,10 @@ class TestWorkflowFunctions(unittest.TestCase):
             self.workflow.append_to_path('input_dir', 'test')
 
     def test_make_fake_metadata(self):
-        self.workflow.meta_data_file = None
+        self.workflow.data = None
+        self.workflow.read_expression()
         self.workflow.read_metadata(file=None)
-        self.assertEqual(self.workflow.meta_data.shape, (421, 4))
+        self.assertEqual(self.workflow.data.meta_data.shape, (421, 4))
 
     def test_workflow_cv_priors_genes(self):
         self.workflow.split_gold_standard_for_crossvalidation = True
@@ -351,8 +355,10 @@ class TestWorkflowFunctions(unittest.TestCase):
         self.workflow.cv_split_ratio = 0.5
         self.workflow.cv_split_axis = 0
         self.workflow.tf_names = list(map(lambda x: "G" + str(x), list(range(1, 21))))
-        self.workflow.gene_metadata = pd.DataFrame({"genes": list(map(lambda x: "G" + str(x), list(range(1, 51))))})
+        self.workflow.gene_data = pd.DataFrame({"genes": list(map(lambda x: "G" + str(x), list(range(1, 51))))})
         self.workflow.gene_list_index = "genes"
+        self.workflow.gene_data.index = self.workflow.gene_data[self.workflow.gene_list_index]
+        self.workflow.read_expression()
         self.workflow.process_priors_and_gold_standard()
 
         self.assertEqual(self.workflow.gold_standard.shape, (50, 100))
@@ -360,8 +366,8 @@ class TestWorkflowFunctions(unittest.TestCase):
 
         self.workflow.align_priors_and_expression()
         self.assertEqual(self.workflow.priors_data.shape, (50, 20))
-        self.assertEqual(self.workflow.expression_matrix.shape, (50, 421))
-        self.assertListEqual(self.workflow.priors_data.index.tolist(), self.workflow.expression_matrix.index.tolist())
+        self.assertEqual(self.workflow.data.shape, (421, 50))
+        self.assertListEqual(self.workflow.priors_data.index.tolist(), self.workflow.data.gene_names.to_list())
 
     def test_get_bootstraps(self):
         bootstrap_0 = [37, 235, 396, 72, 255, 393, 203, 133, 335, 144, 129, 71, 237, 390, 281, 178, 276, 254, 357, 402,
@@ -386,7 +392,7 @@ class TestWorkflowFunctions(unittest.TestCase):
                        295, 230, 83, 239, 176, 317, 269, 164, 279, 406, 122, 249, 351, 53, 393, 169, 344, 365, 246, 221,
                        244, 204, 338, 362, 395, 105, 36, 112, 144, 158, 115, 106, 212, 291, 337, 258]
 
-        self.workflow.response = self.workflow.expression_matrix
+        self.workflow.response = self.workflow.data
         self.workflow.random_seed = 1
         self.workflow.num_bootstraps = 5
         bootstraps = self.workflow.get_bootstraps()
