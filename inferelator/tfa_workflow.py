@@ -168,12 +168,9 @@ class TFAWorkFlow(workflow.WorkflowBase):
 
             # TODO: Rewrite DRD for InferelatorData
             design, response, half_tau_response = drd.run(self.data.to_df().T, self.data.meta_data)
-            self.design = utils.data.InferelatorData(design.T,
-                                                     meta_data=self.data.meta_data.copy())
-            self.response = utils.data.InferelatorData(response.T,
-                                                       meta_data=self.data.meta_data.copy())
-            self.half_tau_response = utils.data.InferelatorData(half_tau_response.T,
-                                                                meta_data=self.data.meta_data.copy())
+            self.design = utils.data.InferelatorData(design.T)
+            self.response = utils.data.InferelatorData(response.T)
+            self.half_tau_response = utils.data.InferelatorData(half_tau_response.T)
 
         else:
             # If there is no design-response driver set, use the expression data for design and response

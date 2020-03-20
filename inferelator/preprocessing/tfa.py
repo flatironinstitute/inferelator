@@ -21,6 +21,7 @@ class TFA:
 
         if not keep_self:
             prior = utils.df_set_diag(prior, 0)
+
         activity_tfs, expr_tfs, drop_tfs = TFA._determine_tf_status(prior, expression_data)
 
         if len(drop_tfs) > 0:
@@ -40,7 +41,10 @@ class TFA:
         if len(expr_tfs) > 0:
             activity[:, prior.columns.isin(expr_tfs)] = expression_data.get_gene_data(expr_tfs)
 
-        return utils.InferelatorData(activity, gene_names=prior.columns, sample_names=expression_data.sample_names)
+        return utils.InferelatorData(activity,
+                                     gene_names=prior.columns,
+                                     sample_names=expression_data.sample_names,
+                                     meta_data=expression_data.meta_data)
 
     @staticmethod
     def _determine_tf_status(prior, expression_data):

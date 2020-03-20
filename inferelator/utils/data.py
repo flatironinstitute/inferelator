@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 import scipy.sparse as sparse
 import pandas.api.types as pat
+import scipy.io
 from anndata import AnnData
 from inferelator.utils import Debug, Validator
 
@@ -434,9 +435,9 @@ class InferelatorData(object):
     def to_csv(self, file_name, sep="\t"):
 
         if self.is_sparse:
-            Debug.vprint("Saving sparse arrays to text files is not supported", level=0)
+            scipy.io.mmwrite(file_name, self.expression_data)
         else:
-            np.savetxt(file_name, self.expression_data, delimiter=sep, header=sep.join(self.gene_names))
+            self._adata.to_df().to_csv(file_name, sep=sep)
 
     def transform(self, func, add_pseudocount=False, memory_efficient=True, chunksize=1000):
 

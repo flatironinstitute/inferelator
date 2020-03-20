@@ -10,6 +10,7 @@ import pandas.util.testing as pdt
 from inferelator import workflow
 from inferelator.tests.artifacts.test_stubs import TaskDataStub
 from inferelator.regression import amusr_regression
+from inferelator.utils import InferelatorData
 
 data_path = os.path.join(os.path.dirname(__file__), "../../data/dream4")
 
@@ -262,11 +263,8 @@ class TestAMuSRrunner(unittest.TestCase):
                   pd.DataFrame([[0, 0, 1], [1, 0, 1]], index=targets, columns=tfs)]
         gene1_prior = amusr_regression.format_prior(priors, 'gene1', [0, 1], 1.)
         gene2_prior = amusr_regression.format_prior(priors, 'gene2', [0, 1], 1.)
-        output = []
-        output.append(
-            amusr_regression.run_regression_EBIC(des, res, ['tf1', 'tf2', 'tf3'], [0, 1], 'gene1', gene1_prior))
-        output.append(
-            amusr_regression.run_regression_EBIC(des, res, ['tf1', 'tf2', 'tf3'], [0, 1], 'gene2', gene2_prior))
+        output = [amusr_regression.run_regression_EBIC(des, res, ['tf1', 'tf2', 'tf3'], [0, 1], 'gene1', gene1_prior),
+                  amusr_regression.run_regression_EBIC(des, res, ['tf1', 'tf2', 'tf3'], [0, 1], 'gene2', gene2_prior)]
         out0 = pd.DataFrame([['tf3', 'gene1', -1, 1],
                              ['tf3', 'gene1', -1, 1]],
                             index=pd.MultiIndex(levels=[[0, 1], [0]],
@@ -285,10 +283,12 @@ class TestAMuSRrunner(unittest.TestCase):
         targets = ['gene1', 'gene2', 'gene3']
         targets1 = ['gene1', 'gene2']
         targets2 = ['gene1', 'gene3']
-        des = [pd.DataFrame(np.array([[1, 1, 3], [0, 0, 2], [0, 0, 1]]).astype(float), columns=tfs),
-               pd.DataFrame(np.array([[1, 1, 3], [0, 0, 2], [0, 0, 1]]).astype(float), columns=tfs)]
-        res = [pd.DataFrame(np.array([[1, 1], [2, 2], [3, 3]]).astype(float), columns=targets1),
-               pd.DataFrame(np.array([[1, 1], [2, 2], [3, 3]]).astype(float), columns=targets2)]
+
+        des = [InferelatorData(pd.DataFrame(np.array([[1, 1, 3], [0, 0, 2], [0, 0, 1]]).astype(float), columns=tfs)),
+               InferelatorData(pd.DataFrame(np.array([[1, 1, 3], [0, 0, 2], [0, 0, 1]]).astype(float), columns=tfs))]
+
+        res = [InferelatorData(pd.DataFrame(np.array([[1, 1], [2, 2], [3, 3]]).astype(float), columns=targets1)),
+               InferelatorData(pd.DataFrame(np.array([[1, 1], [2, 2], [3, 3]]).astype(float), columns=targets2))]
         priors = pd.DataFrame([[0, 1, 1], [1, 0, 1], [1, 0, 1]], index=targets, columns=tfs)
 
         r = amusr_regression.AMuSR_regression(des, res, tfs=tfs, genes=targets, priors=priors)
