@@ -252,7 +252,7 @@ class InferelatorData(object):
                                                                    me=self.meta_data.shape)
 
     def __init__(self, expression_data=None, transpose_expression=False, meta_data=None, gene_data=None,
-                 gene_names=None, sample_names=None, dtype=None):
+                 gene_data_idx_column=None, gene_names=None, sample_names=None, dtype=None):
 
         if expression_data is not None and isinstance(expression_data, pd.DataFrame):
             object_cols = expression_data.dtypes == object
@@ -276,6 +276,7 @@ class InferelatorData(object):
                 self._adata = AnnData(X=expression_data, dtype=dtype)
         elif expression_data is not None and isinstance(expression_data, AnnData):
             self._adata = expression_data
+            self._is_integer = True if pat.is_integer_dtype(expression_data.X.dtype) else False
         elif expression_data is not None:
             if transpose_expression:
                 self._adata = AnnData(X=expression_data.T, dtype=expression_data.dtype)
@@ -297,6 +298,11 @@ class InferelatorData(object):
             self.meta_data = meta_data
 
         if gene_data is not None:
+            if gene_data_idx_column is not None and gene_data_idx_column in gene_data:
+                gene_data.index = gene_data[gene_data_idx_column]
+            elif gene_data_idx_column is not None:
+                msg = "No gene_data column {c} in {a}".format(c=gene_data_idx_column, a=" ".join(gene_data.columns))
+                raise ValueError(msg)
             self._make_idx_str(gene_data)
             self.gene_data = gene_data
 
@@ -382,6 +388,19 @@ class InferelatorData(object):
             return self._adata[sample_index, :].X.copy()
         else:
             return self._adata[sample_index, :].X
+
+    def subset_copy(self, row_index=None, column_index=None):
+
+        if row_index is not None and column_index is not None:
+            data_view = self._adata[row_index, column_index]
+        elif row_index is not None:
+            data_view = self._adata[row_index, :]
+        elif column_index is not None:
+            data_view = self._adata[: column_index]
+        else:
+            data_view = self._adata
+
+        return InferelatorData(data_view.copy())
 
     def dot(self, other, other_is_right_side=True, force_dense=False):
         """

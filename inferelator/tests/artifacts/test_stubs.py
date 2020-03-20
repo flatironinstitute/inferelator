@@ -51,10 +51,10 @@ def create_puppet_workflow(regression_class=RegressionWorkflow,
 
 class TaskDataStub(amusr_workflow.create_task_data_class(workflow_class="single-cell")):
     data = InferelatorData(TestDataSingleCellLike.expression_matrix.T,
-                           meta_data=TestDataSingleCellLike.meta_data)
+                           meta_data=TestDataSingleCellLike.meta_data,
+                           gene_data=TestDataSingleCellLike.gene_metadata,
+                           gene_data_idx_column=TestDataSingleCellLike.gene_list_index)
     priors_data = TestDataSingleCellLike.priors_data
-    gene_data = TestDataSingleCellLike.gene_metadata
-    gene_list_index = TestDataSingleCellLike.gene_list_index
     tf_names = TestDataSingleCellLike.tf_names
 
     meta_data_task_column = "Condition"

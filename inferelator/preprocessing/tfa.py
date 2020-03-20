@@ -44,7 +44,7 @@ class TFA:
     def _determine_tf_status(prior, expression_data):
 
         # These TFs can have activity calculations performed for them because there are priors
-        activity_tfs = prior.sum(axis=1).values
+        activity_tfs = (prior.sum(axis=0) > 0).values
 
         # These TFs match gene expression only (no activity calculation)
         expr_tfs = prior.columns.isin(expression_data.gene_names)
@@ -55,7 +55,7 @@ class TFA:
     @staticmethod
     def _calculate_activity(prior, expression_data):
 
-        return expression_data.dot(linalg.pinv2(prior), other_is_right_side=False, force_dense=True)
+        return expression_data.dot(linalg.pinv2(prior).T, other_is_right_side=True, force_dense=True)
 
 
 class NoTFA(TFA):

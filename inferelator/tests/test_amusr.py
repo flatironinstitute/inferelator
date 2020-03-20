@@ -56,10 +56,10 @@ class TestAMuSRWorkflow(unittest.TestCase):
         new_task = self.workflow._task_objects[0]
 
         self.assertEqual(new_task.expression_matrix_file, "expression.tsv")
-        self.assertIsNone(new_task.expression_matrix)
+        self.assertIsNone(new_task.data)
 
         self.assertEqual(new_task.meta_data_file, "meta_data.tsv")
-        self.assertIsNone(new_task.meta_data)
+        self.assertIsNone(new_task.data)
 
         self.assertEqual(new_task.priors_file, "gold_standard.tsv")
         self.assertIsNone(new_task.priors_data)
@@ -73,9 +73,9 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.assertIsNone(self.workflow._num_tfs)
         self.assertIsNone(self.workflow._num_genes)
 
-        task_obs = TaskDataStub.expression_matrix.shape[1]
+        task_obs = TaskDataStub.data.num_obs
         task_tfs = TaskDataStub.priors_data.shape[1]
-        task_genes = TaskDataStub.expression_matrix.shape[0]
+        task_genes = TaskDataStub.data.num_genes
 
         self.workflow._task_objects = [TaskDataStub(), TaskDataStub(), TaskDataStub()]
 
@@ -116,7 +116,6 @@ class TestAMuSRWorkflow(unittest.TestCase):
 
         self.assertListEqual([expect_size] * 3, prior_sizes)
 
-
     def test_taskdata_loading(self):
         self.assertIsNone(self.workflow._task_objects)
         self.workflow.create_task(expression_matrix_file="expression.tsv", input_dir=data_path,
@@ -133,12 +132,12 @@ class TestAMuSRWorkflow(unittest.TestCase):
         task1 = self.workflow._task_objects[0]
         task2 = self.workflow._task_objects[1]
 
-        self.assertEqual(task1.expression_matrix.shape, (100, 421))
-        np.testing.assert_allclose(task1.expression_matrix.sum().sum(), 13507.22145160)
+        self.assertEqual(task1.data.shape, (421, 100))
+        np.testing.assert_allclose(np.sum(task1.data.expression_data), 13507.22145160)
         self.assertEqual(len(task1.tf_names), 100)
         self.assertListEqual(task1.tf_names, list(map(lambda x: "G" + str(x), list(range(1, 101)))))
         self.assertEqual(task1.priors_data.shape, (100, 100))
-        self.assertEqual(task1.meta_data.shape, (421, 5))
+        self.assertEqual(task1.data.meta_data.shape, (421, 5))
 
         self.assertEqual(task1.input_dir, task2.input_dir)
 
@@ -151,9 +150,9 @@ class TestAMuSRWorkflow(unittest.TestCase):
 
         # Test processing the TaskData objects into data structures in MultitaskLearningWorkflow
         self.assertEqual(self.workflow._n_tasks, 3)
-        self.assertEqual(list(map(lambda x: x.expression_matrix.shape, self.workflow._task_objects)),
-                         [(6, 2), (6, 4), (6, 4)])
-        self.assertEqual(list(map(lambda x: x.meta_data.shape, self.workflow._task_objects)),
+        self.assertEqual(list(map(lambda x: x.data.shape, self.workflow._task_objects)),
+                         [(2, 4), (4, 4), (4, 4)])
+        self.assertEqual(list(map(lambda x: x.data.meta_data.shape, self.workflow._task_objects)),
                          [(2, 2), (4, 2), (4, 2)])
 
     def test_task_processing(self):
@@ -164,14 +163,13 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.assertEqual(self.workflow._targets.tolist(), ["gene1", "gene2", "gene4", "gene6"])
         self.assertEqual(len(self.workflow._task_design), 3)
         self.assertEqual(len(self.workflow._task_response), 3)
-        self.assertEqual(len(self.workflow._task_meta_data), 3)
         self.assertEqual(len(self.workflow._task_bootstraps), 3)
-        pdt.assert_frame_equal(self.workflow._task_design[0],
-                               pd.DataFrame([[16., 5.], [15., 15.]], index=["gene3", "gene6"], columns=[0, 6]),
+        pdt.assert_frame_equal(self.workflow._task_design[0].to_df(),
+                               pd.DataFrame([[16., 5.], [15., 15.]], index=["gene3", "gene6"], columns=["0", "6"]).T,
                                check_dtype=False)
-        pdt.assert_frame_equal(self.workflow._task_response[0],
+        pdt.assert_frame_equal(self.workflow._task_response[0].to_df(),
                                pd.DataFrame([[2, 3], [28, 27], [16, 5], [3, 4]],
-                                            index=["gene1", "gene2", "gene4", "gene6"], columns=[0, 6]),
+                                            index=["gene1", "gene2", "gene4", "gene6"], columns=["0", "6"]).T,
                                check_dtype=False)
 
     def test_result_processor_random(self):

@@ -17,18 +17,15 @@ from inferelator.regression.base_regression import RegressionWorkflow
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.preprocessing.metadata_parser import MetadataParserBranching
 
-PYTHON2_FLAG = sys.version_info[0] == 2
 my_dir = os.path.dirname(__file__)
 
 
 class TestWorkflowSetParameters(unittest.TestCase):
 
     def setUp(self):
-        self.workflow=workflow.WorkflowBase()
+        self.workflow = workflow.WorkflowBase()
 
-    @unittest.skipIf(PYTHON2_FLAG, "Py2")
     def test_set_file_names(self):
-
         self.assertIsNone(self.workflow.expression_matrix_file)
         self.assertIsNone(self.workflow.tf_names_file)
         self.assertIsNone(self.workflow.meta_data_file)
@@ -60,7 +57,6 @@ class TestWorkflowSetParameters(unittest.TestCase):
             self.workflow.set_file_paths(expression_matrix_file="K")
             self.assertEqual(self.workflow.expression_matrix_file, "K")
 
-    @unittest.skipIf(PYTHON2_FLAG, "Py2")
     def test_set_file_properties(self):
         self.assertFalse(self.workflow.expression_matrix_columns_are_genes)
         self.assertIsNone(self.workflow.expression_matrix_metadata)
@@ -81,7 +77,6 @@ class TestWorkflowSetParameters(unittest.TestCase):
         with self.assertWarns(DeprecationWarning):
             self.workflow.set_file_properties(extract_metadata_from_expression_matrix=True)
 
-    @unittest.skipIf(PYTHON2_FLAG, "Py2")
     def test_set_network_flags(self):
         self.assertFalse(self.workflow.use_no_prior)
         self.assertFalse(self.workflow.use_no_gold_standard)
@@ -93,7 +88,6 @@ class TestWorkflowSetParameters(unittest.TestCase):
         self.assertTrue(self.workflow.use_no_prior)
         self.assertTrue(self.workflow.use_no_gold_standard)
 
-    @unittest.skipIf(PYTHON2_FLAG, "Py2")
     def test_set_cv_params(self):
         self.assertIsNone(self.workflow.cv_split_ratio)
         self.assertFalse(self.workflow.split_gold_standard_for_crossvalidation)
@@ -106,14 +100,11 @@ class TestWorkflowSetParameters(unittest.TestCase):
         self.assertTrue(self.workflow.split_gold_standard_for_crossvalidation)
 
     def test_set_run_params(self):
-
         self.workflow.set_run_parameters(num_bootstraps=12345678, random_seed=87654321)
         self.assertEqual(self.workflow.num_bootstraps, 12345678)
         self.assertEqual(self.workflow.random_seed, 87654321)
 
-    @unittest.skipIf(PYTHON2_FLAG, "Py2")
     def test_set_postprocessing_params(self):
-
         with self.assertWarns(Warning):
             self.workflow.set_postprocessing_parameters(gold_standard_filter_method="red", metric="blue")
         self.assertListEqual([self.workflow.gold_standard_filter_method, self.workflow.metric], ["red", "blue"])
@@ -189,7 +180,7 @@ class TestWorkflowLoadData(unittest.TestCase):
             self.workflow.expression_matrix_metadata = meta_data.columns.tolist()
             self.workflow.expression_matrix_columns_are_genes = True
             self.workflow.read_expression()
-            
+
             pdt.assert_frame_equal(self.workflow.data.meta_data, MetadataParserBranching.fix_NAs(meta_data))
             self.assertListEqual(self.workflow.data.gene_names.tolist(), gene_list.tolist())
         finally:
@@ -243,7 +234,6 @@ class TestWorkflowLoadData(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.assertIsNone(self.workflow.input_path(None))
 
-    @unittest.skipIf(PYTHON2_FLAG, "Py2")
     def test_null_network_generation(self):
         self.workflow.read_expression()
         self.workflow.read_tfs()
