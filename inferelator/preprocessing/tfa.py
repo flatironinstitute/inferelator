@@ -8,17 +8,19 @@ class TFA:
     """ TFA calculates transcription factor activity using matrix pseudoinverse """
 
     @staticmethod
-    def compute_transcription_factor_activity(prior, expression_data, expression_data_halftau=None):
+    def compute_transcription_factor_activity(prior, expression_data, expression_data_halftau=None, keep_self=False):
         """
         Calculate TFA from a prior and expression data object
 
         :param prior: pd.DataFrame [G x K]
         :param expression_data: InferelatorData [N x G]
         :param expression_data_halftau: InferelatorData [N x G]
+        :param keep_self: bool
         :return: InferelatorData [N x K]
         """
 
-        prior = utils.df_set_diag(prior, 0)
+        if not keep_self:
+            prior = utils.df_set_diag(prior, 0)
         activity_tfs, expr_tfs, drop_tfs = TFA._determine_tf_status(prior, expression_data)
 
         if len(drop_tfs) > 0:
@@ -44,8 +46,7 @@ class TFA:
     def _determine_tf_status(prior, expression_data):
 
         # These TFs can have activity calculations performed for them because there are priors
-        activity_tfs = (prior.sum(axis=0) > 0).values
-
+        activity_tfs = ((prior != 0).sum(axis=0) != 0).values
         # These TFs match gene expression only (no activity calculation)
         expr_tfs = prior.columns.isin(expression_data.gene_names)
         expr_tfs &= ~activity_tfs
@@ -54,7 +55,6 @@ class TFA:
 
     @staticmethod
     def _calculate_activity(prior, expression_data):
-
         return expression_data.dot(linalg.pinv2(prior).T, other_is_right_side=True, force_dense=True)
 
 

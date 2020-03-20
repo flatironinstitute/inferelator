@@ -287,10 +287,10 @@ class InferelatorData(object):
         else:
             self._adata = AnnData()
 
-        if gene_names is not None:
+        if gene_names is not None and len(gene_names) > 0:
             self._adata.var_names = gene_names
 
-        if sample_names is not None:
+        if sample_names is not None and len(sample_names) > 0:
             self._adata.obs_names = sample_names
 
         if meta_data is not None:
