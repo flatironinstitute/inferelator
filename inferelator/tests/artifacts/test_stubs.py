@@ -3,6 +3,7 @@ from inferelator import workflow
 from inferelator.regression.base_regression import RegressionWorkflow
 from inferelator.postprocessing.results_processor import ResultsProcessor
 from inferelator.tests.artifacts.test_data import TestDataSingleCellLike
+from inferelator.utils import InferelatorData
 
 import pandas as pd
 import numpy as np
@@ -49,10 +50,10 @@ def create_puppet_workflow(regression_class=RegressionWorkflow,
 
 
 class TaskDataStub(amusr_workflow.create_task_data_class(workflow_class="single-cell")):
-    expression_matrix = TestDataSingleCellLike.expression_matrix
-    meta_data = TestDataSingleCellLike.meta_data
+    data = InferelatorData(TestDataSingleCellLike.expression_matrix.T,
+                           meta_data=TestDataSingleCellLike.meta_data)
     priors_data = TestDataSingleCellLike.priors_data
-    gene_metadata = TestDataSingleCellLike.gene_metadata
+    gene_data = TestDataSingleCellLike.gene_metadata
     gene_list_index = TestDataSingleCellLike.gene_list_index
     tf_names = TestDataSingleCellLike.tf_names
 
