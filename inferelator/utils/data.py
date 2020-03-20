@@ -3,12 +3,13 @@ from __future__ import print_function, unicode_literals, division
 import copy as cp
 import gc
 import math
+import warnings
 import pandas as pd
 import numpy as np
 import scipy.sparse as sparse
 import pandas.api.types as pat
 from anndata import AnnData
-from inferelator.utils.debug import Debug
+from inferelator.utils import Debug, Validator
 
 
 def df_from_tsv(file_like, has_index=True):
@@ -149,7 +150,13 @@ class InferelatorData(object):
         # Reindex the new metadata to match the existing sample names
         new_meta_data = new_meta_data.copy()
         new_meta_data.index = new_meta_data.index.astype(str)
-        new_meta_data = new_meta_data.reindex(self.sample_names)
+
+        try:
+            Validator.indexes_align((self.sample_names, new_meta_data.index), check_order=True)
+        except ValueError:
+            msg = "Metadata update for {n} is misaligned".format(n=str(self))
+            warnings.warn(msg)
+            new_meta_data = new_meta_data.reindex(self.sample_names)
 
         # Join any new columns to any existing columns
         # Update (overwrite) any columns in the existing meta data if they are in the new meta data
@@ -180,7 +187,7 @@ class InferelatorData(object):
         # Update (overwrite) any columns in the existing meta data if they are in the new meta data
         if len(self._adata.var.columns) > 0:
             keep_columns = self._adata.var.columns.difference(new_gene_data.columns)
-            self._adata.var = pd.concat((new_gene_data, self._adata.var.loc[:, keep_columns]))
+            self._adata.var = pd.concat((new_gene_data, self._adata.var.loc[:, keep_columns]), axis=1)
         else:
             self._adata.var = new_gene_data
 
@@ -238,6 +245,11 @@ class InferelatorData(object):
 
     def __getattr__(self, item):
         return getattr(self._adata, item)
+
+    def __str__(self):
+        return "InferelatorData [{dt} {sh}, Metadata {me}]".format(sh=self.shape,
+                                                                   dt=self._data.dtype,
+                                                                   me=self.meta_data.shape)
 
     def __init__(self, expression_data=None, transpose_expression=False, meta_data=None, gene_data=None,
                  gene_names=None, sample_names=None, dtype=None):
@@ -313,12 +325,12 @@ class InferelatorData(object):
         :return:
         """
 
+        keep_column_bool = np.ones((len(self._adata.var.index),), dtype=bool)
+
         if trim_gene_list is not None:
-            keep_column_bool = self._adata.var.index.isin(trim_gene_list)
-        elif "trim_gene_list" in self._adata.uns:
-            keep_column_bool = self._adata.var.index.isin(self._adata.uns["trim_gene_list"])
-        else:
-            keep_column_bool = np.ones((len(self._adata.var.index),), dtype=bool)
+            keep_column_bool &= self._adata.var.index.isin(trim_gene_list)
+        if "trim_gene_list" in self._adata.uns:
+            keep_column_bool &= self._adata.var.index.isin(self._adata.uns["trim_gene_list"])
 
         list_trim = len(self._adata.var.index) - np.sum(keep_column_bool)
         comp = 0 if self._is_integer else np.finfo(self.expression_data.dtype).eps * 10
@@ -361,6 +373,15 @@ class InferelatorData(object):
             return self._adata[:, gene_list].X.copy()
         else:
             return self._adata[:, gene_list].X
+
+    def get_sample_data(self, sample_index, copy=False, force_dense=False):
+
+        if force_dense and self.is_sparse:
+            return self._adata[sample_index, :].X.A
+        elif copy:
+            return self._adata[sample_index, :].X.copy()
+        else:
+            return self._adata[sample_index, :].X
 
     def dot(self, other, other_is_right_side=True, force_dense=False):
         """

@@ -8,12 +8,6 @@ The functions in these classes are available in all subclassed workflows
 """
 from __future__ import unicode_literals, print_function
 
-# I hate py2 now
-try:
-    from builtins import FileExistsError
-except ImportError:
-    FileExistsError = OSError
-
 import datetime
 import inspect
 import os
@@ -23,15 +17,12 @@ import copy
 import numpy as np
 import pandas as pd
 
-from inferelator import utils
-from inferelator.utils import Validator as check
+from inferelator.utils import Debug, InferelatorDataLoader, DEFAULT_PANDAS_TSV_SETTINGS, slurm_envs, is_string
 from inferelator.distributed.inferelator_mp import MPControl
-from inferelator.preprocessing.metadata_parser import MetadataHandler
 from inferelator.preprocessing.priors import ManagePriors
 from inferelator.regression.base_regression import RegressionWorkflow
 from inferelator.postprocessing.results_processor import ResultsProcessor
 
-DEFAULT_PANDAS_TSV_SETTINGS = dict(sep="\t", index_col=0, header=0)
 SBATCH_VARS_FOR_WORKFLOW = ["output_dir", "input_dir"]
 
 
@@ -54,19 +45,18 @@ class WorkflowBaseLoader(object):
     metadata_handler = "branching"
 
     # Gene list & associated metadata
+    gene_names_file = None
     gene_metadata_file = None
     gene_list_index = None
 
-    # Loaded data structures [G: Genes, K: Predictors, N: Conditions
-    tf_names = None  # tf_names list [k,]
+    # Loaded data structures [G: Genes, K: Predictors, N: Conditions]
+    tf_names = None  # tf_names list [K]
+    gene_names = None  # gene_names list [G]
     priors_data = None  # priors data dataframe [G x K]
     gold_standard = None  # gold standard dataframe [G x K]
 
     # Loaded experimental data
-    # InferelatorData [N x G]
-    data = None
-    meta_data = None
-    gene_data = None
+    data = None  # InferelatorData [N x G]
 
     # Calculated data structures
     design = None  # InferelatorData [N x K]
@@ -133,7 +123,8 @@ class WorkflowBaseLoader(object):
             self._file_format_settings = dict()
 
     def set_file_paths(self, input_dir=None, output_dir=None, expression_matrix_file=None, tf_names_file=None,
-                       meta_data_file=None, priors_file=None, gold_standard_file=None, gene_metadata_file=None):
+                       meta_data_file=None, priors_file=None, gold_standard_file=None, gene_metadata_file=None,
+                       gene_names_file=None):
         """
         Set the file paths necessary for the inferelator to run
 
@@ -153,6 +144,8 @@ class WorkflowBaseLoader(object):
         :type gold_standard_file: str
         :param gene_metadata_file: Path to a genes annotation file
         :type gene_metadata_file: str, optional
+        :param gene_names_file: Path to a list of genes to include in the model (optional)
+        :type gene_names_file: str, optional
         """
 
         self._set_with_warning("input_dir", input_dir)
@@ -163,6 +156,7 @@ class WorkflowBaseLoader(object):
         self._set_file_name("priors_file", priors_file)
         self._set_file_name("gold_standard_file", gold_standard_file)
         self._set_file_name("gene_metadata_file", gene_metadata_file)
+        self._set_file_name("gene_names_file", gene_names_file)
 
     def set_file_properties(self, extract_metadata_from_expression_matrix=None, expression_matrix_metadata=None,
                             expression_matrix_columns_are_genes=None, gene_list_index=None, metadata_handler=None):
@@ -254,7 +248,7 @@ class WorkflowBaseLoader(object):
 
         msg = "File {f} has the following settings:".format(f=file_name)
         msg += "\n\t".join([str(k) + " = " + str(v) for k, v in self._file_format_settings[file_name].items()])
-        utils.Debug.vprint(msg, level=0)
+        Debug.vprint(msg, level=0)
 
     def _get_file_name_from_attribute(self, file_name):
         """
@@ -267,7 +261,7 @@ class WorkflowBaseLoader(object):
             if hasattr(self, file_name) and getattr(self, file_name) in self._file_format_settings:
                 file_name = getattr(self, file_name)
             else:
-                utils.Debug.vprint("File {f} is unknown".format(f=file_name), level=0)
+                Debug.vprint("File {f} is unknown".format(f=file_name), level=0)
                 return None
         return file_name
 
@@ -286,7 +280,7 @@ class WorkflowBaseLoader(object):
             self._file_format_settings[file_name] = copy.copy(DEFAULT_PANDAS_TSV_SETTINGS)
 
         if not os.path.isfile(self.input_path(file_name)):
-            utils.Debug.vprint("File {f} does not exist".format(f=file_name))
+            Debug.vprint("File {f} does not exist".format(f=file_name), level=0)
 
         self._set_with_warning(attr_name, file_name)
 
@@ -327,29 +321,10 @@ class WorkflowBaseLoader(object):
 
         self.read_expression()
         self.read_tfs()
-        self.read_metadata()
-        self.read_genes()
         self.read_priors()
 
         # Validate that necessary input settings exist
         self.validate_data()
-
-    def input_dataframe(self, filename, **kwargs):
-        """
-        Read a file in as a pandas dataframe
-        """
-        utils.Debug.vprint("Loading data file: {a}".format(a=self.input_path(filename)), level=2)
-
-        # Use any kwargs for this function and any file settings from default
-        if self._file_format_settings is not None and filename in self._file_format_settings:
-            file_settings = self._file_format_settings[filename]
-        else:
-            file_settings = copy.copy(DEFAULT_PANDAS_TSV_SETTINGS)
-
-        file_settings.update(kwargs)
-
-        # Load a dataframe
-        return pd.read_csv(self.input_path(filename), **file_settings)
 
     def append_to_path(self, var_name, to_append):
         """
@@ -367,32 +342,22 @@ class WorkflowBaseLoader(object):
                                                                                               var_name=var_name))
         setattr(self, var_name, os.path.join(path, to_append))
 
-    def read_expression(self, file=None):
+    def read_expression(self, expression_matrix_file=None, meta_data_file=None, gene_data_file=None):
         """
         Read expression matrix file into an InferelatorData object
         """
-        file = file if file is not None else self.expression_matrix_file
-        utils.Debug.vprint("Loading expression data file {file}".format(file=file), level=1)
+        expression_file = expression_matrix_file if expression_matrix_file is not None else self.expression_matrix_file
+        meta_data_file = meta_data_file if meta_data_file is not None else self.meta_data_file
+        gene_data_file = gene_data_file if gene_data_file is not None else self.gene_metadata_file
 
-        data = self.input_dataframe(file)
-        if self.expression_matrix_metadata is not None:
-            meta_cols = data.columns.intersection(self.expression_matrix_metadata)
-            self.meta_data = pd.concat([self.meta_data, data.loc[:, meta_cols].copy()], axis=1)
-            data = data.drop(meta_cols, axis=1)
-
-        self.data = utils.InferelatorData(data,
-                                          transpose_expression=not self.expression_matrix_columns_are_genes,
-                                          meta_data=self.meta_data,
-                                          gene_data=self.gene_data)
-
-        nnf, non_finite_genes = self.data.non_finite
-        if nnf > 0:
-            utils.Debug.vprint("{n} genes with non-finite expression ({g})".format(n=nnf, g=" ".join(non_finite_genes)))
-
-        utils.Debug.vprint("Expression data {sh} loaded".format(sh=self.data.expression_data.shape))
-        if self.data.meta_data is not None:
-            cols = " ".join(self.data.meta_data.columns)
-            utils.Debug.vprint("Metadata columns sliced from expression data: {c}".format(c=cols))
+        loader = InferelatorDataLoader(input_dir=self.input_dir, file_format_settings=self._file_format_settings)
+        self.data = loader.load_data_tsv(expression_file,
+                                         transpose_expression_data=not self.expression_matrix_columns_are_genes,
+                                         expression_matrix_metadata=self.expression_matrix_metadata,
+                                         meta_data_file=meta_data_file,
+                                         meta_data_handler=self.metadata_handler,
+                                         gene_data_file=gene_data_file,
+                                         gene_name_column=self.gene_list_index)
 
     def read_tfs(self, file=None):
         """
@@ -403,52 +368,32 @@ class WorkflowBaseLoader(object):
         file = self.tf_names_file if file is None else file
 
         if file is not None:
-            utils.Debug.vprint("Loading TF feature names from file {file}".format(file=file), level=1)
+            Debug.vprint("Loading TF feature names from file {file}".format(file=file), level=1)
             # Read in a dataframe with no header or index
-            tfs = self.input_dataframe(file, header=None, index_col=None)
+            loader = InferelatorDataLoader(input_dir=self.input_dir, file_format_settings=self._file_format_settings)
+            tfs = loader.input_dataframe(file, header=None, index_col=None)
 
             # Cast the dataframe into a list
             assert tfs.shape[1] == 1
             self.tf_names = tfs.values.flatten().tolist()
 
-    def read_metadata(self, file=None):
-        """
-        Read metadata file into meta_data or make fake metadata
-        """
-
-        file = file if file is not None else self.meta_data_file
-        target = self.data if self.data is not None else self
-        metadata_processor = MetadataHandler.get_handler(self.metadata_handler)
-
-        if file is not None:
-            utils.Debug.vprint("Loading metadata file {file}".format(file=file), level=1)
-            meta_data = metadata_processor.check_loaded_meta_data(self.input_dataframe(file, index_col=None))
-            setattr(target, "meta_data", meta_data)
-        else:
-            utils.Debug.vprint("No metadata provided. Creating a generic metadata", level=0)
-            if self.data is None:
-                raise ValueError("Unable to create default meta_data; samples have not been loaded")
-            setattr(target, "meta_data", metadata_processor.create_default_meta_data(self.data.sample_names))
-
     def read_genes(self, file=None):
         """
-        Read in a list of genes which should be modeled for network inference
+        Read tf names file into tf_names
         """
 
-        file = file if file is not None else self.gene_metadata_file
-        target = self.data if self.data is not None else self
+        # Load the class variable if no file is passed
+        file = self.gene_names_file if file is None else file
 
         if file is not None:
-            utils.Debug.vprint("Loading Gene metadata from file {file}".format(file=file), level=1)
-            gene_metadata = self.input_dataframe(self.gene_metadata_file, index_col=None)
+            Debug.vprint("Loading TF feature names from file {file}".format(file=file), level=1)
+            # Read in a dataframe with no header or index
+            loader = InferelatorDataLoader(input_dir=self.input_dir, file_format_settings=self._file_format_settings)
+            genes = loader.input_dataframe(file, header=None, index_col=None)
 
-            # Validate that the gene_metadata can be properly read, if loaded
-            if gene_metadata is not None and self.gene_list_index not in gene_metadata.columns:
-                raise ValueError(
-                    "The gene list file must have headers and workflow.gene_list_index must be a valid column")
-
-            gene_metadata.index = gene_metadata[self.gene_list_index]
-            setattr(target, "gene_data", gene_metadata)
+            # Cast the dataframe into a list
+            assert genes.shape[1] == 1
+            self.gene_names = genes.values.flatten().tolist()
 
     def read_priors(self, priors_file=None, gold_standard_file=None):
         """
@@ -456,16 +401,16 @@ class WorkflowBaseLoader(object):
         """
         priors_file = priors_file if priors_file is not None else self.priors_file
         gold_standard_file = gold_standard_file if gold_standard_file is not None else self.gold_standard_file
+        loader = InferelatorDataLoader(input_dir=self.input_dir, file_format_settings=self._file_format_settings)
 
         if priors_file is not None:
-            utils.Debug.vprint("Loading prior data from file {file}".format(file=priors_file), level=1)
-            self.priors_data = self.input_dataframe(priors_file)
+            Debug.vprint("Loading prior data from file {file}".format(file=priors_file), level=1)
+            self.priors_data = loader.input_dataframe(priors_file)
             self.loaded_file_info("Priors data", self.priors_data)
 
         if gold_standard_file is not None:
-            utils.Debug.vprint("Loading gold_standard data from file {file}".format(file=gold_standard_file),
-                               level=1)
-            self.gold_standard = self.input_dataframe(gold_standard_file)
+            Debug.vprint("Loading gold_standard data from file {file}".format(file=gold_standard_file), level=1)
+            self.gold_standard = loader.input_dataframe(gold_standard_file)
             self.loaded_file_info("Gold standard", self.gold_standard)
 
     def validate_data(self):
@@ -477,14 +422,14 @@ class WorkflowBaseLoader(object):
         if self.use_no_prior and self.priors_data is not None:
             warnings.warn("The use_no_prior flag will be ignored because prior data exists")
         elif self.use_no_prior:
-            utils.Debug.vprint("A null prior is has been created", level=0)
+            Debug.vprint("A null prior is has been created", level=0)
             self.priors_data = self._create_null_prior(self.data.gene_names, self.tf_names)
 
         # Create a null gold standard if the flag is set
         if self.use_no_gold_standard and self.gold_standard is not None:
             warnings.warn("The use_no_gold_standard flag will be ignored because gold standard data exists")
         elif self.use_no_gold_standard:
-            utils.Debug.vprint("A null gold standard has been created", level=0)
+            Debug.vprint("A null gold standard has been created", level=0)
             self.gold_standard = self._create_null_prior(self.data.gene_names, self.tf_names)
 
         # Validate that some network information exists and has been loaded
@@ -501,7 +446,7 @@ class WorkflowBaseLoader(object):
         :rtype: str
         """
 
-        return self._filename_path_join(self.input_dir, filename)
+        return InferelatorDataLoader.filename_path_join(self.input_dir, filename)
 
     def output_path(self, filename):
         """
@@ -512,29 +457,7 @@ class WorkflowBaseLoader(object):
         :return: File joined to output_dir instance variable
         :rtype: str
         """
-        return self._filename_path_join(self.output_dir, filename)
-
-    @staticmethod
-    def _filename_path_join(path, filename):
-        """
-        Join filename to path
-        """
-
-        # Raise an error if filename is None
-        if filename is None:
-            raise ValueError("Cannot create a path to a filename set as None")
-
-        # Return an absolute path unchanged
-        elif os.path.isabs(filename):
-            return filename
-
-        # If path is set, join filename to it and return that
-        elif path is not None:
-            return WorkflowBase.make_path_safe(os.path.join(path, filename))
-
-        # If path is not set, convert the filename to absolute and return it
-        else:
-            return WorkflowBase.make_path_safe(filename)
+        return InferelatorDataLoader.filename_path_join(self.output_dir, filename)
 
     @staticmethod
     def _create_null_prior(gene_names, tf_names):
@@ -545,18 +468,6 @@ class WorkflowBaseLoader(object):
         :return priors: pd.DataFrame
         """
         return pd.DataFrame(0, index=gene_names, columns=tf_names)
-
-    @staticmethod
-    def make_path_safe(path):
-        """
-        Expand relative paths to absolute paths. Pass None through.
-        :param path: str
-        :return: str
-        """
-        if path is not None:
-            return os.path.abspath(os.path.expanduser(path))
-        else:
-            return None
 
     @staticmethod
     def dataframe_split(data_frame, remove_columns):
@@ -575,9 +486,9 @@ class WorkflowBaseLoader(object):
     @staticmethod
     def loaded_file_info(df_name, df):
 
-        utils.Debug.vprint(df_name + " loaded {sh}".format(sh=df.shape), level=2)
-        utils.Debug.vprint(df_name + " index: " + str(df.index[0]) + " ...", level=2)
-        utils.Debug.vprint(df_name + " columns: " + str(df.columns[0]) + " ...", level=2)
+        Debug.vprint(df_name + " loaded {sh}".format(sh=df.shape), level=2)
+        Debug.vprint(df_name + " index: " + str(df.index[0]) + " ...", level=2)
+        Debug.vprint(df_name + " columns: " + str(df.columns[0]) + " ...", level=2)
 
 
 class WorkflowBase(WorkflowBaseLoader):
@@ -696,7 +607,7 @@ class WorkflowBase(WorkflowBaseLoader):
         """
         Load environmental variables into class variables
         """
-        for k, v in utils.slurm_envs(SBATCH_VARS_FOR_WORKFLOW).items():
+        for k, v in slurm_envs(SBATCH_VARS_FOR_WORKFLOW).items():
             setattr(self, k, v)
 
     def startup(self):
@@ -765,7 +676,7 @@ class WorkflowBase(WorkflowBaseLoader):
         Filter the priors and expression matrix to just genes in gene_metadata
         """
 
-        self.data.trim_genes()
+        self.data.trim_genes(trim_gene_list=self.gene_names)
         self.priors_data = self.prior_manager.filter_priors_to_genes(self.priors_data, self.data.gene_names)
 
     def align_priors_and_expression(self):
@@ -801,9 +712,9 @@ class WorkflowBase(WorkflowBaseLoader):
         """
         if self.output_dir is None:
             new_path = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-            self.output_dir = self.make_path_safe(os.path.join(self.input_dir, new_path))
+            self.output_dir = InferelatorDataLoader.make_path_safe(os.path.join(self.input_dir, new_path))
         else:
-            self.output_dir = self.make_path_safe(self.output_dir)
+            self.output_dir = InferelatorDataLoader.make_path_safe(self.output_dir)
 
         try:
             os.makedirs(os.path.expanduser(self.output_dir))
@@ -834,7 +745,7 @@ def _factory_build_inferelator(regression=RegressionWorkflow, workflow=WorkflowB
 
     # Decide which preprocessing/postprocessing workflow to use
     # String arguments are parsed for convenience in the run script
-    if utils.is_string(workflow):
+    if is_string(workflow):
         if workflow == "base":
             workflow_class = WorkflowBase
         elif workflow == "tfa":
@@ -859,7 +770,7 @@ def _factory_build_inferelator(regression=RegressionWorkflow, workflow=WorkflowB
     if regression is None:
         return workflow_class
     # String arguments are parsed for convenience in the run script
-    elif utils.is_string(regression):
+    elif is_string(regression):
         if regression == "base":
             from inferelator.regression.base_regression import BaseRegression
             regression_class = BaseRegression
