@@ -39,8 +39,9 @@ class TestTFAWorkflow(unittest.TestCase):
     def test_compute_common_data(self):
         self.workflow.drd_driver = FakeDRD
         self.workflow.compute_common_data()
-        self.assertTrue(self.workflow.expression_matrix is None)
-        np.testing.assert_array_almost_equal_nulp(self.workflow.design.values, self.workflow.response.values)
+        self.assertTrue(self.workflow.data is None)
+        np.testing.assert_array_almost_equal_nulp(self.workflow.design.expression_data,
+                                                  self.workflow.response.expression_data)
 
     def test_compute_activity(self):
         self.workflow.drd_driver = FakeDRD
@@ -109,22 +110,21 @@ class TestTFAWorkflowRegression(TestTFAOnData):
 
 class TestTFAWrite(TestTFAOnData):
 
-    def setUp(self):
-        super(TestTFAWrite, self).setUp()
-        self.workflow.output_dir = tempfile.gettempdir()
-        self.workflow.set_tfa(tfa_output_file="test.tsv")
-        self.tfa_file_name = os.path.join(tempfile.gettempdir(), "test.tsv")
-
-    def tearDown(self):
-        os.remove(self.tfa_file_name)
-
     def test_tfa_tsv(self):
-        self.workflow.startup()
+        try:
+            self.workflow.output_dir = tempfile.gettempdir()
+            self.workflow.set_tfa(tfa_output_file="test.tsv")
+            self.tfa_file_name = os.path.join(tempfile.gettempdir(), "test.tsv")
 
-        self.assertTrue(os.path.exists(self.tfa_file_name))
-        tfa = pd.read_csv(self.tfa_file_name, sep="\t", index_col=0)
+            self.workflow.startup()
 
-        self.assertTupleEqual(self.workflow.design.shape, tfa.shape)
-        pd.testing.assert_frame_equal(tfa, self.workflow.design)
+            self.assertTrue(os.path.exists(self.tfa_file_name))
+            tfa = pd.read_csv(self.tfa_file_name, sep="\t", index_col=0)
+
+            self.assertTupleEqual(self.workflow.design.shape, tfa.shape)
+            pd.testing.assert_frame_equal(tfa, self.workflow.design.to_df())
+        finally:
+            os.remove(self.tfa_file_name)
+
 
 
