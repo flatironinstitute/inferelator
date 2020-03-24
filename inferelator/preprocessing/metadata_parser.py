@@ -18,6 +18,8 @@ DEFAULT_STRICT_CHECKING_FOR_DUPLICATES = True
 
 class MetadataParser(object):
 
+    cond_col = COND_COLUMN_NAME
+
     @classmethod
     @abstractmethod
     def process_groups(cls, meta_data):
@@ -37,8 +39,15 @@ class MetadataParser(object):
 
     @classmethod
     @abstractmethod
-    def create_default_meta_data(cls, expression_matrix):
+    def create_default_meta_data(cls, metadata_index):
         raise NotImplementedError
+
+    @classmethod
+    def check_loaded_meta_data(cls, meta_data):
+        if cls.cond_col in meta_data:
+            meta_data.index = meta_data[cls.cond_col]
+            meta_data.index.name = None
+        return meta_data
 
     @staticmethod
     def fix_NAs(data_frame):
@@ -182,13 +191,13 @@ class MetadataParserBranching(MetadataParser):
             utils.Debug.vprint("Meta data sample name column and meta_data index are not equal", level=2)
 
     @classmethod
-    def create_default_meta_data(cls, expression_matrix):
+    def create_default_meta_data(cls, metadata_index):
         """
         Create a meta_data dataframe from basic defaults
         """
 
         # Create an empty dataframe with index equal to sample names from expression data
-        meta_data = pd.DataFrame(index=expression_matrix.columns.astype(str))
+        meta_data = pd.DataFrame(index=metadata_index.astype(str))
 
         # Create a name column
         cls.create_sample_name_column(meta_data)
@@ -204,8 +213,6 @@ class MetadataParserNonbranching(MetadataParserBranching):
     group_col = GROUP_COLUMN_NAME
     time_col = TIME_COLUMN_NAME
     cond_col = COND_COLUMN_NAME
-
-    default_values = {"isTs": "FALSE", "is1stLast": "e", "prevCol": "NA", "del.t": "NA", "condName": None}
 
     @classmethod
     def process_groups(cls, meta_data):
@@ -254,13 +261,13 @@ class MetadataParserNonbranching(MetadataParserBranching):
         return steady_idx, ts_group
 
     @classmethod
-    def create_default_meta_data(cls, expression_matrix):
+    def create_default_meta_data(cls, metadata_index):
         """
         Create a meta_data dataframe from basic defaults
         """
-        meta_data = pd.DataFrame(index=expression_matrix.columns)
-        meta_data[cls.cond_col] = expression_matrix.columns
-        meta_data[cls.group_col] = list(range(expression_matrix.shape[1]))
+        meta_data = pd.DataFrame(index=metadata_index.astype(str))
+        meta_data[cls.cond_col] = metadata_index.astype(str)
+        meta_data[cls.group_col] = list(range(len(metadata_index)))
         meta_data[cls.time_col] = 0
         return meta_data
 

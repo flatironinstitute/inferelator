@@ -1,14 +1,16 @@
 from __future__ import print_function, unicode_literals, division
 
-import copy
+import copy as cp
 import gc
 import math
+import warnings
 import pandas as pd
 import numpy as np
 import scipy.sparse as sparse
 import pandas.api.types as pat
+import scipy.io
 from anndata import AnnData
-from inferelator.utils.debug import Debug
+from inferelator.utils import Debug, Validator
 
 
 def df_from_tsv(file_like, has_index=True):
@@ -142,16 +144,37 @@ class InferelatorData(object):
 
     @meta_data.setter
     def meta_data(self, new_meta_data):
+
+        if isinstance(new_meta_data, InferelatorData):
+            new_meta_data = new_meta_data.meta_data
+
         # Reindex the new metadata to match the existing sample names
         new_meta_data = new_meta_data.copy()
         new_meta_data.index = new_meta_data.index.astype(str)
-        new_meta_data = new_meta_data.reindex(self.sample_names)
+
+        try:
+            Validator.indexes_align((self.sample_names, new_meta_data.index), check_order=True)
+        except ValueError:
+            msg = "Metadata update for {n} is misaligned".format(n=str(self))
+
+            name_overlap = len(set(new_meta_data.index).intersection(set(self.sample_names)))
+            # If the new metadata has no overlapping index names and is the same length, just assume it's right order
+            if (name_overlap == 0) and (new_meta_data.shape[0] == self.num_obs):
+                msg += " (Metadata dimensions are correct; ignoring misalignment)"
+                warnings.warn(msg)
+            elif name_overlap == 0:
+                msg = "Incorrectly sized metadata with no overlapping names was provided to {s}".format(s=str(self))
+                raise ValueError(msg)
+            else:
+                msg += " ({m} records are in both)".format(m=name_overlap)
+                warnings.warn(msg)
+                new_meta_data = new_meta_data.reindex(self.sample_names)
 
         # Join any new columns to any existing columns
         # Update (overwrite) any columns in the existing meta data if they are in the new meta data
         if len(self._adata.obs.columns) > 0:
             keep_columns = self._adata.obs.columns.difference(new_meta_data.columns)
-            self._adata.obs = pd.concat((new_meta_data, self._adata.obs.loc[:, keep_columns]))
+            self._adata.obs = pd.concat((new_meta_data, self._adata.obs.loc[:, keep_columns]), axis=1)
         else:
             self._adata.obs = new_meta_data
 
@@ -162,9 +185,11 @@ class InferelatorData(object):
     @gene_data.setter
     def gene_data(self, new_gene_data):
 
+        if isinstance(new_gene_data, InferelatorData):
+            new_gene_data = new_gene_data.gene_data
+
         new_gene_data = new_gene_data.copy()
         new_gene_data.index = new_gene_data.index.astype(str)
-
         # Use the intersection of this and the expression data genes to make a list of gene names to keep
         self._adata.uns["trim_gene_list"] = new_gene_data.index.intersection(self._adata.var.index)
 
@@ -174,7 +199,7 @@ class InferelatorData(object):
         # Update (overwrite) any columns in the existing meta data if they are in the new meta data
         if len(self._adata.var.columns) > 0:
             keep_columns = self._adata.var.columns.difference(new_gene_data.columns)
-            self._adata.var = pd.concat((new_gene_data, self._adata.var.loc[:, keep_columns]))
+            self._adata.var = pd.concat((new_gene_data, self._adata.var.loc[:, keep_columns]), axis=1)
         else:
             self._adata.var = new_gene_data
 
@@ -230,10 +255,18 @@ class InferelatorData(object):
     def num_genes(self):
         return self._adata.shape[1]
 
-    def __init__(self, expression_data, transpose_expression=False, meta_data=None, gene_data=None, gene_names=None,
-                 sample_names=None, dtype=None):
+    def __getattr__(self, item):
+        return getattr(self._adata, item)
 
-        if isinstance(expression_data, pd.DataFrame):
+    def __str__(self):
+        return "InferelatorData [{dt} {sh}, Metadata {me}]".format(sh=self.shape,
+                                                                   dt=self._data.dtype,
+                                                                   me=self.meta_data.shape)
+
+    def __init__(self, expression_data=None, transpose_expression=False, meta_data=None, gene_data=None,
+                 gene_data_idx_column=None, gene_names=None, sample_names=None, dtype=None):
+
+        if expression_data is not None and isinstance(expression_data, pd.DataFrame):
             object_cols = expression_data.dtypes == object
 
             if sum(object_cols) > 0:
@@ -253,18 +286,23 @@ class InferelatorData(object):
                 self._adata = AnnData(X=expression_data.T, dtype=dtype)
             else:
                 self._adata = AnnData(X=expression_data, dtype=dtype)
-        else:
+        elif expression_data is not None and isinstance(expression_data, AnnData):
+            self._adata = expression_data
+            self._is_integer = True if pat.is_integer_dtype(expression_data.X.dtype) else False
+        elif expression_data is not None:
             if transpose_expression:
                 self._adata = AnnData(X=expression_data.T, dtype=expression_data.dtype)
             else:
                 self._adata = AnnData(X=expression_data, dtype=expression_data.dtype)
 
             self._is_integer = True if pat.is_integer_dtype(expression_data.dtype) else False
+        else:
+            self._adata = AnnData()
 
-        if gene_names is not None:
+        if gene_names is not None and len(gene_names) > 0:
             self._adata.var_names = gene_names
 
-        if sample_names is not None:
+        if sample_names is not None and len(sample_names) > 0:
             self._adata.obs_names = sample_names
 
         if meta_data is not None:
@@ -272,6 +310,11 @@ class InferelatorData(object):
             self.meta_data = meta_data
 
         if gene_data is not None:
+            if gene_data_idx_column is not None and gene_data_idx_column in gene_data:
+                gene_data.index = gene_data[gene_data_idx_column]
+            elif gene_data_idx_column is not None:
+                msg = "No gene_data column {c} in {a}".format(c=gene_data_idx_column, a=" ".join(gene_data.columns))
+                raise ValueError(msg)
             self._make_idx_str(gene_data)
             self.gene_data = gene_data
 
@@ -300,25 +343,25 @@ class InferelatorData(object):
         :return:
         """
 
+        keep_column_bool = np.ones((len(self._adata.var.index),), dtype=bool)
+
         if trim_gene_list is not None:
-            keep_column_bool = self._adata.var.index.isin(trim_gene_list)
-        elif "trim_gene_list" in self._adata.uns:
-            keep_column_bool = self._adata.var.index.isin(self._adata.uns["trim_gene_list"])
-        else:
-            keep_column_bool = np.ones((len(self._adata.var.index),), dtype=bool)
+            keep_column_bool &= self._adata.var.index.isin(trim_gene_list)
+        if "trim_gene_list" in self._adata.uns:
+            keep_column_bool &= self._adata.var.index.isin(self._adata.uns["trim_gene_list"])
 
         list_trim = len(self._adata.var.index) - np.sum(keep_column_bool)
         comp = 0 if self._is_integer else np.finfo(self.expression_data.dtype).eps * 10
 
         if remove_constant_genes:
             if self.is_sparse:
-                keep_column_bool &= self.expression_data.getnnz(axis=0) > 0
-                nz_var = self.expression_data.min(axis=0).A.flatten() != self.expression_data.max(axis=0).A.flatten()
-                keep_column_bool &= nz_var
+                nz_var = self.expression_data.getnnz(axis=0) > 0
+                nz_var &= self.expression_data.min(axis=0).A.flatten() != self.expression_data.max(axis=0).A.flatten()
             else:
-                keep_column_bool &= np.apply_along_axis(lambda x: np.max(x) - np.min(x), 0, self.expression_data) > comp
+                nz_var = np.apply_along_axis(lambda x: np.max(x) - np.min(x), 0, self.expression_data) > comp
 
-            var_zero_trim = len(self._adata.var.index) - np.sum(keep_column_bool) + list_trim
+            keep_column_bool &= nz_var
+            var_zero_trim = np.sum(nz_var)
         else:
             var_zero_trim = 0
 
@@ -340,14 +383,46 @@ class InferelatorData(object):
 
             self._adata = trim_adata
 
-    def get_gene_data(self, gene_list, copy=False, force_dense=False):
+    def get_gene_data(self, gene_list, copy=False, force_dense=False, to_df=False):
 
-        if force_dense and self.is_sparse:
-            return self._adata[:, gene_list].X.A
+        x = self._adata[:, gene_list]
+        labels = x.var_names
+
+        if (force_dense or to_df) and self.is_sparse:
+            x = x.X.A
         elif copy:
-            return self._adata[:, gene_list].X.copy()
+            x = x.X.copy()
         else:
-            return self._adata[:, gene_list].X
+            x = x.X
+
+        return pd.DataFrame(x, columns=labels, index=self.sample_names) if to_df else x
+
+    def get_sample_data(self, sample_index, copy=False, force_dense=False, to_df=False):
+
+        x = self._adata[sample_index, :]
+        labels = x.obs_names
+
+        if (force_dense or to_df) and self.is_sparse:
+            x = x.X.A
+        elif copy:
+            x = x.X.copy()
+        else:
+            x = x.X
+
+        return pd.DataFrame(x, columns=self.gene_names, index=labels) if to_df else x
+
+    def subset_copy(self, row_index=None, column_index=None):
+
+        if row_index is not None and column_index is not None:
+            data_view = self._adata[row_index, column_index]
+        elif row_index is not None:
+            data_view = self._adata[row_index, :]
+        elif column_index is not None:
+            data_view = self._adata[: column_index]
+        else:
+            data_view = self._adata
+
+        return InferelatorData(data_view.copy())
 
     def dot(self, other, other_is_right_side=True, force_dense=False):
         """
@@ -381,9 +456,9 @@ class InferelatorData(object):
     def to_csv(self, file_name, sep="\t"):
 
         if self.is_sparse:
-            Debug.vprint("Saving sparse arrays to text files is not supported", level=0)
+            scipy.io.mmwrite(file_name, self.expression_data)
         else:
-            np.savetxt(file_name, self.expression_data, delimiter=sep, header=sep.join(self.gene_names))
+            self._adata.to_df().to_csv(file_name, sep=sep)
 
     def transform(self, func, add_pseudocount=False, memory_efficient=True, chunksize=1000):
 
@@ -404,6 +479,12 @@ class InferelatorData(object):
                 self._adata.X[start:stop, :] = func(self._adata.X[start:stop, :])
         else:
             self._adata.X = func(self._adata.X)
+
+    def add(self, val):
+        self._data[...] = self._data + val
+
+    def subtract(self, val):
+        self._data[...] = self._data - val
 
     def divide(self, div_val, axis=None):
 
@@ -457,9 +538,9 @@ class InferelatorData(object):
                                    meta_data=self.meta_data.copy(),
                                    gene_data=self.gene_data.copy())
 
-        new_data._adata.var_names = copy.copy(self._adata.var_names)
-        new_data._adata.obs_names = copy.copy(self._adata.obs_names)
-        new_data._adata.uns = copy.copy(self._adata.uns)
+        new_data._adata.var_names = cp.copy(self._adata.var_names)
+        new_data._adata.obs_names = cp.copy(self._adata.obs_names)
+        new_data._adata.uns = cp.copy(self._adata.uns)
 
         return new_data
 

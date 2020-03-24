@@ -96,45 +96,6 @@ class ManagePriors(object):
         return priors_data, gold_standard
 
     @staticmethod
-    def filter_to_gene_list(priors_data, expression_matrix, gene_list):
-        """
-        Filter the expression matrix and priors to the intersection with a provided list of genes
-        :param priors_data: pd.DataFrame [G x K]
-            Prior data
-        :param expression_matrix: pd.DataFrame [G x N]
-            Expression data matrix
-        :param gene_list: list
-            List of genes to restrict the modeling to
-        :return expression_matrix: pd.DataFrame [g x N]
-        """
-
-        utils.Debug.vprint("Filtering expression and priors to {le} genes from list".format(le=len(gene_list)), level=1)
-
-        expression_matrix = ManagePriors.filter_expression_to_genes(expression_matrix, gene_list)
-        priors_data = ManagePriors.filter_priors_to_genes(priors_data, gene_list)
-
-        return priors_data, expression_matrix
-
-    @staticmethod
-    def filter_expression_to_genes(expression_matrix, gene_list):
-
-        if len(gene_list) == 0:
-            raise ValueError("Filtering to a list of 0 genes is not valid")
-
-        if len(expression_matrix.index) == 0:
-            raise ValueError("Filtering an expression matrix of 0 genes is not valid")
-
-        try:
-            expression_matrix = ManagePriors._filter_df_index(expression_matrix, gene_list)
-        except ValueError as err:
-            err = str(err) + " when filtering expression for gene list. "
-            err += " Expression matrix genes: " + str(expression_matrix.index[0]) + "..."
-            err += " Gene list genes: " + gene_list[0]
-            raise ValueError(err)
-
-        return expression_matrix
-
-    @staticmethod
     def filter_priors_to_genes(priors_data, gene_list):
 
         if len(gene_list) == 0:
@@ -185,33 +146,33 @@ class ManagePriors(object):
         return priors_data
 
     @staticmethod
-    def align_priors_to_expression(priors_data, expression_matrix):
+    def align_priors_to_expression(priors_data, gene_list):
         """
         Make sure that the priors align to the expression matrix and fill priors that are created with 0s
         :param priors_data: pd.DataFrame [G x K]
             Prior data
-        :param expression_matrix: pd.DataFrame [G x N]
-            Expression matrix data
+        :param gene_list: pd.Index [G]
+            Expression matrix genes
         :return priors_data:
             Returns priors_data where genes match expression matrix genes
         """
 
-        if len(priors_data.index.intersection(expression_matrix.index)) == 0:
+        if len(priors_data.index.intersection(gene_list)) == 0:
             err = "Prior genes and expression matrix genes have no overlap."
             if len(priors_data.index) == 0:
                 err += " (Prior matrix has no genes"
             else:
                 e_genes = map(str, priors_data.index[0:min(len(priors_data.index), 5)])
                 err += " (Prior genes: " + " ".join(e_genes) + "..."
-            if len(expression_matrix.index) == 0:
+            if len(gene_list) == 0:
                 err += " Expression matrix has no genes)"
             else:
-                e_genes = map(str, expression_matrix.index[0:min(len(expression_matrix.index), 5)])
+                e_genes = map(str, gene_list[0:min(len(gene_list), 5)])
                 err += " Expression matrix genes: " + " ".join(e_genes) + ")"
 
             raise ValueError(err)
 
-        return priors_data.reindex(index=expression_matrix.index).fillna(value=0)
+        return priors_data.reindex(index=gene_list).fillna(value=0)
 
     @staticmethod
     def shuffle_priors(priors_data, shuffle_prior_axis, random_seed):

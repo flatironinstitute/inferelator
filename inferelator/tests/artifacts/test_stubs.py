@@ -2,7 +2,8 @@ from inferelator import amusr_workflow
 from inferelator import workflow
 from inferelator.regression.base_regression import RegressionWorkflow
 from inferelator.postprocessing.results_processor import ResultsProcessor
-from inferelator.tests.artifacts.test_data import TestDataSingleCellLike
+from inferelator.tests.artifacts.test_data import TestDataSingleCellLike, TEST_DATA
+from inferelator.utils import InferelatorData
 
 import pandas as pd
 import numpy as np
@@ -32,9 +33,8 @@ def create_puppet_workflow(regression_class=RegressionWorkflow,
         pr_curve_file_name = None
         initialize_mp = False
 
-        def __init__(self, expr_data, meta_data, prior_data, gs_data):
-            self.expression_matrix = expr_data
-            self.meta_data = meta_data
+        def __init__(self, data, prior_data, gs_data):
+            self.data = data
             self.priors_data = prior_data
             self.gold_standard = gs_data
 
@@ -49,11 +49,7 @@ def create_puppet_workflow(regression_class=RegressionWorkflow,
 
 
 class TaskDataStub(amusr_workflow.create_task_data_class(workflow_class="single-cell")):
-    expression_matrix = TestDataSingleCellLike.expression_matrix
-    meta_data = TestDataSingleCellLike.meta_data
     priors_data = TestDataSingleCellLike.priors_data
-    gene_metadata = TestDataSingleCellLike.gene_metadata
-    gene_list_index = TestDataSingleCellLike.gene_list_index
     tf_names = TestDataSingleCellLike.tf_names
 
     meta_data_task_column = "Condition"
@@ -61,6 +57,10 @@ class TaskDataStub(amusr_workflow.create_task_data_class(workflow_class="single-
 
     task_name = "TestStub"
     task_workflow_type = "single-cell"
+
+    def __init__(self):
+        self.data = TEST_DATA.copy()
+        super(TaskDataStub, self).__init__()
 
     def get_data(self):
         if self.tasks_from_metadata:

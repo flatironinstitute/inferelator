@@ -15,8 +15,8 @@ class BBSRByTaskRegressionWorkflow(AMUSRRegressionWorkflow, BBSRRegressionWorkfl
 
         # Select the appropriate bootstrap from each task and stash the data into X and Y
         for k in range(self._n_tasks):
-            X = self._task_design[k].iloc[:, self._task_bootstraps[k][bootstrap_idx]].loc[self._regulators, :]
-            Y = self._task_response[k].iloc[:, self._task_bootstraps[k][bootstrap_idx]].loc[self._targets, :]
+            X = self._task_design[k].get_sample_data(self._task_bootstraps[k][bootstrap_idx], to_df=True).T.loc[self._regulators, :]
+            Y = self._task_response[k].get_sample_data(self._task_bootstraps[k][bootstrap_idx], to_df=True).T.loc[self._targets, :]
 
             # Make sure that the priors align to the expression matrix
             priors_data = self._task_priors[k].reindex(labels=self._targets, axis=0).fillna(value=0)

@@ -31,9 +31,9 @@ class TestPriorManager(unittest.TestCase):
     def setUp(self):
         self.priors_data = self.workflow.priors_data.copy()
         self.gold_standard = self.workflow.gold_standard.copy()
-        self.expression_matrix = self.workflow.expression_matrix.copy()
+        self.data = self.workflow.data.copy()
         self.tf_names = self.workflow.tf_names
-        self.gene_list = self.workflow.expression_matrix.index.tolist()[:35]
+        self.gene_list = self.workflow.data.gene_names.tolist()[:35]
 
     def test_priors_tf_names(self):
         npr1 = ManagePriors.filter_to_tf_names_list(self.priors_data, self.tf_names)
@@ -52,24 +52,20 @@ class TestPriorManager(unittest.TestCase):
             ManagePriors.filter_to_tf_names_list(self.priors_data, ["fake1", "fake2"])
 
     def test_gene_list_filter(self):
-        npr1, nexp1 = ManagePriors.filter_to_gene_list(self.priors_data, self.expression_matrix, self.gene_list)
-        self.assertListEqual(nexp1.index.tolist(), self.gene_list)
+        npr1 = ManagePriors.filter_priors_to_genes(self.priors_data, self.gene_list)
         self.assertListEqual(npr1.index.tolist(), self.gene_list)
 
         gene_list2 = self.gene_list + ["fake1", "fake2"]
-        npr2, nexp2 = ManagePriors.filter_to_gene_list(self.priors_data, self.expression_matrix, gene_list2)
-        self.assertListEqual(nexp2.index.tolist(), self.gene_list)
+        npr2 = ManagePriors.filter_priors_to_genes(self.priors_data, gene_list2)
         self.assertListEqual(npr2.index.tolist(), self.gene_list)
 
         with self.assertRaises(ValueError):
-            nexp3 = self.expression_matrix.copy()
-            nexp3.index = list(range(nexp3.shape[0]))
-            npr3, nexp3 = ManagePriors.filter_to_gene_list(self.priors_data, nexp3, self.gene_list)
+            npr3 = ManagePriors.filter_priors_to_genes(self.priors_data, [])
 
         with self.assertRaises(ValueError):
             npr3 = self.priors_data.copy()
             npr3.index = list(range(npr3.shape[0]))
-            npr3, nexp3 = ManagePriors.filter_to_gene_list(npr3, self.expression_matrix, self.gene_list)
+            npr3 = ManagePriors.filter_priors_to_genes(npr3, self.gene_list)
 
     def test_cv_genes(self):
         npr1, ngs1 = ManagePriors.cross_validate_gold_standard(self.priors_data, self.gold_standard, 0, 0.5, 42)
@@ -118,17 +114,17 @@ class TestPriorManager(unittest.TestCase):
 
     def test_align_priors_1(self):
         npr = self.priors_data.iloc[list(range(10)),:]
-        npr = ManagePriors.align_priors_to_expression(npr, self.expression_matrix)
-        self.assertEqual(len(npr.index), len(self.expression_matrix.index))
+        npr = ManagePriors.align_priors_to_expression(npr, self.data.gene_names)
+        self.assertEqual(len(npr.index), len(self.data.gene_names))
         self.assertListEqual(npr.columns.tolist(), self.priors_data.columns.tolist())
-        self.assertListEqual(npr.index.tolist(), self.expression_matrix.index.tolist())
+        self.assertListEqual(npr.index.tolist(), self.data.gene_names.tolist())
 
     def test_align_priors_2(self):
         npr = self.priors_data
         npr.index = list(range(npr.shape[0]))
 
         with self.assertRaises(ValueError):
-            npr = ManagePriors.align_priors_to_expression(npr, self.expression_matrix)
+            npr = ManagePriors.align_priors_to_expression(npr, self.data.gene_names)
 
     def test_shuffle_priors_none(self):
         npr1 = ManagePriors.shuffle_priors(self.priors_data, None, 42)
