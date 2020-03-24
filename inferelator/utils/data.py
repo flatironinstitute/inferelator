@@ -156,8 +156,19 @@ class InferelatorData(object):
             Validator.indexes_align((self.sample_names, new_meta_data.index), check_order=True)
         except ValueError:
             msg = "Metadata update for {n} is misaligned".format(n=str(self))
-            warnings.warn(msg)
-            new_meta_data = new_meta_data.reindex(self.sample_names)
+
+            name_overlap = len(set(new_meta_data.index).intersection(set(self.sample_names)))
+            # If the new metadata has no overlapping index names and is the same length, just assume it's right order
+            if (name_overlap == 0) and (new_meta_data.shape[0] == self.num_obs):
+                msg += " (Metadata dimensions are correct; ignoring misalignment)"
+                warnings.warn(msg)
+            elif name_overlap == 0:
+                msg = "Incorrectly sized metadata with no overlapping names was provided to {s}".format(s=str(self))
+                raise ValueError(msg)
+            else:
+                msg += " ({m} records are in both)".format(m=name_overlap)
+                warnings.warn(msg)
+                new_meta_data = new_meta_data.reindex(self.sample_names)
 
         # Join any new columns to any existing columns
         # Update (overwrite) any columns in the existing meta data if they are in the new meta data
@@ -372,23 +383,33 @@ class InferelatorData(object):
 
             self._adata = trim_adata
 
-    def get_gene_data(self, gene_list, copy=False, force_dense=False):
+    def get_gene_data(self, gene_list, copy=False, force_dense=False, to_df=False):
 
-        if force_dense and self.is_sparse:
-            return self._adata[:, gene_list].X.A
+        x = self._adata[:, gene_list]
+        labels = x.var_names
+
+        if (force_dense or to_df) and self.is_sparse:
+            x = x.X.A
         elif copy:
-            return self._adata[:, gene_list].X.copy()
+            x = x.X.copy()
         else:
-            return self._adata[:, gene_list].X
+            x = x.X
 
-    def get_sample_data(self, sample_index, copy=False, force_dense=False):
+        return pd.DataFrame(x, columns=labels, index=self.sample_names) if to_df else x
 
-        if force_dense and self.is_sparse:
-            return self._adata[sample_index, :].X.A
+    def get_sample_data(self, sample_index, copy=False, force_dense=False, to_df=False):
+
+        x = self._adata[sample_index, :]
+        labels = x.obs_names
+
+        if (force_dense or to_df) and self.is_sparse:
+            x = x.X.A
         elif copy:
-            return self._adata[sample_index, :].X.copy()
+            x = x.X.copy()
         else:
-            return self._adata[sample_index, :].X
+            x = x.X
+
+        return pd.DataFrame(x, columns=self.gene_names, index=labels) if to_df else x
 
     def subset_copy(self, row_index=None, column_index=None):
 
@@ -458,6 +479,12 @@ class InferelatorData(object):
                 self._adata.X[start:stop, :] = func(self._adata.X[start:stop, :])
         else:
             self._adata.X = func(self._adata.X)
+
+    def add(self, val):
+        self._data[...] = self._data + val
+
+    def subtract(self, val):
+        self._data[...] = self._data - val
 
     def divide(self, div_val, axis=None):
 

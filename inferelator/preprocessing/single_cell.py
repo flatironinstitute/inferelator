@@ -127,8 +127,7 @@ def tf_sqrt_data(data, **kwargs):
     :param data: InferelatorData [N x G]
     """
     utils.Debug.vprint('Freeman-Tukey square root transformation [sqrt(x) + sqrt(x+1) - 1]... ')
-    data.transform(lambda x: np.sqrt(x) + np.sqrt(x + 1))
-    data._data -= 1
+    data.transform(lambda x: np.sqrt(x) + np.sqrt(x + 1) - 1)
 
 
 def filter_genes_for_count(data, count_minimum=None):
@@ -142,13 +141,17 @@ def filter_genes_for_count(data, count_minimum=None):
    """
 
     if count_minimum is None:
-        pass
+        data.trim_genes(remove_constant_genes=True)
     else:
         count_minimum = count_minimum * data.shape[0]
-        keep_genes = data.expression_data.sum(axis=0) >= count_minimum
-
+        if np.min(data.expression_data.min(axis=0)) < 0:
+            raise ValueError("Cannot use a count minimum on data with negative values")
+        counts_per_gene = data.expression_data.sum(axis=0)
+        if np.any(~np.isfinite(counts_per_gene)):
+            raise ValueError("Non-finite values in count matrix")
+        keep_genes = counts_per_gene >= count_minimum
         utils.Debug.vprint("Filtering {gn} genes [Count]".format(gn=data.shape[1] - np.sum(keep_genes)), level=1)
-        data.trim_genes(remove_constant_genes=False, trim_gene_list=data.gene_names[keep_genes])
+        data.trim_genes(remove_constant_genes=True, trim_gene_list=data.gene_names[keep_genes])
 
 
 def process_normalize_args(**kwargs):

@@ -74,9 +74,9 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.assertIsNone(self.workflow._num_tfs)
         self.assertIsNone(self.workflow._num_genes)
 
-        task_obs = TaskDataStub.data.num_obs
-        task_tfs = TaskDataStub.priors_data.shape[1]
-        task_genes = TaskDataStub.data.num_genes
+        task_obs = TaskDataStub().data.num_obs
+        task_tfs = TaskDataStub().priors_data.shape[1]
+        task_genes = TaskDataStub().data.num_genes
 
         self.workflow._task_objects = [TaskDataStub(), TaskDataStub(), TaskDataStub()]
 
@@ -152,7 +152,7 @@ class TestAMuSRWorkflow(unittest.TestCase):
         # Test processing the TaskData objects into data structures in MultitaskLearningWorkflow
         self.assertEqual(self.workflow._n_tasks, 3)
         self.assertEqual(list(map(lambda x: x.data.shape, self.workflow._task_objects)),
-                         [(2, 4), (4, 4), (4, 4)])
+                         [(2, 6), (4, 6), (4, 6)])
         self.assertEqual(list(map(lambda x: x.data.meta_data.shape, self.workflow._task_objects)),
                          [(2, 2), (4, 2), (4, 2)])
 
@@ -284,11 +284,11 @@ class TestAMuSRrunner(unittest.TestCase):
         targets1 = ['gene1', 'gene2']
         targets2 = ['gene1', 'gene3']
 
-        des = [InferelatorData(pd.DataFrame(np.array([[1, 1, 3], [0, 0, 2], [0, 0, 1]]).astype(float), columns=tfs)),
-               InferelatorData(pd.DataFrame(np.array([[1, 1, 3], [0, 0, 2], [0, 0, 1]]).astype(float), columns=tfs))]
+        des = [InferelatorData(pd.DataFrame(np.array([[1, 1, 3], [0, 0, 2], [0, 0, 1]]).astype(float), columns=tfs)).to_df(),
+               InferelatorData(pd.DataFrame(np.array([[1, 1, 3], [0, 0, 2], [0, 0, 1]]).astype(float), columns=tfs)).to_df()]
 
-        res = [InferelatorData(pd.DataFrame(np.array([[1, 1], [2, 2], [3, 3]]).astype(float), columns=targets1)),
-               InferelatorData(pd.DataFrame(np.array([[1, 1], [2, 2], [3, 3]]).astype(float), columns=targets2))]
+        res = [InferelatorData(pd.DataFrame(np.array([[1, 1], [2, 2], [3, 3]]).astype(float), columns=targets1)).to_df(),
+               InferelatorData(pd.DataFrame(np.array([[1, 1], [2, 2], [3, 3]]).astype(float), columns=targets2)).to_df()]
         priors = pd.DataFrame([[0, 1, 1], [1, 0, 1], [1, 0, 1]], index=targets, columns=tfs)
 
         r = amusr_regression.AMuSR_regression(des, res, tfs=tfs, genes=targets, priors=priors)

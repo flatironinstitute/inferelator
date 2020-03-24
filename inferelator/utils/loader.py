@@ -40,7 +40,7 @@ class InferelatorDataLoader(object):
             meta_data = meta_data_handler.check_loaded_meta_data(self.input_dataframe(meta_data_file, index_col=None))
         elif slice_meta_data is None:
             Debug.vprint("No metadata provided. Creating a generic metadata", level=0)
-            sample_labels = data.index if transpose_expression_data else data.columns
+            sample_labels = data.columns if transpose_expression_data else data.index
             meta_data = meta_data_handler.create_default_meta_data(sample_labels)
         else:
             meta_data = None

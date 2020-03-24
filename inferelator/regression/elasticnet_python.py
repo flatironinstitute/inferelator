@@ -124,8 +124,8 @@ class ElasticNetWorkflow(base_regression.RegressionWorkflow):
             self.elastic_net_parameters = kwargs
 
     def run_bootstrap(self, bootstrap):
-        X = self.design.iloc[:, bootstrap]
-        Y = self.response.iloc[:, bootstrap]
+        X = self.design.get_sample_data(bootstrap, to_df=True).T
+        Y = self.response.get_sample_data(bootstrap, to_df=True).T
         utils.Debug.vprint('Calculating betas using MEN', level=0)
         MPControl.sync_processes("pre-bootstrap")
         return ElasticNet(X, Y, self.random_seed, parameters=self.elastic_net_parameters).run()

@@ -169,8 +169,8 @@ class BBSRRegressionWorkflow(base_regression.RegressionWorkflow):
         self._set_with_warning("bsr_feature_num", bsr_feature_num)
 
     def run_bootstrap(self, bootstrap):
-        X = self.design.iloc[:, bootstrap]
-        Y = self.response.iloc[:, bootstrap]
+        X = self.design.get_sample_data(bootstrap, to_df=True).T
+        Y = self.response.get_sample_data(bootstrap, to_df=True).T
         utils.Debug.vprint('Calculating MI, Background MI, and CLR Matrix', level=0)
         clr_matrix, mi_matrix = self.mi_driver(sync_in_tmp_path=self.mi_sync_path).run(X, Y)
         mi_matrix = None

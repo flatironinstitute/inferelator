@@ -120,6 +120,7 @@ class TestWorkflowLoadData(unittest.TestCase):
         self.workflow.meta_data_file = default.DEFAULT_METADATA_FILE
         self.workflow.priors_file = default.DEFAULT_PRIORS_FILE
         self.workflow.gold_standard_file = default.DEFAULT_GOLDSTANDARD_FILE
+        self.workflow.expression_matrix_columns_are_genes = False
 
     def tearDown(self):
         del self.workflow
