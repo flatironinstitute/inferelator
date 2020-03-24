@@ -107,6 +107,16 @@ class TestValidator(unittest.TestCase):
             inf_frame['RED'] = np.inf
             check.dataframe_is_finite(inf_frame)
 
+        with self.assertRaises(ValueError):
+            na_frame = self.frame1.copy()
+            na_frame.index = pd.Index([np.nan] + [na_frame.index[1:].tolist()])
+            check.dataframe_is_finite(na_frame)
+
+        with self.assertRaises(ValueError):
+            na_frame = self.frame1.copy()
+            na_frame.columns = pd.Index([np.nan] + [na_frame.columns[1:].tolist()])
+            check.dataframe_is_finite(na_frame)
+
     def test_numeric(self):
         self.assertTrue(check.argument_numeric(0))
         self.assertTrue(check.argument_numeric(0.0))

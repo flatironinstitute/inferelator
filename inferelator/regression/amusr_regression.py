@@ -236,6 +236,7 @@ class AMuSR_regression(base_regression.BaseRegression):
                              columns='regulator',
                              values=col,
                              fill_value=0.)
+
         out.columns.name = None
         out.index.name = None
 
@@ -247,7 +248,7 @@ class AMuSR_regression(base_regression.BaseRegression):
                                       columns=out.columns)])
         out = out.loc[targets, regs]
 
-        return (out)
+        return out
 
     def regress(self):
         """

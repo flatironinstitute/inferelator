@@ -221,7 +221,7 @@ class Validator(object):
             return True
 
     @staticmethod
-    def dataframe_is_finite(frame, allow_none=False):
+    def dataframe_is_finite(frame, allow_none=False, check_index=True):
         if allow_none and frame is None:
             return True
 
@@ -230,6 +230,10 @@ class Validator(object):
             if non_finites.any():
                 bad_features = "\t".join(map(str, frame.columns[non_finites].tolist()))
                 raise ValueError("Dataframe has non-finite features: {f}".format(f=bad_features))
+            elif check_index and pd.isnull(frame.index).any():
+                raise ValueError("NaN values are present in frame index")
+            elif check_index and pd.isnull(frame.columns).any():
+                raise ValueError("NaN nalues are present in frame column")
             else:
                 return True
 

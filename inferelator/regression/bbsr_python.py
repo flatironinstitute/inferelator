@@ -152,21 +152,25 @@ class BBSRRegressionWorkflow(base_regression.RegressionWorkflow):
 
     mi_driver = mi.MIDriver
     mi_sync_path = None
+
     prior_weight = default.DEFAULT_prior_weight
     no_prior_weight = default.DEFAULT_no_prior_weight
     bsr_feature_num = default.DEFAULT_nS
+    clr_only = False
 
-    def set_regression_parameters(self, prior_weight=None, no_prior_weight=None, bsr_feature_num=None):
+    def set_regression_parameters(self, prior_weight=None, no_prior_weight=None, bsr_feature_num=None, clr_only=False):
         """
         Set regression parameters for BBSR
         :param prior_weight:
         :param no_prior_weight:
         :param bsr_feature_num:
+        :param clr_only:
         """
 
         self._set_with_warning("prior_weight", prior_weight)
         self._set_with_warning("no_prior_weight", no_prior_weight)
         self._set_with_warning("bsr_feature_num", bsr_feature_num)
+        self._set_without_warning("clr_only", clr_only)
 
     def run_bootstrap(self, bootstrap):
         X = self.design.get_sample_data(bootstrap, to_df=True).T
@@ -176,5 +180,11 @@ class BBSRRegressionWorkflow(base_regression.RegressionWorkflow):
         mi_matrix = None
         utils.Debug.vprint('Calculating betas using BBSR', level=0)
 
-        return BBSR(X, Y, clr_matrix, self.priors_data, prior_weight=self.prior_weight,
+        # Create a mock prior with no information if clr_only is set
+        if self.clr_only:
+            priors = pd.DataFrame(0, index=self.priors_data.index, columns=self.priors_data.columns)
+        else:
+            priors = self.priors_data
+
+        return BBSR(X, Y, clr_matrix, priors, prior_weight=self.prior_weight,
                     no_prior_weight=self.no_prior_weight, nS=self.bsr_feature_num).run()

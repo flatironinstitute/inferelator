@@ -43,6 +43,17 @@ class TestSingleTaskRegressionFactory(TestRegressionFactory):
         self.workflow.run()
         self.assertEqual(self.workflow.results.score, 1)
 
+    def test_bbsr_clr_only(self):
+        self.workflow = create_puppet_workflow(base_class="tfa", regression_class="bbsr")
+        self.workflow = self.workflow(self.expr, self.meta, self.prior, self.gold_standard)
+        self.workflow.set_regression_parameters(clr_only=True)
+        self.workflow.gene_list = self.gene_list
+        self.workflow.tf_names = self.tf_names
+        self.workflow.meta_data_file = None
+        self.workflow.read_metadata()
+        self.workflow.run()
+        self.assertEqual(self.workflow.results.score, 1)
+
     def test_elasticnet(self):
         self.workflow = create_puppet_workflow(base_class="tfa", regression_class="elasticnet")
         self.workflow = self.workflow(self.data, self.prior, self.gold_standard)
