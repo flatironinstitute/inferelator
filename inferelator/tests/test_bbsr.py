@@ -1,6 +1,6 @@
 import unittest
 import pandas as pd
-import pandas.util.testing as pdt
+import pandas.testing as pdt
 import numpy as np
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.regression import bbsr_python

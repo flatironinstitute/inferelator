@@ -5,7 +5,7 @@ import copy
 import numpy as np
 import numpy.testing as npt
 import pandas as pd
-import pandas.util.testing as pdt
+import pandas.testing as pdt
 
 from inferelator import workflow
 from inferelator.tests.artifacts.test_stubs import TaskDataStub
