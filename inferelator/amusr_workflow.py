@@ -329,10 +329,10 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
 
         # Make sure that the task data files have the correct columns
         for d in self._task_design:
-            d.trim_genes(trim_gene_list=self._regulators)
+            d.trim_genes(remove_constant_genes=False, trim_gene_list=self._regulators)
 
         for r in self._task_response:
-            r.trim_genes(trim_gene_list=self._targets)
+            r.trim_genes(remove_constant_genes=False, trim_gene_list=self._targets)
 
     def emit_results(self, betas, rescaled_betas, gold_standard, priors_data):
         """
