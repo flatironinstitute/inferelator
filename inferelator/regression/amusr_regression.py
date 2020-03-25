@@ -276,9 +276,9 @@ class AMuSR_regression(base_regression.BaseRegression):
                 tfs = self.tfs
 
             for k in range(self.n_tasks):
-                if gene in self.Y[k].columns:
-                    x.append(self.X[k].loc[:, tfs].values)  # list([N, K])
-                    y.append(self.Y[k].loc[:, gene].values.reshape(-1, 1))  # list([N, 1])
+                if gene in self.Y[k].gene_names:
+                    x.append(self.X[k].get_gene_data(tfs))  # list([N, K])
+                    y.append(self.Y[k].get_gene_data(gene).reshape(-1, 1))  # list([N, 1])
                     tasks.append(k)  # [T,]
 
             prior = format_prior(self.priors, gene, tasks, self.prior_weight)
@@ -508,8 +508,8 @@ class AMUSRRegressionWorkflow(base_regression.RegressionWorkflow):
 
         # Select the appropriate bootstrap from each task and stash the data into X and Y
         for k in range(self._n_tasks):
-            x.append(self._task_design[k].get_sample_data(self._task_bootstraps[k][bootstrap_idx], to_df=True))
-            y.append(self._task_response[k].get_sample_data(self._task_bootstraps[k][bootstrap_idx], to_df=True))
+            x.append(self._task_design[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx]))
+            y.append(self._task_response[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx]))
 
         MPControl.sync_processes(pref="amusr_pre")
         regress = AMuSR_regression(x, y, tfs=self._regulators, genes=self._targets, priors=self._task_priors,
