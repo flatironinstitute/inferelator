@@ -15,15 +15,13 @@ class ElasticNetByTaskRegressionWorkflow(AMUSRRegressionWorkflow, ElasticNetWork
 
         # Select the appropriate bootstrap from each task and stash the data into X and Y
         for k in range(self._n_tasks):
-            X = self._task_design[k].get_sample_data(self._task_bootstraps[k][bootstrap_idx], to_df=True)\
-                    .T.loc[self._regulators, :]
-            Y = self._task_response[k].get_sample_data(self._task_bootstraps[k][bootstrap_idx], to_df=True)\
-                    .T.loc[self._targets, :]
+            X = self._task_design[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx])
+            Y = self._task_response[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx])
 
             MPControl.sync_processes(pref="en_pre")
 
             utils.Debug.vprint('Calculating task {k} betas using MEN'.format(k=k), level=0)
-            t_beta, t_br = ElasticNet(X, Y, random_seed=self.random_seed).run()
+            t_beta, t_br = ElasticNet(X, Y, random_seed=self.random_seed, parameters=self.elastic_net_parameters).run()
             betas.append(t_beta)
             betas_resc.append(t_br)
 

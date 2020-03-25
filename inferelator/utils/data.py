@@ -7,6 +7,7 @@ import warnings
 import pandas as pd
 import numpy as np
 import scipy.sparse as sparse
+import scipy.stats
 import pandas.api.types as pat
 import scipy.io
 from anndata import AnnData
@@ -118,29 +119,14 @@ def melt_and_reindex_dataframe(data_frame, value_name, idx_name="target", col_na
     return data_frame
 
 
-def is_sparse_series(series):
-    """
-    Test a pandas Series (column) to see if it is sparse
-    :param series: pd.Series
-    :return is_sparse: bool
-    """
-    return isinstance(series.dtype, pd.SparseDtype)
+def scale_vector(vec, ddof=1):
 
+    if sparse.isspmatrix(vec):
+        vec = vec.A
+    if not pat.is_float(vec):
+        vec = vec.astype(float)
 
-def transpose_dataframe(data_frame):
-    """
-    Take a pandas dataframe and transpose it. This is a wrapper which does sparse transposition for a sparse matrix.
-    :param data_frame: pd.DataFrame
-    :return data_frame: pd.DataFrame
-    """
-    is_all_sparse = all([is_sparse_series(data_frame.iloc[:, dt]) for dt in range(data_frame.shape[1])])
-
-    if is_all_sparse:
-        return pd.DataFrame.sparse.from_spmatrix(data_frame.sparse.to_coo().transpose(),
-                                                 index=data_frame.columns,
-                                                 columns=data_frame.index)
-    else:
-        return data_frame.transpose()
+    return np.zeros(vec.shape) if np.var(vec) == 0 else scipy.stats.zscore(vec, axis=None, ddof=ddof)
 
 
 class InferelatorData(object):
@@ -569,6 +555,14 @@ class InferelatorData(object):
         else:
             raise ValueError("axis must be 0, 1 or None")
 
+    def zscore_features(self, ddof=1):
+
+        self.convert_to_float()
+        self.to_dense()
+
+        for i in range(self.shape[1]):
+            self._data[:, i] = scale_vector(self._data[:, i], ddof=ddof)
+
     def copy(self):
 
         new_data = InferelatorData(self.expression_data.copy() ,
@@ -590,6 +584,11 @@ class InferelatorData(object):
 
         if self.is_sparse and not sparse.isspmatrix_csr(self._adata.X):
             self._adata.X = sparse.csr_matrix(self._adata.X)
+
+    def to_dense(self):
+
+        if self.is_sparse:
+            self._adata.X = self._adata.X.A
 
     @staticmethod
     def _make_idx_str(df):

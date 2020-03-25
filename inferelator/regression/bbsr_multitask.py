@@ -34,7 +34,7 @@ class BBSRByTaskRegressionWorkflow(AMUSRRegressionWorkflow, BBSRRegressionWorkfl
             clr_matrix, _ = self.mi_driver().run(Y, X, return_mi=False)
 
             Debug.vprint('Calculating task {k} betas using BBSR'.format(k=k), level=0)
-            t_beta, t_br = BBSR(X.to_df().T, Y.to_df().T, clr_matrix.to_df(), priors_data,
+            t_beta, t_br = BBSR(X, Y, clr_matrix, priors_data,
                                 prior_weight=self.prior_weight, no_prior_weight=self.no_prior_weight,
                                 nS=self.bsr_feature_num).run()
             betas.append(t_beta)

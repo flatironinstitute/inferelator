@@ -1,6 +1,7 @@
 from __future__ import division
 
 import numpy as np
+import pandas as pd
 import scipy.sparse as sps
 
 from inferelator.distributed.inferelator_mp import MPControl
@@ -72,8 +73,8 @@ def context_likelihood_mi(x, y, bins=DEFAULT_NUM_BINS, logtype=DEFAULT_LOG_TYPE,
 
     MPControl.sync_processes(pref=SYNC_CLR_KEY)
 
-    mi = InferelatorData(expression_data=mi, sample_names=mi_r, gene_names=mi_c)
-    clr = InferelatorData(expression_data=clr, sample_names=mi_r, gene_names=mi_c)
+    mi = pd.DataFrame(mi, index=mi_r, columns=mi_c)
+    clr = pd.DataFrame(clr, index=mi_r, columns=mi_c)
 
     return clr, mi if return_mi else None
 

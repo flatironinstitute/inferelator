@@ -1,44 +1,57 @@
 import pandas as pd
 import numpy as np
+import scipy.stats
 
 from inferelator import utils
-from inferelator import default
 from inferelator.regression import bayes_stats
 from inferelator.regression import base_regression
 from inferelator.regression import mi
 from inferelator.distributed.inferelator_mp import MPControl
 
+# Default number of predictors to include in the model
+DEFAULT_nS = 10
+
+# Default weight for priors & Non-priors
+# If prior_weight is the same as no_prior_weight:
+#   Priors will be included in the pp matrix before the number of predictors is reduced to nS
+#   They won't get special treatment in the model though
+DEFAULT_prior_weight = 1
+DEFAULT_no_prior_weight = 1
+
+# Throw away the priors which have a CLR that is 0 before the number of predictors is reduced by BIC
+DEFAULT_filter_priors_for_clr = False
+
 
 class BBSR(base_regression.BaseRegression):
     # Bayseian correlation measurements
-    clr_mat = None  # [G x K] float
 
     # Priors Data
     prior_mat = None  # [G x K] # numeric
-    filter_priors_for_clr = default.DEFAULT_filter_priors_for_clr  # bool
+    filter_priors_for_clr = DEFAULT_filter_priors_for_clr  # bool
 
     # Weights for Predictors (weights_mat is set with _calc_weight_matrix)
     weights_mat = None  # [G x K] numeric
-    prior_weight = default.DEFAULT_prior_weight  # numeric
-    no_prior_weight = default.DEFAULT_no_prior_weight  # numeric
+    prior_weight = DEFAULT_prior_weight  # numeric
+    no_prior_weight = DEFAULT_no_prior_weight  # numeric
 
     # Predictors to include in modeling (pp is set with _build_pp_matrix)
     pp = None  # [G x K] bool
-    nS = default.DEFAULT_nS  # int
+    nS = DEFAULT_nS  # int
 
-    def __init__(self, X, Y, clr_mat, prior_mat, nS=default.DEFAULT_nS, prior_weight=default.DEFAULT_prior_weight,
-                 no_prior_weight=default.DEFAULT_no_prior_weight):
+    def __init__(self, X, Y, clr_mat, prior_mat, nS=DEFAULT_nS, prior_weight=DEFAULT_prior_weight,
+                 no_prior_weight=DEFAULT_no_prior_weight):
         """
         Create a Regression object for Bayes Best Subset Regression
 
-        :param X: pd.DataFrame [K x N]
-            Expression / Activity data
-        :param Y: pd.DataFrame [G x N]
-            Response data
-        :param clr_mat: pd.DataFrame [G x K]
-            Calculated CLR between features of X & Y
-        :param prior_mat: pd.DataFrame [G x K]
-            Prior data between features of X & Y
+        :param X: Expression or Activity data [N x K]
+        :type X: InferelatorData
+        :param Y: Response expression data [N x G]
+        :type Y: InferelatorData
+        :param clr_mat: Calculated CLR between features of X & Y [G x K]
+        :type clr_mat: pd.DataFrame
+        :param prior_mat: Prior data between features of X & Y [G x K]
+        :type prior_mat: pd.DataFrame
+
         :param nS: int
             Number of predictors to retain
         :param prior_weight: int
@@ -82,8 +95,9 @@ class BBSR(base_regression.BaseRegression):
             level = 0 if j % 100 == 0 else 2
             utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G),
                                  level=level)
+
             data = bayes_stats.bbsr(self.X.values,
-                                    self.Y.iloc[j, :].values.flatten(),
+                                    utils.scale_vector(self.Y.get_gene_data(j).flatten()),
                                     self.pp.iloc[j, :].values.flatten(),
                                     self.weights_mat.iloc[j, :].values.flatten(),
                                     self.nS)
@@ -95,7 +109,6 @@ class BBSR(base_regression.BaseRegression):
     def _build_pp_matrix(self):
         """
         From priors and context likelihood of relatedness, determine which predictors should be included in the model
-
         :return pp: pd.DataFrame [G x K]
             Boolean matrix indicating which predictor variables should be included in BBSR for each response variable
         """
@@ -129,8 +142,8 @@ class BBSR(base_regression.BaseRegression):
         return pp
 
     @staticmethod
-    def _calculate_weight_matrix(p_matrix, no_p_weight=default.DEFAULT_no_prior_weight,
-                                 p_weight=default.DEFAULT_prior_weight):
+    def _calculate_weight_matrix(p_matrix, no_p_weight=DEFAULT_no_prior_weight,
+                                 p_weight=DEFAULT_prior_weight):
         """
         Create a weights matrix. Everywhere p_matrix is not set to 0, the weights matrix will have p_weight. Everywhere
         p_matrix is set to 0, the weights matrix will have no_p_weight
@@ -153,9 +166,9 @@ class BBSRRegressionWorkflow(base_regression.RegressionWorkflow):
     mi_driver = mi.MIDriver
     mi_sync_path = None
 
-    prior_weight = default.DEFAULT_prior_weight
-    no_prior_weight = default.DEFAULT_no_prior_weight
-    bsr_feature_num = default.DEFAULT_nS
+    prior_weight = DEFAULT_prior_weight
+    no_prior_weight = DEFAULT_no_prior_weight
+    bsr_feature_num = DEFAULT_nS
     clr_only = False
 
     def set_regression_parameters(self, prior_weight=None, no_prior_weight=None, bsr_feature_num=None, clr_only=False):
@@ -186,5 +199,5 @@ class BBSRRegressionWorkflow(base_regression.RegressionWorkflow):
         else:
             priors = self.priors_data
 
-        return BBSR(X.to_df().T, Y.to_df().T, clr_matrix.to_df(), priors, prior_weight=self.prior_weight,
+        return BBSR(X, Y, clr_matrix, priors, prior_weight=self.prior_weight,
                     no_prior_weight=self.no_prior_weight, nS=self.bsr_feature_num).run()

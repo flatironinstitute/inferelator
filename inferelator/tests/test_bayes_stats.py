@@ -7,7 +7,7 @@ class TestBayesStats(unittest.TestCase):
 
     def test_bbsr(self):
         # test when pp.sum() != 0
-        X = np.array([[1, 0, 1], [2, 1, 0], [1, 1, 1], [0, 0, 1], [2, 1, 2]])
+        X = np.array([[1, 0, 1], [2, 1, 0], [1, 1, 1], [0, 0, 1], [2, 1, 2]]).T
         y = np.array([0, 1, 0])
         pp = np.array([0, 1, 2, 1, 0])
         weights = np.array([1, 0, 2, 1, 5])
@@ -21,7 +21,7 @@ class TestBayesStats(unittest.TestCase):
 
     def test_bbsr_2(self):
         # test when pp.sum() == 0
-        X = np.array([[1, 0, 0], [2, 1, 0], [1, 1, 1], [0, 0, 1], [2, 1, 2]])
+        X = np.array([[1, 0, 0], [2, 1, 0], [1, 1, 1], [0, 0, 1], [2, 1, 2]]).T
         y = np.array([0, 1, 0])
         pp = np.array([0, 0, 0, 0, 0])
         weights = np.array([1, 0, 2, 1, 5])
@@ -35,7 +35,7 @@ class TestBayesStats(unittest.TestCase):
 
     def test_bbsr_3(self):
         # test when betas and betas_resc are not zero
-        X = np.array([[1, 3, 1], [2, 1, 0], [1, 10, 5], [2, 6, 1], [2, 1, 8]])
+        X = np.array([[1, 3, 1], [2, 1, 0], [1, 10, 5], [2, 6, 1], [2, 1, 8]]).T
         y = np.array([2, 1, 4])
         pp = np.array([10, 3, 1, 5, 4])
         weights = np.array([10, 10, 10, 10, 10])

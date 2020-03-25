@@ -13,7 +13,7 @@ def bbsr(X, y, pp, weights, max_k):
     """
     Run BBSR to regress a response variable y in n conditions against predictors X in n conditions. Use the prior
     predictors matrix to filter the number of predictors from something massive to max_k.
-    :param X: np.ndarray [K x N]
+    :param X: np.ndarray [N x K]
         Predictor features
     :param y: np.ndarray [N,]
         Response variables
@@ -29,8 +29,8 @@ def bbsr(X, y, pp, weights, max_k):
         betas_resc: Float array indicating how much each predictor is contributing to the model [K,]
     """
 
-    # Skip everything if there are no predictors in pp
-    if pp.sum() == 0:
+    # Skip everything if there are no predictors in pp or if variance of y is 0
+    if (pp.sum() == 0) or (np.var(y) == 0) or (np.all(~np.isfinite(y))):
         return dict(pp=np.repeat(True, pp.shape[0]).tolist(),
                     betas=np.zeros(pp.shape[0]),
                     betas_resc=np.zeros(pp.shape[0]))
@@ -39,7 +39,7 @@ def bbsr(X, y, pp, weights, max_k):
     pp_idx = base_regression.bool_to_index(pp)
     utils.Debug.vprint("Beginning regression with {pp_len} predictors".format(pp_len=len(pp_idx)), level=2)
 
-    x = X[pp_idx, :].T
+    x = X[:, pp_idx]
     gprior = weights[pp_idx].astype(np.dtype(float))
 
     # Make sure arrays are 2d
@@ -53,8 +53,14 @@ def bbsr(X, y, pp, weights, max_k):
 
     utils.Debug.vprint("Reduced to {pp_len} predictors".format(pp_len=len(pp_idx)), level=2)
 
+    # Check and make sure that there are still some predictors left
+    if pp.sum() == 0:
+        return dict(pp=np.repeat(True, pp.shape[0]).tolist(),
+                    betas=np.zeros(pp.shape[0]),
+                    betas_resc=np.zeros(pp.shape[0]))
+
     # Resubset with the newly reduced predictors
-    x = X[pp_idx, :].T
+    x = X[:, pp_idx]
     gprior = weights[pp_idx].astype(np.dtype(float))
     utils.make_array_2d(gprior)
 
@@ -143,6 +149,7 @@ def calc_all_expected_BIC(x, y, g, combinations, check_rank=True):
     """
     (n, k) = x.shape
     c = combinations.shape[1]
+    utils.make_array_2d(g)
 
     # Sanity check the data
     assert n == y.shape[0]
@@ -164,7 +171,10 @@ def calc_all_expected_BIC(x, y, g, combinations, check_rank=True):
         k_included = len(c_idx)
 
         # Check for a null model
-        if k_included == 0:
+        if (k_included == 0) and (np.var(y) == 0):
+            bic[i] = np.inf
+            continue
+        elif k_included == 0:
             bic[i] = n * np.log(np.var(y, ddof=1))
             continue
 
