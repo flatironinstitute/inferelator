@@ -123,10 +123,11 @@ def scale_vector(vec, ddof=1):
 
     if sparse.isspmatrix(vec):
         vec = vec.A
-    if not pat.is_float(vec):
-        vec = vec.astype(float)
 
-    return np.zeros(vec.shape) if np.var(vec) == 0 else scipy.stats.zscore(vec, axis=None, ddof=ddof)
+    if np.var(vec) == 0:
+        return np.zeros(vec.shape, dtype=float)
+    else:
+        return scipy.stats.zscore(vec, axis=None, ddof=ddof)
 
 
 class InferelatorData(object):
@@ -432,7 +433,8 @@ class InferelatorData(object):
         return pd.DataFrame(x, columns=self.gene_names, index=labels) if to_df else x
 
     def get_bootstrap(self, sample_bootstrap_index):
-        return InferelatorData(expression_data=self._adata[sample_bootstrap_index, :].copy())
+        return InferelatorData(expression_data=self._adata[sample_bootstrap_index, :].X,
+                               gene_names=self.gene_names)
 
     def subset_copy(self, row_index=None, column_index=None):
 
