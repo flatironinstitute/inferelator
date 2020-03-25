@@ -111,7 +111,7 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         self._process_task_data()
 
     def create_task(self, task_name=None, input_dir=None, expression_matrix_file=None, meta_data_file=None,
-                    tf_names_file=None, priors_file=None, gene_names_file=None, gene_metadata_file=None, 
+                    tf_names_file=None, priors_file=None, gene_names_file=None, gene_metadata_file=None,
                     workflow_type="single-cell", **kwargs):
         """
         Create a task object and set any arguments to this function as attributes of that task object. TaskData objects
@@ -315,17 +315,24 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
 
             task_str = "Processing task #{tid} [{t}] complete [{sh} & {sh2}]"
             Debug.vprint(task_str.format(tid=task_id, t=task_name, sh=task_obj.design.shape,
-                                               sh2=task_obj.response.shape), level=1)
+                                         sh2=task_obj.response.shape), level=1)
 
         self._targets = amusr_regression.filter_genes_on_tasks(targets, self._target_expression_filter)
         self._regulators = amusr_regression.filter_genes_on_tasks(regulators, self._regulator_expression_filter)
 
         Debug.vprint("Processed data into design/response [{g} x {k}]".format(g=len(self._targets),
-                                                                                    k=len(self._regulators)), level=0)
+                                                                              k=len(self._regulators)), level=0)
 
         # Clean up the TaskData objects and force a cyclic collection
         del self._task_objects
         gc.collect()
+
+        # Make sure that the task data files have the correct columns
+        for d in self._task_design:
+            d.trim_genes(trim_gene_list=self._regulators)
+
+        for r in self._task_response:
+            r.trim_genes(trim_gene_list=self._targets)
 
     def emit_results(self, betas, rescaled_betas, gold_standard, priors_data):
         """

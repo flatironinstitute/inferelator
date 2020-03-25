@@ -48,6 +48,35 @@ def df_set_diag(df, val, copy=True):
         return len(isect)
 
 
+def array_set_diag(arr, val, row_labels, col_labels):
+    """
+    Sets the diagonal of an 2D array to a value. Diagonal in this case is anything where row label == column label.
+
+    :param arr: Array to modify in place
+    :type arr: np.ndarray
+    :param val: Value to insert into any cells where row label == column label
+    :type val: numeric
+    :param row_labels: Labels which correspond to the rows
+    :type row_labels: list, pd.Index
+    :param col_labels: Labels which correspond to the columns
+    :type col_labels: list, pd.Index
+    :return: Return the number of common row and column labels
+    :rtype: int
+    """
+
+    if arr.ndim != 2:
+        raise ValueError("Array must be 2D")
+
+    # Find all the labels that are shared between rows and columns
+    isect = set(row_labels).intersection(col_labels)
+
+    # Set the value where row and column names are the same
+    for i in isect:
+        arr[row_labels == i, col_labels == i] = val
+
+    return len(isect)
+
+
 def make_array_2d(arr):
     """
     Changes array shape from 1d to 2d if needed (in-place)
@@ -122,6 +151,10 @@ class InferelatorData(object):
 
     @property
     def expression_data(self):
+        return self._adata.X
+
+    @property
+    def values(self):
         return self._adata.X
 
     @property
@@ -336,11 +369,12 @@ class InferelatorData(object):
 
     def trim_genes(self, remove_constant_genes=True, trim_gene_list=None):
         """
-        Remove genes (columns) that are unwanted from the data set
+        Remove genes (columns) that are unwanted from the data set. Do this in-place.
+
         :param remove_constant_genes:
         :type remove_constant_genes: bool
-        :param trim_gene_list:
-        :return:
+        :param trim_gene_list: This is a list of genes to KEEP.
+        :type trim_gene_list: list, pd.Series, pd.Index
         """
 
         keep_column_bool = np.ones((len(self._adata.var.index),), dtype=bool)
@@ -410,6 +444,9 @@ class InferelatorData(object):
             x = x.X
 
         return pd.DataFrame(x, columns=self.gene_names, index=labels) if to_df else x
+
+    def get_bootstrap(self, sample_bootstrap_index):
+        return InferelatorData(expression_data=self._adata[sample_bootstrap_index, :].copy())
 
     def subset_copy(self, row_index=None, column_index=None):
 
@@ -534,7 +571,7 @@ class InferelatorData(object):
 
     def copy(self):
 
-        new_data = InferelatorData(self.expression_data.copy(),
+        new_data = InferelatorData(self.expression_data.copy() ,
                                    meta_data=self.meta_data.copy(),
                                    gene_data=self.gene_data.copy())
 

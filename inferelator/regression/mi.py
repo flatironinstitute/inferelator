@@ -1,11 +1,10 @@
 from __future__ import division
 
-import os
 import numpy as np
-import pandas as pd
+import scipy.sparse as sps
 
 from inferelator.distributed.inferelator_mp import MPControl
-from inferelator import utils
+from inferelator.utils import Debug, InferelatorData, array_set_diag
 from inferelator.utils import Validator as check
 
 # Number of discrete bins for mutual information calculation
@@ -22,93 +21,90 @@ SYNC_CLR_KEY = 'post_clr'
 
 
 class MIDriver:
-    bins = DEFAULT_NUM_BINS
 
-    def __init__(self, bins=DEFAULT_NUM_BINS, sync_in_tmp_path=None):
-        """
-        :param bins: int
-            Number of bins for discretizing continuous variables
-        :param sync_in_tmp_path: path
-            Path to a temp file directory to use for synchronizing processes
-            This uses the temp directory for DATA only. Process communication is still done with KVS.
-        """
-
-        assert check.argument_path(sync_in_tmp_path, allow_none=True, access=os.W_OK)
-        assert check.argument_integer(bins, allow_none=False)
-
-        self.bins = bins
-        self.temp_dir = sync_in_tmp_path
-
-    def run(self, x_df, y_df, bins=None, logtype=DEFAULT_LOG_TYPE):
-        """
-        Wrapper to calculate the CLR and MI for two data sets that have common condition columns
-        :param x_df: pd.DataFrame
-        :param y_df: pd.DataFrame
-        :param logtype: np.log func
-        :param bins: int
-            Number of bins for discretizing continuous variables
-        :return clr, mi: pd.DataFrame, pd.DataFrame
-            CLR and MI DataFrames
-        """
-
-        assert check.argument_integer(bins, allow_none=True)
-        assert check.indexes_align((x_df.columns, y_df.columns))
-        assert x_df.shape[0] > 0
-        assert x_df.shape[1] > 0
-        assert y_df.shape[0] > 0
-        assert y_df.shape[1] > 0
-
-        if bins is not None:
-            self.bins = bins
-
-        mi = mutual_information(y_df, x_df, self.bins, temp_dir=self.temp_dir, logtype=logtype)
-        mi_bg = mutual_information(x_df, x_df, self.bins, temp_dir=self.temp_dir, logtype=logtype)
-        clr = calc_mixed_clr(utils.df_set_diag(mi, 0), utils.df_set_diag(mi_bg, 0))
-
-        MPControl.sync_processes(pref=SYNC_CLR_KEY)
-
-        return clr, mi
+    @staticmethod
+    def run(x, y, bins=DEFAULT_NUM_BINS, logtype=DEFAULT_LOG_TYPE, return_mi=True):
+        return context_likelihood_mi(x, y, bins=bins, logtype=logtype, return_mi=return_mi)
 
 
-def mutual_information(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
+def context_likelihood_mi(x, y, bins=DEFAULT_NUM_BINS, logtype=DEFAULT_LOG_TYPE, return_mi=True):
+    """
+    Wrapper to calculate the Context Likelihood of Relatedness and Mutual Information for two data sets that have
+    common condition rows. The y argument will be used to calculate background MI for the x & y MI.
+    As an implementation detail, y will be cast to a dense array if it is sparse.
+    X can be sparse with no internal copy.
+
+    This function handles unpacking and packing the InferelatorData.
+
+    :param x: An N x G InferelatorData object
+    :type x: InferelatorData [N x G]
+    :param y: An N x K InferelatorData object
+    :type y: InferelatorData [N x K]
+    :param logtype: The logarithm function to use when calculating information. Defaults to natural log (np.log)
+    :type logtype: np.log func
+    :param bins: Number of bins for discretizing continuous variables
+    :type bins: int
+    :param return_mi: Boolean for returning a MI object. Defaults to True
+    :type return_mi: bool
+    :return clr, mi: CLR and MI InferelatorData objects. Returns (CLR, None) if return_mi is False.
+    :rtype InferelatorData, InferelatorData:
+    """
+
+    assert check.argument_integer(bins, allow_none=True)
+    assert min(x.shape) > 0
+    assert min(y.shape) > 0
+    assert check.indexes_align((x.sample_names, y.sample_names))
+
+    # Create dense output matrix and copy the inputs
+    mi_r = x.gene_names
+    mi_c = y.gene_names
+
+    # Build a [G x K] mutual information array
+    mi = mutual_information(x.expression_data, y.expression_data, bins, logtype=logtype)
+    array_set_diag(mi, 0., mi_r, mi_c)
+
+    # Build a [K x K] mutual information array
+    mi_bg = mutual_information(y.expression_data, y.expression_data, bins, logtype=logtype)
+    array_set_diag(mi_bg, 0., mi_c, mi_c)
+
+    # Calculate CLR
+    clr = calc_mixed_clr(mi, mi_bg)
+
+    MPControl.sync_processes(pref=SYNC_CLR_KEY)
+
+    mi = InferelatorData(expression_data=mi, sample_names=mi_r, gene_names=mi_c)
+    clr = InferelatorData(expression_data=clr, sample_names=mi_r, gene_names=mi_c)
+
+    return clr, mi if return_mi else None
+
+
+def mutual_information(x, y, bins, logtype=DEFAULT_LOG_TYPE):
     """
     Calculate the mutual information matrix between two data matrices, where the columns are equivalent conditions
 
-    :param X: pd.DataFrame (m1 x n)
+    :param x: np.array (n x m1)
         The data from m1 variables across n conditions
-    :param Y: pd.DataFrame (m2 x n)
+    :param y: np.array (n x m2)
         The data from m2 variables across n conditions
     :param bins: int
         Number of bins to discretize continuous data into for the generation of a contingency table
     :param logtype: np.log func
         Which type of log function should be used (log2 results in MI bits, log results in MI nats, log10... is weird)
-    :param temp_dir: path
-        Path to write temp files for multiprocessing
 
     :return mi: pd.DataFrame (m1 x m2)
         The mutual information between variables m1 and m2
     """
 
-    assert check.indexes_align((X.columns, Y.columns))
-
-    # Create dense output matrix and copy the inputs
-    mi_r = X.index
-    mi_c = Y.index
-
-    X = X.values
-    Y = Y.values
-
-    # Discretize the input matrixes
-    X = _make_array_discrete(X.transpose(), bins, axis=0)
-    Y = _make_array_discrete(Y.transpose(), bins, axis=0)
+    # Discretize the input matrix y
+    y = y.A if sps.isspmatrix(y) else y
+    y = _make_array_discrete(y, bins, axis=0)
 
     # Build the MI matrix
     if MPControl.is_dask():
         from inferelator.distributed.dask_functions import build_mi_array_dask
-        return pd.DataFrame(build_mi_array_dask(X, Y, bins, logtype=logtype), index=mi_r, columns=mi_c)
+        return build_mi_array_dask(x, y, bins, logtype=logtype)
     else:
-        return pd.DataFrame(build_mi_array(X, Y, bins, logtype=logtype, temp_dir=temp_dir), index=mi_r,
-                            columns=mi_c)
+        return build_mi_array(x, y, bins, logtype=logtype)
 
 
 def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
@@ -134,8 +130,10 @@ def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
     # Define the function which calculates MI for each variable in X against every variable in Y
     def mi_make(i):
         level = 2 if i % 1000 == 0 else 3
-        utils.Debug.allprint("Mutual Information Calculation [{i} / {total}]".format(i=i, total=m1), level=level)
-        return [_calc_mi(_make_table(X[:, i], Y[:, j], bins), logtype=logtype) for j in range(m2)]
+        Debug.allprint("Mutual Information Calculation [{i} / {total}]".format(i=i, total=m1), level=level)
+
+        discrete_X = _make_discrete(X[:, i].A.flatten() if sps.isspmatrix(X) else X[:, i].flatten(), bins)
+        return [_calc_mi(_make_table(discrete_X, Y[:, j], bins), logtype=logtype) for j in range(m2)]
 
     # Send the MI build to the multiprocessing controller
     mi_list = MPControl.map(mi_make, range(m1), tmp_file_path=temp_dir)
@@ -151,27 +149,31 @@ def calc_mixed_clr(mi, mi_bg):
     """
     Calculate the context liklihood of relatedness from mutual information and the background mutual information
 
-    :param mi: pd.DataFrame
-        Mutual information dataframe
-    :param mi_bg: pd.DataFrame
-        Background mutual information dataframe
-    :return clr: pd.DataFrame
-        Context liklihood of relateness dataframe
+    :param mi: Mutual information array [m1 x m2]
+    :type mi: np.ndarray
+    :param mi_bg: Background mutual information array [m2 x m2]
+    :type mi_bg: np.ndarray
+    :return clr: Context liklihood of relateness array [m1 x m2]
+    :rtype: np.ndarray
     """
-    # Calculate the zscore for columns
-    z_col = mi.copy().round(10)  # Rounding so that float precision differences don't turn into huge CLR differences
-    z_col = z_col.subtract(mi_bg.mean(axis=0))
-    z_col = z_col.divide(mi_bg.std(axis=0, ddof=CLR_DDOF))
-    z_col[z_col < 0] = 0
 
-    # Calculate the zscore for rows
-    z_row = mi.copy().round(10)  # Rounding so that float precision differences don't turn into huge CLR differences
-    z_row = z_row.subtract(mi.mean(axis=1), axis=0)
-    z_row = z_row.divide(mi.std(axis=1, ddof=CLR_DDOF), axis=0)
-    z_row[z_row < 0] = 0
+    with np.errstate(invalid='ignore'):
 
-    clr = np.sqrt(np.square(z_col) + np.square(z_row))
-    return clr
+        # Calculate the zscore for columns
+        z_col = np.round(mi, 10)  # Rounding so that float precision differences don't turn into huge CLR differences
+        z_col = np.subtract(z_col, np.mean(mi_bg, axis=0))
+        z_col = np.divide(z_col, np.std(mi_bg, axis=0, ddof=CLR_DDOF))
+
+        # Calculate the zscore for rows
+        z_row = np.round(mi, 10)  # Rounding so that float precision differences don't turn into huge CLR differences
+        z_row = np.subtract(z_row, np.mean(mi_bg, axis=1))
+        z_row = np.divide(z_row, np.std(mi_bg, axis=1, ddof=CLR_DDOF))
+
+        z_col[z_col < 0] = 0
+        z_row[z_row < 0] = 0
+
+    # Calculate CLR
+    return np.sqrt(np.square(z_col) + np.square(z_row))
 
 
 def _make_array_discrete(array, num_bins, axis=0):
@@ -252,32 +254,28 @@ def _calc_mi(table, logtype=DEFAULT_LOG_TYPE):
     """
 
     # Turn off runtime warnings (there is an explicit check for NaNs and INFs in-function)
-    reset = np.seterr(divide='ignore', invalid='ignore')
+    with np.errstate(divide='ignore', invalid='ignore'):
+        m, n = table.shape
+        assert n == m
 
-    m, n = table.shape
-    assert n == m
+        total = np.sum(table, axis=(0, 1))
 
-    total = np.sum(table, axis=(0, 1))
+        # (PxPy) [n x n]
+        mi_val = np.dot((np.sum(table, axis=1) / total).reshape(-1, 1),
+                        (np.sum(table, axis=0) / total).reshape(1, -1))
 
-    # (PxPy) [n x n]
-    mi_val = np.dot((np.sum(table, axis=1) / total).reshape(-1, 1),
-                    (np.sum(table, axis=0) / total).reshape(1, -1))
+        # (Pxy) [n x n]
+        table = np.divide(table, total)
 
-    # (Pxy) [n x n]
-    table = np.divide(table, total)
+        # (Pxy)/(PxPy) [n x n]
+        mi_val = np.divide(table, mi_val)
 
-    # (Pxy)/(PxPy) [n x n]
-    mi_val = np.divide(table, mi_val)
+        # log[(Pxy)/(PxPy)] [n x n]
+        mi_val = logtype(mi_val)
 
-    # log[(Pxy)/(PxPy)] [n x n]
-    mi_val = logtype(mi_val)
+        # Pxy(log[(Pxy)/(PxPy)]) [n x n]
+        mi_val = np.multiply(table, mi_val)
+        mi_val[np.isnan(mi_val)] = 0
 
-    # Pxy(log[(Pxy)/(PxPy)]) [n x n]
-    mi_val = np.multiply(table, mi_val)
-    mi_val[np.isnan(mi_val)] = 0
-
-    # Summation
-    mi_val = np.sum(mi_val, axis=(0, 1))
-
-    np.seterr(**reset)
-    return mi_val
+        # Summation
+        return np.sum(mi_val, axis=(0, 1))

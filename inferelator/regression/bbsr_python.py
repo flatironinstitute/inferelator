@@ -173,11 +173,11 @@ class BBSRRegressionWorkflow(base_regression.RegressionWorkflow):
         self._set_without_warning("clr_only", clr_only)
 
     def run_bootstrap(self, bootstrap):
-        X = self.design.get_sample_data(bootstrap, to_df=True).T
-        Y = self.response.get_sample_data(bootstrap, to_df=True).T
+        X = self.design.get_bootstrap(bootstrap)
+        Y = self.response.get_bootstrap(bootstrap)
+
         utils.Debug.vprint('Calculating MI, Background MI, and CLR Matrix', level=0)
-        clr_matrix, mi_matrix = self.mi_driver(sync_in_tmp_path=self.mi_sync_path).run(X, Y)
-        mi_matrix = None
+        clr_matrix, _ = self.mi_driver().run(Y, X, return_mi=False)
         utils.Debug.vprint('Calculating betas using BBSR', level=0)
 
         # Create a mock prior with no information if clr_only is set
@@ -186,5 +186,5 @@ class BBSRRegressionWorkflow(base_regression.RegressionWorkflow):
         else:
             priors = self.priors_data
 
-        return BBSR(X, Y, clr_matrix, priors, prior_weight=self.prior_weight,
+        return BBSR(X.to_df().T, Y.to_df().T, clr_matrix.to_df(), priors, prior_weight=self.prior_weight,
                     no_prior_weight=self.no_prior_weight, nS=self.bsr_feature_num).run()
