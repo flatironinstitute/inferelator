@@ -128,7 +128,17 @@ class DaskHPCClusterController(AbstractController):
 
         # Deactivate the worker memory nanny
         if cls.worker_memory_limit == 0:
-            cls.local_cluster._command_template = memory_limit_0(cls.local_cluster._command_template)
+            try:
+                cls.local_cluster._command_template = memory_limit_0(cls.local_cluster._command_template)
+            except AttributeError:
+                from dask_jobqueue.slurm import SLURMJob
+
+                class SLURMJobMemLimit(SLURMJob):
+                    def __init__(self, *args, **kwargs):
+                        super(SLURMJobMemLimit, self).__init__(*args, **kwargs)
+                        self._command_template = memory_limit_0(self._command_template)
+
+                cls.local_cluster.job_cls = SLURMJobMemLimit
 
         # Rewrite the command headers so that the SLURM controller will work with the NYU prince cluster
         if cls.hack_cluster_controller_for_NYU:
