@@ -54,7 +54,7 @@ def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remov
         y = []
         gene = genes[i]
         for k in range(n_tasks):
-            if gene in y_df[k]:
+            if gene in y_df[k].gene_names:
                 y.append((k, y_df[k].get_gene_data(gene).reshape(-1, 1)))
         return y
 
@@ -147,7 +147,7 @@ def elasticnet_regress_dask(X, Y, params, G, genes):
     # Wait for scattering to finish before creating futures
     distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
 
-    future_list = [DaskController.client.submit(regression_maker, i, scatter_x, Y.values[i, :].flatten())
+    future_list = [DaskController.client.submit(regression_maker, i, scatter_x, Y.get_gene_data(i).flatten())
                    for i in range(G)]
 
     # Collect results as they finish instead of waiting for all workers to be done
@@ -208,7 +208,7 @@ def build_mi_array_dask(X, Y, bins, logtype):
     return mi
 
 
-def process_futures_into_list(future_list):
+def process_futures_into_list(future_list, raise_on_error=True):
     """
     Take a list of futures and turn them into a list of results
     Results must be of the form i, data (where i is the output order)
@@ -223,19 +223,19 @@ def process_futures_into_list(future_list):
     for finished_future in complete_gen:
 
         # Jobs can be cancelled in certain situations
-        if finished_future.cancelled():
-            # Restart cancelled futures and put them back into the work pile
-            DaskController.client.retry(finished_future)
-            complete_gen.update([finished_future])
-
-        # More likely is jobs erroring as a result of cluster instability
-        elif finished_future.status == "error":
+        if finished_future.cancelled() or (finished_future.status == "erred"):
             error = finished_future.exception()
             utils.Debug.vprint("Restarting job (Error: {er})".format(er=error), level=1)
 
-            # Restart errored futures and put them back into the work pile
-            DaskController.client.retry(finished_future)
-            complete_gen.update([finished_future])
+            # Restart cancelled futures and put them back into the work pile
+            try:
+                DaskController.client.retry(finished_future)
+                complete_gen.update([finished_future])
+            except KeyError:
+                if raise_on_error:
+                    raise
+                else:
+                    continue
 
         # In the event of success, get the data
         else:

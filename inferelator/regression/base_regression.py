@@ -88,6 +88,11 @@ class BaseRegression(object):
 
         # Populate the zero arrays with the BBSR betas
         for data in run_data:
+
+            # If data is None assume a null model
+            if data is None:
+                continue
+
             xidx = data['ind']  # Int
             yidx = data['pp']  # Boolean array of size K
             betas[xidx, yidx] = data['betas']
