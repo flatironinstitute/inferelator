@@ -5,6 +5,7 @@ from inferelator import utils
 import numpy as np
 import scipy.sparse as sps
 from dask import distributed
+import time
 
 """
 This package contains the dask-specific multiprocessing functions (these are used in place of map calls to allow the
@@ -59,8 +60,8 @@ def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remov
         return y
 
     # Scatter common data to workers
-    [scatter_x] = DaskController.client.scatter([X], broadcast=True)
-    [scatter_priors] = DaskController.client.scatter([priors], broadcast=True)
+    [scatter_x] = DaskController.client.scatter([X], broadcast=True, hash=False)
+    [scatter_priors] = DaskController.client.scatter([priors], broadcast=True, hash=False)
 
     # Wait for scattering to finish before creating futures
     distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
@@ -99,9 +100,9 @@ def bbsr_regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS):
         return j, data
 
     # Scatter common data to workers
-    [scatter_x] = DaskController.client.scatter([X.values], broadcast=True)
-    [scatter_pp] = DaskController.client.scatter([pp_mat.values], broadcast=True)
-    [scatter_weights] = DaskController.client.scatter([weights_mat.values], broadcast=True)
+    [scatter_x] = DaskController.client.scatter([X.values], broadcast=True, hash=False)
+    [scatter_pp] = DaskController.client.scatter([pp_mat.values], broadcast=True, hash=False)
+    [scatter_weights] = DaskController.client.scatter([weights_mat.values], broadcast=True, hash=False)
 
     # Wait for scattering to finish before creating futures
     distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
@@ -137,13 +138,14 @@ def elasticnet_regress_dask(X, Y, params, G, genes):
 
     def regression_maker(j, x, y):
         level = 0 if j % 100 == 0 else 2
+        print(y)
         utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=genes[j], i=j, total=G), level=level)
         data = elasticnet_python.elastic_net(x, utils.scale_vector(y), params=params)
         data['ind'] = j
         return j, data
 
     # Scatter common data to workers
-    [scatter_x] = DaskController.client.scatter([X.values], broadcast=True)
+    [scatter_x] = DaskController.client.scatter([X.values], broadcast=True, hash=False)
 
     # Wait for scattering to finish before creating futures
     distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
@@ -198,7 +200,7 @@ def build_mi_array_dask(X, Y, bins, logtype):
     # Build an asynchronous list of Futures for each calculation of mi_make
     future_list = [DaskController.client.submit(mi_make, i,
                                                 X[:, i].A.flatten() if sps.isspmatrix(X) else X[:, i].flatten(),
-                                                scatter_y, pure=False)
+                                                scatter_y)
                    for i in range(m1)]
 
     # Collect results as they finish instead of waiting for all workers to be done
@@ -213,7 +215,7 @@ def build_mi_array_dask(X, Y, bins, logtype):
     return mi
 
 
-def process_futures_into_list(future_list, raise_on_error=True):
+def process_futures_into_list(future_list, raise_on_error=False, check_results=False):
     """
     Take a list of futures and turn them into a list of results
     Results must be of the form i, data (where i is the output order)
@@ -228,9 +230,9 @@ def process_futures_into_list(future_list, raise_on_error=True):
     for finished_future in complete_gen:
 
         # Jobs can be cancelled in certain situations
-        if finished_future.cancelled() or (finished_future.status == "erred"):
+        if check_results and (finished_future.cancelled() or (finished_future.status == "erred")):
             error = finished_future.exception()
-            utils.Debug.vprint("Restarting job (Error: {er})".format(er=error), level=1)
+            utils.Debug.vprint("Restarting job (Error: {er})".format(er=error), level=0)
 
             # Restart cancelled futures and put them back into the work pile
             try:
@@ -246,5 +248,6 @@ def process_futures_into_list(future_list, raise_on_error=True):
         else:
             i, result_data = finished_future.result()
             output_list[i] = result_data
+            finished_future.cancel()
 
     return output_list
