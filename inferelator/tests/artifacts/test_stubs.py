@@ -2,7 +2,7 @@ from inferelator import amusr_workflow
 from inferelator import workflow
 from inferelator.regression.base_regression import RegressionWorkflow
 from inferelator.postprocessing.results_processor import ResultsProcessor
-from inferelator.tests.artifacts.test_data import TestDataSingleCellLike, TEST_DATA
+from inferelator.tests.artifacts.test_data import TestDataSingleCellLike, TEST_DATA, TEST_DATA_SPARSE
 from inferelator.utils import InferelatorData
 
 import pandas as pd
@@ -58,8 +58,8 @@ class TaskDataStub(amusr_workflow.create_task_data_class(workflow_class="single-
     task_name = "TestStub"
     task_workflow_type = "single-cell"
 
-    def __init__(self):
-        self.data = TEST_DATA.copy()
+    def __init__(self, sparse=False):
+        self.data = TEST_DATA.copy() if not sparse else TEST_DATA_SPARSE.copy()
         super(TaskDataStub, self).__init__()
 
     def get_data(self):

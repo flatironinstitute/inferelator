@@ -146,7 +146,7 @@ def filter_genes_for_count(data, count_minimum=None):
         count_minimum = count_minimum * data.shape[0]
         if np.min(data.expression_data.min(axis=0)) < 0:
             raise ValueError("Cannot use a count minimum on data with negative values")
-        counts_per_gene = data.expression_data.sum(axis=0)
+        counts_per_gene = data.gene_counts
         if np.any(~np.isfinite(counts_per_gene)):
             raise ValueError("Non-finite values in count matrix")
         keep_genes = counts_per_gene >= count_minimum

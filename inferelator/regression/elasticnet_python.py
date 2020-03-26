@@ -95,7 +95,9 @@ class ElasticNet(base_regression.BaseRegression):
             level = 0 if j % 100 == 0 else 2
             utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G), level=level)
 
-            data = elastic_net(self.X.values, utils.scale_vector(self.Y.get_gene_data(j).flatten()), self.params)
+            data = elastic_net(self.X.values,
+                               utils.scale_vector(self.Y.get_gene_data(j, force_dense=True).flatten()),
+                               self.params)
             data['ind'] = j
             return data
 

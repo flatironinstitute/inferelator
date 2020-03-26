@@ -97,7 +97,7 @@ class BBSR(base_regression.BaseRegression):
                                  level=level)
 
             data = bayes_stats.bbsr(self.X.values,
-                                    utils.scale_vector(self.Y.get_gene_data(j).flatten()),
+                                    utils.scale_vector(self.Y.get_gene_data(j, force_dense=True).flatten()),
                                     self.pp.iloc[j, :].values.flatten(),
                                     self.weights_mat.iloc[j, :].values.flatten(),
                                     self.nS)

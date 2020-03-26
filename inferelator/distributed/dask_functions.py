@@ -55,7 +55,7 @@ def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remov
         gene = genes[i]
         for k in range(n_tasks):
             if gene in y_df[k].gene_names:
-                y.append((k, y_df[k].get_gene_data(gene).reshape(-1, 1)))
+                y.append((k, y_df[k].get_gene_data(gene, force_dense=True).reshape(-1, 1)))
         return y
 
     # Scatter common data to workers
@@ -108,7 +108,8 @@ def bbsr_regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS):
     distributed.wait(scatter_pp, timeout=DASK_SCATTER_TIMEOUT)
     distributed.wait(scatter_weights, timeout=DASK_SCATTER_TIMEOUT)
 
-    future_list = [DaskController.client.submit(regression_maker, i, scatter_x, Y.get_gene_data(i).flatten(),
+    future_list = [DaskController.client.submit(regression_maker, i, scatter_x,
+                                                Y.get_gene_data(i, force_dense=True).flatten(),
                                                 scatter_pp, scatter_weights)
                    for i in range(G)]
 
@@ -147,7 +148,8 @@ def elasticnet_regress_dask(X, Y, params, G, genes):
     # Wait for scattering to finish before creating futures
     distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
 
-    future_list = [DaskController.client.submit(regression_maker, i, scatter_x, Y.get_gene_data(i).flatten())
+    future_list = [DaskController.client.submit(regression_maker, i, scatter_x,
+                                                Y.get_gene_data(i, force_dense=True).flatten())
                    for i in range(G)]
 
     # Collect results as they finish instead of waiting for all workers to be done
@@ -184,7 +186,7 @@ def build_mi_array_dask(X, Y, bins, logtype):
     m1, m2 = X.shape[1], Y.shape[1]
 
     def mi_make(i, x, y):
-        x = _make_discrete(x.A.flatten() if sps.isspmatrix(X) else x.flatten(), bins)
+        x = _make_discrete(x, bins)
         return i, [_calc_mi(_make_table(x, y[:, j], bins), logtype=logtype) for j in range(m2)]
 
     # Scatter Y to workers and keep track as Futures
@@ -194,7 +196,10 @@ def build_mi_array_dask(X, Y, bins, logtype):
     distributed.wait(scatter_y, timeout=DASK_SCATTER_TIMEOUT)
 
     # Build an asynchronous list of Futures for each calculation of mi_make
-    future_list = [DaskController.client.submit(mi_make, i, X[:, i], scatter_y, pure=False) for i in range(m1)]
+    future_list = [DaskController.client.submit(mi_make, i,
+                                                X[:, i].A.flatten() if sps.isspmatrix(X) else X[:, i].flatten(),
+                                                scatter_y, pure=False)
+                   for i in range(m1)]
 
     # Collect results as they finish instead of waiting for all workers to be done
     mi_list = process_futures_into_list(future_list)

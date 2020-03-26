@@ -2,15 +2,15 @@ import warnings
 import unittest
 import tempfile
 import pandas as pd
-import os
 import shutil
 import numpy as np
+import scipy.sparse as sps
 
 from inferelator.distributed.inferelator_mp import MPControl
 
 from inferelator import tfa_workflow
 from inferelator import workflow
-from inferelator.tests.artifacts.test_data import TestDataSingleCellLike
+from inferelator.tests.artifacts.test_data import TestDataSingleCellLike, TEST_DATA, TEST_DATA_SPARSE
 from inferelator.tests.artifacts.test_stubs import TaskDataStub, create_puppet_workflow
 from inferelator.regression.bbsr_multitask import BBSRByTaskRegressionWorkflow
 from inferelator.regression.elasticnet_multitask import ElasticNetByTaskRegressionWorkflow
@@ -26,22 +26,58 @@ try:
 except ImportError:
     TEST_DASK_LOCAL = False
 
+"""
+These are full-stack integration tests covering the post-loading regression workflows
+"""
 
-class TestRegressionFactory(unittest.TestCase):
+
+class SetUpDenseData(unittest.TestCase):
 
     def setUp(self):
-        meta_data = MetadataHandler.get_handler('branching')\
-            .create_default_meta_data(TestDataSingleCellLike.expression_matrix.columns)
-        self.data = InferelatorData(TestDataSingleCellLike.expression_matrix.T,
-                                    meta_data=meta_data,
-                                    gene_data=TestDataSingleCellLike.gene_metadata,
-                                    gene_data_idx_column="SystematicName")
+        sample_names = TestDataSingleCellLike.expression_matrix.columns
+        meta_data = MetadataHandler.get_handler('branching').create_default_meta_data(sample_names)
+
+        self.data = TEST_DATA.copy()
+        self.data.meta_data = meta_data
+
         self.prior = TestDataSingleCellLike.priors_data
         self.gold_standard = self.prior.copy()
         self.tf_names = TestDataSingleCellLike.tf_names
 
 
-class TestSingleTaskRegressionFactory(TestRegressionFactory):
+class SetUpSparseData(unittest.TestCase):
+
+    def setUp(self):
+        sample_names = TestDataSingleCellLike.expression_matrix.columns
+        meta_data = MetadataHandler.get_handler('branching').create_default_meta_data(sample_names)
+
+        self.data = TEST_DATA_SPARSE.copy()
+        self.data.meta_data = meta_data
+
+        self.prior = TestDataSingleCellLike.priors_data
+        self.gold_standard = self.prior.copy()
+        self.tf_names = TestDataSingleCellLike.tf_names
+
+
+class SetUpDenseDataMTL(SetUpDenseData):
+
+    def setUp(self):
+        super(SetUpDenseDataMTL, self).setUp()
+        self._task_objects = [TaskDataStub(), TaskDataStub()]
+        self._task_objects[0].tasks_from_metadata = False
+        self._task_objects[1].tasks_from_metadata = False
+
+
+class SetUpSparseDataMTL(SetUpSparseData):
+
+    def setUp(self):
+        super(SetUpSparseDataMTL, self).setUp()
+        self._task_objects = [TaskDataStub(sparse=True), TaskDataStub(sparse=True)]
+        self._task_objects[0].tasks_from_metadata = False
+        self._task_objects[1].tasks_from_metadata = False
+
+
+class TestSingleTaskRegressionFactory(SetUpDenseData):
 
     def test_base(self):
         self.workflow = create_puppet_workflow(base_class=tfa_workflow.TFAWorkFlow)
@@ -77,13 +113,11 @@ class TestSingleTaskRegressionFactory(TestRegressionFactory):
         self.assertEqual(self.workflow.results.score, 1)
 
 
-class TestMultitaskFactory(TestRegressionFactory):
+class TestSingleTaskRegressionFactorySparse(SetUpSparseData, TestSingleTaskRegressionFactory):
+    pass
 
-    def setUp(self):
-        super(TestMultitaskFactory, self).setUp()
-        self._task_objects = [TaskDataStub(), TaskDataStub()]
-        self._task_objects[0].tasks_from_metadata = False
-        self._task_objects[1].tasks_from_metadata = False
+
+class TestMultitaskFactory(SetUpDenseDataMTL):
 
     def reset_workflow(self):
         self.workflow.priors_data = self.prior
@@ -116,6 +150,10 @@ class TestMultitaskFactory(TestRegressionFactory):
             self.workflow.run()
 
         self.assertEqual(self.workflow.results.score, 1)
+
+
+class TestMultitaskFactorySparse(SetUpSparseDataMTL, TestMultitaskFactory):
+    pass
 
 
 @unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
@@ -155,5 +193,15 @@ class TestSTLDask(TestSingleTaskRegressionFactory, SwitchToDask):
 
 
 @unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
+class TestSTLDask(TestSingleTaskRegressionFactorySparse, SwitchToDask):
+    pass
+
+
+@unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
 class TestMTLDask(TestMultitaskFactory, SwitchToDask):
+    pass
+
+
+@unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
+class TestMTLSparseDask(TestMultitaskFactorySparse, SwitchToDask):
     pass

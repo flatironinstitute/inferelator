@@ -278,7 +278,7 @@ class AMuSR_regression(base_regression.BaseRegression):
             for k in range(self.n_tasks):
                 if gene in self.Y[k].gene_names:
                     x.append(self.X[k].get_gene_data(tfs))  # list([N, K])
-                    y.append(self.Y[k].get_gene_data(gene).reshape(-1, 1))  # list([N, 1])
+                    y.append(self.Y[k].get_gene_data(gene, force_dense=True).reshape(-1, 1))  # list([N, 1])
                     tasks.append(k)  # [T,]
 
             prior = format_prior(self.priors, gene, tasks, self.prior_weight)
