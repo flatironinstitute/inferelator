@@ -203,11 +203,11 @@ class DaskHPCClusterController(AbstractController):
         Block when something asks if this is a dask function until the workers are alive
         """
 
-        if len(cls.local_cluster.scheduler.identity()['Workers']) > 0:
+        if len(cls.local_cluster.scheduler.identity()['workers']) > 0:
             return True
 
         sleep_time = 0
-        while len(cls.local_cluster.scheduler.identity()['Workers']) == 0:
+        while len(cls.local_cluster.scheduler.identity()['workers']) == 0:
             time.sleep(1)
             if sleep_time % 60 == 0:
                 utils.Debug.vprint("Awaiting workers ({sleep_time} seconds elapsed)".format(sleep_time=sleep_time),
