@@ -119,23 +119,19 @@ class TestMultitaskFactory(TestRegressionFactory):
 
 
 @unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
-@unittest.skipIf("TRAVIS" in os.environ and os.environ["TRAVIS"] == "true", "Skip Travis for Dask")
 class SwitchToDask(unittest.TestCase):
-    name = "dask-local"
     tempdir = None
 
     @classmethod
     @unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
-    @unittest.skipIf("TRAVIS" in os.environ and os.environ["TRAVIS"] == "true", "Skip Travis for Dask")
     def setUpClass(cls):
         cls.tempdir = tempfile.mkdtemp()
         MPControl.shutdown()
-        MPControl.set_multiprocess_engine(cls.name)
-        MPControl.connect(local_dir=cls.tempdir, n_workers=1)
+        MPControl.set_multiprocess_engine("dask-local")
+        MPControl.connect(local_dir=cls.tempdir, n_workers=1, processes=False)
 
     @classmethod
     @unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
-    @unittest.skipIf("TRAVIS" in os.environ and os.environ["TRAVIS"] == "true", "Skip Travis for Dask")
     def tearDownClass(cls):
         MPControl.shutdown()
         MPControl.set_multiprocess_engine("local")
@@ -144,10 +140,9 @@ class SwitchToDask(unittest.TestCase):
             shutil.rmtree(cls.tempdir)
 
 
-@unittest.skipIf("TRAVIS" in os.environ and os.environ["TRAVIS"] == "true", "Skip Travis for Dask")
+@unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
 class TestSTLDask(TestSingleTaskRegressionFactory, SwitchToDask):
 
-    @unittest.skipIf("TRAVIS" in os.environ and os.environ["TRAVIS"] == "true", "Skip Travis for Dask")
     def test_dask_function_mi(self):
         """Compute mi for identical arrays [[1, 2, 1], [2, 4, 6]]."""
 
@@ -159,6 +154,6 @@ class TestSTLDask(TestSingleTaskRegressionFactory, SwitchToDask):
         np.testing.assert_almost_equal(mi, expected)
 
 
-@unittest.skipIf("TRAVIS" in os.environ and os.environ["TRAVIS"] == "true", "Skip Travis for Dask")
+@unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
 class TestMTLDask(TestMultitaskFactory, SwitchToDask):
     pass
