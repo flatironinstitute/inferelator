@@ -126,23 +126,26 @@ class DaskHPCClusterController(AbstractController):
                                                          interface=cls.interface, local_directory=cls.local_directory,
                                                          memory=cls.memory, job_extra=cls.cluster_controller_options)
 
-        # Deactivate the worker memory nanny
-        if cls.worker_memory_limit == 0:
-            try:
+        # Hacks for older version of dask_jobqueue
+        try:
+            if cls.worker_memory_limit == 0:
                 cls.local_cluster._command_template = memory_limit_0(cls.local_cluster._command_template)
-            except AttributeError:
-                from dask_jobqueue.slurm import SLURMJob
+            if cls.hack_cluster_controller_for_NYU:
+                cls.local_cluster.job_header = fix_header_for_nyu(cls.local_cluster.job_header, DEFAULT_NYU_HEADER)
 
-                class SLURMJobMemLimit(SLURMJob):
-                    def __init__(self, *args, **kwargs):
-                        super(SLURMJobMemLimit, self).__init__(*args, **kwargs)
+        # Hacks for newer version of dask_jobqueue
+        except AttributeError:
+            from dask_jobqueue.slurm import SLURMJob
+
+            class SLURMJobMemLimit(SLURMJob):
+                def __init__(self, *args, **kwargs):
+                    super(SLURMJobMemLimit, self).__init__(*args, **kwargs)
+                    if cls.worker_memory_limit == 0:
                         self._command_template = memory_limit_0(self._command_template)
+                    if cls.hack_cluster_controller_for_NYU:
+                        self.job_header = fix_header_for_nyu(self.job_header, DEFAULT_NYU_HEADER)
 
-                cls.local_cluster.job_cls = SLURMJobMemLimit
-
-        # Rewrite the command headers so that the SLURM controller will work with the NYU prince cluster
-        if cls.hack_cluster_controller_for_NYU:
-            cls.local_cluster.job_header = fix_header_for_nyu(cls.local_cluster.job_header, DEFAULT_NYU_HEADER)
+            cls.local_cluster.job_cls = SLURMJobMemLimit
 
         if cls.control_adaptive:
             cls.local_cluster.adapt(minimum=cls.minimum_cores, maximum=cls.maximum_cores, interval=cls.interval,
