@@ -74,9 +74,15 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
         overall_confidences = []
         overall_resc_betas = []
 
+        # Get intersection of indices
+        gene_set = set([i for df in self.betas for i in df[0].index.tolist()])
+        tf_set = set([i for df in self.betas for i in df[0].columns.tolist()])
+
         # Create empty dataframes for task-specific results
-        overall_sign = pd.DataFrame(np.zeros(self.betas[0][0].shape), index=self.betas[0][0].index,
-                                    columns=self.betas[0][0].columns)
+        overall_sign = pd.DataFrame(np.zeros((len(gene_set), len(tf_set))),
+                                    index=gene_set,
+                                    columns=tf_set)
+
         overall_threshold = overall_sign.copy()
 
         if not isinstance(gold_standard, list):
@@ -92,16 +98,17 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
 
             task_threshold, task_sign, task_nonzero = self.threshold_and_summarize(self.betas[task_id], self.threshold)
             task_resc_betas_mean, task_resc_betas_median = self.mean_and_median(self.rescaled_betas[task_id])
+
             task_extra_cols = {BETA_SIGN_COLUMN: task_sign, MEDIAN_EXPLAIN_VAR_COLUMN: task_resc_betas_median}
 
             task_network_data = self.process_network(task_rs_calc, priors[task_id], beta_threshold=task_threshold,
                                                      extra_columns=task_extra_cols)
 
             # Pile up data
-            overall_confidences.append(task_rs_calc.all_confidences)
-            overall_resc_betas.append(task_resc_betas_median)
-            overall_sign += np.sign(task_sign)
-            overall_threshold += task_threshold
+            overall_confidences.append(_df_resizer(task_rs_calc.all_confidences, gene_set, tf_set))
+            overall_resc_betas.append(_df_resizer(task_resc_betas_median, gene_set, tf_set))
+            overall_sign += np.sign(_df_resizer(task_sign, gene_set, tf_set))
+            overall_threshold += _df_resizer(task_threshold, gene_set, tf_set)
 
             m_name, score = task_rs_calc.score()
             utils.Debug.vprint("Task {t} Model {m}:\t{score}".format(t=task_name, m=m_name, score=score), level=0)
@@ -131,3 +138,7 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
         overall_result.write_result_files(output_dir)
 
         return overall_result
+
+
+def _df_resizer(df, row_labs, col_labs, fill=0):
+    return df.reindex(row_labs, axis=0).reindex(col_labs, axis=1).fillna(fill)
