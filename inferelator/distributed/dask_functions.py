@@ -138,7 +138,6 @@ def elasticnet_regress_dask(X, Y, params, G, genes):
 
     def regression_maker(j, x, y):
         level = 0 if j % 100 == 0 else 2
-        print(y)
         utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=genes[j], i=j, total=G), level=level)
         data = elasticnet_python.elastic_net(x, utils.scale_vector(y), params=params)
         data['ind'] = j
