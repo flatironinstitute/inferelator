@@ -129,6 +129,14 @@ class TestProps(TestWrapperSetup):
         npt.assert_array_equal(umis, self.adata.gene_counts)
         npt.assert_array_equal(umis, self.adata_sparse.gene_counts)
 
+    def test_sample_means(self):
+        means = np.mean(self.expr.values, axis=1)
+        npt.assert_array_almost_equal(means, self.adata.obs_means)
+
+    def test_sample_stdevs(self):
+        stdevs = np.std(self.expr.values, axis=1, ddof=1)
+        npt.assert_array_almost_equal(stdevs, self.adata.obs_stdev)
+
 
 class TestTrim(TestWrapperSetup):
 

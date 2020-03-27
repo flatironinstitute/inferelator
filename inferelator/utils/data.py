@@ -135,6 +135,7 @@ class InferelatorData(object):
 
     _adata = None
     _is_integer = False
+    _cached = None
 
     @property
     def expression_data(self):
@@ -275,6 +276,29 @@ class InferelatorData(object):
     def num_genes(self):
         return self._adata.shape[1]
 
+    @property
+    def obs_means(self):
+        if self._cached is not None and 'obs_means' in self._cached:
+            return self._cached['obs_means']
+        else:
+            means = np.asarray(self._adata.X.mean(axis=1)).flatten()
+            self._cached['obs_means'] = means
+            return means
+
+    @property
+    def obs_stdev(self):
+        if self._cached is not None and 'obs_stds' in self._cached:
+            return self._cached['obs_stds']
+        else:
+            stds = np.asarray(self._adata.X.std(axis=1, ddof=1)).flatten()
+            self._cached['obs_stds'] = stds
+
+            if np.min(stds) == 0:
+                print(self.expression_data)
+                print(stds)
+
+            return stds
+
     def __getattr__(self, item):
         return getattr(self._adata, item)
 
@@ -338,6 +362,14 @@ class InferelatorData(object):
             self._make_idx_str(gene_data)
             self.gene_data = gene_data
 
+        self._cached = {}
+
+    def _clear_cache(func):
+        def _decorate(self, *args, **kwargs):
+            func(self, *args, **kwargs)
+            self._cached = {}
+        return _decorate
+
     def convert_to_float(self):
         if pat.is_float_dtype(self._data.dtype):
             return None
@@ -354,6 +386,7 @@ class InferelatorData(object):
 
         self._is_integer = False
 
+    @_clear_cache
     def trim_genes(self, remove_constant_genes=True, trim_gene_list=None):
         """
         Remove genes (columns) that are unwanted from the data set. Do this in-place.
@@ -404,31 +437,39 @@ class InferelatorData(object):
 
             self._adata = trim_adata
 
-    def get_gene_data(self, gene_list, copy=False, force_dense=False, to_df=False):
+    def get_gene_data(self, gene_list, copy=False, force_dense=False, to_df=False, zscore=False):
 
         x = self._adata[:, gene_list]
         labels = x.var_names
 
-        if (force_dense or to_df) and self.is_sparse:
+        if (force_dense or to_df or zscore) and self.is_sparse:
             x = x.X.A
-        elif copy:
-            x = x.X.copy()
         else:
             x = x.X
 
+        if zscore:
+            x = np.subtract(x, self.obs_means.reshape(-1, 1))
+            x = np.divide(x, self.obs_stdev.reshape(-1, 1))
+        elif copy:
+            x = x.copy()
+
         return pd.DataFrame(x, columns=labels, index=self.sample_names) if to_df else x
 
-    def get_sample_data(self, sample_index, copy=False, force_dense=False, to_df=False):
+    def get_sample_data(self, sample_index, copy=False, force_dense=False, to_df=False, zscore=False):
 
         x = self._adata[sample_index, :]
         labels = x.obs_names
 
-        if (force_dense or to_df) and self.is_sparse:
+        if (force_dense or to_df or zscore) and self.is_sparse:
             x = x.X.A
-        elif copy:
-            x = x.X.copy()
         else:
             x = x.X
+
+        if zscore:
+            x = np.subtract(x, self.obs_means[sample_index].reshape(-1, 1))
+            x = np.divide(x, self.obs_stdev[sample_index].reshape(-1, 1))
+        elif copy:
+            x = x.X.copy()
 
         return pd.DataFrame(x, columns=self.gene_names, index=labels) if to_df else x
 
@@ -485,6 +526,7 @@ class InferelatorData(object):
         else:
             self._adata.to_df().to_csv(file_name, sep=sep)
 
+    @_clear_cache
     def transform(self, func, add_pseudocount=False, memory_efficient=True, chunksize=1000):
 
         if add_pseudocount and self.is_sparse:
@@ -505,12 +547,15 @@ class InferelatorData(object):
         else:
             self._adata.X = func(self._adata.X)
 
+    @_clear_cache
     def add(self, val):
         self._data[...] = self._data + val
 
+    @_clear_cache
     def subtract(self, val):
         self._data[...] = self._data - val
 
+    @_clear_cache
     def divide(self, div_val, axis=None):
 
         if self._is_integer:
@@ -534,6 +579,7 @@ class InferelatorData(object):
         else:
             raise ValueError("axis must be 0, 1 or None")
 
+    @_clear_cache
     def multiply(self, mult_val, axis=None):
 
         if self._is_integer:
@@ -557,17 +603,22 @@ class InferelatorData(object):
         else:
             raise ValueError("axis must be 0, 1 or None")
 
-    def zscore_features(self, ddof=1):
+    @_clear_cache
+    def zscore(self, axis=0, ddof=1):
 
         self.convert_to_float()
         self.to_dense()
 
-        for i in range(self.shape[1]):
-            self._data[:, i] = scale_vector(self._data[:, i], ddof=ddof)
+        if axis == 0:
+            for i in range(self.shape[1]):
+                self._data[:, i] = scale_vector(self._data[:, i], ddof=ddof)
+        elif axis == 1:
+            for i in range(self.shape[0]):
+                self._data[i, :] = scale_vector(self._data[i, :], ddof=ddof)
 
     def copy(self):
 
-        new_data = InferelatorData(self.expression_data.copy() ,
+        new_data = InferelatorData(self.expression_data.copy(),
                                    meta_data=self.meta_data.copy(),
                                    gene_data=self.gene_data.copy())
 
