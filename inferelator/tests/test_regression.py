@@ -132,7 +132,7 @@ class TestMultitaskFactory(SetUpDenseDataMTL):
         self.reset_workflow()
 
         self.workflow.run()
-        self.assertAlmostEqual(self.workflow.results.score, 0.85, places=4)
+        self.assertAlmostEqual(self.workflow.results.score, 0.84166, places=4)
 
     def test_mtl_bbsr(self):
         self.workflow = workflow.inferelator_workflow(workflow="amusr", regression=BBSRByTaskRegressionWorkflow)

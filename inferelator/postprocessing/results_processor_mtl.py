@@ -75,8 +75,12 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
         overall_resc_betas = []
 
         # Get intersection of indices
-        gene_set = set([i for df in self.betas for i in df[0].index.tolist()])
-        tf_set = set([i for df in self.betas for i in df[0].columns.tolist()])
+        gene_set = list(set([i for df in self.betas for i in df[0].index.tolist()]))
+        tf_set = list(set([i for df in self.betas for i in df[0].columns.tolist()]))
+
+        # Use the existing indices if there's no difference from the intersection
+        gene_set = gene_set if len(self.betas[0][0].index.symmetric_difference(gene_set)) != 0 else self.betas[0][0].index
+        tf_set = tf_set if len(self.betas[0][0].columns.symmetric_difference(tf_set)) != 0 else self.betas[0][0].columns
 
         # Create empty dataframes for task-specific results
         overall_sign = pd.DataFrame(np.zeros((len(gene_set), len(tf_set))),
@@ -133,7 +137,8 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
         network_data = self.process_network(overall_rs_calc, None, beta_threshold=overall_threshold,
                                             extra_columns=extra_cols)
 
-        overall_result = self.result_object(network_data, overall_threshold, overall_rs_calc.all_confidences,
+        overall_result = self.result_object(network_data, overall_threshold,
+                                            _df_resizer(overall_rs_calc.all_confidences, gene_set, tf_set),
                                             overall_rs_calc)
         overall_result.write_result_files(output_dir)
 

@@ -117,8 +117,12 @@ class RankSummaryPR(RankSummingMetric):
             data.reset_index(inplace=True)
             utils.Debug.vprint("Resorting confidences for PR", level=0)
 
-        # Find the edges that are in the gold standard
+        # Get indices for stuff
+        zero_confidence = data[CONFIDENCE_COLUMN] == 0
         valid_gs_idx = ~pd.isnull(data[GOLD_STANDARD_COLUMN])
+        zero_confidence_precision_idx = zero_confidence & valid_gs_idx
+
+        # Find the edges that are in the gold standard
         valid_gs = (data.loc[valid_gs_idx, GOLD_STANDARD_COLUMN] != 0).astype(int)
 
         # the following mimics the R function ChristophsPR
@@ -128,6 +132,10 @@ class RankSummaryPR(RankSummingMetric):
 
         # Calculate precision [TP / (TP + FP)]
         data.loc[valid_gs_idx, PRECISION_COLUMN] = np.cumsum(valid_gs).astype(float) / np.cumsum([1] * len(valid_gs))
+
+        # Overwrite the precision of no-confidence with the mean value
+        zero_confidence_precision_val = data.loc[zero_confidence_precision_idx, PRECISION_COLUMN].mean()
+        data.loc[zero_confidence_precision_idx, PRECISION_COLUMN] = zero_confidence_precision_val
 
         # Calculate recall [TP / (TP + FN)]
         data.loc[valid_gs_idx, RECALL_COLUMN] = np.cumsum(valid_gs).astype(float) / sum(valid_gs)
