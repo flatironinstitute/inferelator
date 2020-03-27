@@ -38,9 +38,9 @@ class BaseRegression(object):
         self.G = Y.num_genes
         self.genes = Y.gene_names
 
-        # Rescale the design expression or activity data
+        # Rescale the design expression or activity data on features
         self.X = X
-        self.X.zscore_features()
+        self.X.zscore()
 
         self.Y = Y
 
@@ -91,7 +91,7 @@ class BaseRegression(object):
 
             # If data is None assume a null model
             if data is None:
-                continue
+                raise RuntimeError("No model produced by regression method")
 
             xidx = data['ind']  # Int
             yidx = data['pp']  # Boolean array of size K
