@@ -75,8 +75,8 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
         overall_resc_betas = []
 
         # Get intersection of indices
-        gene_set = list(set([i for df in self.betas for i in df[0].index.tolist()]))
-        tf_set = list(set([i for df in self.betas for i in df[0].columns.tolist()]))
+        gene_set = set([i for df in self.betas for i in df[0].index.tolist()])
+        tf_set = set([i for df in self.betas for i in df[0].columns.tolist()])
 
         # Create empty dataframes for task-specific results
         overall_sign = pd.DataFrame(np.zeros((len(gene_set), len(tf_set))),
