@@ -173,6 +173,14 @@ class InferelatorData(object):
         new_meta_data = new_meta_data.copy()
         new_meta_data.index = new_meta_data.index.astype(str)
 
+        # Force unique names by appending values
+        if self._adata.obs_names.nunique() != self.num_obs:
+            self._adata.obs_names_make_unique()
+
+        # Drop duplicate names on the new meta data
+        if new_meta_data.index.nunique() != new_meta_data.shape[0]:
+            new_meta_data = new_meta_data.loc[~new_meta_data.duplicated(), :]
+
         try:
             Validator.indexes_align((self.sample_names, new_meta_data.index), check_order=True)
         except ValueError:
@@ -330,9 +338,11 @@ class InferelatorData(object):
                 self._adata = AnnData(X=expression_data.T, dtype=dtype)
             else:
                 self._adata = AnnData(X=expression_data, dtype=dtype)
+
         elif expression_data is not None and isinstance(expression_data, AnnData):
             self._adata = expression_data
             self._is_integer = True if pat.is_integer_dtype(expression_data.X.dtype) else False
+
         elif expression_data is not None:
             if transpose_expression:
                 self._adata = AnnData(X=expression_data.T, dtype=expression_data.dtype)
@@ -474,7 +484,7 @@ class InferelatorData(object):
         return pd.DataFrame(x, columns=self.gene_names, index=labels) if to_df else x
 
     def get_bootstrap(self, sample_bootstrap_index):
-        return InferelatorData(expression_data=self._adata[sample_bootstrap_index, :].X,
+        return InferelatorData(expression_data=self._adata[sample_bootstrap_index, :].X.copy(),
                                gene_names=self.gene_names)
 
     def subset_copy(self, row_index=None, column_index=None):
