@@ -1,6 +1,6 @@
 from inferelator.distributed import AbstractController
 from inferelator import utils
-from inferelator import default
+import warnings
 
 DEFAULT_MP_ENGINE = "local"
 
@@ -63,6 +63,8 @@ class MPControl(AbstractController):
                 from inferelator.distributed.dask_local_controller import DaskController
                 cls.client = DaskController
             elif engine == "kvs":
+                warnings.warn("The KVS engine is deprecated. It has been replaced by Dask-based multiprocessing",
+                              DeprecationWarning)
                 from inferelator.distributed.kvs_controller import KVSController
                 cls.client = KVSController
             elif engine == "multiprocessing":
