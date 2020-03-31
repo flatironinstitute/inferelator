@@ -23,7 +23,7 @@ class MultiprocessingController(AbstractController):
 
     @classmethod
     def connect(cls, *args, **kwargs):
-        cls.client = pathos.multiprocessing.ProcessPool(processes=cls.processes, **kwargs)
+        cls.client = pathos.multiprocessing.ProcessPool(nodes=cls.processes, **kwargs)
         return True
 
     @classmethod
