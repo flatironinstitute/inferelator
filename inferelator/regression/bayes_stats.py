@@ -3,13 +3,15 @@ from __future__ import division
 import numpy as np
 import itertools
 import math
+import warnings
 import scipy.special
+import scipy.linalg
 
 from inferelator import utils
 from inferelator.regression import base_regression
 
 
-def bbsr(X, y, pp, weights, max_k):
+def bbsr(X, y, pp, weights, max_k, ordinary_least_squares=False):
     """
     Run BBSR to regress a response variable y in n conditions against predictors X in n conditions. Use the prior
     predictors matrix to filter the number of predictors from something massive to max_k.
@@ -48,7 +50,7 @@ def bbsr(X, y, pp, weights, max_k):
     utils.make_array_2d(gprior)
 
     # Reduce predictors to max_k
-    pp[pp_idx] = reduce_predictors(x, y, gprior, max_k)
+    pp[pp_idx] = reduce_predictors(x, y, gprior, max_k, ordinary_least_squares=ordinary_least_squares)
     pp_idx = base_regression.bool_to_index(pp)
 
     utils.Debug.vprint("Reduced to {pp_len} predictors".format(pp_len=len(pp_idx)), level=2)
@@ -64,7 +66,7 @@ def bbsr(X, y, pp, weights, max_k):
     gprior = weights[pp_idx].astype(np.dtype(float))
     utils.make_array_2d(gprior)
 
-    betas = best_subset_regression(x, y, gprior)
+    betas = best_subset_regression(x, y, gprior, ordinary_least_squares=ordinary_least_squares)
     betas_resc = base_regression.predict_error_reduction(x, y, betas)
 
     return dict(pp=pp,
@@ -72,7 +74,7 @@ def bbsr(X, y, pp, weights, max_k):
                 betas_resc=betas_resc)
 
 
-def best_subset_regression(x, y, gprior):
+def best_subset_regression(x, y, gprior, ordinary_least_squares=False):
     """
 
     :param x: np.ndarray
@@ -86,7 +88,8 @@ def best_subset_regression(x, y, gprior):
     (n, k) = x.shape
     combos = combo_index(k)
 
-    bic_combos = calc_all_expected_BIC(x, y, gprior, combos, check_rank=False)
+    bic_combos = calc_all_expected_BIC(x, y, gprior, combos, check_rank=False,
+                                       ordinary_least_squares=ordinary_least_squares)
 
     best_betas = np.zeros(k, dtype=np.dtype(float))
     try:
@@ -100,7 +103,7 @@ def best_subset_regression(x, y, gprior):
     return best_betas
 
 
-def reduce_predictors(x, y, gprior, max_k):
+def reduce_predictors(x, y, gprior, max_k, ordinary_least_squares=False):
     """
     Determine which predictors are the most valuable by calculating BICs for single and pairwise predictor models
     :param x: np.ndarray [n x k]
@@ -116,7 +119,7 @@ def reduce_predictors(x, y, gprior, max_k):
     else:
         # Get BIC for every combination of single or double predictors
         combos = np.hstack((np.diag(np.repeat(True, k)), select_index(k)))
-        bic = calc_all_expected_BIC(x, y, gprior, combos)
+        bic = calc_all_expected_BIC(x, y, gprior, combos, ordinary_least_squares=ordinary_least_squares)
 
         reset = np.seterr(divide='ignore', invalid='ignore')
         bic = np.multiply(combos.T, bic.reshape(-1, 1)).sum(axis=0)
@@ -129,7 +132,7 @@ def reduce_predictors(x, y, gprior, max_k):
         return predictors
 
 
-def calc_all_expected_BIC(x, y, g, combinations, check_rank=True):
+def calc_all_expected_BIC(x, y, g, combinations, check_rank=True, ordinary_least_squares=False):
     """
     Calculate BICs for every combination of predictors given in combinations
     :param x: np.ndarray [n x k]
@@ -165,53 +168,67 @@ def calc_all_expected_BIC(x, y, g, combinations, check_rank=True):
     gprior = np.multiply(gprior, gprior.T)
     bic = np.zeros(c, dtype=np.dtype(float))
 
-    for i in range(c):
-        # Convert the boolean slice into an index
-        c_idx = base_regression.bool_to_index(combinations[:, i])
-        k_included = len(c_idx)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for i in range(c):
+            # Convert the boolean slice into an index
+            c_idx = base_regression.bool_to_index(combinations[:, i])
+            k_included = len(c_idx)
 
-        # Check for a null model
-        if (k_included == 0) and (np.var(y) == 0):
-            bic[i] = np.inf
-            continue
-        elif k_included == 0:
-            bic[i] = n * np.log(np.var(y, ddof=1))
-            continue
+            # Check for a null model
+            if k_included == 0:
+                bic[i] = n * np.log(np.var(y, ddof=1))
+                continue
 
-        # Calculate the rate parameter from this specific combination of predictors
-        try:
-            rate = _calc_rate(x[:, c_idx],
-                              y,
-                              xtx[:, c_idx][c_idx, :],
-                              xty[c_idx],
-                              gprior[:, c_idx][c_idx, :],
-                              check_rank=check_rank)
-            if np.isfinite(rate) and rate > 0:
-                bic[i] = n * (np.log(rate) - digamma_shape) + k_included * np.log(n)
-            else:
-                raise np.linalg.LinAlgError
-        except np.linalg.LinAlgError:
-            bic[i] = np.inf
+            # Calculate the rate parameter from this specific combination of predictors
+            try:
+                xtx_slice = xtx[:, c_idx][c_idx, :]
+
+                model_beta = _solve_model(xtx_slice, xty[c_idx], check_rank=check_rank)
+                model_ssr = ssr(x[:, c_idx], y, model_beta)
+                if ordinary_least_squares:
+                    bic[i] = _calc_BIC_RSS(n, k_included, model_ssr)
+                else:
+                    scale_param = _calc_ig_scale(model_beta, model_ssr, xtx_slice, gprior[:, c_idx][c_idx, :])
+                    if np.isfinite(scale_param) and scale_param > 0:
+                        bic[i] = _calc_BIC_inverse_gamma(n, k_included, digamma_shape, scale_param)
+                    else:
+                        raise np.linalg.LinAlgError
+            except np.linalg.LinAlgError:
+                bic[i] = np.inf
+
     return bic
 
 
-def _calc_rate(x, y, xtx, xty, gprior, check_rank=True):
-    # Check to see if xTx is nonsingular (if necessary)
-    if check_rank and not _matrix_full_rank(xtx):
-        raise np.linalg.LinAlgError
+def _calc_BIC_inverse_gamma(n, k, shape, scale):
+    return n * (np.log(scale) - shape) + k * np.log(n)
 
-    # Regress xTx against xTy and calculate the SSR
-    beta_hat = np.linalg.solve(xtx, xty)
-    ssr_beta_hat = ssr(x, y, beta_hat)
 
-    # Calculate the rate parameter for Zellner's g-prior
+def _calc_BIC_RSS(n, k, model_ssr):
+    if model_ssr <= 0:
+        model_ssr = np.finfo(float).eps
+
+    return n * (np.log(model_ssr / n)) + k * np.log(n)
+
+
+def _calc_ig_scale(beta_hat, model_ssr, xtx, gprior):
+    # Calculate the rate parameter with a g-prior
     beta_flip = (0 - beta_hat.T)
     rate = xtx * gprior
     rate = np.dot(rate, beta_flip.T)
     rate = np.dot(beta_flip, rate)
 
     # Return the mean of the SSR and the rate parameter
-    return (ssr_beta_hat + rate) / 2
+    return (model_ssr + rate) / 2
+
+
+def _solve_model(xtx, xty, check_rank=True):
+    # Check to see if xTx is nonsingular (if necessary)
+    if check_rank and not _matrix_full_rank(xtx):
+        raise np.linalg.LinAlgError
+
+    # Solve xTx against xTy
+    return scipy.linalg.solve(xtx, xty, assume_a='sym')
 
 
 def _best_combo_idx(x, bic, combo):

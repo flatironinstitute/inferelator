@@ -38,8 +38,10 @@ class BBSR(base_regression.BaseRegression):
     pp = None  # [G x K] bool
     nS = DEFAULT_nS  # int
 
+    ols_only = False
+
     def __init__(self, X, Y, clr_mat, prior_mat, nS=DEFAULT_nS, prior_weight=DEFAULT_prior_weight,
-                 no_prior_weight=DEFAULT_no_prior_weight):
+                 no_prior_weight=DEFAULT_no_prior_weight, ordinary_least_squares=False):
         """
         Create a Regression object for Bayes Best Subset Regression
 
@@ -63,6 +65,7 @@ class BBSR(base_regression.BaseRegression):
         super(BBSR, self).__init__(X, Y)
 
         self.nS = nS
+        self.ols_only = ordinary_least_squares
 
         # Calculate the weight matrix
         self.prior_weight = prior_weight
@@ -100,7 +103,8 @@ class BBSR(base_regression.BaseRegression):
                                     utils.scale_vector(self.Y.get_gene_data(j, force_dense=True).flatten()),
                                     self.pp.iloc[j, :].values.flatten(),
                                     self.weights_mat.iloc[j, :].values.flatten(),
-                                    self.nS)
+                                    self.nS,
+                                    ordinary_least_squares=self.ols_only)
             data['ind'] = j
             return data
 
@@ -170,8 +174,10 @@ class BBSRRegressionWorkflow(base_regression.RegressionWorkflow):
     no_prior_weight = DEFAULT_no_prior_weight
     bsr_feature_num = DEFAULT_nS
     clr_only = False
+    ols_only = False
 
-    def set_regression_parameters(self, prior_weight=None, no_prior_weight=None, bsr_feature_num=None, clr_only=False):
+    def set_regression_parameters(self, prior_weight=None, no_prior_weight=None, bsr_feature_num=None, clr_only=False,
+                                  ordinary_least_squares_only=None):
         """
         Set regression parameters for BBSR
         :param prior_weight:
@@ -184,6 +190,7 @@ class BBSRRegressionWorkflow(base_regression.RegressionWorkflow):
         self._set_with_warning("no_prior_weight", no_prior_weight)
         self._set_with_warning("bsr_feature_num", bsr_feature_num)
         self._set_without_warning("clr_only", clr_only)
+        self._set_without_warning("ols_only", ordinary_least_squares_only)
 
     def run_bootstrap(self, bootstrap):
         X = self.design.get_bootstrap(bootstrap)
@@ -200,4 +207,5 @@ class BBSRRegressionWorkflow(base_regression.RegressionWorkflow):
             priors = self.priors_data
 
         return BBSR(X, Y, clr_matrix, priors, prior_weight=self.prior_weight,
-                    no_prior_weight=self.no_prior_weight, nS=self.bsr_feature_num).run()
+                    no_prior_weight=self.no_prior_weight, nS=self.bsr_feature_num,
+                    ordinary_least_squares=self.ols_only).run()
