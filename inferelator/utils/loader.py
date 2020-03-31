@@ -1,6 +1,7 @@
 import pandas as pd
 import os
 import copy as cp
+import anndata
 
 from inferelator.utils.data import InferelatorData
 from inferelator.utils.debug import Debug
@@ -18,6 +19,39 @@ class InferelatorDataLoader(object):
         self.input_dir = input_dir
         self._file_format_settings = file_format_settings
 
+    def load_data_h5ad(self, h5ad_file, meta_data_file=None, meta_data_handler=DEFAULT_METADATA, gene_data_file=None,
+                       gene_name_column=None, use_layer=None):
+
+        data = anndata.read_h5ad(self.input_path(h5ad_file))
+
+        if meta_data_file is None and data.obs.shape[1] > 0:
+            meta_data = None
+        else:
+            meta_data = self.load_metadata_tsv(meta_data_file, data.obs_names, meta_data_handler=meta_data_handler)
+
+        gene_metadata = self.load_gene_metadata_tsv(gene_data_file, gene_name_column)
+
+        if use_layer is not None and use_layer not in data.layers:
+            msg = "Layer {lay} is not in {f}".format(lay=use_layer, f=h5ad_file)
+            raise ValueError(msg)
+
+        # Build an InferelatorData object from a layer
+        elif use_layer is not None:
+            data = InferelatorData(data.layers[use_layer],
+                                   gene_names=data.var_names,
+                                   sample_names=data.obs_names,
+                                   meta_data=pd.concat((data.obs, meta_data), axis=1),
+                                   gene_data=pd.concat((data.var, gene_metadata), axis=1))
+
+        # Build an InferelatorData object from everything
+        else:
+            data = InferelatorData(data,
+                                   meta_data=meta_data,
+                                   gene_data=gene_metadata)
+
+        self._check_loaded_data(data)
+        return data
+
     def load_data_tsv(self, expression_matrix_file, transpose_expression_data=False, meta_data_file=None,
                       meta_data_handler=DEFAULT_METADATA, expression_matrix_metadata=None, gene_data_file=None,
                       gene_name_column=None):
@@ -33,36 +67,15 @@ class InferelatorDataLoader(object):
         else:
             slice_meta_data = None
 
-        # Load metadata
-        meta_data_handler = MetadataHandler.get_handler(meta_data_handler)
-        if meta_data_file is not None:
-            Debug.vprint("Loading metadata file {file}".format(file=meta_data_file), level=0)
-            meta_data = meta_data_handler.check_loaded_meta_data(self.input_dataframe(meta_data_file, index_col=None))
-        elif slice_meta_data is None:
-            Debug.vprint("No metadata provided. Creating a generic metadata", level=0)
-            sample_labels = data.columns if transpose_expression_data else data.index
-            meta_data = meta_data_handler.create_default_meta_data(sample_labels)
-        else:
+        if meta_data_file is None and slice_meta_data is not None:
             meta_data = None
+        else:
+            sample_labels = data.columns if transpose_expression_data else data.index
+            meta_data = self.load_metadata_tsv(meta_data_file, sample_labels, meta_data_handler=meta_data_handler)
 
         meta_data = pd.concat((meta_data, slice_meta_data), axis=1)
 
-        # Load gene metadata
-        if gene_data_file is None and gene_name_column is None:
-            gene_metadata = None
-        elif gene_data_file is None or gene_name_column is None:
-            raise ValueError("Gene_metadata_file and gene_list_index must both be set if either is")
-        else:
-            Debug.vprint("Loading gene metadata from file {file}".format(file=gene_data_file), level=0)
-            gene_metadata = self.input_dataframe(gene_data_file, index_col=None)
-
-            # Validate that the gene_metadata can be properly read, if loaded
-            if gene_name_column in gene_metadata:
-                gene_metadata.index = gene_metadata[gene_name_column]
-            else:
-                msg = "Column {c} not found in gene data file [{h}]".format(c=gene_name_column,
-                                                                            h=" ".join(gene_metadata.columns))
-                raise ValueError(msg)
+        gene_metadata = self.load_gene_metadata_tsv(gene_data_file, gene_name_column)
 
         # Pack all data structures into an InferelatorData object
         data = InferelatorData(data,
@@ -70,12 +83,40 @@ class InferelatorDataLoader(object):
                                meta_data=meta_data,
                                gene_data=gene_metadata)
 
-        nnf, non_finite_genes = data.non_finite
-        if nnf > 0:
-            Debug.vprint("{n} genes with non-finite expression ({g})".format(n=nnf, g=" ".join(non_finite_genes)))
-
-        Debug.vprint("Expression data loaded: {dt}".format(dt=str(data)))
+        self._check_loaded_data(data)
         return data
+
+    def load_metadata_tsv(self, meta_data_file, sample_labels, meta_data_handler=None):
+        # Load metadata
+        meta_data_handler = MetadataHandler.get_handler(meta_data_handler)
+        if meta_data_file is not None:
+            Debug.vprint("Loading metadata file {file}".format(file=meta_data_file), level=0)
+            meta_data = meta_data_handler.check_loaded_meta_data(self.input_dataframe(meta_data_file, index_col=None))
+        else:
+            Debug.vprint("No metadata provided. Creating a generic metadata", level=0)
+            meta_data = meta_data_handler.create_default_meta_data(sample_labels)
+
+        return meta_data
+
+    def load_gene_metadata_tsv(self, gene_data_file, gene_name_column):
+        # Load gene metadata
+        if gene_data_file is None and gene_name_column is None:
+            return None
+        elif gene_data_file is None or gene_name_column is None:
+            raise ValueError("Gene_metadata_file and gene_list_index must both be set if either is")
+
+        Debug.vprint("Loading gene metadata from file {file}".format(file=gene_data_file), level=0)
+        gene_metadata = self.input_dataframe(gene_data_file, index_col=None)
+
+        # Validate that the gene_metadata can be properly read, if loaded
+        if gene_name_column in gene_metadata:
+            gene_metadata.index = gene_metadata[gene_name_column]
+        else:
+            msg = "Column {c} not found in gene data file [{h}]".format(c=gene_name_column,
+                                                                        h=" ".join(gene_metadata.columns))
+            raise ValueError(msg)
+
+        return gene_metadata
 
     def input_dataframe(self, filename, **kwargs):
         """
@@ -105,6 +146,14 @@ class InferelatorDataLoader(object):
         """
 
         return self.filename_path_join(self.input_dir, filename)
+
+    @staticmethod
+    def _check_loaded_data(data):
+        nnf, non_finite_genes = data.non_finite
+        if nnf > 0:
+            Debug.vprint("{n} genes with non-finite expression ({g})".format(n=nnf, g=" ".join(non_finite_genes)))
+
+        Debug.vprint("Expression data loaded: {dt}".format(dt=str(data)))
 
     @staticmethod
     def filename_path_join(path, filename):

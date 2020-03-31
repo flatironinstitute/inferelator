@@ -351,13 +351,21 @@ class WorkflowBaseLoader(object):
         gene_data_file = gene_data_file if gene_data_file is not None else self.gene_metadata_file
 
         loader = InferelatorDataLoader(input_dir=self.input_dir, file_format_settings=self._file_format_settings)
-        self.data = loader.load_data_tsv(expression_file,
-                                         transpose_expression_data=not self.expression_matrix_columns_are_genes,
-                                         expression_matrix_metadata=self.expression_matrix_metadata,
-                                         meta_data_file=meta_data_file,
-                                         meta_data_handler=self.metadata_handler,
-                                         gene_data_file=gene_data_file,
-                                         gene_name_column=self.gene_list_index)
+
+        if expression_file.lower().endswith("h5ad") or expression_file.lower().endswith("h5"):
+            self.data = loader.load_data_h5ad(expression_file,
+                                              meta_data_file=meta_data_file,
+                                              meta_data_handler=self.metadata_handler,
+                                              gene_data_file=gene_data_file,
+                                              gene_name_column=self.gene_list_index)
+        else:
+            self.data = loader.load_data_tsv(expression_file,
+                                             transpose_expression_data=not self.expression_matrix_columns_are_genes,
+                                             expression_matrix_metadata=self.expression_matrix_metadata,
+                                             meta_data_file=meta_data_file,
+                                             meta_data_handler=self.metadata_handler,
+                                             gene_data_file=gene_data_file,
+                                             gene_name_column=self.gene_list_index)
 
     def read_tfs(self, file=None):
         """
