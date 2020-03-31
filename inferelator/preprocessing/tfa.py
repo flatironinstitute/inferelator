@@ -1,15 +1,18 @@
 import numpy as np
 from scipy import (linalg, sparse)
-
 from inferelator import utils
 
 try:
     from sparse_dot_mkl import dot_product_mkl
-except ImportError:
+except ImportError as err:
+    utils.Debug.vprint("Unable to utilize MKL with sparse_dot_mkl:", level=1)
+    utils.Debug.vprint(str(err), level=1)
+
     def dot_product_mkl(a, b, dense=True):
         a = a.A if sparse.isspmatrix(a) else a
         b = b.A if sparse.isspmatrix(b) else b
         return np.dot(a, b)
+
 
 class TFA:
     """ TFA calculates transcription factor activity using matrix pseudoinverse """
