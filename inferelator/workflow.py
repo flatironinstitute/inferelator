@@ -176,6 +176,28 @@ class WorkflowBaseLoader(object):
 
     def set_expression_file(self, tsv=None, hdf5=None, h5ad=None, tenx_path=None, mtx=None, mtx_barcode=None,
                             mtx_feature=None, h5_layer=None):
+        """
+        Set the type of expression data file. Current loaders include TSV, hdf5, h5ad (AnnData), and MTX sparse files.
+        Only one of these loaders can be used; passing arguments for multiple loaders will raise a ValueError.
+
+        :param tsv: A path to a TSV (or tsv.gz) file which can be loaded by pandas.read_csv()
+        :type tsv: str, optional
+        :param hdf5: A path to a hdf5 file which can be loaded by pandas.HDFStore
+        :type hdf5: str, optional
+        :param h5ad: A path to an AnnData hd5 file
+        :type h5ad: str, optional
+        :param tenx_path: A path to the folder containing the 10x mtx, barcode, and feature files
+        :type tenx_path: Path, optional
+        :param mtx: A path to an mtx file
+        :type mtx: str, optional
+        :param mtx_barcode: A path to a list of observation names (i.e. barcodes, etc) for the mtx file
+        :type mtx_barcode: str, optional
+        :param mtx_feature: A path to a list of gene names for the mtx file
+        :type mtx_feature: str, optional
+        :param h5_layer: The layer (in an AnnData h5) or the store key (in an hdf5) file to use.
+            Defaults to using the first key.
+        :type h5_layer: str, optional
+        """
 
         nones = [(tsv is None) + (hdf5 is None) + (h5ad is None) + (tenx_path is None) + (mtx is None)]
 
