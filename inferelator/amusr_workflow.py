@@ -389,7 +389,8 @@ def create_task_data_class(workflow_class="single-cell"):
             return task_str
 
         def __init__(self):
-            pass
+            if self._file_format_settings is None:
+                self._file_format_settings = dict()
 
         def initialize_multiprocessing(self):
             """
