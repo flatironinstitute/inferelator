@@ -12,15 +12,15 @@ class TestTFA(unittest.TestCase):
     # Test for 5 genes, one of which is a TF, 5 condidtions, and 4 TFs.
     # where tau is equal to 1, so expression_matrix and expression_matrix_halftau are equivalent
     def setup_mouse_th17(self):
-        exp = pd.DataFrame(np.array([[12.28440, 12.55000, 11.86260, 11.86230, 11.88100],
-                                     [8.16000, 8.55360, 7.76500, 7.89030, 8.08710],
-                                     [10.47820, 11.08340, 10.52270, 10.34180, 10.38780],
-                                     [5.46000, 5.48910, 4.90390, 4.69800, 5.07880],
-                                     [7.96367, 7.86005, 7.82641, 7.94938, 7.67066]]))
-        exp.columns = ['s1', 's2', 's3', 's4', 's5']
-        exp.index = ['g1', 't2', 'g3', 'g4', 'g5']
+        exp = pd.DataFrame(np.array([[12.2844, 8.16, 10.4782, 5.46, 7.96367],
+                                     [12.55, 8.5536, 11.0834, 5.4891, 7.86005],
+                                     [11.8626, 7.765, 10.5227, 4.9039, 7.82641],
+                                     [11.8623, 7.8903, 10.3418, 4.698, 7.94938],
+                                     [11.881, 8.0871, 10.3878, 5.0788, 7.67066]]))
+        exp.index = ['s1', 's2', 's3', 's4', 's5']
+        exp.columns = ['g1', 't2', 'g3', 'g4', 'g5']
 
-        self.exp = InferelatorData(exp, transpose_expression=True)
+        self.exp = InferelatorData(exp)
 
         self.priors = pd.DataFrame(np.array([[1, 0, 0, 1],
                                              [0, 0, 0, 0],
@@ -31,22 +31,24 @@ class TestTFA(unittest.TestCase):
                                    index=['g1', 't2', 'g3', 'g4', 'g5'])
 
     def setup_three_columns(self):
-        exp = pd.DataFrame(np.array([[1, 3], [1, 2], [0, 3]]),
-                           columns=['s1', 's2'],
-                           index=['g1', 'tf1', 'g3'])
+        exp = pd.DataFrame(np.array([[1, 1, 0],
+                                     [3, 2, 3]]),
+                           index=['s1', 's2'],
+                           columns=['g1', 'tf1', 'g3'])
 
-        self.exp = InferelatorData(exp, transpose_expression=True)
+        self.exp = InferelatorData(exp)
 
         self.priors = pd.DataFrame(np.array([[1, 1, 1], [1, 1, 0], [0, 0, 0]]),
                                    columns=['tf1', 'tf2', 'tf3'],
                                    index=self.exp.gene_names)
 
     def setup_one_column(self):
-        exp = pd.DataFrame(np.array([[1, 3], [1, 2], [0, 3]]),
-                           columns=['s1', 's2'],
-                           index=['g1', 'tf1', 'g3'])
+        exp = pd.DataFrame(np.array([[1, 1, 0],
+                                     [3, 2, 3]]),
+                           index=['s1', 's2'],
+                           columns=['g1', 'tf1', 'g3'])
 
-        self.exp = InferelatorData(exp, transpose_expression=True)
+        self.exp = InferelatorData(exp)
 
         self.priors = pd.DataFrame(np.array([[1], [1], [0]]),
                                    columns=['tf1'],

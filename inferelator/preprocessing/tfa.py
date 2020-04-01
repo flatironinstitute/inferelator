@@ -8,7 +8,7 @@ except ImportError as err:
     utils.Debug.vprint("Unable to utilize MKL with sparse_dot_mkl:", level=1)
     utils.Debug.vprint(str(err), level=1)
 
-    def dot_product_mkl(a, b, dense=True):
+    def dot_product_mkl(a, b, dense=True, cast=True):
         a = a.A if sparse.isspmatrix(a) else a
         b = b.A if sparse.isspmatrix(b) else b
         return np.dot(a, b)
@@ -69,7 +69,8 @@ class TFA:
 
     @staticmethod
     def _calculate_activity(prior, expression_data):
-        return dot_product_mkl(expression_data.expression_data, linalg.pinv2(prior).T, dense=True)
+        inv_prior = np.asarray(linalg.pinv2(prior).T, order="C")
+        return dot_product_mkl(expression_data.expression_data, inv_prior, dense=True, cast=True)
 
 
 class NoTFA(TFA):
