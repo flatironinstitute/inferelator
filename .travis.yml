@@ -16,9 +16,9 @@ script:
   - git clone https://github.com/simonsfoundation/kvsstcp
   - export PYTHONPATH=$PYTHONPATH:$(pwd)/kvsstcp
   - python -c "import os; print(repr(os.name))"
-  - python -c "import matplotlib.pyplot as plt; print('imported matplotlib '+ str(plt.__version__))"
+  - python -c "import matplotlib as plt; print('imported matplotlib '+ str(plt.__version__))"
   - python -c "import pandas as pd; print('imported pandas '+ str(pd.__version__))"
-  - python -c "import numpy as np; print('imported matplotlib '+ str(np.__version__))"
+  - python -c "import numpy as np; print('imported numpy '+ str(np.__version__))"
   - python -c "import anndata as ad; print('imported anndata '+ str(ad.__version__))"
   - coverage run --source=inferelator setup.py test
 after_success:
