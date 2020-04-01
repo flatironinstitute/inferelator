@@ -177,9 +177,11 @@ class WorkflowBaseLoader(object):
     def set_expression_file(self, tsv=None, hdf5=None, h5ad=None, tenx_path=None, mtx=None, mtx_barcode=None,
                             mtx_feature=None, h5_layer=None):
 
-        nones = (tsv is None) + (hdf5 is None) + (h5ad is None) + (tenx_path is None) + (mtx is None)
+        nones = [(tsv is None) + (hdf5 is None) + (h5ad is None) + (tenx_path is None) + (mtx is None)]
 
-        if nones > 1:
+        if all(nones):
+            Debug.vprint("No file provided", level=0)
+        elif sum(nones) != (len(nones) - 1):
             raise ValueError("Only one type of input expression file can be set")
 
         if tsv is not None:
