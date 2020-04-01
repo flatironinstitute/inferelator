@@ -25,6 +25,12 @@ from inferelator.postprocessing.results_processor import ResultsProcessor
 
 SBATCH_VARS_FOR_WORKFLOW = ["output_dir", "input_dir"]
 
+_TENX = "tenx"
+_TSV = "tsv"
+_H5AD = "h5ad"
+_HDF5 = "hdf5"
+_MTX = "mtx"
+
 
 class WorkflowBaseLoader(object):
     """
@@ -40,6 +46,10 @@ class WorkflowBaseLoader(object):
     meta_data_file = None
     priors_file = None
     gold_standard_file = None
+
+    # The expression file type
+    _expression_loader = _TSV
+    _h5_layer = None
 
     # Metadata handler
     metadata_handler = "branching"
@@ -157,6 +167,41 @@ class WorkflowBaseLoader(object):
         self._set_file_name("gold_standard_file", gold_standard_file)
         self._set_file_name("gene_metadata_file", gene_metadata_file)
         self._set_file_name("gene_names_file", gene_names_file)
+
+        if expression_matrix_file is not None:
+            self._expression_loader = _TSV
+            if ".tsv" not in expression_matrix_file:
+                msg = "`set_file_paths` assumes data is in a TSV. Use `set_expression_file` for other formats"
+                warnings.warn(msg)
+
+    def set_expression_file(self, tsv=None, hdf5=None, h5ad=None, tenx_path=None, mtx=None, mtx_barcode=None,
+                            mtx_feature=None, h5_layer=None):
+
+        nones = (tsv is None) + (hdf5 is None) + (h5ad is None) + (tenx_path is None) + (mtx is None)
+
+        if nones > 1:
+            raise ValueError("Only one type of input expression file can be set")
+
+        if tsv is not None:
+            self._set_file_name("expression_matrix_file", tsv)
+            self._expression_loader = _TSV
+        elif hdf5 is not None:
+            self._set_file_name("expression_matrix_file", hdf5)
+            self._expression_loader = _HDF5
+            self._h5_layer = h5_layer
+        elif h5ad is not None:
+            self._set_file_name("expression_matrix_file", h5ad)
+            self._expression_loader = _H5AD
+            self._h5_layer = h5_layer
+        elif mtx is not None:
+            self._check_file_exists(mtx)
+            self._check_file_exists(mtx_barcode)
+            self._check_file_exists(mtx_feature)
+            self.expression_matrix_file = (mtx, mtx_barcode, mtx_feature)
+            self._expression_loader = _MTX
+        elif tenx_path is not None:
+            self.expression_matrix_file = tenx_path
+            self._expression_loader = _TENX
 
     def set_file_properties(self, extract_metadata_from_expression_matrix=None, expression_matrix_metadata=None,
                             expression_matrix_columns_are_genes=None, gene_list_index=None, metadata_handler=None):
@@ -279,10 +324,17 @@ class WorkflowBaseLoader(object):
         if file_name not in self._file_format_settings:
             self._file_format_settings[file_name] = copy.copy(DEFAULT_PANDAS_TSV_SETTINGS)
 
-        if not os.path.isfile(self.input_path(file_name)):
-            Debug.vprint("File {f} does not exist".format(f=file_name), level=0)
-
+        self._check_file_exists(file_name)
         self._set_with_warning(attr_name, file_name)
+
+    def _check_file_exists(self, file_name):
+        """
+        Print a warning if a file doesn't exist
+        :param file_name: str
+        """
+
+        if file_name is not None and not os.path.isfile(self.input_path(file_name)):
+            Debug.vprint("File {f} does not exist".format(f=file_name), level=0)
 
     def _set_without_warning(self, attr_name, value):
         """
@@ -352,13 +404,15 @@ class WorkflowBaseLoader(object):
 
         loader = InferelatorDataLoader(input_dir=self.input_dir, file_format_settings=self._file_format_settings)
 
-        if expression_file.lower().endswith("h5ad") or expression_file.lower().endswith("h5"):
+        if self._expression_loader == _H5AD:
             self.data = loader.load_data_h5ad(expression_file,
+                                              use_layer=self._h5_layer,
                                               meta_data_file=meta_data_file,
                                               meta_data_handler=self.metadata_handler,
                                               gene_data_file=gene_data_file,
                                               gene_name_column=self.gene_list_index)
-        else:
+
+        elif self._expression_loader == _TSV:
             self.data = loader.load_data_tsv(expression_file,
                                              transpose_expression_data=not self.expression_matrix_columns_are_genes,
                                              expression_matrix_metadata=self.expression_matrix_metadata,
@@ -366,6 +420,30 @@ class WorkflowBaseLoader(object):
                                              meta_data_handler=self.metadata_handler,
                                              gene_data_file=gene_data_file,
                                              gene_name_column=self.gene_list_index)
+
+        elif self._expression_loader == _MTX:
+            self.data = loader.load_data_mtx(expression_file[0],
+                                             mtx_feature=expression_file[1],
+                                             mtx_obs=expression_file[2],
+                                             meta_data_file=meta_data_file,
+                                             meta_data_handler=self.metadata_handler,
+                                             gene_data_file=gene_data_file,
+                                             gene_name_column=self.gene_list_index)
+
+        elif self._expression_loader == _TENX:
+            self.data = loader.load_data_mtx(expression_file,
+                                             meta_data_file=meta_data_file,
+                                             meta_data_handler=self.metadata_handler,
+                                             gene_data_file=gene_data_file,
+                                             gene_name_column=self.gene_list_index)
+
+        elif self._expression_loader == _HDF5:
+            self.data = loader.load_data_hdf5(expression_file,
+                                              use_layer=self._h5_layer,
+                                              meta_data_file=meta_data_file,
+                                              meta_data_handler=self.metadata_handler,
+                                              gene_data_file=gene_data_file,
+                                              gene_name_column=self.gene_list_index)
 
     def read_tfs(self, file=None):
         """

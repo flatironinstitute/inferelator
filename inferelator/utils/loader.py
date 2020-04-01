@@ -10,6 +10,10 @@ from inferelator.preprocessing.metadata_parser import MetadataHandler
 DEFAULT_PANDAS_TSV_SETTINGS = dict(sep="\t", index_col=0, header=0)
 DEFAULT_METADATA = "branching"
 
+_TENX_MTX = ("matrix.mtx.gz", "mtarix.mtx")
+_TENX_BARCODES = ("barcodes.tsv.gz", "barcodes.tsv")
+_TENX_FEATURES = ("features.tsv.gz", "genes.tsv")
+
 
 class InferelatorDataLoader(object):
     input_dir = None
@@ -51,6 +55,64 @@ class InferelatorDataLoader(object):
 
         self._check_loaded_data(data)
         return data
+
+    def load_data_mtx(self, mtx_file, mtx_obs=None, mtx_feature=None, meta_data_file=None,
+                      meta_data_handler=DEFAULT_METADATA, gene_data_file=None, gene_name_column=None):
+
+        data = anndata.read_mtx(self.input_path(mtx_file))
+        row_names = self._load_list_from_file(self.input_path(mtx_obs)) if mtx_obs is not None else None
+        col_names = self._load_list_from_file(self.input_path(mtx_feature)) if mtx_feature is not None else None
+
+        meta_data = self.load_metadata_tsv(meta_data_file, data.obs_names, meta_data_handler=meta_data_handler)
+        gene_metadata = self.load_gene_metadata_tsv(gene_data_file, gene_name_column)
+
+        data = InferelatorData(data,
+                               meta_data=meta_data,
+                               gene_data=gene_metadata,
+                               sample_names=row_names,
+                               gene_names=col_names)
+
+        return data
+
+    def load_data_hdf5(self, hdf5_file, use_layer=None, meta_data_file=None, meta_data_handler=DEFAULT_METADATA,
+                       gene_data_file=None, gene_name_column=None):
+
+        data = pd.HDFStore(self.input_path(hdf5_file), mode='r')
+        data = data[data.keys()[0]] if use_layer is None else data[use_layer]
+
+        meta_data = self.load_metadata_tsv(meta_data_file, data.index, meta_data_handler=meta_data_handler)
+        gene_metadata = self.load_gene_metadata_tsv(gene_data_file, gene_name_column)
+
+        data = InferelatorData(data,
+                               meta_data=meta_data,
+                               gene_data=gene_metadata)
+
+        return data
+
+    def load_data_tenx(self, tenx_path, meta_data_file=None, meta_data_handler=DEFAULT_METADATA, gene_data_file=None,
+                       gene_name_column=None):
+
+        mtx_file, mtx_obs, mtx_feature = None, None, None
+
+        for datafile in _TENX_MTX:
+            if self._file_exists(self.filename_path_join(tenx_path, datafile)):
+                mtx_file = datafile
+
+        for datafile in _TENX_BARCODES:
+            if self._file_exists(self.filename_path_join(tenx_path, datafile)):
+                mtx_obs = datafile
+
+        for datafile in _TENX_FEATURES:
+            if self._file_exists(self.filename_path_join(tenx_path, datafile)):
+                mtx_feature = datafile
+
+        if mtx_file is None:
+            msg = "Cannot find 10x files ({f}) in path ({p})".format(f=" or ".join(_TENX_MTX), p=tenx_path)
+            raise FileNotFoundError(msg)
+        else:
+            return self.load_data_mtx(mtx_file, mtx_obs=mtx_obs, mtx_feature=mtx_feature, meta_data_file=meta_data_file,
+                                      meta_data_handler=meta_data_handler, gene_data_file=gene_data_file,
+                                      gene_name_column=gene_name_column)
 
     def load_data_tsv(self, expression_matrix_file, transpose_expression_data=False, meta_data_file=None,
                       meta_data_handler=DEFAULT_METADATA, expression_matrix_metadata=None, gene_data_file=None,
@@ -146,6 +208,14 @@ class InferelatorDataLoader(object):
         """
 
         return self.filename_path_join(self.input_dir, filename)
+
+    @staticmethod
+    def _file_exists(filename):
+        return filename is not None and not os.path.isfile(filename)
+
+    @staticmethod
+    def _load_list_from_file(filename):
+        return pd.read_csv(filename, sep="\t", header=None)[0].tolist() if filename is not None else None
 
     @staticmethod
     def _check_loaded_data(data):
