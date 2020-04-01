@@ -6,12 +6,11 @@ python:
 install:
   - sudo apt-get -y update
   - sudo apt-get -y install python-matplotlib
-  - sudo apt-get -y install bedtools
   - pip install nose
   - pip install codecov
+  - pip install -r requirements.txt --no-cache-dir --upgrade
   - python setup.py install
-  - pip install -r requirements.txt
-  - pip install -r requirements-multiprocessing.txt
+  - pip install -r requirements-multiprocessing.txt --no-cache-dir
 script:
   - git clone https://github.com/simonsfoundation/kvsstcp
   - export PYTHONPATH=$PYTHONPATH:$(pwd)/kvsstcp
