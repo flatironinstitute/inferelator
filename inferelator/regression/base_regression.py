@@ -224,13 +224,19 @@ def predict_error_reduction(x, y, betas):
         # Reestimate betas for all the predictors except the one that we removed
         x_leaveout = x[:, leave_out]
         try:
-            beta_hat = np.linalg.solve(np.dot(x_leaveout.T, x_leaveout), np.dot(x_leaveout.T, y))
+            xt = x_leaveout.T
+            xtx = np.dot(xt, x_leaveout)
+            xty = np.dot(xt, y)
+            beta_hat = scipy.linalg.solve(xtx, xty, assume_a='sym')
         except np.linalg.LinAlgError:
             beta_hat = np.zeros(len(leave_out), dtype=np.dtype(float))
 
         # Calculate the variance of the residuals for the new estimated betas
         ss_leaveout = sigma_squared(x_leaveout, y, beta_hat)
-        error_reduction[lost] = 1 - (ss_all / ss_leaveout)
+        if np.abs(ss_all - ss_leaveout) < np.finfo(float).eps * len(pp_idx):
+            error_reduction[lost] = 0.
+        else:
+            error_reduction[lost] = 1 - (ss_all / ss_leaveout)
 
     return error_reduction
 
