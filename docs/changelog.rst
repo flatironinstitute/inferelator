@@ -1,6 +1,29 @@
 Change Log
 ==========
 
+Inferelator v0.4.0 `TBD`
+--------------------------------------
+
+New Functionality:
+
+- Support for sparse data structures
+- Support for h5 and mtx input files
+- Added several flags that can change behavior of BBSR (clr_only, ols_only)
+
+Bug Fixes:
+
+- Changed behavior of precision-recall to average the precision of ties instead of randomly ordering
+
+Code Refactoring:
+
+- Refactored the core data structures from pandas to anndata backed by numpy or scipy arrays
+- Data matrices are now OBS x VAR throughout the workflow
+  (VAR x OBS can still be loaded with a flag to identify orientation).
+- Use sparse_dot_mkl with the intel Math Kernel Library to handle sparse (dot) dense multiplication
+- Improved memory usage
+- Added unit tests for dask
+- Changed a number of error messages to improve clarity
+
 Inferelator v0.3.2 `December 19, 2019`
 --------------------------------------
 
