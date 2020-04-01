@@ -8,8 +8,9 @@ The [inferelator](https://doi.org/10.1186/gb-2006-7-5-r36) is a package for gene
 It is maintained by the Bonneau lab in the [Systems Biology group of the Flatiron Institute](https://www.simonsfoundation.org/flatiron/center-for-computational-biology/systems-biology/).
 
 This repository is the actively developed inferelator package for python; it works for both single-cell and bulk transcriptome experiments.
-Includes [AMuSR](https://github.com/simonsfoundation/multitask_inferelator/tree/AMuSR/inferelator_ng)  [(Castro et al 2019)](https://doi.org/10.1371/journal.pcbi.1006591)
-and elements of [InfereCLaDR](https://github.com/simonsfoundation/inferelator_ng/tree/InfereCLaDR) [(Tchourine et al 2018)](https://doi.org/10.1016/j.celrep.2018.03.048).
+Includes [AMuSR](https://github.com/simonsfoundation/multitask_inferelator/tree/AMuSR/inferelator_ng)  [(Castro et al 2019)](https://doi.org/10.1371/journal.pcbi.1006591),
+ elements of [InfereCLaDR](https://github.com/simonsfoundation/inferelator_ng/tree/InfereCLaDR) [(Tchourine et al 2018)](https://doi.org/10.1016/j.celrep.2018.03.048), 
+ and single-cell workflows [(Jackson et al 2020)](https://elifesciences.org/articles/51254).
 
 To install the python packages needed for the inferelator, run `pip install -r requirements.txt`.
 To install the python packages needed for the inferelator multiprocessing functionality, run `pip install -r requirements-multiprocessing.txt`.
