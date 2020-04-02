@@ -884,8 +884,7 @@ def _factory_build_inferelator(regression=RegressionWorkflow, workflow=WorkflowB
     # String arguments are parsed for convenience in the run script
     elif is_string(regression):
         if regression == "base":
-            from inferelator.regression.base_regression import BaseRegression
-            regression_class = BaseRegression
+            regression_class = RegressionWorkflow
         elif regression == "bbsr":
             from inferelator.regression.bbsr_python import BBSRRegressionWorkflow
             regression_class = BBSRRegressionWorkflow

@@ -26,6 +26,7 @@ class TestPriorManager(unittest.TestCase):
         cls.workflow.tf_names_file = "tf_names.tsv"
         cls.workflow.priors_file = "gold_standard.tsv"
         cls.workflow.gold_standard_file = "gold_standard.tsv"
+        cls.workflow.expression_matrix_columns_are_genes = False
         cls.workflow.get_data()
 
     def setUp(self):

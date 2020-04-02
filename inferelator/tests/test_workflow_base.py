@@ -58,7 +58,7 @@ class TestWorkflowSetParameters(unittest.TestCase):
             self.assertEqual(self.workflow.expression_matrix_file, "K")
 
     def test_set_file_properties(self):
-        self.assertFalse(self.workflow.expression_matrix_columns_are_genes)
+        self.assertTrue(self.workflow.expression_matrix_columns_are_genes)
         self.assertIsNone(self.workflow.expression_matrix_metadata)
         self.assertIsNone(self.workflow.gene_list_index)
 
@@ -270,6 +270,7 @@ class TestWorkflowFunctions(unittest.TestCase):
         cls.data.tf_names_file = "tf_names.tsv"
         cls.data.priors_file = "gold_standard.tsv"
         cls.data.gold_standard_file = "gold_standard.tsv"
+        cls.data.expression_matrix_columns_are_genes = False
         cls.data.get_data()
 
     def setUp(self):
@@ -280,6 +281,7 @@ class TestWorkflowFunctions(unittest.TestCase):
         self.workflow.tf_names = self.data.tf_names
         self.workflow.input_dir = os.path.join(my_dir, "../../data/dream4")
         self.workflow.expression_matrix_file = "expression.tsv"
+        self.workflow.expression_matrix_columns_are_genes = False
 
     def test_multiprocessing_init(self):
         MPControl.shutdown()

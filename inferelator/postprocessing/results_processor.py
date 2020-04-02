@@ -29,7 +29,7 @@ class InferelatorResults(object):
     confidence_file_name = "combined_confidences.tsv"
     threshold_file_name = "betas_stack.tsv"
     curve_file_name = "pr_curve.pdf"
-    curve_data_file_name = "pr_curve_data.tsv"
+    curve_data_file_name = None
 
     # Performance metrics
     metric = None

@@ -69,7 +69,6 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.assertIsNone(new_task.tf_names)
 
     def test_num_props(self):
-
         self.assertIsNone(self.workflow._num_obs)
         self.assertIsNone(self.workflow._num_tfs)
         self.assertIsNone(self.workflow._num_genes)
@@ -85,7 +84,6 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.assertEqual(self.workflow._num_tfs, task_tfs)
 
     def test_align_parent_priors(self):
-
         self.workflow._process_default_priors()
 
         self.assertIsNone(self.workflow.priors_data)
@@ -99,7 +97,6 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.assertEqual(max(int(TaskDataStub.priors_data.shape[0] * 0.2), 1), self.workflow.gold_standard.shape[0])
 
     def test_align_task_priors(self):
-
         self.workflow.set_crossvalidation_parameters(split_gold_standard_for_crossvalidation=True, cv_split_ratio=0.2)
         self.workflow._process_default_priors()
 
@@ -119,19 +116,20 @@ class TestAMuSRWorkflow(unittest.TestCase):
 
     def test_taskdata_loading(self):
         self.assertIsNone(self.workflow._task_objects)
-        self.workflow.create_task(expression_matrix_file="expression.tsv", input_dir=data_path,
-                                  meta_data_file="meta_data.tsv", tf_names_file="tf_names.tsv",
-                                  priors_file="gold_standard.tsv")
+        task1 = self.workflow.create_task(expression_matrix_file="expression.tsv", input_dir=data_path,
+                                          meta_data_file="meta_data.tsv", tf_names_file="tf_names.tsv",
+                                          priors_file="gold_standard.tsv")
+        task1.set_file_properties(expression_matrix_columns_are_genes=False)
+
         self.assertEqual(len(self.workflow._task_objects), 1)
-        self.workflow.create_task(expression_matrix_file="expression.tsv", input_dir=None,
-                                  meta_data_file="meta_data.tsv", tf_names_file="tf_names.tsv",
-                                  priors_file="gold_standard.tsv")
+        task2 = self.workflow.create_task(expression_matrix_file="expression.tsv", input_dir=None,
+                                          meta_data_file="meta_data.tsv", tf_names_file="tf_names.tsv",
+                                          priors_file="gold_standard.tsv")
+        task2.set_file_properties(expression_matrix_columns_are_genes=False)
+
         self.assertEqual(len(self.workflow._task_objects), 2)
         self.workflow.input_dir = data_path
         self.workflow._load_tasks()
-
-        task1 = self.workflow._task_objects[0]
-        task2 = self.workflow._task_objects[1]
 
         self.assertEqual(task1.data.shape, (421, 100))
         np.testing.assert_allclose(np.sum(task1.data.expression_data), 13507.22145160)
