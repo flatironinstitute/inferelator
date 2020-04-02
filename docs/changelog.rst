@@ -17,8 +17,8 @@ Bug Fixes:
 Code Refactoring:
 
 - Refactored the core data structures from pandas to anndata backed by numpy or scipy arrays
-- Data matrices are now OBS x VAR throughout the workflow
-  (VAR x OBS can still be loaded with a flag to identify orientation).
+- Data matrices are loaded and maintained as OBS x VAR throughout the workflow
+  (call .set_file_properties(expression_matrix_columns_are_genes=False) to load GENE x SAMPLE data files).
 - Use sparse_dot_mkl with the intel Math Kernel Library to handle sparse (dot) dense multiplication
 - Improved memory usage
 - Added unit tests for dask
