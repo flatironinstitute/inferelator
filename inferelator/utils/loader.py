@@ -10,7 +10,7 @@ from inferelator.preprocessing.metadata_parser import MetadataHandler
 DEFAULT_PANDAS_TSV_SETTINGS = dict(sep="\t", index_col=0, header=0)
 DEFAULT_METADATA = "branching"
 
-_TENX_MTX = ("matrix.mtx.gz", "mtarix.mtx")
+_TENX_MTX = ("matrix.mtx.gz", "matrix.mtx")
 _TENX_BARCODES = ("barcodes.tsv.gz", "barcodes.tsv")
 _TENX_FEATURES = ("features.tsv.gz", "genes.tsv")
 
@@ -96,15 +96,15 @@ class InferelatorDataLoader(object):
 
         for datafile in _TENX_MTX:
             if self._file_exists(self.filename_path_join(tenx_path, datafile)):
-                mtx_file = datafile
+                mtx_file = self.filename_path_join(tenx_path, datafile)
 
         for datafile in _TENX_BARCODES:
             if self._file_exists(self.filename_path_join(tenx_path, datafile)):
-                mtx_obs = datafile
+                mtx_obs = self.filename_path_join(tenx_path, datafile)
 
         for datafile in _TENX_FEATURES:
             if self._file_exists(self.filename_path_join(tenx_path, datafile)):
-                mtx_feature = datafile
+                mtx_feature = self.filename_path_join(tenx_path, datafile)
 
         if mtx_file is None:
             msg = "Cannot find 10x files ({f}) in path ({p})".format(f=" or ".join(_TENX_MTX), p=tenx_path)
@@ -211,7 +211,7 @@ class InferelatorDataLoader(object):
 
     @staticmethod
     def _file_exists(filename):
-        return filename is not None and not os.path.isfile(filename)
+        return filename is not None and os.path.isfile(filename)
 
     @staticmethod
     def _load_list_from_file(filename):

@@ -1,4 +1,7 @@
 import unittest
+import shutil
+import os
+import tempfile
 import numpy.testing as npt
 import bio_test_artifacts.prebuilt as test_prebuilt
 from inferelator.workflow import inferelator_workflow
@@ -43,3 +46,16 @@ class TestExpressionLoader(unittest.TestCase):
         self.worker.read_expression()
 
         npt.assert_array_almost_equal(data.values, self.worker.data.expression_data.A)
+
+    def test_10x(self):
+        (file1, file2, file3), data = test_prebuilt.counts_yeast_single_cell_chr01(filetype='mtx')
+
+        with tempfile.TemporaryDirectory() as txdir:
+            shutil.copy(file1, os.path.join(txdir, "matrix.mtx"))
+            shutil.copy(file2, os.path.join(txdir, "genes,tsv"))
+            shutil.copy(file3, os.path.join(txdir, "barcodes.tsv"))
+
+            self.worker.set_expression_file(tenx_path=txdir)
+            self.worker.read_expression()
+
+            npt.assert_array_almost_equal(data.values, self.worker.data.expression_data.A)

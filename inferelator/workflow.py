@@ -457,11 +457,11 @@ class WorkflowBaseLoader(object):
                                              gene_name_column=self.gene_list_index)
 
         elif self._expression_loader == _TENX:
-            self.data = loader.load_data_mtx(expression_file,
-                                             meta_data_file=meta_data_file,
-                                             meta_data_handler=self.metadata_handler,
-                                             gene_data_file=gene_data_file,
-                                             gene_name_column=self.gene_list_index)
+            self.data = loader.load_data_tenx(expression_file,
+                                              meta_data_file=meta_data_file,
+                                              meta_data_handler=self.metadata_handler,
+                                              gene_data_file=gene_data_file,
+                                              gene_name_column=self.gene_list_index)
 
         elif self._expression_loader == _HDF5:
             self.data = loader.load_data_hdf5(expression_file,
