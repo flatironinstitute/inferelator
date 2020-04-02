@@ -73,7 +73,7 @@ class WorkflowBaseLoader(object):
     response = None  # InferelatorData [N x G]
 
     # Flag to identify orientation of the expression matrix (True for samples x genes & False for genes x samples)
-    expression_matrix_columns_are_genes = False  # bool
+    expression_matrix_columns_are_genes = True  # bool
 
     # Flag to extract metadata from specific columns of the expression matrix instead of a separate file
     extract_metadata_from_expression_matrix = False  # bool
@@ -449,8 +449,8 @@ class WorkflowBaseLoader(object):
 
         elif self._expression_loader == _MTX:
             self.data = loader.load_data_mtx(expression_file[0],
-                                             mtx_feature=expression_file[1],
-                                             mtx_obs=expression_file[2],
+                                             mtx_feature=expression_file[2],
+                                             mtx_obs=expression_file[1],
                                              meta_data_file=meta_data_file,
                                              meta_data_handler=self.metadata_handler,
                                              gene_data_file=gene_data_file,
