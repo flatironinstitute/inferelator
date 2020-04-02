@@ -233,6 +233,8 @@ def predict_error_reduction(x, y, betas):
 
         # Calculate the variance of the residuals for the new estimated betas
         ss_leaveout = sigma_squared(x_leaveout, y, beta_hat)
+
+        # Check to make sure that the ss_all and ss_leaveout differences aren't just precision-related
         if np.abs(ss_all - ss_leaveout) < np.finfo(float).eps * len(pp_idx):
             error_reduction[lost] = 0.
         else:

@@ -143,14 +143,16 @@ class WorkflowBaseLoader(object):
         :param output_dir: A path to put the output files
         :type output_dir: str, optional
         :param expression_matrix_file: Path to the expression data
+            If set here, this expression file will be assumed to be a TSV file.
+            Use set_expression_file() for other file types
         :type expression_matrix_file: str
-        :param meta_data_file: Path to the meta data
+        :param meta_data_file: Path to the meta data TSV file
         :type meta_data_file: str, optional
         :param tf_names_file: Path to a list of regulator names to include in the model
         :type tf_names_file: str
-        :param priors_file: Path to a prior data file [Genes x Regulators]
+        :param priors_file: Path to a prior data file TSV file [Genes x Regulators]
         :type priors_file: str
-        :param gold_standard_file: Path to a gold standard data file [Genes x Regulators]
+        :param gold_standard_file: Path to a gold standard data TSV file [Genes x Regulators]
         :type gold_standard_file: str
         :param gene_metadata_file: Path to a genes annotation file
         :type gene_metadata_file: str, optional

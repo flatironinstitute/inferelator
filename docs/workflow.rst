@@ -8,7 +8,7 @@ inferelator.workflow module
    :no-undoc-members:
 
 .. autoclass:: inferelator.workflow.WorkflowBaseLoader
-   :members: set_file_paths, set_file_properties, set_network_data_flags, set_file_loading_arguments, print_file_loading_arguments, append_to_path
+   :members: set_file_paths, set_expression_file, set_file_properties, set_network_data_flags, set_file_loading_arguments, print_file_loading_arguments, append_to_path
    :no-undoc-members:
    :show-inheritance:
 
