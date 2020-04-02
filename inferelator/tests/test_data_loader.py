@@ -59,3 +59,16 @@ class TestExpressionLoader(unittest.TestCase):
             self.worker.read_expression()
 
             npt.assert_array_almost_equal(data.values, self.worker.data.expression_data.A)
+
+    def test_10x_ranger3(self):
+        (file1, file2, file3), data = test_prebuilt.counts_yeast_single_cell_chr01(filetype='mtx', gzip=True)
+
+        with tempfile.TemporaryDirectory() as txdir:
+            shutil.copy(file1, os.path.join(txdir, "matrix.mtx.gz"))
+            shutil.copy(file2, os.path.join(txdir, "features.tsv.gz"))
+            shutil.copy(file3, os.path.join(txdir, "barcodes.tsv.gz"))
+
+            self.worker.set_expression_file(tenx_path=txdir)
+            self.worker.read_expression()
+
+            npt.assert_array_almost_equal(data.values, self.worker.data.expression_data.A)
