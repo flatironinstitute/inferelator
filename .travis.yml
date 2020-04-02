@@ -8,6 +8,7 @@ install:
   - sudo apt-get -y install python-matplotlib
   - pip install nose
   - pip install codecov
+  - pip install pytables
   - pip install -r requirements.txt --no-cache-dir --upgrade
   - python setup.py install
   - pip install -r requirements-multiprocessing.txt --no-cache-dir
