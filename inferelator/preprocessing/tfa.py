@@ -69,14 +69,20 @@ class TFA:
 
     @staticmethod
     def _calculate_activity(prior, expression_data):
-        inv_prior = np.asarray(linalg.pinv2(prior).T, order="C")
-        return dot_product_mkl(expression_data.expression_data, inv_prior, dense=True, cast=True)
+
+        # Convert int32 to float32
+        if expression_data.expression_data.dtype == np.int32:
+            to_float = expression_data.expression_data.astype(np.float32)
+        else:
+            to_float = expression_data.expression_data
+
+        return dot_product_mkl(to_float, linalg.pinv2(prior).T.astype(np.float32), dense=True, cast=True)
 
 
 class NoTFA(TFA):
     """ NoTFA creates an activity matrix from the expression data only """
 
     @staticmethod
-    def compute_transcription_factor_activity(prior, expression_data, expression_data_halftau=None):
+    def compute_transcription_factor_activity(prior, expression_data, expression_data_halftau=None, keep_self=False):
         utils.Debug.vprint("Setting Activity to Expression Values", level=1)
         return expression_data.get_gene_data(prior.columns.isin(expression_data.gene_names), copy=True)
