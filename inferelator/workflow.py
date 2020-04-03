@@ -465,6 +465,7 @@ class WorkflowBaseLoader(object):
 
         elif self._expression_loader == _HDF5:
             self.data = loader.load_data_hdf5(expression_file,
+                                              transpose_expression_data=not self.expression_matrix_columns_are_genes,
                                               use_layer=self._h5_layer,
                                               meta_data_file=meta_data_file,
                                               meta_data_handler=self.metadata_handler,

@@ -75,7 +75,7 @@ class InferelatorDataLoader(object):
         return data
 
     def load_data_hdf5(self, hdf5_file, use_layer=None, meta_data_file=None, meta_data_handler=DEFAULT_METADATA,
-                       gene_data_file=None, gene_name_column=None):
+                       gene_data_file=None, gene_name_column=None, transpose_expression_data=False):
 
         data = pd.HDFStore(self.input_path(hdf5_file), mode='r')
         data = data[data.keys()[0]] if use_layer is None else data[use_layer]
@@ -83,6 +83,7 @@ class InferelatorDataLoader(object):
         meta_data = self.load_metadata_tsv(meta_data_file, data.index, meta_data_handler=meta_data_handler)
         gene_metadata = self.load_gene_metadata_tsv(gene_data_file, gene_name_column)
 
+        data = data.transpose() if transpose_expression_data else data
         data = InferelatorData(data,
                                meta_data=meta_data,
                                gene_data=gene_metadata)
