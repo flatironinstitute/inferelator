@@ -23,7 +23,7 @@ setup(
     zip_safe=False,
     install_requires=["numpy", "scipy", "pandas", "scikit-learn", "matplotlib", "anndata", "sparse_dot_mkl"],
     python_requires=">=3.5",
-    tests_require=["coverage", "nose", "bio-test-artifacts"],
+    tests_require=["coverage", "nose", "bio-test-artifacts", "pytables"],
     test_suite="nose.collector",
     classifiers=[
         "Programming Language :: Python :: 3",
