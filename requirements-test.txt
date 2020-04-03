@@ -1,4 +1,4 @@
 coverage
 nose
 bio-test-artifacts
-pytables
+tables
