@@ -107,13 +107,11 @@ class TestProps(TestWrapperSetup):
 
         nnf, name_nf = adata.non_finite
         self.assertEqual(nnf, 1)
-        self.assertListEqual(name_nf.tolist(), ["gene1"])
 
         adata.expression_data[0, 1] = np.nan
 
         nnf, name_nf = adata.non_finite
         self.assertEqual(nnf, 2)
-        self.assertListEqual(name_nf.tolist(), ["gene1", "gene2"])
 
     def test_sample_counts(self):
 

@@ -130,6 +130,11 @@ def scale_vector(vec, ddof=1):
         return scipy.stats.zscore(vec, axis=None, ddof=ddof)
 
 
+def apply_window_numpy_1d(arr, window, func):
+    steps = math.ceil(len(arr) / window)
+    return np.array([func(arr[i * window:min((i + 1) * window, len(arr))]) for i in range(steps)])
+
+
 class InferelatorData(object):
     """ Store inferelator data in an AnnData object. This will always be Samples by Genes """
 
@@ -252,17 +257,9 @@ class InferelatorData(object):
     def non_finite(self):
         if min(self._data.shape) == 0:
             return 0, None
-        elif self.is_sparse and sparse.isspmatrix_csr(self._adata.X):
-            nan_indices = np.unique(self._adata.X.indices[~np.isfinite(self._adata.X.data)])
-            nnf = nan_indices.shape[0]
-            return nnf, self.gene_names[nan_indices] if nnf > 0 else None
-        elif self.is_sparse and sparse.isspmatrix_csc(self._adata.X):
-            nan_indices = sparse.csc_matrix((~np.isfinite(self._adata.X.data),
-                                             self._adata.X.indices,
-                                             self._adata.X.indptr),
-                                            shape=self._adata.shape, dtype=bool).A.sum(axis=0) > 0
-            nnf = np.sum(nan_indices)
-            return nnf, self.gene_names[nan_indices.flatten()] if nnf > 0 else None
+        elif self.is_sparse:
+            nnf = np.sum(apply_window_numpy_1d(self._adata.X.data, 1000000, lambda x: np.sum(~np.isfinite(x))))
+            return nnf, ["GENES_NOT_ID_SPARSE_MATRIX"] if nnf > 0 else None
         else:
             non_finite = np.apply_along_axis(lambda x: np.sum(~np.isfinite(x)) > 0, 0, self._data)
             nnf = np.sum(non_finite)
