@@ -69,4 +69,9 @@ class NoTFA(TFA):
     @staticmethod
     def compute_transcription_factor_activity(prior, expression_data, expression_data_halftau=None, keep_self=False):
         utils.Debug.vprint("Setting Activity to Expression Values", level=1)
-        return expression_data.get_gene_data(prior.columns.isin(expression_data.gene_names), copy=True)
+        tf_gene_overlap = prior.columns[prior.columns.isin(expression_data.gene_names)]
+
+        return utils.InferelatorData(expression_data.get_gene_data(tf_gene_overlap, copy=True, force_dense=True),
+                                     sample_names=expression_data.sample_names,
+                                     meta_data=expression_data.meta_data,
+                                     gene_names=tf_gene_overlap)
