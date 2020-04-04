@@ -388,7 +388,7 @@ class InferelatorData(object):
         if "trim_gene_list" in self._adata.uns:
             keep_column_bool &= self._adata.var_names.isin(self._adata.uns["trim_gene_list"])
 
-        list_trim = len(self._adata.var.index) - np.sum(keep_column_bool)
+        list_trim = len(self._adata.var_names) - np.sum(keep_column_bool)
         comp = 0 if self._is_integer else np.finfo(self.expression_data.dtype).eps * 10
 
         if remove_constant_genes:
@@ -410,13 +410,13 @@ class InferelatorData(object):
             # This explicit copy allows the original to be deallocated
             # Otherwise the GC leaves the original because the view reference keeps it alive
             # At some point it will need to copy so why not now
-            trim_adata = self._adata[:, keep_column_bool].copy()
+            self._adata = AnnData(self._adata.X[:, keep_column_bool],
+                                  obs=self._adata.obs,
+                                  var=self._adata.var.loc[keep_column_bool, :],
+                                  dtype=self._adata.X.dtype)
 
             # Make sure that there's no hanging reference to the original object
-            del self._adata
             gc.collect()
-
-            self._adata = trim_adata
 
     def get_gene_data(self, gene_list, copy=False, force_dense=False, to_df=False, zscore=False):
 
