@@ -140,7 +140,6 @@ class InferelatorData(object):
 
     _adata = None
     _is_integer = False
-    _cached = None
 
     @property
     def expression_data(self):
@@ -254,6 +253,14 @@ class InferelatorData(object):
         return self._adata.X.sum(axis=1).A.flatten() if self.is_sparse else self._adata.X.sum(axis=1)
 
     @property
+    def sample_means(self):
+        return self._adata.X.mean(axis=1).A.flatten() if self.is_sparse else self._adata.X.mean(axis=1)
+
+    @property
+    def sample_stdev(self):
+        return self._adata.X.std(axis=1, ddof=1).A.flatten() if self.is_sparse else self._adata.X.std(axis=1, ddof=1)
+
+    @property
     def non_finite(self):
         if min(self._data.shape) == 0:
             return 0, None
@@ -280,29 +287,6 @@ class InferelatorData(object):
     @property
     def num_genes(self):
         return self._adata.shape[1]
-
-    @property
-    def obs_means(self):
-        if self._cached is not None and 'obs_means' in self._cached:
-            return self._cached['obs_means']
-        else:
-            means = np.asarray(self._adata.X.mean(axis=1)).flatten()
-            self._cached['obs_means'] = means
-            return means
-
-    @property
-    def obs_stdev(self):
-        if self._cached is not None and 'obs_stds' in self._cached:
-            return self._cached['obs_stds']
-        else:
-            stds = np.asarray(self._adata.X.std(axis=1, ddof=1)).flatten()
-            self._cached['obs_stds'] = stds
-
-            if np.min(stds) == 0:
-                print(self.expression_data)
-                print(stds)
-
-            return stds
 
     def __getattr__(self, item):
         return getattr(self._adata, item)
@@ -371,12 +355,6 @@ class InferelatorData(object):
 
         self._cached = {}
 
-    def _clear_cache(func):
-        def _decorate(self, *args, **kwargs):
-            func(self, *args, **kwargs)
-            self._cached = {}
-        return _decorate
-
     def convert_to_float(self):
         if pat.is_float_dtype(self._data.dtype):
             return None
@@ -393,7 +371,6 @@ class InferelatorData(object):
 
         self._is_integer = False
 
-    @_clear_cache
     def trim_genes(self, remove_constant_genes=True, trim_gene_list=None):
         """
         Remove genes (columns) that are unwanted from the data set. Do this in-place.
@@ -404,22 +381,19 @@ class InferelatorData(object):
         :type trim_gene_list: list, pd.Series, pd.Index
         """
 
-        keep_column_bool = np.ones((len(self._adata.var.index),), dtype=bool)
+        keep_column_bool = np.ones((len(self._adata.var_names),), dtype=bool)
 
         if trim_gene_list is not None:
-            keep_column_bool &= self._adata.var.index.isin(trim_gene_list)
+            keep_column_bool &= self._adata.var_names.isin(trim_gene_list)
         if "trim_gene_list" in self._adata.uns:
-            keep_column_bool &= self._adata.var.index.isin(self._adata.uns["trim_gene_list"])
+            keep_column_bool &= self._adata.var_names.isin(self._adata.uns["trim_gene_list"])
 
         list_trim = len(self._adata.var.index) - np.sum(keep_column_bool)
         comp = 0 if self._is_integer else np.finfo(self.expression_data.dtype).eps * 10
 
         if remove_constant_genes:
-            if self.is_sparse:
-                nz_var = self.expression_data.getnnz(axis=0) > 0
-                nz_var &= self.expression_data.min(axis=0).A.flatten() != self.expression_data.max(axis=0).A.flatten()
-            else:
-                nz_var = np.apply_along_axis(lambda x: np.max(x) - np.min(x), 0, self.expression_data) > comp
+            nz_var = (self.expression_data.max(axis=0) - self.expression_data.min(axis=0))
+            nz_var = comp < (nz_var.A.flatten() if self.is_sparse else nz_var)
 
             keep_column_bool &= nz_var
             var_zero_trim = np.sum(nz_var)
@@ -533,7 +507,6 @@ class InferelatorData(object):
         else:
             self._adata.to_df().to_csv(file_name, sep=sep)
 
-    @_clear_cache
     def transform(self, func, add_pseudocount=False, memory_efficient=True, chunksize=1000):
 
         if add_pseudocount and self.is_sparse:
@@ -554,15 +527,12 @@ class InferelatorData(object):
         else:
             self._adata.X = func(self._adata.X)
 
-    @_clear_cache
     def add(self, val):
         self._data[...] = self._data + val
 
-    @_clear_cache
     def subtract(self, val):
         self._data[...] = self._data - val
 
-    @_clear_cache
     def divide(self, div_val, axis=None):
 
         if self._is_integer:
@@ -586,7 +556,6 @@ class InferelatorData(object):
         else:
             raise ValueError("axis must be 0, 1 or None")
 
-    @_clear_cache
     def multiply(self, mult_val, axis=None):
 
         if self._is_integer:
@@ -610,7 +579,6 @@ class InferelatorData(object):
         else:
             raise ValueError("axis must be 0, 1 or None")
 
-    @_clear_cache
     def zscore(self, axis=0, ddof=1):
 
         self.convert_to_float()

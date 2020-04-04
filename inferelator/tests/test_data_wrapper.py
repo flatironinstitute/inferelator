@@ -129,11 +129,11 @@ class TestProps(TestWrapperSetup):
 
     def test_sample_means(self):
         means = np.mean(self.expr.values, axis=1)
-        npt.assert_array_almost_equal(means, self.adata.obs_means)
+        npt.assert_array_almost_equal(means, self.adata.sample_means)
 
     def test_sample_stdevs(self):
         stdevs = np.std(self.expr.values, axis=1, ddof=1)
-        npt.assert_array_almost_equal(stdevs, self.adata.obs_stdev)
+        npt.assert_array_almost_equal(stdevs, self.adata.sample_stdev)
 
 
 class TestTrim(TestWrapperSetup):
