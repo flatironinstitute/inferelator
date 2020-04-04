@@ -789,6 +789,9 @@ class WorkflowBase(WorkflowBaseLoader):
         Filter the priors and expression matrix to just genes in gene_metadata
         """
 
+        # Most operations will be column-wise; change sparse type if needed here
+        self.data.to_csc()
+
         self.data.trim_genes(trim_gene_list=self.gene_names)
         self.priors_data = self.prior_manager.filter_priors_to_genes(self.priors_data, self.data.gene_names)
 

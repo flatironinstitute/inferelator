@@ -134,8 +134,8 @@ class TFAWorkFlow(workflow.WorkflowBase):
         self.design.convert_to_float()
         self.half_tau_response.convert_to_float()
         self.design = self.tfa_driver().compute_transcription_factor_activity(self.priors_data,
-                                                                           self.design,
-                                                                           self.half_tau_response)
+                                                                              self.design,
+                                                                              self.half_tau_response)
         self.half_tau_response = None
 
         if self._tfa_output_file is not None and self.is_master():
