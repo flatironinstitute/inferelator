@@ -201,7 +201,7 @@ class WorkflowBaseLoader(object):
         :type h5_layer: str, optional
         """
 
-        nones = [(tsv is None) + (hdf5 is None) + (h5ad is None) + (tenx_path is None) + (mtx is None)]
+        nones = [tsv is None, hdf5 is None, h5ad is None, tenx_path is None, mtx is None]
 
         if all(nones):
             Debug.vprint("No file provided", level=0)
