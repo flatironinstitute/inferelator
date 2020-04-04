@@ -411,8 +411,8 @@ class InferelatorData(object):
             # Otherwise the GC leaves the original because the view reference keeps it alive
             # At some point it will need to copy so why not now
             self._adata = AnnData(self._adata.X[:, keep_column_bool],
-                                  obs=self._adata.obs,
-                                  var=self._adata.var.loc[keep_column_bool, :],
+                                  obs=self._adata.obs.copy(),
+                                  var=self._adata.var.loc[keep_column_bool, :].copy(),
                                   dtype=self._adata.X.dtype)
 
             # Make sure that there's no hanging reference to the original object
