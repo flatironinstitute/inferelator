@@ -164,6 +164,13 @@ class InferelatorData(object):
             self._adata.X = new_data
 
     @property
+    def _data_mem_usage(self):
+        if self.is_sparse:
+            return self._adata.X.data.nbytes + self._adata.X.indices.nbytes + self._adata.X.indptr.nbytes
+        else:
+            return self._adata.X.nbytes
+
+    @property
     def meta_data(self):
         return self._adata.obs
 
@@ -292,10 +299,9 @@ class InferelatorData(object):
         return getattr(self._adata, item)
 
     def __str__(self):
-        return "InferelatorData [{st} {dt} {sh}, Metadata {me}]".format(sh=self.shape,
-                                                                        dt=self._data.dtype,
-                                                                        st=type(self._data),
-                                                                        me=self.meta_data.shape)
+        msg = "InferelatorData [{dt} {sh}, Metadata {me}]\t{st} Size: {size} Memory: {mem} MB"
+        return msg.format(sh=self.shape, dt=self._data.dtype, st=type(self._adata.X), me=self.meta_data.shape,
+                          size=self._data.size, mem=(self._data_mem_usage / 1e6))
 
     def __init__(self, expression_data=None, transpose_expression=False, meta_data=None, gene_data=None,
                  gene_data_idx_column=None, gene_names=None, sample_names=None, dtype=None):
