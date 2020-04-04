@@ -13,6 +13,20 @@ import scipy.io
 from anndata import AnnData
 from inferelator.utils import Debug, Validator
 
+try:
+    from sparse_dot_mkl import dot_product_mkl as dot_product
+    Debug.vprint("Loaded sparse_dot_mkl for matrix multiplication", level=1)
+
+except ImportError as err:
+    Debug.vprint("Unable to load MKL with sparse_dot_mkl:", level=1)
+    Debug.vprint(str(err), level=1)
+    Debug.vprint("Using numpy matrix operations; this greatly increases memory usage with sparse data", level=1)
+
+    def dot_product(a, b, dense=True, cast=True):
+        a = a.A if sparse.isspmatrix(a) else a
+        b = b.A if sparse.isspmatrix(b) else b
+        return np.dot(a, b)
+
 
 def df_from_tsv(file_like, has_index=True):
     "Read a tsv file or buffer with headers and row ids into a pandas dataframe."
@@ -491,25 +505,10 @@ class InferelatorData(object):
         :return:
         """
 
-        # If both are sparse use scipy.dot() and make a sparse product
-        if self.is_sparse and sparse.issparse(other):
-            dot_product = self._adata.X.dot(other) if other_is_right_side else other.dot(self._adata.X)
-
-        # If this data struture is sparse, convert the other to sparse and use scipy.dot() and make a sparse product
-        elif self.is_sparse and not sparse.issparse(other):
-            other = sparse.csr_matrix(other)
-            dot_product = self._adata.X.dot(other) if other_is_right_side else other.dot(self._adata.X)
-
-        # If this data structure is dense, convert the other to dense and use np.dot() and make a dense product
-        elif not self.is_sparse and sparse.issparse(other):
-            dot_product = np.dot(self._adata.X, other.A) if other_is_right_side else np.dot(other.A, self._adata.X)
-
-        # If both data structures are dense, use np.dot() and make a dense product
+        if other_is_right_side:
+            return dot_product(self._adata.X, other, cast=True, dense=force_dense)
         else:
-            dot_product = np.dot(self._adata.X, other) if other_is_right_side else np.dot(other, self._adata.X)
-
-        # Convert a sparse product to dense if force_dense is set
-        return dot_product.A if force_dense and sparse.issparse(dot_product) else dot_product
+            return dot_product(other, self._adata.X, cast=True, dense=force_dense)
 
     def to_csv(self, file_name, sep="\t"):
 

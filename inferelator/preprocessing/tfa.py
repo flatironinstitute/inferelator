@@ -1,18 +1,6 @@
 import numpy as np
-from scipy import (linalg, sparse)
+from scipy import linalg
 from inferelator import utils
-
-try:
-    from sparse_dot_mkl import dot_product_mkl as dot_product
-except ImportError as err:
-    utils.Debug.vprint("Unable to load MKL with sparse_dot_mkl:", level=1)
-    utils.Debug.vprint(str(err), level=1)
-    utils.Debug.vprint("Using numpy matrix operations; this greatly increases memory usage with sparse data", level=1)
-
-    def dot_product(a, b, dense=True, cast=True):
-        a = a.A if sparse.isspmatrix(a) else a
-        b = b.A if sparse.isspmatrix(b) else b
-        return np.dot(a, b)
 
 
 class TFA:
@@ -71,8 +59,8 @@ class TFA:
     @staticmethod
     def _calculate_activity(prior, expression_data):
 
-        return dot_product(expression_data.expression_data, linalg.pinv2(prior).T.astype(np.float32),
-                           dense=True, cast=True)
+        return utils.dot_product(expression_data.expression_data, linalg.pinv2(prior).T.astype(np.float32),
+                                 dense=True, cast=True)
 
 
 class NoTFA(TFA):
