@@ -50,7 +50,7 @@ class TFA:
             activity[:, a_cols] = TFA._calculate_activity(prior.loc[:, activity_tfs].values, expr)
 
         if len(expr_tfs) > 0:
-            activity[:, prior.columns.isin(expr_tfs)] = expression_data.get_gene_data(expr_tfs)
+            activity[:, prior.columns.isin(expr_tfs)] = expression_data.get_gene_data(expr_tfs, force_dense=True)
 
         return utils.InferelatorData(activity,
                                      gene_names=prior.columns,
