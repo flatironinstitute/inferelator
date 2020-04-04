@@ -146,7 +146,7 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         # Create a TaskData object from a workflow and set the formal arguments into it
         task_object = create_task_data_object(workflow_class=workflow_type)
         task_object.task_name = task_name
-        task_object.input_dir = input_dir
+        task_object.input_dir = input_dir if input_dir is not None else self.input_dir
         task_object.expression_matrix_file = expression_matrix_file
         task_object.meta_data_file = meta_data_file
         task_object.tf_names_file = tf_names_file
