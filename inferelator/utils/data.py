@@ -292,9 +292,10 @@ class InferelatorData(object):
         return getattr(self._adata, item)
 
     def __str__(self):
-        return "InferelatorData [{dt} {sh}, Metadata {me}]".format(sh=self.shape,
-                                                                   dt=self._data.dtype,
-                                                                   me=self.meta_data.shape)
+        return "InferelatorData [{st} {dt} {sh}, Metadata {me}]".format(sh=self.shape,
+                                                                        dt=self._data.dtype,
+                                                                        st=type(self._data),
+                                                                        me=self.meta_data.shape)
 
     def __init__(self, expression_data=None, transpose_expression=False, meta_data=None, gene_data=None,
                  gene_data_idx_column=None, gene_names=None, sample_names=None, dtype=None):
