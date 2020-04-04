@@ -411,6 +411,10 @@ class InferelatorData(object):
             err_msg = "No genes remain after trimming. ({lst} removed to match list, {v} removed for var=0)"
             raise ValueError(err_msg.format(lst=list_trim, v=var_zero_trim))
 
+        Debug.vprint("Trimming expression matrix {sh} to {n} columns".format(sh=self._adata.X.shape,
+                                                                             n=np.sum(keep_column_bool)),
+                     level=1)
+
         if np.sum(keep_column_bool) == self._adata.shape[1]:
             pass
         else:
