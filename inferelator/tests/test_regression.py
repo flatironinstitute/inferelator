@@ -136,6 +136,7 @@ class TestMultitaskFactory(SetUpDenseDataMTL):
 
     def test_mtl_bbsr(self):
         self.workflow = workflow.inferelator_workflow(workflow="amusr", regression=BBSRByTaskRegressionWorkflow)
+        self.workflow.set_regression_parameters(prior_weight=1.)
         self.reset_workflow()
 
         self.workflow.run()

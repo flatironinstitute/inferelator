@@ -11,6 +11,9 @@ class BBSRByTaskRegressionWorkflow(AMUSRRegressionWorkflow, BBSRRegressionWorkfl
     This runs BBSR regression on tasks defined by the AMUSR regression (MTL) workflow
     """
 
+    def set_regression_parameters(self, **kwargs):
+        BBSRRegressionWorkflow.set_regression_parameters(self, **kwargs)
+
     def run_bootstrap(self, bootstrap_idx):
         betas, betas_resc = [], []
 
