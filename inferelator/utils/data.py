@@ -23,9 +23,13 @@ except ImportError as err:
     Debug.vprint("Using numpy matrix operations; this greatly increases memory usage with sparse data", level=1)
 
     def dot_product(a, b, dense=True, cast=True):
-        a = a.A if sparse.isspmatrix(a) else a
-        b = b.A if sparse.isspmatrix(b) else b
-        return np.dot(a, b)
+
+        if sparse.isspmatrix(a) and sparse.isspmatrix(b):
+            return a.dot(b).A if dense else a.dot(b)
+        else:
+            a = a.A if sparse.isspmatrix(a) else a
+            b = b.A if sparse.isspmatrix(b) else b
+            return np.dot(a, b)
 
 
 def df_from_tsv(file_like, has_index=True):
