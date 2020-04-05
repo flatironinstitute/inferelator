@@ -144,6 +144,7 @@ class TestMultitaskFactory(SetUpDenseDataMTL):
 
     def test_mtl_elasticnet(self):
         self.workflow = workflow.inferelator_workflow(workflow="amusr", regression=ElasticNetByTaskRegressionWorkflow)
+        self.workflow.set_regression_parameters(copy_X=True)
         self.reset_workflow()
 
         with warnings.catch_warnings():

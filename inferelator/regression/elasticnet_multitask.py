@@ -10,6 +10,9 @@ class ElasticNetByTaskRegressionWorkflow(AMUSRRegressionWorkflow, ElasticNetWork
     This runs BBSR regression on tasks defined by the AMUSR regression (MTL) workflow
     """
 
+    def set_regression_parameters(self, **kwargs):
+        ElasticNetWorkflow.set_regression_parameters(self, **kwargs)
+
     def run_bootstrap(self, bootstrap_idx):
         betas, betas_resc = [], []
 
