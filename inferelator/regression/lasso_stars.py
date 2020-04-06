@@ -25,7 +25,20 @@ def lasso(x, y, alpha, **kwargs):
             return _Lasso(alpha=alpha, normalize=False, **kwargs).fit(x, y).coef_
 
 
-def stars_model_select(x, y, alphas, threshold=_DEFAULT_THRESHOLD, num_subsamples=_DEFAULT_NUM_SUBSAMPLES, random_seed=_DEFAULT_SEED, **kwargs):
+def stars_model_select(x, y, alphas, threshold=_DEFAULT_THRESHOLD, num_subsamples=_DEFAULT_NUM_SUBSAMPLES,
+                       random_seed=_DEFAULT_SEED, **kwargs):
+    """
+    Model using StARS (Stability Approach to Regularization Selection) for model selection
+
+    :param x:
+    :param y:
+    :param alphas:
+    :param threshold:
+    :param num_subsamples:
+    :param random_seed:
+    :param kwargs:
+    :return:
+    """
     # Number of obs
     n, k = x.shape
 
@@ -134,7 +147,9 @@ class StARS(base_regression.BaseRegression):
         """
 
         if MPControl.is_dask():
-            raise NotImplementedError
+            from inferelator.distributed.dask_functions import lasso_stars_regress_dask
+            return lasso_stars_regress_dask(self.X, self.Y, self.alphas, self.num_subsamples, self.random_seed,
+                                            self.params, self.G, self.genes)
 
         def regression_maker(j):
             level = 0 if j % 100 == 0 else 2

@@ -161,6 +161,44 @@ def elasticnet_regress_dask(X, Y, params, G, genes):
     return result_list
 
 
+def lasso_stars_regress_dask(X, Y, alphas, num_subsamples, random_seed, params, G, genes):
+    """
+    Execute regression (LASSO-StARS)
+
+    :return: list
+        Returns a list of regression results that the pileup_data can process
+    """
+    assert MPControl.is_dask()
+
+    from inferelator.regression import lasso_stars
+    DaskController = MPControl.client
+
+    def regression_maker(j, x, y):
+        level = 0 if j % 100 == 0 else 2
+        utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=genes[j], i=j, total=G), level=level)
+        data = lasso_stars.stars_model_select(x, utils.scale_vector(y), alphas, num_subsamples=num_subsamples,
+                                              random_seed=random_seed, **params)
+        data['ind'] = j
+        return j, data
+
+    # Scatter common data to workers
+    [scatter_x] = DaskController.client.scatter([X.values], broadcast=True, hash=False)
+
+    # Wait for scattering to finish before creating futures
+    distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
+
+    future_list = [DaskController.client.submit(regression_maker, i, scatter_x,
+                                                Y.get_gene_data(i, force_dense=True).flatten())
+                   for i in range(G)]
+
+    # Collect results as they finish instead of waiting for all workers to be done
+    result_list = process_futures_into_list(future_list)
+
+    DaskController.client.cancel(scatter_x)
+
+    return result_list
+
+
 def build_mi_array_dask(X, Y, bins, logtype):
     """
     Calculate MI into an array with dask (the naive map is very inefficient)
