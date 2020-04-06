@@ -1,17 +1,14 @@
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator import utils
 
-from inferelator.regression.amusr_regression import AMUSRRegressionWorkflow
+from inferelator.regression.amusr_regression import _MultitaskRegressionWorkflow
 from inferelator.regression.elasticnet_python import ElasticNet, ElasticNetWorkflow
 
 
-class ElasticNetByTaskRegressionWorkflow(AMUSRRegressionWorkflow, ElasticNetWorkflow):
+class ElasticNetByTaskRegressionWorkflow(_MultitaskRegressionWorkflow, ElasticNetWorkflow):
     """
     This runs BBSR regression on tasks defined by the AMUSR regression (MTL) workflow
     """
-
-    def set_regression_parameters(self, **kwargs):
-        ElasticNetWorkflow.set_regression_parameters(self, **kwargs)
 
     def run_bootstrap(self, bootstrap_idx):
         betas, betas_resc = [], []

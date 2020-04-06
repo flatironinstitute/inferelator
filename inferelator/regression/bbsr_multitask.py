@@ -2,17 +2,14 @@ import pandas as pd
 
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.utils import Debug
-from inferelator.regression.amusr_regression import AMUSRRegressionWorkflow
+from inferelator.regression.amusr_regression import _MultitaskRegressionWorkflow
 from inferelator.regression.bbsr_python import BBSR, BBSRRegressionWorkflow
 
 
-class BBSRByTaskRegressionWorkflow(AMUSRRegressionWorkflow, BBSRRegressionWorkflow):
+class BBSRByTaskRegressionWorkflow(_MultitaskRegressionWorkflow, BBSRRegressionWorkflow):
     """
     This runs BBSR regression on tasks defined by the AMUSR regression (MTL) workflow
     """
-
-    def set_regression_parameters(self, **kwargs):
-        BBSRRegressionWorkflow.set_regression_parameters(self, **kwargs)
 
     def run_bootstrap(self, bootstrap_idx):
         betas, betas_resc = [], []

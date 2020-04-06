@@ -472,20 +472,7 @@ def weight_prior(prior, prior_weight):
     return prior
 
 
-class AMUSRRegressionWorkflow(base_regression.RegressionWorkflow):
-    """
-    Add AMuSR regression into a workflow object
-    """
-
-    prior_weight = default.DEFAULT_prior_weight
-
-    def set_regression_parameters(self, prior_weight=None):
-        """
-        Set regression parameters for AmUSR
-        :param prior_weight:
-        """
-
-        self._set_with_warning("prior_weight", prior_weight)
+class _MultitaskRegressionWorkflow(base_regression.RegressionWorkflow):
 
     def run_regression(self):
 
@@ -515,6 +502,22 @@ class AMUSRRegressionWorkflow(base_regression.RegressionWorkflow):
         regress = AMuSR_regression(x, y, tfs=self._regulators, genes=self._targets, priors=self._task_priors,
                                    prior_weight=self.prior_weight)
         return regress.run()
+
+
+class AMUSRRegressionWorkflow(_MultitaskRegressionWorkflow):
+    """
+    Add AMuSR regression into a workflow object
+    """
+
+    prior_weight = default.DEFAULT_prior_weight
+
+    def set_regression_parameters(self, prior_weight=None):
+        """
+        Set regression parameters for AmUSR
+        :param prior_weight:
+        """
+
+        self._set_with_warning("prior_weight", prior_weight)
 
 
 def filter_genes_on_tasks(list_of_indexes, task_expression_filter):
