@@ -13,13 +13,15 @@ import scipy.io
 from anndata import AnnData
 from inferelator.utils import Debug, Validator
 
+# Try loading dot_product_mkl for matrix multiplication
 try:
     from sparse_dot_mkl import dot_product_mkl as dot_product
     Debug.vprint("Loaded sparse_dot_mkl for matrix multiplication", level=1)
 
+# If it isn't available, use the scipy/numpy functions instead
 except ImportError as err:
     Debug.vprint("Unable to load MKL with sparse_dot_mkl:", level=1)
-    Debug.vprint(str(err), level=1)
+    Debug.vprint(str(err), level=2)
     Debug.vprint("Using numpy matrix operations; this greatly increases memory usage with sparse data", level=1)
 
     def dot_product(a, b, dense=True, cast=True):
@@ -138,19 +140,45 @@ def melt_and_reindex_dataframe(data_frame, value_name, idx_name="target", col_na
 
 
 def scale_vector(vec, ddof=1):
+    """
+    Take a vector and normalize it to a mean 0 and standard deviation 1 (z-score)
 
+    :param vec: A 1d vector to be normalized
+    :type vec: np.ndarray, sp.sparse.spmatrix
+    :param ddof: The delta degrees of freedom for variance calculation
+    :type ddof: int
+    :return: A centered and scaled vector
+    :rtype: np.ndarray
+    """
+
+    # Convert a sparse vector to a dense vector
     if sparse.isspmatrix(vec):
         vec = vec.A
 
+    # Return 0s if the variance is 0
     if np.var(vec) == 0:
         return np.zeros(vec.shape, dtype=float)
+
+    # Otherwise scale with scipy.stats.zscore
     else:
         return scipy.stats.zscore(vec, axis=None, ddof=ddof)
 
 
-def apply_window_numpy_1d(arr, window, func):
-    steps = math.ceil(len(arr) / window)
-    return np.array([func(arr[i * window:min((i + 1) * window, len(arr))]) for i in range(steps)])
+def apply_window_vector(vec, window, func):
+    """
+    Apply a function to a 1d array by windows.
+    For logical testing of an array without having to allocate a full array of bools
+
+    :param vec: A 1d vector to be normalized
+    :type vec: np.ndarray, sp.sparse.spmatrix
+    :param window: The window size to process
+    :type window: int
+    :param func: A function that produces an aggregate result for the window
+    :type func: callable
+    :return:
+    """
+    steps = math.ceil(len(vec) / window)
+    return np.array([func(vec[i * window:min((i + 1) * window, len(vec))]) for i in range(steps)])
 
 
 class InferelatorData(object):
@@ -290,7 +318,7 @@ class InferelatorData(object):
         if min(self._data.shape) == 0:
             return 0, None
         elif self.is_sparse:
-            nnf = np.sum(apply_window_numpy_1d(self._adata.X.data, 1000000, lambda x: np.sum(~np.isfinite(x))))
+            nnf = np.sum(apply_window_vector(self._adata.X.data, 1000000, lambda x: np.sum(~np.isfinite(x))))
             return nnf, ["GENES_NOT_ID_SPARSE_MATRIX"] if nnf > 0 else None
         else:
             non_finite = np.apply_along_axis(lambda x: np.sum(~np.isfinite(x)) > 0, 0, self._data)
