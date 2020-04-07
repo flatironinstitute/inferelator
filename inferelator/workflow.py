@@ -864,6 +864,7 @@ def _factory_build_inferelator(regression=RegressionWorkflow, workflow=WorkflowB
     # Decide which preprocessing/postprocessing workflow to use
     # String arguments are parsed for convenience in the run script
     if is_string(workflow):
+        workflow = workflow.lower()
         if workflow == "base":
             workflow_class = WorkflowBase
         elif workflow == "tfa":
@@ -889,6 +890,7 @@ def _factory_build_inferelator(regression=RegressionWorkflow, workflow=WorkflowB
         return workflow_class
     # String arguments are parsed for convenience in the run script
     elif is_string(regression):
+        regression = regression.lower()
         if regression == "base":
             regression_class = RegressionWorkflow
         elif regression == "bbsr":
@@ -906,6 +908,9 @@ def _factory_build_inferelator(regression=RegressionWorkflow, workflow=WorkflowB
         elif regression == "elasticnet-by-task":
             from inferelator.regression.elasticnet_multitask import ElasticNetByTaskRegressionWorkflow
             regression_class = ElasticNetByTaskRegressionWorkflow
+        elif regression == "stars":
+            from inferelator.regression.stability_selection import StARSWorkflow
+            regression_class = StARSWorkflow
         else:
             raise ValueError("{val} is not a string that can be mapped to a regression class".format(val=regression))
     # Or just use a regression class directly
