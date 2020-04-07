@@ -345,9 +345,9 @@ class InferelatorData(object):
         return getattr(self._adata, item)
 
     def __str__(self):
-        msg = "InferelatorData [{dt} {sh}, Metadata {me}]\t{st} Size: {size} Memory: {mem} MB"
-        return msg.format(sh=self.shape, dt=self._data.dtype, st=type(self._adata.X), me=self.meta_data.shape,
-                          size=self._data.size, mem=(self._data_mem_usage / 1e6))
+        msg = "InferelatorData [{dt} {sh}, Metadata {me}] Memory: {mem:.2f} MB"
+        return msg.format(sh=self.shape, dt=self._data.dtype, me=self.meta_data.shape,
+                          mem=(self._data_mem_usage / 1e6))
 
     def __init__(self, expression_data=None, transpose_expression=False, meta_data=None, gene_data=None,
                  gene_data_idx_column=None, gene_names=None, sample_names=None, dtype=None):
