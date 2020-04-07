@@ -236,8 +236,9 @@ class AMuSR_regression(base_regression.BaseRegression):
                              columns='regulator',
                              values=col,
                              fill_value=0.)
-        del out.columns.name
-        del out.index.name
+
+        out.columns.name = None
+        out.index.name = None
 
         out = pd.concat([out,
                          pd.DataFrame(0., index=out.index,
@@ -247,7 +248,7 @@ class AMuSR_regression(base_regression.BaseRegression):
                                       columns=out.columns)])
         out = out.loc[targets, regs]
 
-        return (out)
+        return out
 
     def regress(self):
         """
@@ -275,9 +276,9 @@ class AMuSR_regression(base_regression.BaseRegression):
                 tfs = self.tfs
 
             for k in range(self.n_tasks):
-                if gene in self.Y[k]:
-                    x.append(self.X[k].loc[:, tfs].values)  # list([N, K])
-                    y.append(self.Y[k].loc[:, gene].values.reshape(-1, 1))  # list([N, 1])
+                if gene in self.Y[k].gene_names:
+                    x.append(self.X[k].get_gene_data(tfs))  # list([N, K])
+                    y.append(self.Y[k].get_gene_data(gene, force_dense=True).reshape(-1, 1))  # list([N, 1])
                     tasks.append(k)  # [T,]
 
             prior = format_prior(self.priors, gene, tasks, self.prior_weight)
@@ -438,6 +439,7 @@ def run_regression_EBIC(X, Y, TFs, tasks, gene, prior):
                 output[k] = final_weights(X[kx][:, nonzero], Y[kx], cTFs, gene)
     return(output)
 
+
 def format_prior(priors, gene, tasks, prior_weight):
     '''
     Returns priors for one gene (numpy matrix TFs by tasks)
@@ -470,20 +472,7 @@ def weight_prior(prior, prior_weight):
     return prior
 
 
-class AMUSRRegressionWorkflow(base_regression.RegressionWorkflow):
-    """
-    Add AMuSR regression into a workflow object
-    """
-
-    prior_weight = default.DEFAULT_prior_weight
-
-    def set_regression_parameters(self, prior_weight=None):
-        """
-        Set regression parameters for AmUSR
-        :param prior_weight:
-        """
-
-        self._set_with_warning("prior_weight", prior_weight)
+class _MultitaskRegressionWorkflow(base_regression.RegressionWorkflow):
 
     def run_regression(self):
 
@@ -506,13 +495,29 @@ class AMUSRRegressionWorkflow(base_regression.RegressionWorkflow):
 
         # Select the appropriate bootstrap from each task and stash the data into X and Y
         for k in range(self._n_tasks):
-            x.append(self._task_design[k].iloc[:, self._task_bootstraps[k][bootstrap_idx]].transpose())
-            y.append(self._task_response[k].iloc[:, self._task_bootstraps[k][bootstrap_idx]].transpose())
+            x.append(self._task_design[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx]))
+            y.append(self._task_response[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx]))
 
         MPControl.sync_processes(pref="amusr_pre")
         regress = AMuSR_regression(x, y, tfs=self._regulators, genes=self._targets, priors=self._task_priors,
                                    prior_weight=self.prior_weight)
         return regress.run()
+
+
+class AMUSRRegressionWorkflow(_MultitaskRegressionWorkflow):
+    """
+    Add AMuSR regression into a workflow object
+    """
+
+    prior_weight = default.DEFAULT_prior_weight
+
+    def set_regression_parameters(self, prior_weight=None):
+        """
+        Set regression parameters for AmUSR
+        :param prior_weight:
+        """
+
+        self._set_with_warning("prior_weight", prior_weight)
 
 
 def filter_genes_on_tasks(list_of_indexes, task_expression_filter):

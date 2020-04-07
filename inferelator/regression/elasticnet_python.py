@@ -4,6 +4,7 @@ from inferelator import utils
 from inferelator.regression import base_regression
 from inferelator.distributed.inferelator_mp import MPControl
 from sklearn.linear_model import ElasticNetCV
+import scipy.stats
 import copy
 
 ELASTICNET_PARAMETERS = dict(l1_ratio=[0.5, 0.7, 0.9],
@@ -37,15 +38,7 @@ def elastic_net(X, Y, params):
     assert check.argument_type(X, np.ndarray)
     assert check.argument_type(Y, np.ndarray)
 
-    (K, N) = X.shape
-    X = X.T.copy()  # Make X into [N, K]
-    Y = Y.flatten()  # Make Y into [N, ]
-
-    # Clean up any NaNs or infs in the data
-    bool_idx = np.isnan(Y) | np.isinf(Y)
-    Y[bool_idx] = 0
-    X[bool_idx, :] = 0
-    X[np.isnan(X) | np.isinf(X)] = 0
+    (N, K) = X.shape
 
     min_coef = params.pop('min_coef', MIN_COEF)
 
@@ -101,7 +94,10 @@ class ElasticNet(base_regression.BaseRegression):
         def regression_maker(j):
             level = 0 if j % 100 == 0 else 2
             utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G), level=level)
-            data = elastic_net(self.X.values, self.Y.iloc[j, :].values, self.params)
+
+            data = elastic_net(self.X.values,
+                               utils.scale_vector(self.Y.get_gene_data(j, force_dense=True).flatten()),
+                               self.params)
             data['ind'] = j
             return data
 
@@ -124,8 +120,8 @@ class ElasticNetWorkflow(base_regression.RegressionWorkflow):
             self.elastic_net_parameters = kwargs
 
     def run_bootstrap(self, bootstrap):
-        X = self.design.iloc[:, bootstrap]
-        Y = self.response.iloc[:, bootstrap]
+        X = self.design.get_bootstrap(bootstrap)
+        Y = self.response.get_bootstrap(bootstrap)
         utils.Debug.vprint('Calculating betas using MEN', level=0)
         MPControl.sync_processes("pre-bootstrap")
         return ElasticNet(X, Y, self.random_seed, parameters=self.elastic_net_parameters).run()

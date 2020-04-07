@@ -21,7 +21,10 @@ class TFAWorkFlow(workflow.WorkflowBase):
     tau = 45
 
     # Regression data
+    # InferelatorData [N x G]
     design = None
+
+    # InferelatorData [N x K]
     response = None
     half_tau_response = None
 
@@ -127,8 +130,12 @@ class TFAWorkFlow(workflow.WorkflowBase):
         """
         # If there is a tfa driver, run it to calculate TFA from the prior & expression data
         utils.Debug.vprint('Computing Transcription Factor Activity ... ')
-        tfa_calculator = self.tfa_driver(self.priors_data, self.design, self.half_tau_response)
-        self.design = tfa_calculator.compute_transcription_factor_activity()
+
+        self.design.convert_to_float()
+        self.half_tau_response.convert_to_float()
+        self.design = self.tfa_driver().compute_transcription_factor_activity(self.priors_data,
+                                                                              self.design,
+                                                                              self.half_tau_response)
         self.half_tau_response = None
 
         if self._tfa_output_file is not None and self.is_master():
@@ -160,14 +167,19 @@ class TFAWorkFlow(workflow.WorkflowBase):
             drd = self.drd_driver(metadata_handler=self.metadata_handler, return_half_tau=True)
             utils.Debug.vprint('Creating design and response matrix ... ')
             drd.delTmin, drd.delTmax, drd.tau = self.delTmin, self.delTmax, self.tau
-            self.design, self.response, self.half_tau_response = drd.run(self.expression_matrix, self.meta_data)
+
+            # TODO: Rewrite DRD for InferelatorData
+            design, response, half_tau_response = drd.run(self.data.to_df().T, self.data.meta_data)
+            self.design = utils.data.InferelatorData(design.T)
+            self.response = utils.data.InferelatorData(response.T)
+            self.half_tau_response = utils.data.InferelatorData(half_tau_response.T)
+
         else:
             # If there is no design-response driver set, use the expression data for design and response
-            self.design = self.expression_matrix
-            self.response, self.half_tau_response = self.expression_matrix, self.expression_matrix
+            self.design, self.response, self.half_tau_response = self.data, self.data, self.data
 
         utils.Debug.vprint("Constructed design {d} and response {r} matrices".format(d=self.design.shape,
                                                                                      r=self.response.shape),
                            level=1)
 
-        self.expression_matrix = None
+        self.data = None

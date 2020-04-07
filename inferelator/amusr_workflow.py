@@ -5,15 +5,7 @@ import copy
 import gc
 import warnings
 
-# Shadow built-in zip with itertools.izip if this is python2 (This puts out a memory dumpster fire)
-try:
-    from itertools import izip as zip
-except ImportError:
-    pass
-
-import pandas as pd
-from inferelator import utils
-from inferelator.utils import Validator as check
+from inferelator.utils import Debug
 from inferelator import workflow
 from inferelator import single_cell_workflow
 from inferelator.regression import amusr_regression
@@ -35,7 +27,6 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
     _n_tasks = None
     _task_design = None
     _task_response = None
-    _task_meta_data = None
     _task_bootstraps = None
     _task_priors = None
     _task_names = None
@@ -120,7 +111,8 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         self._process_task_data()
 
     def create_task(self, task_name=None, input_dir=None, expression_matrix_file=None, meta_data_file=None,
-                    tf_names_file=None, priors_file=None, workflow_type="single-cell", **kwargs):
+                    tf_names_file=None, priors_file=None, gene_names_file=None, gene_metadata_file=None,
+                    workflow_type="single-cell", **kwargs):
         """
         Create a task object and set any arguments to this function as attributes of that task object. TaskData objects
         are stored internally in _task_objects.
@@ -137,6 +129,10 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         :type tf_names_file: str
         :param priors_file: Path to a prior data file
         :type priors_file: str
+        :param gene_metadata_file: Path to a genes annotation file
+        :type gene_metadata_file: str, optional
+        :param gene_names_file: Path to a list of genes to include in the model (optional)
+        :type gene_names_file: str, optional
         :param workflow_type: The type of workflow for data preprocessing.
             "tfa" uses the TFA workflow,
             "single-cell" uses the Single-Cell TFA workflow
@@ -150,11 +146,13 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         # Create a TaskData object from a workflow and set the formal arguments into it
         task_object = create_task_data_object(workflow_class=workflow_type)
         task_object.task_name = task_name
-        task_object.input_dir = input_dir
+        task_object.input_dir = input_dir if input_dir is not None else self.input_dir
         task_object.expression_matrix_file = expression_matrix_file
         task_object.meta_data_file = meta_data_file
         task_object.tf_names_file = tf_names_file
         task_object.priors_file = priors_file
+        task_object.gene_names_file = gene_names_file
+        task_object.gene_metadata_file = gene_metadata_file
 
         # Warn if there is an attempt to set something that isn't supported
         msg = "Task-specific {} is not supported. This setting will be ignored. Set this in the parent workflow."
@@ -176,7 +174,7 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         else:
             self._task_objects.append(task_object)
 
-        utils.Debug.vprint(str(task_object), level=0)
+        Debug.vprint(str(task_object), level=0)
 
         return task_object
 
@@ -244,9 +242,8 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
             priors = self.prior_manager.filter_to_tf_names_list(priors, self.tf_names)
 
         # Filter to targets
-        if self.gene_metadata is not None and self.gene_list_index is not None:
-            gene_list = self.gene_metadata[self.gene_list_index].tolist()
-            priors = self.prior_manager.filter_priors_to_genes(priors, gene_list)
+        if self.gene_names is not None:
+            priors = self.prior_manager.filter_priors_to_genes(priors, self.gene_names)
 
         # Shuffle labels
         if self.shuffle_prior_axis is not None:
@@ -262,14 +259,14 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         for task_obj in self._task_objects:
 
             # Set priors if task-specific priors are not present
-            if task_obj.priors_data is None:
-                assert self.priors_data is not None
+            if task_obj.priors_data is None and self.priors_data is None:
+                raise ValueError("No priors exist in the main workflow or in tasks")
+            elif task_obj.priors_data is None:
                 task_obj.priors_data = self.priors_data.copy()
 
-            # Set gene metadata if task-specific gene metadata is not present
-            if task_obj.gene_metadata is None:
-                task_obj.gene_metadata = copy.copy(self.gene_metadata)
-                task_obj.gene_list_index = self.gene_list_index
+            # Set gene names if task-specific gene names is not present
+            if task_obj.gene_names is None:
+                task_obj.gene_names = copy.copy(self.gene_names)
 
             # Set tf_names if task-specific tf names are not present
             if task_obj.tf_names is None:
@@ -284,14 +281,14 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
     def _process_task_data(self):
         """
         Preprocess the individual task data using the TaskData worker into task design and response data. Set
-        self.task_design, self.task_response, self.task_meta_data, self.task_bootstraps with lists which contain
+        self.task_design, self.task_response, self.task_bootstraps with lists which contain
         DataFrames.
 
         Also set self.regulators and self.targets with pd.Indexes that correspond to the genes and tfs to model
         This is chosen based on the filtering strategy set in self.target_expression_filter and
         self.regulator_expression_filter
         """
-        self._task_design, self._task_response, self._task_meta_data = [], [], []
+        self._task_design, self._task_response = [], []
         self._task_bootstraps, self._task_names, self._task_priors = [], [], []
         targets, regulators = [], []
 
@@ -301,7 +298,7 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
             task_name = task_obj.task_name if task_obj.task_name is not None else str(task_id)
 
             task_str = "Processing task #{tid} [{t}] {sh}"
-            utils.Debug.vprint(task_str.format(tid=task_id, t=task_name, sh=task_obj.expression_matrix.shape), level=1)
+            Debug.vprint(task_str.format(tid=task_id, t=task_name, sh=task_obj.data.shape), level=1)
 
             # Run the preprocessing workflow
             task_obj.startup_finish()
@@ -309,27 +306,33 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
             # Put the processed data into lists
             self._task_design.append(task_obj.design)
             self._task_response.append(task_obj.response)
-            self._task_meta_data.append(task_obj.meta_data)
             self._task_bootstraps.append(task_obj.get_bootstraps())
             self._task_names.append(task_name)
             self._task_priors.append(task_obj.priors_data)
 
-            regulators.append(task_obj.design.index)
-            targets.append(task_obj.response.index)
+            regulators.append(task_obj.design.gene_names)
+            targets.append(task_obj.response.gene_names)
 
             task_str = "Processing task #{tid} [{t}] complete [{sh} & {sh2}]"
-            utils.Debug.vprint(task_str.format(tid=task_id, t=task_name, sh=task_obj.design.shape,
-                                               sh2=task_obj.response.shape), level=1)
+            Debug.vprint(task_str.format(tid=task_id, t=task_name, sh=task_obj.design.shape,
+                                         sh2=task_obj.response.shape), level=1)
 
         self._targets = amusr_regression.filter_genes_on_tasks(targets, self._target_expression_filter)
         self._regulators = amusr_regression.filter_genes_on_tasks(regulators, self._regulator_expression_filter)
 
-        utils.Debug.vprint("Processed data into design/response [{g} x {k}]".format(g=len(self._targets),
-                                                                                    k=len(self._regulators)), level=0)
+        Debug.vprint("Processed data into design/response [{g} x {k}]".format(g=len(self._targets),
+                                                                              k=len(self._regulators)), level=0)
 
         # Clean up the TaskData objects and force a cyclic collection
         del self._task_objects
         gc.collect()
+
+        # Make sure that the task data files have the correct columns
+        for d in self._task_design:
+            d.trim_genes(remove_constant_genes=False, trim_gene_list=self._regulators)
+
+        for r in self._task_response:
+            r.trim_genes(remove_constant_genes=False, trim_gene_list=self._targets)
 
     def emit_results(self, betas, rescaled_betas, gold_standard, priors_data):
         """
@@ -386,7 +389,8 @@ def create_task_data_class(workflow_class="single-cell"):
             return task_str
 
         def __init__(self):
-            pass
+            if self._file_format_settings is None:
+                self._file_format_settings = dict()
 
         def initialize_multiprocessing(self):
             """
@@ -409,7 +413,7 @@ def create_task_data_class(workflow_class="single-cell"):
             :return: List of TaskData objects with loaded data
             :rtype: list(TaskData)
             """
-            utils.Debug.vprint("Loading data for task {task_name}".format(task_name=self.task_name))
+            Debug.vprint("Loading data for task {task_name}".format(task_name=self.task_name))
             super(TaskData, self).get_data()
 
             if self.tasks_from_metadata:
@@ -471,41 +475,38 @@ def create_task_data_class(workflow_class="single-cell"):
 
             """
 
-            assert check.argument_type(self.meta_data, pd.DataFrame)
-            assert check.argument_type(self.expression_matrix, pd.DataFrame)
-            assert self.meta_data.shape[0] == self.expression_matrix.shape[1]
+            if self.data is None:
+                raise ValueError("No data has been loaded prior to `separate_tasks_by_metadata`")
 
             meta_data_column = meta_data_column if meta_data_column is not None else self.meta_data_task_column
             if meta_data_column is None:
                 raise ValueError("tasks_from_metadata is set but meta_data_task_column is not")
+            elif meta_data_column not in self.data.meta_data:
+                msg = "meta_data_task_column is not found in task {t}".format(t=str(self))
+                raise ValueError(msg)
 
             new_task_objects = list()
-            tasks = self.meta_data[meta_data_column].unique().tolist()
-
-            utils.Debug.vprint(
-                "Creating {n} tasks from metadata column {col}".format(n=len(tasks), col=meta_data_column),
-                level=0)
+            tasks = self.data.meta_data[meta_data_column].unique().tolist()
+            Debug.vprint("Creating {n} tasks from metadata column {col}".format(n=len(tasks), col=meta_data_column),
+                         level=0)
 
             # Remove data references from self
-            expr_data = self.expression_matrix
-            meta_data = self.meta_data
-            self.expression_matrix = None
-            self.meta_data = None
+            data = self.data
+            self.data = None
 
             for task in tasks:
                 # Copy this object
                 task_obj = copy.deepcopy(self)
 
                 # Get an index of the stuff to keep
-                task_idx = meta_data[meta_data_column] == task
+                task_idx = data.meta_data[meta_data_column] == task
 
                 # Reset expression matrix, metadata, and task_name in the copy
-                task_obj.expression_matrix = expr_data.iloc[:, [i for i, j in enumerate(task_idx) if j]]
-                task_obj.meta_data = meta_data.loc[task_idx, :]
+                task_obj.data = data.subset_copy(row_index=task_idx)
                 task_obj.task_name = task
                 new_task_objects.append(task_obj)
 
-            utils.Debug.vprint("Separated data into {ntask} tasks".format(ntask=len(new_task_objects)), level=0)
+            Debug.vprint("Separated data into {ntask} tasks".format(ntask=len(new_task_objects)), level=0)
 
             return new_task_objects
 

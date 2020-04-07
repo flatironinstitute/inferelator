@@ -5,11 +5,12 @@ import copy
 import numpy as np
 import numpy.testing as npt
 import pandas as pd
-import pandas.util.testing as pdt
+import pandas.testing as pdt
 
 from inferelator import workflow
 from inferelator.tests.artifacts.test_stubs import TaskDataStub
 from inferelator.regression import amusr_regression
+from inferelator.utils import InferelatorData
 
 data_path = os.path.join(os.path.dirname(__file__), "../../data/dream4")
 
@@ -56,10 +57,10 @@ class TestAMuSRWorkflow(unittest.TestCase):
         new_task = self.workflow._task_objects[0]
 
         self.assertEqual(new_task.expression_matrix_file, "expression.tsv")
-        self.assertIsNone(new_task.expression_matrix)
+        self.assertIsNone(new_task.data)
 
         self.assertEqual(new_task.meta_data_file, "meta_data.tsv")
-        self.assertIsNone(new_task.meta_data)
+        self.assertIsNone(new_task.data)
 
         self.assertEqual(new_task.priors_file, "gold_standard.tsv")
         self.assertIsNone(new_task.priors_data)
@@ -68,14 +69,13 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.assertIsNone(new_task.tf_names)
 
     def test_num_props(self):
-
         self.assertIsNone(self.workflow._num_obs)
         self.assertIsNone(self.workflow._num_tfs)
         self.assertIsNone(self.workflow._num_genes)
 
-        task_obs = TaskDataStub.expression_matrix.shape[1]
-        task_tfs = TaskDataStub.priors_data.shape[1]
-        task_genes = TaskDataStub.expression_matrix.shape[0]
+        task_obs = TaskDataStub().data.num_obs
+        task_tfs = TaskDataStub().priors_data.shape[1]
+        task_genes = TaskDataStub().data.num_genes
 
         self.workflow._task_objects = [TaskDataStub(), TaskDataStub(), TaskDataStub()]
 
@@ -84,7 +84,6 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.assertEqual(self.workflow._num_tfs, task_tfs)
 
     def test_align_parent_priors(self):
-
         self.workflow._process_default_priors()
 
         self.assertIsNone(self.workflow.priors_data)
@@ -98,7 +97,6 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.assertEqual(max(int(TaskDataStub.priors_data.shape[0] * 0.2), 1), self.workflow.gold_standard.shape[0])
 
     def test_align_task_priors(self):
-
         self.workflow.set_crossvalidation_parameters(split_gold_standard_for_crossvalidation=True, cv_split_ratio=0.2)
         self.workflow._process_default_priors()
 
@@ -116,29 +114,29 @@ class TestAMuSRWorkflow(unittest.TestCase):
 
         self.assertListEqual([expect_size] * 3, prior_sizes)
 
-
     def test_taskdata_loading(self):
         self.assertIsNone(self.workflow._task_objects)
-        self.workflow.create_task(expression_matrix_file="expression.tsv", input_dir=data_path,
-                                  meta_data_file="meta_data.tsv", tf_names_file="tf_names.tsv",
-                                  priors_file="gold_standard.tsv")
+        task1 = self.workflow.create_task(expression_matrix_file="expression.tsv", input_dir=data_path,
+                                          meta_data_file="meta_data.tsv", tf_names_file="tf_names.tsv",
+                                          priors_file="gold_standard.tsv")
+        task1.set_file_properties(expression_matrix_columns_are_genes=False)
+
         self.assertEqual(len(self.workflow._task_objects), 1)
-        self.workflow.create_task(expression_matrix_file="expression.tsv", input_dir=None,
-                                  meta_data_file="meta_data.tsv", tf_names_file="tf_names.tsv",
-                                  priors_file="gold_standard.tsv")
+        task2 = self.workflow.create_task(expression_matrix_file="expression.tsv", input_dir=None,
+                                          meta_data_file="meta_data.tsv", tf_names_file="tf_names.tsv",
+                                          priors_file="gold_standard.tsv")
+        task2.set_file_properties(expression_matrix_columns_are_genes=False)
+
         self.assertEqual(len(self.workflow._task_objects), 2)
         self.workflow.input_dir = data_path
         self.workflow._load_tasks()
 
-        task1 = self.workflow._task_objects[0]
-        task2 = self.workflow._task_objects[1]
-
-        self.assertEqual(task1.expression_matrix.shape, (100, 421))
-        np.testing.assert_allclose(task1.expression_matrix.sum().sum(), 13507.22145160)
+        self.assertEqual(task1.data.shape, (421, 100))
+        np.testing.assert_allclose(np.sum(task1.data.expression_data), 13507.22145160)
         self.assertEqual(len(task1.tf_names), 100)
         self.assertListEqual(task1.tf_names, list(map(lambda x: "G" + str(x), list(range(1, 101)))))
         self.assertEqual(task1.priors_data.shape, (100, 100))
-        self.assertEqual(task1.meta_data.shape, (421, 5))
+        self.assertEqual(task1.data.meta_data.shape, (421, 5))
 
         self.assertEqual(task1.input_dir, task2.input_dir)
 
@@ -151,9 +149,9 @@ class TestAMuSRWorkflow(unittest.TestCase):
 
         # Test processing the TaskData objects into data structures in MultitaskLearningWorkflow
         self.assertEqual(self.workflow._n_tasks, 3)
-        self.assertEqual(list(map(lambda x: x.expression_matrix.shape, self.workflow._task_objects)),
-                         [(6, 2), (6, 4), (6, 4)])
-        self.assertEqual(list(map(lambda x: x.meta_data.shape, self.workflow._task_objects)),
+        self.assertEqual(list(map(lambda x: x.data.shape, self.workflow._task_objects)),
+                         [(2, 6), (4, 6), (4, 6)])
+        self.assertEqual(list(map(lambda x: x.data.meta_data.shape, self.workflow._task_objects)),
                          [(2, 2), (4, 2), (4, 2)])
 
     def test_task_processing(self):
@@ -164,14 +162,13 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.assertEqual(self.workflow._targets.tolist(), ["gene1", "gene2", "gene4", "gene6"])
         self.assertEqual(len(self.workflow._task_design), 3)
         self.assertEqual(len(self.workflow._task_response), 3)
-        self.assertEqual(len(self.workflow._task_meta_data), 3)
         self.assertEqual(len(self.workflow._task_bootstraps), 3)
-        pdt.assert_frame_equal(self.workflow._task_design[0],
-                               pd.DataFrame([[16., 5.], [15., 15.]], index=["gene3", "gene6"], columns=[0, 6]),
+        pdt.assert_frame_equal(self.workflow._task_design[0].to_df(),
+                               pd.DataFrame([[16., 5.], [15., 15.]], index=["gene3", "gene6"], columns=["0", "6"]).T,
                                check_dtype=False)
-        pdt.assert_frame_equal(self.workflow._task_response[0],
+        pdt.assert_frame_equal(self.workflow._task_response[0].to_df(),
                                pd.DataFrame([[2, 3], [28, 27], [16, 5], [3, 4]],
-                                            index=["gene1", "gene2", "gene4", "gene6"], columns=[0, 6]),
+                                            index=["gene1", "gene2", "gene4", "gene6"], columns=["0", "6"]).T,
                                check_dtype=False)
 
     def test_result_processor_random(self):
@@ -264,11 +261,8 @@ class TestAMuSRrunner(unittest.TestCase):
                   pd.DataFrame([[0, 0, 1], [1, 0, 1]], index=targets, columns=tfs)]
         gene1_prior = amusr_regression.format_prior(priors, 'gene1', [0, 1], 1.)
         gene2_prior = amusr_regression.format_prior(priors, 'gene2', [0, 1], 1.)
-        output = []
-        output.append(
-            amusr_regression.run_regression_EBIC(des, res, ['tf1', 'tf2', 'tf3'], [0, 1], 'gene1', gene1_prior))
-        output.append(
-            amusr_regression.run_regression_EBIC(des, res, ['tf1', 'tf2', 'tf3'], [0, 1], 'gene2', gene2_prior))
+        output = [amusr_regression.run_regression_EBIC(des, res, ['tf1', 'tf2', 'tf3'], [0, 1], 'gene1', gene1_prior),
+                  amusr_regression.run_regression_EBIC(des, res, ['tf1', 'tf2', 'tf3'], [0, 1], 'gene2', gene2_prior)]
         out0 = pd.DataFrame([['tf3', 'gene1', -1, 1],
                              ['tf3', 'gene1', -1, 1]],
                             index=pd.MultiIndex(levels=[[0, 1], [0]],
@@ -287,10 +281,12 @@ class TestAMuSRrunner(unittest.TestCase):
         targets = ['gene1', 'gene2', 'gene3']
         targets1 = ['gene1', 'gene2']
         targets2 = ['gene1', 'gene3']
-        des = [pd.DataFrame(np.array([[1, 1, 3], [0, 0, 2], [0, 0, 1]]).astype(float), columns=tfs),
-               pd.DataFrame(np.array([[1, 1, 3], [0, 0, 2], [0, 0, 1]]).astype(float), columns=tfs)]
-        res = [pd.DataFrame(np.array([[1, 1], [2, 2], [3, 3]]).astype(float), columns=targets1),
-               pd.DataFrame(np.array([[1, 1], [2, 2], [3, 3]]).astype(float), columns=targets2)]
+
+        des = [InferelatorData(pd.DataFrame(np.array([[1, 1, 3], [0, 0, 2], [0, 0, 1]]).astype(float), columns=tfs)),
+               InferelatorData(pd.DataFrame(np.array([[1, 1, 3], [0, 0, 2], [0, 0, 1]]).astype(float), columns=tfs))]
+
+        res = [InferelatorData(pd.DataFrame(np.array([[1, 1], [2, 2], [3, 3]]).astype(float), columns=targets1)),
+               InferelatorData(pd.DataFrame(np.array([[1, 1], [2, 2], [3, 3]]).astype(float), columns=targets2))]
         priors = pd.DataFrame([[0, 1, 1], [1, 0, 1], [1, 0, 1]], index=targets, columns=tfs)
 
         r = amusr_regression.AMuSR_regression(des, res, tfs=tfs, genes=targets, priors=priors)

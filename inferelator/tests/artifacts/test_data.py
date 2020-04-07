@@ -1,4 +1,6 @@
 import pandas as pd
+import scipy.sparse as sps
+from inferelator.utils import InferelatorData
 
 
 class TestDataSingleCellLike(object):
@@ -14,3 +16,20 @@ class TestDataSingleCellLike(object):
     gene_metadata = pd.DataFrame({"SystematicName": ["gene1", "gene2", "gene3", "gene4", "gene7", "gene6"]})
     gene_list_index = "SystematicName"
     tf_names = ["gene3", "gene6"]
+
+
+TEST_DATA = InferelatorData(TestDataSingleCellLike.expression_matrix,
+                            transpose_expression=True,
+                            meta_data=TestDataSingleCellLike.meta_data,
+                            gene_data=TestDataSingleCellLike.gene_metadata,
+                            gene_data_idx_column=TestDataSingleCellLike.gene_list_index)
+
+TEST_DATA_SPARSE = InferelatorData(sps.csr_matrix(TestDataSingleCellLike.expression_matrix.T.values),
+                                   gene_names=TestDataSingleCellLike.expression_matrix.index,
+                                   sample_names=TestDataSingleCellLike.expression_matrix.columns,
+                                   meta_data=TestDataSingleCellLike.meta_data,
+                                   gene_data=TestDataSingleCellLike.gene_metadata,
+                                   gene_data_idx_column=TestDataSingleCellLike.gene_list_index)
+
+CORRECT_GENES_INTERSECT = pd.Index(["gene1", "gene2", "gene3", "gene4", "gene6"])
+CORRECT_GENES_NZ_VAR = pd.Index(["gene1", "gene2", "gene4", "gene6"])

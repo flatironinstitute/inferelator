@@ -1,8 +1,9 @@
 import numpy as np
 import pandas as pd
+import scipy.stats
 import copy
 
-from inferelator import utils, default
+from inferelator.utils import Debug, InferelatorData
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.utils import Validator as check
 
@@ -25,23 +26,25 @@ class BaseRegression(object):
         """
         Create a regression object and do basic data transforms
 
-        :param X: pd.DataFrame [K x N]
-            Expression / Activity data
-        :param Y: pd.DataFrame [G x N]
-            Response data
+        :param X: Expression or Activity data [N x K]
+        :type X: InferelatorData
+        :param Y: Response expression data [N x G]
+        :type Y: InferelatorData
         """
 
         # Get the IDs and total count for the genes and predictors
-        self.K = X.shape[0]
-        self.tfs = X.index.values.tolist()
-        self.G = Y.shape[0]
-        self.genes = Y.index.values.tolist()
+        self.K = X.num_genes
+        self.tfs = X.gene_names
+        self.G = Y.num_genes
+        self.genes = Y.gene_names
 
-        # Rescale input data
-        self.X = self._scale(X)
-        self.Y = self._scale(Y)
-        utils.Debug.vprint("Predictor matrix {pr} and response matrix {re} ready".format(pr=X.shape,
-                                                                                         re=Y.shape))
+        # Rescale the design expression or activity data on features
+        self.X = X
+        self.X.zscore()
+
+        self.Y = Y
+
+        Debug.vprint("Predictor matrix {pr} and response matrix {re} ready".format(pr=X.shape, re=Y.shape))
 
     def run(self):
         """
@@ -69,16 +72,6 @@ class BaseRegression(object):
         """
         raise NotImplementedError
 
-    @staticmethod
-    def _scale(df):
-        """
-        Center and normalize a DataFrame
-        :param df: pd.DataFrame
-        :return df: pd.DataFrame
-        """
-        df = df.T
-        return ((df - df.mean()) / df.std(ddof=1)).T
-
     def pileup_data(self, run_data):
         """
         Take the completed run data and pack it up into a DataFrame of betas
@@ -95,21 +88,25 @@ class BaseRegression(object):
 
         # Populate the zero arrays with the BBSR betas
         for data in run_data:
+
+            # If data is None assume a null model
+            if data is None:
+                raise RuntimeError("No model produced by regression method")
+
             xidx = data['ind']  # Int
             yidx = data['pp']  # Boolean array of size K
-
             betas[xidx, yidx] = data['betas']
             betas_rescale[xidx, yidx] = data['betas_resc']
 
         d_len, b_avg, null_m = self._summary_stats(betas)
-        utils.Debug.vprint("Regression complete:", end=" ", level=0)
-        utils.Debug.vprint("{d_len} Models, {b_avg} Preds per Model ({nom} Null)".format(d_len=d_len,
-                                                                                         b_avg=round(b_avg, 4),
-                                                                                         nom=null_m), level=0)
+        Debug.vprint("Regression complete:", end=" ", level=0)
+        Debug.vprint("{d_len} Models, {b_avg} Preds per Model ({nom} Null)".format(d_len=d_len,
+                                                                                   b_avg=round(b_avg, 4),
+                                                                                   nom=null_m), level=0)
 
         # Convert arrays into pd.DataFrames to return results
-        betas = pd.DataFrame(betas, index=self.Y.index, columns=self.X.index)
-        betas_rescale = pd.DataFrame(betas_rescale, index=self.Y.index, columns=self.X.index)
+        betas = pd.DataFrame(betas, index=self.Y.gene_names, columns=self.X.gene_names)
+        betas_rescale = pd.DataFrame(betas_rescale, index=self.Y.gene_names, columns=self.X.gene_names)
 
         return betas, betas_rescale
 
@@ -140,7 +137,7 @@ class RegressionWorkflow(object):
         MPControl.sync_processes("pre_regression")
 
         for idx, bootstrap in enumerate(self.get_bootstraps()):
-            utils.Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps), level=0)
+            Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps), level=0)
             np.random.seed(self.random_seed + idx)
             current_betas, current_rescaled_betas = self.run_bootstrap(bootstrap)
             if self.is_master():
@@ -227,13 +224,21 @@ def predict_error_reduction(x, y, betas):
         # Reestimate betas for all the predictors except the one that we removed
         x_leaveout = x[:, leave_out]
         try:
-            beta_hat = np.linalg.solve(np.dot(x_leaveout.T, x_leaveout), np.dot(x_leaveout.T, y))
+            xt = x_leaveout.T
+            xtx = np.dot(xt, x_leaveout)
+            xty = np.dot(xt, y)
+            beta_hat = scipy.linalg.solve(xtx, xty, assume_a='sym')
         except np.linalg.LinAlgError:
             beta_hat = np.zeros(len(leave_out), dtype=np.dtype(float))
 
         # Calculate the variance of the residuals for the new estimated betas
         ss_leaveout = sigma_squared(x_leaveout, y, beta_hat)
-        error_reduction[lost] = 1 - (ss_all / ss_leaveout)
+
+        # Check to make sure that the ss_all and ss_leaveout differences aren't just precision-related
+        if np.abs(ss_all - ss_leaveout) < np.finfo(float).eps * len(pp_idx):
+            error_reduction[lost] = 0.
+        else:
+            error_reduction[lost] = 1 - (ss_all / ss_leaveout)
 
     return error_reduction
 

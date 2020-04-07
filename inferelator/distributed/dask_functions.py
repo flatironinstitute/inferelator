@@ -1,11 +1,11 @@
-import time
-
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.regression import base_regression
 from inferelator import utils
 
 import numpy as np
+import scipy.sparse as sps
 from dask import distributed
+import time
 
 """
 This package contains the dask-specific multiprocessing functions (these are used in place of map calls to allow the
@@ -15,7 +15,7 @@ more advanced memory and task tools of dask to be used)
 DASK_SCATTER_TIMEOUT = 120
 
 
-def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remove_autoregulation=True, is_restart=False):
+def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remove_autoregulation=True):
     """
     Execute multitask (AMUSR)
 
@@ -44,11 +44,10 @@ def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remov
             pass
 
         for k, y_data in y_list:
-            x.append(x_df[k].loc[:, tf].values)  # list([N, K])
+            x.append(x_df[k].get_gene_data(tf))  # list([N, K])
             y.append(y_data)
             tasks.append(k)  # [T,]
 
-        del y_list
         prior = format_prior(prior, gene, tasks, prior_weight)
         return j, run_regression_EBIC(x, y, tf, tasks, gene, prior)
 
@@ -56,35 +55,24 @@ def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remov
         y = []
         gene = genes[i]
         for k in range(n_tasks):
-            if gene in y_df[k]:
-                y.append((k, y_df[k].loc[:, gene].values.reshape(-1, 1)))
+            if gene in y_df[k].gene_names:
+                y.append((k, y_df[k].get_gene_data(gene, force_dense=True).reshape(-1, 1)))
         return y
 
     # Scatter common data to workers
-    [scatter_x] = DaskController.client.scatter([X], broadcast=True)
-    [scatter_priors] = DaskController.client.scatter([priors], broadcast=True)
+    [scatter_x] = DaskController.client.scatter([X], broadcast=True, hash=False)
+    [scatter_priors] = DaskController.client.scatter([priors], broadcast=True, hash=False)
 
     # Wait for scattering to finish before creating futures
-    try:
-        distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
-        distributed.wait(scatter_priors, timeout=DASK_SCATTER_TIMEOUT)
-    except distributed.TimeoutError:
-        utils.Debug.vprint("Scattering timeout during regression. Dask workers may be sick", level=0)
+    distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
+    distributed.wait(scatter_priors, timeout=DASK_SCATTER_TIMEOUT)
 
     future_list = [DaskController.client.submit(regression_maker, i, scatter_x, response_maker(Y, i), scatter_priors,
                                                 tfs)
                    for i in range(G)]
 
     # Collect results as they finish instead of waiting for all workers to be done
-    try:
-        result_list = process_futures_into_list(future_list)
-    except KeyError:
-        utils.Debug.vprint("Unrecoverable job error; restarting")
-        if not is_restart:
-            return amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G,
-                                      remove_autoregulation=remove_autoregulation, is_restart=True)
-        else:
-            raise
+    result_list = process_futures_into_list(future_list)
 
     DaskController.client.cancel(scatter_x)
     DaskController.client.cancel(scatter_priors)
@@ -92,7 +80,7 @@ def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remov
     return result_list
 
 
-def bbsr_regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS, is_restart=False):
+def bbsr_regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS):
     """
     Execute regression (BBSR)
 
@@ -107,36 +95,27 @@ def bbsr_regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS, is_restart=False)
     def regression_maker(j, x, y, pp, weights):
         level = 0 if j % 100 == 0 else 2
         utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=genes[j], i=j, total=G), level=level)
-        data = bayes_stats.bbsr(x, y, pp[j, :].flatten(), weights[j, :].flatten(), nS)
+        data = bayes_stats.bbsr(x, utils.scale_vector(y), pp[j, :].flatten(), weights[j, :].flatten(), nS)
         data['ind'] = j
         return j, data
 
     # Scatter common data to workers
-    [scatter_x] = DaskController.client.scatter([X.values], broadcast=True)
-    [scatter_pp] = DaskController.client.scatter([pp_mat.values], broadcast=True)
-    [scatter_weights] = DaskController.client.scatter([weights_mat.values], broadcast=True)
+    [scatter_x] = DaskController.client.scatter([X.values], broadcast=True, hash=False)
+    [scatter_pp] = DaskController.client.scatter([pp_mat.values], broadcast=True, hash=False)
+    [scatter_weights] = DaskController.client.scatter([weights_mat.values], broadcast=True, hash=False)
 
     # Wait for scattering to finish before creating futures
-    try:
-        distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
-        distributed.wait(scatter_pp, timeout=DASK_SCATTER_TIMEOUT)
-        distributed.wait(scatter_weights, timeout=DASK_SCATTER_TIMEOUT)
-    except distributed.TimeoutError:
-        utils.Debug.vprint("Scattering timeout during regression. Dask workers may be sick", level=0)
+    distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
+    distributed.wait(scatter_pp, timeout=DASK_SCATTER_TIMEOUT)
+    distributed.wait(scatter_weights, timeout=DASK_SCATTER_TIMEOUT)
 
-    future_list = [DaskController.client.submit(regression_maker, i, scatter_x, Y.values[i, :].flatten(), scatter_pp,
-                                                scatter_weights)
+    future_list = [DaskController.client.submit(regression_maker, i, scatter_x,
+                                                Y.get_gene_data(i, force_dense=True).flatten(),
+                                                scatter_pp, scatter_weights)
                    for i in range(G)]
 
     # Collect results as they finish instead of waiting for all workers to be done
-    try:
-        result_list = process_futures_into_list(future_list)
-    except KeyError:
-        utils.Debug.vprint("Unrecoverable job error; restarting")
-        if not is_restart:
-            return bbsr_regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS, is_restart=True)
-        else:
-            raise
+    result_list = process_futures_into_list(future_list)
 
     DaskController.client.cancel(scatter_x)
     DaskController.client.cancel(scatter_pp)
@@ -145,7 +124,7 @@ def bbsr_regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS, is_restart=False)
     return result_list
 
 
-def elasticnet_regress_dask(X, Y, params, G, genes, is_restart=False):
+def elasticnet_regress_dask(X, Y, params, G, genes):
     """
     Execute regression (ElasticNet)
 
@@ -160,38 +139,29 @@ def elasticnet_regress_dask(X, Y, params, G, genes, is_restart=False):
     def regression_maker(j, x, y):
         level = 0 if j % 100 == 0 else 2
         utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=genes[j], i=j, total=G), level=level)
-        data = elasticnet_python.elastic_net(x, y, params=params)
+        data = elasticnet_python.elastic_net(x, utils.scale_vector(y), params=params)
         data['ind'] = j
         return j, data
 
     # Scatter common data to workers
-    [scatter_x] = DaskController.client.scatter([X.values], broadcast=True)
+    [scatter_x] = DaskController.client.scatter([X.values], broadcast=True, hash=False)
 
     # Wait for scattering to finish before creating futures
-    try:
-        distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
-    except distributed.TimeoutError:
-        utils.Debug.vprint("Scattering timeout during regression. Dask workers may be sick", level=0)
+    distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
 
-    future_list = [DaskController.client.submit(regression_maker, i, scatter_x, Y.values[i, :].flatten())
+    future_list = [DaskController.client.submit(regression_maker, i, scatter_x,
+                                                Y.get_gene_data(i, force_dense=True).flatten())
                    for i in range(G)]
 
     # Collect results as they finish instead of waiting for all workers to be done
-    try:
-        result_list = process_futures_into_list(future_list)
-    except KeyError:
-        utils.Debug.vprint("Unrecoverable job error; restarting")
-        if not is_restart:
-            return elasticnet_regress_dask(X, Y, params, G, genes, is_restart=True)
-        else:
-            raise
+    result_list = process_futures_into_list(future_list)
 
     DaskController.client.cancel(scatter_x)
 
     return result_list
 
 
-def build_mi_array_dask(X, Y, bins, logtype, is_restart=False):
+def build_mi_array_dask(X, Y, bins, logtype):
     """
     Calculate MI into an array with dask (the naive map is very inefficient)
 
@@ -209,7 +179,7 @@ def build_mi_array_dask(X, Y, bins, logtype, is_restart=False):
 
     assert MPControl.is_dask()
 
-    from inferelator.regression.mi import _calc_mi, _make_table
+    from inferelator.regression.mi import _calc_mi, _make_table, _make_discrete
 
     # Get a reference to the Dask controller
     DaskController = MPControl.client
@@ -217,37 +187,34 @@ def build_mi_array_dask(X, Y, bins, logtype, is_restart=False):
     m1, m2 = X.shape[1], Y.shape[1]
 
     def mi_make(i, x, y):
+        x = _make_discrete(x, bins)
         return i, [_calc_mi(_make_table(x, y[:, j], bins), logtype=logtype) for j in range(m2)]
 
     # Scatter Y to workers and keep track as Futures
     [scatter_y] = DaskController.client.scatter([Y], broadcast=True, hash=False)
+
     # Wait for scattering to finish before creating futures
-    try:
-        distributed.wait(scatter_y, timeout=DASK_SCATTER_TIMEOUT)
-    except distributed.TimeoutError:
-        utils.Debug.vprint("Scattering timeout during mutual information. Dask workers may be sick", level=0)
+    distributed.wait(scatter_y, timeout=DASK_SCATTER_TIMEOUT)
 
     # Build an asynchronous list of Futures for each calculation of mi_make
-    future_list = [DaskController.client.submit(mi_make, i, X[:, i], scatter_y, pure=False) for i in range(m1)]
+    future_list = [DaskController.client.submit(mi_make, i,
+                                                X[:, i].A.flatten() if sps.isspmatrix(X) else X[:, i].flatten(),
+                                                scatter_y)
+                   for i in range(m1)]
 
     # Collect results as they finish instead of waiting for all workers to be done
-    try:
-        mi_list = process_futures_into_list(future_list)
-    except KeyError:
-        utils.Debug.vprint("Unrecoverable job error; restarting")
-        if not is_restart:
-            return build_mi_array_dask(X, Y, bins, logtype, is_restart=True)
-        else:
-            raise
+    mi_list = process_futures_into_list(future_list)
 
     # Convert the list of lists to an array
     mi = np.array(mi_list)
     assert (m1, m2) == mi.shape, "Array {sh} produced [({m1}, {m2}) expected]".format(sh=mi.shape, m1=m1, m2=m2)
 
+    DaskController.client.cancel(scatter_y)
+
     return mi
 
 
-def process_futures_into_list(future_list):
+def process_futures_into_list(future_list, raise_on_error=False, check_results=False):
     """
     Take a list of futures and turn them into a list of results
     Results must be of the form i, data (where i is the output order)
@@ -262,21 +229,24 @@ def process_futures_into_list(future_list):
     for finished_future in complete_gen:
 
         # Jobs can be cancelled in certain situations
-        if finished_future.cancelled():
-            # Restart cancelled futures and put them back into the work pile
-            DaskController.client.retry(finished_future)
-            complete_gen.update([finished_future])
-
-        # More likely is jobs erroring as a result of cluster instability
-        elif finished_future.status == "error":
+        if check_results and (finished_future.cancelled() or (finished_future.status == "erred")):
             error = finished_future.exception()
-            utils.Debug.vprint("Restarting job (Error: {er})".format(er=error), level=1)
-            # Restart errored futures and put them back into the work pile
-            DaskController.client.retry(finished_future)
-            complete_gen.update([finished_future])
+            utils.Debug.vprint("Restarting job (Error: {er})".format(er=error), level=0)
+
+            # Restart cancelled futures and put them back into the work pile
+            try:
+                DaskController.client.retry(finished_future)
+                complete_gen.update([finished_future])
+            except KeyError:
+                if raise_on_error:
+                    raise
+                else:
+                    continue
 
         # In the event of success, get the data
-        i, result_data = finished_future.result()
-        output_list[i] = result_data
+        else:
+            i, result_data = finished_future.result()
+            output_list[i] = result_data
+            finished_future.cancel()
 
     return output_list

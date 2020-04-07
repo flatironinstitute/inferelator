@@ -51,7 +51,7 @@ class TestElasticNet(unittest.TestCase):
         x = PREDICT_ARRAY.copy()
         y = RESPONSE_ARRAY.copy()
 
-        result = elasticnet_python.elastic_net(x.T, y, PARAMS)
+        result = elasticnet_python.elastic_net(x, y, PARAMS)
 
         self.assertEqual(len(result["pp"]), 5)
         self.assertEqual(len(result["betas"]), 5)
@@ -71,7 +71,7 @@ class TestElasticNet(unittest.TestCase):
 
         x[:, 2] = np.sort(x[:, 2])
 
-        result = elasticnet_python.elastic_net(x.T, y, PARAMS)
+        result = elasticnet_python.elastic_net(x, y, PARAMS)
 
         self.assertEqual(len(result["pp"]), 5)
         self.assertEqual(len(result["betas"]), 1)

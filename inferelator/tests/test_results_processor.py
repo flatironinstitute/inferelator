@@ -198,7 +198,7 @@ class TestPrecisionRecallMetric(TestResults):
         data = self.metric.calculate_precision_recall(data)
         recall, precision = self.metric.modify_pr(data)
         np.testing.assert_equal(recall, [0., 0.5, 1., 1., 1.])
-        np.testing.assert_equal(precision, [1., 1., 1., 2. / 3, 0.5])
+        np.testing.assert_array_almost_equal(precision, [1., 1., 1., 7. / 12, 7. / 12])
 
     def test_precision_recall_unaligned_prediction(self):
         gs = self.gold_standard_unaligned.copy()
@@ -225,7 +225,7 @@ class TestPrecisionRecallMetric(TestResults):
         data = self.metric.calculate_precision_recall(data)
         recall, precision = self.metric.modify_pr(data)
         np.testing.assert_equal(recall, [0., 0., 0., 0.5, 1.])
-        np.testing.assert_equal(precision, [0., 0., 0., 1. / 3, 0.5, ])
+        np.testing.assert_array_almost_equal(precision, [0., 0., 0., 5. / 12, 5. / 12])
 
     def test_aupr_perfect_prediction(self):
         gs = pd.DataFrame(np.array([[1, 0], [1, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
@@ -250,7 +250,7 @@ class TestPrecisionRecallMetric(TestResults):
         data = self.metric.calculate_precision_recall(data)
         recall, precision = self.metric.modify_pr(data)
         np.testing.assert_equal(recall, [0., 0., 0., 0.5, 1.])
-        np.testing.assert_equal(precision, [0., 0., 0., 1. / 3, 0.5, ])
+        np.testing.assert_array_almost_equal(precision, [0., 0., 0., 5. / 12, 5. / 12])
 
     def test_aupr_prediction_off(self):
         gs = pd.DataFrame(np.array([[1, 0], [0, 1]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
@@ -266,7 +266,7 @@ class TestPrecisionRecallMetric(TestResults):
         data = self.make_PR_data(gs, confidences)
         data = self.metric.calculate_precision_recall(data)
         aupr = self.metric.calculate_aupr(data)
-        np.testing.assert_approx_equal(aupr, 7. / 24)
+        np.testing.assert_approx_equal(aupr, 5. / 16)
 
     def test_rank_sum_increasing(self):
         rankable_data = [pd.DataFrame(np.array([[2.0, 4.0], [6.0, 8.0]]))]
