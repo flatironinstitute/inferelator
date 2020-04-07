@@ -116,25 +116,29 @@ After creating a workflow, only the input, output and gold standard file locatio
   worker.set_file_paths(input_dir=".", output_dir="./output_network", gold_standard_file="gold_standard.tsv.gz")
 
 Other information should be provided to each separate task.
-These can be created by calling the ``.create_task()`` function::
+These can be created by calling the ``.create_task()`` function.
+This function returns a task reference which can be used to set additional task properties::
 
-  worker.create_task(task_name="Bsubtilis_1",
-                     input_dir=".",
-                     expression_matrix_file='GSE67023_expression.tsv.gz',
-                     tf_names_file='tf_names.tsv',
-                     meta_data_file='GSE67023_meta_data.tsv',
-                     priors_file='gold_standard.tsv.gz',
-                     workflow_type="tfa")
+  task_1 = worker.create_task(task_name="Bsubtilis_1",
+                              input_dir=".",
+                              tf_names_file='tf_names.tsv',
+                              meta_data_file='GSE67023_meta_data.tsv',
+                              priors_file='gold_standard.tsv.gz',
+                              workflow_type="tfa")
+  task_1.set_expression_file(tsv='GSE67023_expression.tsv.gz')
 
-  worker.create_task(task_name="Bsubtilis_2",
-                     input_dir=".",
-                     expression_matrix_file='expression.tsv.gz',
-                     tf_names_file='tf_names.tsv',
-                     meta_data_file='meta_data.tsv',
-                     priors_file='gold_standard.tsv.gz',
-                     workflow_type="tfa")
+  task_2 = worker.create_task(task_name="Bsubtilis_2",
+                              input_dir=".",
+                              tf_names_file='tf_names.tsv',
+                              meta_data_file='meta_data.tsv',
+                              priors_file='gold_standard.tsv.gz',
+                              workflow_type="tfa")
+  task_2.set_expression_file(tsv='expression.tsv.gz')
 
-Any additional parameters can be set and this workflow can now be run::
+
+Additional parameters can be set on the main workflow.
+Task references made with ``.create_task()`` are automatically included when the workflow is started.
+The workflow can then be started with ``.run()``::
 
   worker.set_run_parameters(num_bootstraps=5, random_seed=42)
   worker.run()
