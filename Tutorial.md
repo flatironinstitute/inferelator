@@ -50,7 +50,8 @@ python examples/yeast_network_inference_run_script.py
 
 ## Acquire necessary data for network inference in a different organism
 
-Obtain expression data and save it as a TSV file of [Genes x Samples]
+Obtain expression data and save it as a TSV file of [Samples x Genes] 
+(Other file formats are also possible; AnnData h5 `.h5ad` files are recommended for large or sparse data)
 
 Obtain prior interaction data between TFs and target genes and save it as a TSV file of [Genes x TFs]
 
@@ -75,12 +76,12 @@ worker = workflow.inferelator_workflow(regression="bbsr", workflow="tfa")
 ```
 Set file names and paths:
 ```
-worker.input_dir = 'data/new_organism'
-worker.output_dir = '~/new_organism/'
-worker.expression_matrix_file = 'new_expression.tsv.gz'
-worker.tf_names_file = 'tf_list.txt'
-worker.priors_file = 'new_prior.tsv.gz'
-worker.gold_standard_file = 'new_prior.tsv.gz'
+worker.set_file_paths(input_dir='data/new_organism',
+                      output_dir='~/new_organism/',
+                      tf_names_file='tf_list.txt',
+                      priors_file='new_prior.tsv.gz',
+                      gold_standard_file='new_prior.tsv.gz')
+worker.set_expression_file(tsv='new_expression.tsv.gz')
 ```
 Add a line to execute inference:
 ```
