@@ -11,7 +11,7 @@ from inferelator import utils
 from inferelator.utils import Validator as check
 from inferelator.distributed import AbstractController
 
-_DEFAULT_CONDA_ACTIVATE = ["source ~/.local/anaconda3/bin/activate"]
+_DEFAULT_CONDA_ACTIVATE = "source ~/.local/anaconda3/bin/activate"
 _DEFAULT_NUM_JOBS = 1
 _DEFAULT_WORKERS_PER_JOB = 20
 _DEFAULT_MEM_PER_JOB = '62GB'
@@ -31,14 +31,15 @@ _KNOWN_CONFIG = {"prince": {"_job_n_workers": 20,
                             "_job_mem": "62GB",
                             "_job_time": "48:00:00",
                             "_interface": "ib0",
-                            "_job_extra_env_commands": _DEFAULT_ENV_EXTRA + _DEFAULT_CONDA_ACTIVATE
+                            "_job_extra_env_commands": _DEFAULT_ENV_EXTRA
                             },
                  "rusty_ccb": {"_job_n_workers": 28,
                                "_job_mem": "498GB",
                                "_job_time": "48:00:00",
                                "_interface": "ib0",
                                "_queue": "ccb",
-                               "_job_extra_env_commands": _DEFAULT_ENV_EXTRA + _DEFAULT_CONDA_ACTIVATE}}
+                               "_job_extra_env_commands": _DEFAULT_ENV_EXTRA}
+                 }
 
 try:
     _DEFAULT_LOCAL_DIR = os.environ['TMPDIR']
@@ -247,6 +248,17 @@ class DaskHPCClusterController(AbstractController):
         """
 
         cls._job_slurm_commands.append(line)
+
+    @classmethod
+    def add_worker_conda(cls, cmd=_DEFAULT_CONDA_ACTIVATE):
+        """
+        Add a line to activate a conda environment for workers
+
+        :param cmd: A shell command which will activate a conda environment
+        Defaults to "source ~/.local/anaconda3/bin/activate base"
+        """
+
+        cls.add_worker_env_line(cmd)
 
     @classmethod
     def is_dask(cls):
