@@ -252,12 +252,22 @@ def build_mi_array_dask(X, Y, bins, logtype):
     return mi
 
 
-def process_futures_into_list(future_list, raise_on_error=False, check_results=False):
+def process_futures_into_list(future_list, raise_on_error=True, check_results=True):
     """
     Take a list of futures and turn them into a list of results
     Results must be of the form i, data (where i is the output order)
-    :param future_list: list(Futures)
-    :return output_list: list(Data)
+
+    :param future_list: A list of executing futures
+    :type future_list: list
+    :param raise_on_error: Should an error be raised if a job can't be restarted or just move on from it.
+    Defaults to True
+    :type raise_on_error: bool
+    :param check_results: Should the result object be checked (and restarted if there's a problem)
+    If False, this will raise an error with the result of a failed future is retrieved.
+    Defaults to True.
+    :type check_results: bool
+    :return output_list: A list of results from the completed futures
+    :rtype: list
     """
 
     DaskController = MPControl.client
@@ -278,8 +288,6 @@ def process_futures_into_list(future_list, raise_on_error=False, check_results=F
             except KeyError:
                 if raise_on_error:
                     raise
-                else:
-                    continue
 
         # In the event of success, get the data
         else:
