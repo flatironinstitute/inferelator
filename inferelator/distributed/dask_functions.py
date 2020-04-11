@@ -110,7 +110,7 @@ def bbsr_regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS):
 
     future_list = [DaskController.client.submit(regression_maker, i, scatter_x,
                                                 Y.get_gene_data(i, force_dense=True).flatten(),
-                                                scatter_pp, scatter_weights, allow_other_workers=True)
+                                                scatter_pp, scatter_weights)
                    for i in range(G)]
 
     # Collect results as they finish instead of waiting for all workers to be done
