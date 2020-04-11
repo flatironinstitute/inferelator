@@ -97,12 +97,6 @@ class DaskHPCClusterController(AbstractController):
     _job_slurm_commands = _DEFAULT_CONTROLLER_EXTRA
     _job_extra_env_commands = _DEFAULT_ENV_EXTRA
 
-    @classmethod
-    def __str__(cls):
-        status = "\n".join(["Dask cluster: Allocated {n} jobs ({w} workers with {m} memory per job)",
-                            "SLURM: -p {q}, -A {p}, " + ", ".join(cls._job_slurm_commands),
-                            "ENV: " + "\n\t".join(cls._job_extra_env_commands)]) + "\n"
-        return status.format(n=cls._job_n, w=cls._job_n_workers, m=cls._job_mem, q=cls._queue, p=cls._project)
 
     @classmethod
     def connect(cls, *args, **kwargs):
@@ -160,7 +154,7 @@ class DaskHPCClusterController(AbstractController):
             msg = "Configuration {k} is unknown".format(k=known_config)
             raise ValueError(msg)
 
-        utils.Debug.vprint(str(cls), level=1)
+        utils.Debug.vprint(cls._config_str(), level=1)
 
     @classmethod
     def set_job_size_params(cls, n_jobs=None, n_cores_per_job=None, mem_per_job=None, walltime=None):
@@ -250,15 +244,30 @@ class DaskHPCClusterController(AbstractController):
         cls._job_slurm_commands.append(line)
 
     @classmethod
-    def add_worker_conda(cls, cmd=_DEFAULT_CONDA_ACTIVATE):
+    def add_worker_conda(cls, cmd=None, env=None):
         """
         Add a line to activate a conda environment for workers
 
         :param cmd: A shell command which will activate a conda environment
         Defaults to "source ~/.local/anaconda3/bin/activate base"
+        :type cmd: str
+        :param
         """
 
+        if cmd is None:
+            try:
+                conda = os.environ['CONDA_PREFIX_1'] if 'CONDA_PREFIX_1' in os.environ else os.environ['CONDA_PREFIX']
+                cmd = os.path.join(conda, "bin", "activate")
+                cmd = "source " + cmd + " " + (env if env is not None else "")
+                cls.add_worker_env_line(cmd)
+                return True
+            except KeyError:
+                raise ValueError("Unable to set conda environment implicitly; pass explicit `cmd=` argument instead")
+        elif env is not None:
+            utils.Debug.vprint("The `env` argument to `add_worker_conda` is ignored when `cmd` is passed", level=0)
+
         cls.add_worker_env_line(cmd)
+        return True
 
     @classmethod
     def is_dask(cls):
@@ -278,3 +287,10 @@ class DaskHPCClusterController(AbstractController):
             sleep_time += 1
 
         return True
+
+    @classmethod
+    def _config_str(cls):
+        status = "\n".join(["Dask cluster: Allocated {n} jobs ({w} workers with {m} memory per job)",
+                            "SLURM: -p {q}, -A {p}, " + ", ".join(cls._job_slurm_commands),
+                            "ENV: " + "\n\t".join(cls._job_extra_env_commands)]) + "\n"
+        return status.format(n=cls._job_n, w=cls._job_n_workers, m=cls._job_mem, q=cls._queue, p=cls._project)
