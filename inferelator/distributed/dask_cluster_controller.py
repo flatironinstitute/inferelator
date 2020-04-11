@@ -120,7 +120,7 @@ class DaskHPCClusterController(AbstractController):
 
         cls._local_cluster.job_cls = SLURMJobNoMemLimit
         cls._local_cluster.adapt(minimum_jobs=cls._job_n, maximum_jobs=cls._job_n, interval=cls._adapt_interval)
-        cls.client = distributed.Client(cls._local_cluster)
+        cls.client = distributed.Client(cls._local_cluster, direct_to_workers=True)
 
         return True
 
