@@ -82,3 +82,10 @@ class DaskController(AbstractController):
         This is a thing for KVS. Just return True.
         """
         return True
+
+    @classmethod
+    def check_cluster_state(cls):
+        """
+        This is a thing for the non-local dask. Just return True.
+        """
+        return True

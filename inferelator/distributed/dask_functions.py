@@ -1,6 +1,8 @@
 from inferelator.distributed.inferelator_mp import MPControl
+from inferelator.distributed.dask_cluster_controller import process_futures_into_list
 from inferelator.regression import base_regression
 from inferelator import utils
+
 
 import numpy as np
 import scipy.sparse as sps
@@ -275,6 +277,8 @@ def process_futures_into_list(future_list, raise_on_error=True, check_results=Tr
 
     for finished_future in complete_gen:
 
+        DaskController.check_cluster_state()
+
         # Jobs can be cancelled in certain situations
         if check_results and (finished_future.cancelled() or (finished_future.status == "erred")):
             error = finished_future.exception()
@@ -295,3 +299,4 @@ def process_futures_into_list(future_list, raise_on_error=True, check_results=Tr
             finished_future.cancel()
 
     return output_list
+

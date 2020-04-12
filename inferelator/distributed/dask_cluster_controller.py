@@ -116,12 +116,10 @@ class DaskHPCClusterController(AbstractController):
                                                            env_extra=cls._job_extra_env_commands,
                                                            local_directory=cls._local_directory,
                                                            memory=cls._job_mem,
-                                                           job_extra=cls._job_slurm_commands)
+                                                           job_extra=cls._job_slurm_commands,
+                                                           job_cls=SLURMJobNoMemLimit)
 
-        cls._local_cluster.job_cls = SLURMJobNoMemLimit
-        cls._local_cluster.adapt(minimum_jobs=cls._job_n, maximum_jobs=cls._job_n, interval=cls._adapt_interval)
         cls.client = distributed.Client(cls._local_cluster, direct_to_workers=True)
-
         return True
 
     @classmethod
@@ -275,8 +273,13 @@ class DaskHPCClusterController(AbstractController):
         Block when something asks if this is a dask function until the workers are alive
         """
 
-        if len(cls._local_cluster.scheduler.identity()['workers']) > 0:
-            return True
+        cls.check_cluster_state()
+        return True
+
+    @classmethod
+    def check_cluster_state(cls):
+
+        cls._scale_jobs()
 
         sleep_time = 0
         while len(cls._local_cluster.scheduler.identity()['workers']) == 0:
@@ -286,11 +289,15 @@ class DaskHPCClusterController(AbstractController):
                                    level=0)
             sleep_time += 1
 
-        return True
-
     @classmethod
     def _config_str(cls):
         status = "\n".join(["Dask cluster: Allocated {n} jobs ({w} workers with {m} memory per job)",
                             "SLURM: -p {q}, -A {p}, " + ", ".join(cls._job_slurm_commands),
                             "ENV: " + "\n\t".join(cls._job_extra_env_commands)]) + "\n"
         return status.format(n=cls._job_n, w=cls._job_n_workers, m=cls._job_mem, q=cls._queue, p=cls._project)
+
+    @classmethod
+    def _scale_jobs(cls):
+        expected_workers = cls._job_n * cls._job_n_workers
+        if len(cls._local_cluster.scheduler.identity()['workers']) < expected_workers:
+            cls._local_cluster.scale(jobs=cls._job_n)
