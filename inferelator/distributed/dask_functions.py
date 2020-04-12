@@ -1,5 +1,4 @@
 from inferelator.distributed.inferelator_mp import MPControl
-from inferelator.distributed.dask_cluster_controller import process_futures_into_list
 from inferelator.regression import base_regression
 from inferelator import utils
 

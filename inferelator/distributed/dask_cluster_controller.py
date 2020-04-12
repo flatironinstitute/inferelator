@@ -134,13 +134,13 @@ class DaskHPCClusterController(AbstractController):
     @classmethod
     def use_default_configuration(cls, known_config, n_jobs=1):
         """
-        Load a cluster configuration
+        Load a known default cluster configuration
 
-        :param known_config: Currently implemented "prince" (NYU) and "rusty" (Simons Foundation)
+        :param known_config: A string with a valid known cluster configuration.
+        Currently implemented are "prince" (NYU) and "rusty_ccb" (Simons Foundation; Center for Computational Biology)
         :type known_config: str
         :param n_jobs: Number of jobs to start with this configuration
         :type n_jobs: int
-        :return:
         """
 
         known_config = known_config.lower()
@@ -249,7 +249,9 @@ class DaskHPCClusterController(AbstractController):
         :param cmd: A shell command which will activate a conda environment
         Defaults to "source ~/.local/anaconda3/bin/activate base"
         :type cmd: str
-        :param
+        :param env: The environment to activate. This will be used with the $CONDA_PREFIX variables if no argument
+        is provided for `cmd`.
+        :type env: str
         """
 
         if cmd is None:
