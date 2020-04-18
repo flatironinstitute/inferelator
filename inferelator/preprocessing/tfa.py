@@ -59,7 +59,9 @@ class TFA:
     @staticmethod
     def _calculate_activity(prior, expression_data):
 
-        return utils.dot_product(expression_data.expression_data, linalg.pinv2(prior).T.astype(np.float32),
+        return utils.dot_product(expression_data.values, np.asarray(linalg.pinv2(prior).T,
+                                                                    dtype=expression_data.values.dtype,
+                                                                    order="C"),
                                  dense=True, cast=True)
 
 
