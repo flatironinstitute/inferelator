@@ -1,5 +1,5 @@
 import numpy as np
-from scipy import linalg
+from scipy import linalg, sparse
 from inferelator import utils
 
 
@@ -60,9 +60,7 @@ class TFA:
     def _calculate_activity(prior, expression_data):
 
         prior_dtype = np.float32 if expression_data.values.dtype == np.float32 else np.float64
-        return utils.dot_product(expression_data.values, np.asarray(linalg.pinv2(prior).T,
-                                                                    dtype=prior_dtype,
-                                                                    order="C"),
+        return utils.dot_product(expression_data.values, sparse.csr_matrix(linalg.pinv2(prior).T, dtype=prior_dtype),
                                  dense=True, cast=True)
 
 
