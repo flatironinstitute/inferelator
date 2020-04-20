@@ -118,6 +118,9 @@ class TFAWorkFlow(workflow.WorkflowBase):
         self.compute_common_data()
         self.compute_activity()
 
+        # Most operations will be column-wise; change sparse type if needed here
+        self.response.to_csc()
+
     def run_regression(self):
         raise NotImplementedError
 
