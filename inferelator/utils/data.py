@@ -238,31 +238,25 @@ class InferelatorData(object):
         if new_meta_data.index.nunique() != new_meta_data.shape[0]:
             new_meta_data = new_meta_data.loc[~new_meta_data.duplicated(), :]
 
-        try:
-            Validator.indexes_align((self.sample_names, new_meta_data.index), check_order=True)
-        except ValueError:
-            msg = "Metadata update for {n} is misaligned".format(n=str(self))
+        # If the metadata is the wrong size, angrily die
+        if new_meta_data.shape[0] != self.num_obs:
+            msg = "Metadata size {sh1} does not match expression data ({sh2})".format(sh1=new_meta_data.shape,
+                                                                                      sh2=self.num_obs)
+            raise ValueError(msg)
 
-            name_overlap = len(set(new_meta_data.index).intersection(set(self.sample_names)))
-            # If the new metadata has no overlapping index names and is the same length, just assume it's right order
-            if (name_overlap == 0) and (new_meta_data.shape[0] == self.num_obs):
-                msg += " (Metadata dimensions are correct; ignoring misalignment)"
-                warnings.warn(msg)
-            elif name_overlap == 0:
-                msg = "Incorrectly sized metadata with no overlapping names was provided to {s}".format(s=str(self))
-                raise ValueError(msg)
-            else:
-                msg += " ({m} records are in both)".format(m=name_overlap)
-                warnings.warn(msg)
-                new_meta_data = new_meta_data.reindex(self.sample_names)
-
-        # Join any new columns to any existing columns
-        # Update (overwrite) any columns in the existing meta data if they are in the new meta data
-        if len(self._adata.obs.columns) > 0:
-            keep_columns = self._adata.obs.columns.difference(new_meta_data.columns)
-            self._adata.obs = pd.concat((new_meta_data, self._adata.obs.loc[:, keep_columns]), axis=1)
+        # If the new one is the right size, force it in one way or the other
         else:
-            self._adata.obs = new_meta_data
+            # Reindex the metadata to match the sample names
+            try:
+                new_meta_data = new_meta_data.reindex(self.sample_names)
+            except ValueError:
+                new_meta_data.index = self.sample_names
+
+            if len(self._adata.obs.columns) > 0:
+                keep_columns = self._adata.obs.columns.difference(new_meta_data.columns)
+                self._adata.obs = pd.concat((new_meta_data, self._adata.obs.loc[:, keep_columns]), axis=1)
+            else:
+                self._adata.obs = new_meta_data
 
     @property
     def gene_data(self):
@@ -357,7 +351,7 @@ class InferelatorData(object):
 
             if sum(object_cols) > 0:
                 object_data = expression_data.loc[:, object_cols]
-                meta_data = object_data if meta_data is None else pd.concat((meta_data, object_data))
+                meta_data = object_data if meta_data is None else pd.concat((meta_data, object_data), axis=1)
                 expression_data.drop(expression_data.columns[object_cols], inplace=True, axis=1)
 
             if dtype is None and all(map(lambda x: pat.is_integer_dtype(x), expression_data.dtypes)):
