@@ -17,14 +17,13 @@ from inferelator.utils import Debug, Validator
 try:
     from sparse_dot_mkl import get_version_string, dot_product_mkl as dot_product
     msg = "Matrix multiplication will use sparse_dot_mkl package with MKL: {m}"
-    mkl_version = get_version_string()
-    Debug.vprint(msg.format(m=mkl_version if mkl_version is not None else "Install mkl-service for details"), level=1)
+    print(msg.format(m=get_version_string() if get_version_string() is not None else "Install mkl-service for details"))
 
 # If it isn't available, use the scipy/numpy functions instead
 except ImportError as err:
-    Debug.vprint("Unable to load MKL with sparse_dot_mkl:", level=1)
-    Debug.vprint(str(err), level=2)
-    Debug.vprint("Using numpy matrix operations; this greatly increases memory usage with sparse data", level=1)
+    print("Unable to load MKL with sparse_dot_mkl:")
+    print(str(err))
+    print("Matrix multiplication will use Numpy; this greatly increases memory usage with sparse data")
 
     def dot_product(a, b, dense=True, cast=True):
 
@@ -240,25 +239,24 @@ class InferelatorData(object):
         if new_meta_data.index.nunique() != new_meta_data.shape[0]:
             new_meta_data = new_meta_data.loc[~new_meta_data.duplicated(), :]
 
-        # If the metadata is the wrong size, angrily die
-        if new_meta_data.shape[0] != self.num_obs:
-            msg = "Metadata size {sh1} does not match expression data ({sh2})".format(sh1=new_meta_data.shape,
-                                                                                      sh2=self.num_obs)
-            raise ValueError(msg)
 
         # If the new one is the right size, force it in one way or the other
-        else:
-            # Reindex the metadata to match the sample names
-            try:
-                new_meta_data = new_meta_data.reindex(self.sample_names)
-            except ValueError:
-                new_meta_data.index = self.sample_names
+        # Reindex the metadata to match the sample names
+        try:
+            new_meta_data = new_meta_data.reindex(self.sample_names)
+        except ValueError:
+            # If the metadata is the wrong size, angrily die
+            if new_meta_data.shape[0] != self.num_obs:
+                msg = "Metadata size {sh1} does not match expression data ({sh2})".format(sh1=new_meta_data.shape,
+                                                                                          sh2=self.num_obs)
+                raise ValueError(msg)
+            new_meta_data.index = self.sample_names
 
-            if len(self._adata.obs.columns) > 0:
-                keep_columns = self._adata.obs.columns.difference(new_meta_data.columns)
-                self._adata.obs = pd.concat((new_meta_data, self._adata.obs.loc[:, keep_columns]), axis=1)
-            else:
-                self._adata.obs = new_meta_data
+        if len(self._adata.obs.columns) > 0:
+            keep_columns = self._adata.obs.columns.difference(new_meta_data.columns)
+            self._adata.obs = pd.concat((new_meta_data, self._adata.obs.loc[:, keep_columns]), axis=1)
+        else:
+            self._adata.obs = new_meta_data
 
     @property
     def gene_data(self):
