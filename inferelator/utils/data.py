@@ -15,8 +15,10 @@ from inferelator.utils import Debug, Validator
 
 # Try loading dot_product_mkl for matrix multiplication
 try:
-    from sparse_dot_mkl import dot_product_mkl as dot_product
-    Debug.vprint("Loaded sparse_dot_mkl for matrix multiplication", level=1)
+    from sparse_dot_mkl import get_version_string, dot_product_mkl as dot_product
+    msg = "Matrix multiplication will use sparse_dot_mkl package with MKL: {m}"
+    mkl_version = get_version_string()
+    Debug.vprint(msg.format(m=mkl_version if mkl_version is not None else "Install mkl-service for details"), level=1)
 
 # If it isn't available, use the scipy/numpy functions instead
 except ImportError as err:
