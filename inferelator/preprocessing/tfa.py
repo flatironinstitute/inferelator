@@ -60,8 +60,8 @@ class TFA:
     def _calculate_activity(prior, expression_data):
 
         prior_dtype = np.float32 if expression_data.values.dtype == np.float32 else np.float64
-        return utils.dot_product(expression_data.values, sparse.csr_matrix(linalg.pinv2(prior).T, dtype=prior_dtype),
-                                 dense=True, cast=True)
+        return utils.DotProduct.dot(expression_data.values, sparse.csr_matrix(linalg.pinv2(prior).T, dtype=prior_dtype),
+                                    dense=True, cast=True)
 
 
 class NoTFA(TFA):

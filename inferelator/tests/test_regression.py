@@ -4,7 +4,6 @@ import tempfile
 import pandas as pd
 import shutil
 import numpy as np
-import scipy.sparse as sps
 
 from inferelator.distributed.inferelator_mp import MPControl
 
@@ -14,7 +13,7 @@ from inferelator.tests.artifacts.test_data import TestDataSingleCellLike, TEST_D
 from inferelator.tests.artifacts.test_stubs import TaskDataStub, create_puppet_workflow
 from inferelator.regression.bbsr_multitask import BBSRByTaskRegressionWorkflow
 from inferelator.regression.elasticnet_multitask import ElasticNetByTaskRegressionWorkflow
-from inferelator.utils import InferelatorData
+from inferelator.utils import InferelatorData, DotProduct
 from inferelator.preprocessing.metadata_parser import MetadataHandler
 
 try:
@@ -114,7 +113,14 @@ class TestSingleTaskRegressionFactory(SetUpDenseData):
 
 
 class TestSingleTaskRegressionFactorySparse(SetUpSparseData, TestSingleTaskRegressionFactory):
-    pass
+
+    @classmethod
+    def setUpClass(cls):
+        DotProduct.set_mkl(True)
+
+    @classmethod
+    def tearDownClass(cls):
+        DotProduct.set_mkl(False)
 
 
 class TestMultitaskFactory(SetUpDenseDataMTL):

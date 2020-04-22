@@ -17,7 +17,8 @@ import copy
 import numpy as np
 import pandas as pd
 
-from inferelator.utils import Debug, InferelatorDataLoader, DEFAULT_PANDAS_TSV_SETTINGS, slurm_envs, is_string
+from inferelator.utils import (Debug, InferelatorDataLoader, DEFAULT_PANDAS_TSV_SETTINGS, slurm_envs, is_string,
+                               DotProduct)
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.preprocessing.priors import ManagePriors
 from inferelator.regression.base_regression import RegressionWorkflow
@@ -620,6 +621,9 @@ class WorkflowBase(WorkflowBaseLoader):
     # The number of inference bootstraps to run
     num_bootstraps = 2
 
+    # Use the Intel MKL libraries for matrix multiplication
+    use_mkl = None
+
     # Multiprocessing controller
     initialize_mp = True
     multiprocessing_controller = None
@@ -695,7 +699,7 @@ class WorkflowBase(WorkflowBaseLoader):
         self._set_with_warning("gold_standard_filter_method", gold_standard_filter_method)
         self._set_with_warning("metric", metric)
 
-    def set_run_parameters(self, num_bootstraps=None, random_seed=None):
+    def set_run_parameters(self, num_bootstraps=None, random_seed=None, use_mkl=None):
         """
         Set parameters used during runtime
 
@@ -703,10 +707,13 @@ class WorkflowBase(WorkflowBaseLoader):
         :type num_bootstraps: int
         :param random_seed: The random number seed to use. Defaults to 42.
         :type random_seed: int
+        :param use_mkl: A flag to indicate if the intel MKL library should be used for matrix multiplication
+        :type use_mkl: bool
         """
 
         self._set_without_warning("num_bootstraps", num_bootstraps)
         self._set_without_warning("random_seed", random_seed)
+        self._set_without_warning("use_mkl", use_mkl)
 
     def initialize_multiprocessing(self):
         """
@@ -727,8 +734,12 @@ class WorkflowBase(WorkflowBaseLoader):
         """
         Startup by preprocessing all data into a ready format for regression.
         """
+
+        DotProduct.set_mkl(self.use_mkl)
+
         if self.initialize_mp and not MPControl.is_initialized:
             self.initialize_multiprocessing()
+
         self.startup_run()
         self.startup_finish()
 

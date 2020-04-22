@@ -3,7 +3,6 @@ from __future__ import print_function, unicode_literals, division
 import copy as cp
 import gc
 import math
-import warnings
 import pandas as pd
 import numpy as np
 import scipy.sparse as sparse
@@ -13,26 +12,60 @@ import scipy.io
 from anndata import AnnData
 from inferelator.utils import Debug, Validator
 
-# Try loading dot_product_mkl for matrix multiplication
-try:
-    from sparse_dot_mkl import get_version_string, dot_product_mkl as dot_product
-    msg = "Matrix multiplication will use sparse_dot_mkl package with MKL: {m}"
-    print(msg.format(m=get_version_string() if get_version_string() is not None else "Install mkl-service for details"))
 
-# If it isn't available, use the scipy/numpy functions instead
-except ImportError as err:
-    print("Unable to load MKL with sparse_dot_mkl:")
-    print(str(err))
-    print("Matrix multiplication will use Numpy; this greatly increases memory usage with sparse data")
+def dot_product(a, b, dense=True, cast=True):
+    """
+    Dot product two matrices together. Allow either matrix (or both or neither) to be sparse.
 
-    def dot_product(a, b, dense=True, cast=True):
+    :param a:
+    :param b:
+    :param dense:
+    :param cast:
+    :return:
+    """
+    if sparse.isspmatrix(a) and sparse.isspmatrix(b):
+        return a.dot(b).A if dense else a.dot(b)
+    elif sparse.isspmatrix(a):
+        return a.dot(sparse.csr_matrix(b)).A if dense else a.dot(sparse.csr_matrix(b))
+    elif sparse.isspmatrix(b):
+        return np.dot(a, b.A)
+    else:
+        return np.dot(a, b)
 
-        if sparse.isspmatrix(a) and sparse.isspmatrix(b):
-            return a.dot(b).A if dense else a.dot(b)
+
+class DotProduct:
+
+    _dot_func = dot_product
+
+    @classmethod
+    def set_mkl(cls, mkl=True):
+
+        # If the MKL flag is None, don't change anything
+        if mkl is None:
+            pass
+
+        # If the MKL flag is True, use the dot_product_mkl function when .dot() is called
+        if mkl:
+            try:
+                from sparse_dot_mkl import get_version_string, dot_product_mkl as dp
+                msg = "Matrix multiplication will use sparse_dot_mkl package with MKL: {m}"
+                vstring = get_version_string()
+                Debug.vprint(msg.format(m=vstring if vstring is not None else "Install mkl-service for details"), level=0)
+                cls._dot_func = dp
+
+            # If it isn't available, use the scipy/numpy functions instead
+            except ImportError as err:
+                Debug.vprint("Unable to load MKL with sparse_dot_mkl:\n" + str(err), level=0)
+                cls._dot_func = dot_product
+
+        # If the MKL flag is True, use the python (numpy/scipy) functions when .dot() is called
         else:
-            a = a.A if sparse.isspmatrix(a) else a
-            b = b.A if sparse.isspmatrix(b) else b
-            return np.dot(a, b)
+            Debug.vprint("Matrix multiplication will use Numpy; this is not advised for sparse data", level=0)
+            cls._dot_func = dot_product
+
+    @classmethod
+    def dot(cls, *args, **kwargs):
+        return cls._dot_func(*args, **kwargs)
 
 
 def df_from_tsv(file_like, has_index=True):
@@ -532,9 +565,9 @@ class InferelatorData(object):
         """
 
         if other_is_right_side:
-            return dot_product(self._adata.X, other, cast=True, dense=force_dense)
+            return DotProduct.dot(self._adata.X, other, cast=True, dense=force_dense)
         else:
-            return dot_product(other, self._adata.X, cast=True, dense=force_dense)
+            return DotProduct.dot(other, self._adata.X, cast=True, dense=force_dense)
 
     def to_csv(self, file_name, sep="\t"):
 
