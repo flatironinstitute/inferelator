@@ -8,7 +8,7 @@ import numpy as np
 from inferelator import workflow
 from inferelator.preprocessing import design_response_translation
 from inferelator.preprocessing.tfa import TFA, NoTFA
-from inferelator.utils import InferelatorDataLoader, Debug, InferelatorData
+from inferelator.utils import InferelatorDataLoader, Debug, InferelatorData, Validator as check
 
 
 class TFAWorkFlow(workflow.WorkflowBase):
@@ -86,7 +86,7 @@ class TFAWorkFlow(workflow.WorkflowBase):
             Defaults to None
         :type tfa_output_file: str, optional
         :param tfa_input_file: A path to a TFA file which will be loaded and used in place of activity calculations
-            If set, all TFA-related settings will be irrelevant.
+            If set, all TFA-related settings will be irrelevant. TSV file MUST be Samples X TFA.
             If None, the inferelator will calculate TFA
             Defaults to None
         :type tfa_output_file: str, optional
@@ -187,6 +187,8 @@ class TFAWorkFlow(workflow.WorkflowBase):
                                trim_gene_list=self.design.gene_names.intersection(self.tf_names))
 
         Debug.vprint("Trimmed to {d} for TF activity".format(d=self.design.shape, f=file), level=1)
+
+        assert check.indexes_align([self.design.sample_names, self.response.sample_names])
 
     def emit_results(self, betas, rescaled_betas, gold_standard, priors):
         """
