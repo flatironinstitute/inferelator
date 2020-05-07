@@ -132,7 +132,16 @@ class CrossValidationManager(object):
             self.grid_params = []
 
         self.grid_params.append(param_name)
-        self.grid_param_values[param_name] = param_vector
+
+        if utils.is_string(param_vector):
+            self.grid_param_values[param_name] = [param_vector]
+        else:
+            try:
+                # There's probably a better way to check and see if something is iterable but I don't care
+                [True for _ in param_vector]
+                self.grid_param_values[param_name] = param_vector
+            except TypeError:
+                self.grid_param_values[param_name] = [param_vector]
 
     def add_grouping_dropout(self, metadata_column_name, group_size=None, seed=42):
         """
