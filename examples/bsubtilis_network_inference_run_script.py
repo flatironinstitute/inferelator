@@ -15,7 +15,7 @@ utils.Debug.set_verbose_level(1)
 
 # Set the location of the input data and the desired location of the output files
 
-DATA_DIR = '~/PycharmProjects/inferelator/data/bsubtilis'
+DATA_DIR = '../data/bsubtilis'
 OUTPUT_DIR = '~/bsubtilis_inference/'
 
 EXPRESSION_FILE_NAME = 'expression.tsv.gz'
