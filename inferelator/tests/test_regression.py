@@ -12,7 +12,7 @@ from inferelator import workflow
 from inferelator.tests.artifacts.test_data import TestDataSingleCellLike, TEST_DATA, TEST_DATA_SPARSE
 from inferelator.tests.artifacts.test_stubs import TaskDataStub, create_puppet_workflow
 from inferelator.regression.bbsr_multitask import BBSRByTaskRegressionWorkflow
-from inferelator.regression.elasticnet_multitask import ElasticNetByTaskRegressionWorkflow
+from inferelator.regression.elasticnet_python import ElasticNetByTaskRegressionWorkflow
 from inferelator.utils import InferelatorData, DotProduct
 from inferelator.preprocessing.metadata_parser import MetadataHandler
 

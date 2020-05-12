@@ -37,6 +37,7 @@ def create_puppet_workflow(regression_class=RegressionWorkflow,
             self.data = data
             self.priors_data = prior_data
             self.gold_standard = gs_data
+            super(PuppetClass, self).__init__()
 
         def startup_run(self):
             # Skip all of the data loading

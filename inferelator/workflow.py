@@ -868,6 +868,8 @@ def _factory_build_inferelator(regression=RegressionWorkflow, workflow=WorkflowB
         the preprocessing/postprocessing workflow
     """
 
+    use_mtl_regression = False
+
     # Decide which preprocessing/postprocessing workflow to use
     # String arguments are parsed for convenience in the run script
     if is_string(workflow):
@@ -880,6 +882,7 @@ def _factory_build_inferelator(regression=RegressionWorkflow, workflow=WorkflowB
         elif workflow == "amusr" or workflow == "multitask":
             from inferelator.amusr_workflow import MultitaskLearningWorkflow
             workflow_class = MultitaskLearningWorkflow
+            use_mtl_regression = True
         elif workflow == "single-cell":
             from inferelator.single_cell_workflow import SingleCellWorkflow
             workflow_class = SingleCellWorkflow
@@ -900,24 +903,30 @@ def _factory_build_inferelator(regression=RegressionWorkflow, workflow=WorkflowB
         regression = regression.lower()
         if regression == "base":
             regression_class = RegressionWorkflow
-        elif regression == "bbsr":
+        elif regression == "bbsr" and not use_mtl_regression:
             from inferelator.regression.bbsr_python import BBSRRegressionWorkflow
             regression_class = BBSRRegressionWorkflow
-        elif regression == "elasticnet":
+        elif regression == "elasticnet" and not use_mtl_regression:
             from inferelator.regression.elasticnet_python import ElasticNetWorkflow
             regression_class = ElasticNetWorkflow
         elif regression == "amusr":
             from inferelator.regression.amusr_regression import AMUSRRegressionWorkflow
             regression_class = AMUSRRegressionWorkflow
-        elif regression == "bbsr-by-task":
+        elif regression == "bbsr-by-task" or (regression == "bbsr" and use_mtl_regression):
             from inferelator.regression.bbsr_multitask import BBSRByTaskRegressionWorkflow
             regression_class = BBSRByTaskRegressionWorkflow
-        elif regression == "elasticnet-by-task":
-            from inferelator.regression.elasticnet_multitask import ElasticNetByTaskRegressionWorkflow
+        elif regression == "elasticnet-by-task" or (regression == "elasticnet" and use_mtl_regression):
+            from inferelator.regression.elasticnet_python import ElasticNetByTaskRegressionWorkflow
             regression_class = ElasticNetByTaskRegressionWorkflow
         elif regression == "stars":
             from inferelator.regression.stability_selection import StARSWorkflow
             regression_class = StARSWorkflow
+        elif regression == "sklearn" and not use_mtl_regression:
+            from inferelator.regression.sklearn_regression import SKLearnWorkflow
+            regression_class = SKLearnWorkflow
+        elif regression == "sklearn" and use_mtl_regression:
+            from inferelator.regression.sklearn_regression import SKLearnByTask
+            regression_class = SKLearnByTask
         else:
             raise ValueError("{val} is not a string that can be mapped to a regression class".format(val=regression))
     # Or just use a regression class directly

@@ -1,7 +1,7 @@
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.regression import base_regression
 from inferelator import utils
-
+import copy
 
 import numpy as np
 import scipy.sparse as sps
@@ -124,22 +124,22 @@ def bbsr_regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS):
     return result_list
 
 
-def elasticnet_regress_dask(X, Y, params, G, genes):
+def sklearn_regress_dask(X, Y, model, G, genes, min_coef):
     """
-    Execute regression (ElasticNet)
+    Execute regression (SKLearn)
 
     :return: list
         Returns a list of regression results that the pileup_data can process
     """
     assert MPControl.is_dask()
 
-    from inferelator.regression import elasticnet_python
+    from inferelator.regression import sklearn_regression
     DaskController = MPControl.client
 
     def regression_maker(j, x, y):
         level = 0 if j % 100 == 0 else 2
         utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=genes[j], i=j, total=G), level=level)
-        data = elasticnet_python.elastic_net(x, utils.scale_vector(y), params=params)
+        data = sklearn_regression.sklearn_gene(x, utils.scale_vector(y), copy.copy(model))
         data['ind'] = j
         return j, data
 
