@@ -54,7 +54,7 @@ class DaskK8Controller(AbstractController):
         local_directory = kwargs.pop("local_directory", None) if local_directory is None else local_directory
         kwargs["local_directory"] = local_directory if local_directory is not None else cls.local_dir
 
-        # cls.local_cluster = distributed.LocalCluster(*args, **kwargs)
+        cls.local_cluster = distributed.LocalCluster()
         cls.client = distributed.Client()
         return True
 
