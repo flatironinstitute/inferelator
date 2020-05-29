@@ -63,7 +63,7 @@ class MPControl(AbstractController):
                 from inferelator.distributed.dask_local_controller import DaskController
                 cls.client = DaskController
             elif engine == "dask-k8":
-                from inferelator.distributed.dask_local_controller import DaskK8Controller
+                from inferelator.distributed.dask_k8_controller import DaskK8Controller
                 cls.client = DaskK8Controller
             elif engine == "kvs":
                 warnings.warn("The KVS engine is deprecated. It has been replaced by Dask-based multiprocessing",
