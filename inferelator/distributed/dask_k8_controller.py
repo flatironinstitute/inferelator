@@ -82,3 +82,10 @@ class DaskK8Controller(AbstractController):
         This is a thing for KVS. Just return True.
         """
         return True
+
+    @classmethod
+    def check_cluster_state(cls, *args, **kwargs):
+        """
+        This is a thing for dask. Just return True.
+        """
+        return True
