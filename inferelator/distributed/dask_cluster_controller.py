@@ -2,6 +2,7 @@ from __future__ import absolute_import, division, print_function
 import time
 import os
 import math
+import subprocess
 
 from dask import distributed
 from dask_jobqueue import SLURMCluster
@@ -41,10 +42,17 @@ _KNOWN_CONFIG = {"prince": {"_job_n_workers": 20,
                                "_job_extra_env_commands": _DEFAULT_ENV_EXTRA}
                  }
 
+_DEFAULT_LOCAL_WORKER_COMMAND = "dask-worker {a} --nprocs {p} --nthreads 1 --memory-limit 0 --local-directory {d}"
+
 try:
     _DEFAULT_LOCAL_DIR = os.environ['TMPDIR']
 except KeyError:
     _DEFAULT_LOCAL_DIR = 'dask-worker-space'
+
+try:
+    _DEFAULT_SLURM_ID = os.environ['SLURM_JOB_ID']
+except KeyError:
+    _DEFAULT_SLURM_ID = "1"
 
 
 # This is the worst thing I've ever written
@@ -79,9 +87,11 @@ class DaskHPCClusterController(AbstractController):
 
     # The dask cluster object
     _local_cluster = None
+    _tracker = None
 
-    # Controls for the adaptive parameter
-    _adapt_interval = _DEFAULT_ADAPTIVE_INTERVAL
+    # Should any local workers be started on this node
+    _num_local_workers = 0
+    _runaway_protection = 3
 
     # SLURM specific variables
     _queue = None
@@ -96,7 +106,6 @@ class DaskHPCClusterController(AbstractController):
     _job_time = _DEFAULT_WALLTIME
     _job_slurm_commands = _DEFAULT_CONTROLLER_EXTRA
     _job_extra_env_commands = _DEFAULT_ENV_EXTRA
-
 
     @classmethod
     def connect(cls, *args, **kwargs):
@@ -120,6 +129,10 @@ class DaskHPCClusterController(AbstractController):
                                                            job_cls=SLURMJobNoMemLimit)
 
         cls.client = distributed.Client(cls._local_cluster, direct_to_workers=True)
+
+        cls._add_local_node_workers(cls._num_local_workers)
+        cls._tracker = WorkerTracker()
+
         return True
 
     @classmethod
@@ -183,7 +196,7 @@ class DaskHPCClusterController(AbstractController):
         cls._job_time = walltime if walltime is not None else cls._job_time
 
     @classmethod
-    def set_cluster_params(cls, queue=None, project=None, interface=None):
+    def set_cluster_params(cls, queue=None, project=None, interface=None, local_workers=None):
         """
         Set parameters which are specific to the HPC environment
 
@@ -194,11 +207,14 @@ class DaskHPCClusterController(AbstractController):
         :param interface: A string that identifies the network interface to use.
         Possible options may include 'eth0' or 'ib0'.
         :type interface: str
+        :param local_workers: The number of local workers to start on the same node as the main scheduler
+        :type local_workers: int
         """
 
         cls._queue = queue if queue is not None else cls._queue
         cls._project = project if project is not None else cls._project
         cls._interface = interface if interface is not None else cls._interface
+        cls._num_local_workers = local_workers if local_workers is not None else cls._num_local_workers
 
     @classmethod
     def set_processes(cls, process_count):
@@ -280,15 +296,17 @@ class DaskHPCClusterController(AbstractController):
 
     @classmethod
     def check_cluster_state(cls):
+        """
+        Check to make sure that workers have been provisioned. Sleep until workers become available.
+        """
 
         cls._scale_jobs()
 
         sleep_time = 0
-        while len(cls._local_cluster.scheduler.identity()['workers']) == 0:
+        while not cls._local_cluster.observed:
             time.sleep(1)
             if sleep_time % 60 == 0:
-                utils.Debug.vprint("Awaiting workers ({sleep_time} seconds elapsed)".format(sleep_time=sleep_time),
-                                   level=0)
+                utils.Debug.vprint("Awaiting workers ({t} seconds elapsed)".format(t=sleep_time), level=0)
             sleep_time += 1
 
     @classmethod
@@ -300,6 +318,61 @@ class DaskHPCClusterController(AbstractController):
 
     @classmethod
     def _scale_jobs(cls):
-        expected_workers = cls._job_n * cls._job_n_workers
-        if len(cls._local_cluster.scheduler.identity()['workers']) < expected_workers:
-            cls._local_cluster.scale(jobs=cls._job_n)
+        """
+        Update the worker tracker. If an entire slurm job is dead, start a new one to replace it.
+        """
+        cls._tracker.update_lists(cls._local_cluster.observed, cls._local_cluster.worker_spec)
+
+        new_jobs = cls._job_n + cls._tracker.num_dead
+
+        if cls._runaway_protection is not None and new_jobs > cls._runaway_protection * cls._job_n:
+            raise RuntimeError("Aborting excessive worker startups / Protecting against runaway job queueing")
+        elif new_jobs > len(cls._local_cluster.worker_spec):
+            cls._local_cluster.scale(jobs=new_jobs)
+
+    @classmethod
+    def _add_local_node_workers(cls, num_workers):
+        """
+        Start workers on the local node with the scheduler & client
+
+        :param num_workers: The number of workers to start on this node
+        :type num_workers: int
+        """
+        check.argument_integer(num_workers, low=0, allow_none=True)
+
+        if num_workers is not None and num_workers > 0:
+            cmd = _DEFAULT_LOCAL_WORKER_COMMAND.format(p=num_workers,
+                                                       a=cls._local_cluster.scheduler_address,
+                                                       d=cls._local_directory)
+            out_handle = open("slurm-{i}.out".format(i=_DEFAULT_SLURM_ID), mode="w")
+            subprocess.Popen(cmd, shell=True, stdout=out_handle, stderr=out_handle)
+
+
+class WorkerTracker:
+    """
+    Keep track of which workers have been started but are now gone
+    Workers with no live procs will be assumed dead
+    """
+
+    def __init__(self):
+        self._live_workers = set()
+        self._dead_workers = set()
+
+        self._dead_cluster_job = set()
+
+    def update_lists(self, current_alive, worker_spec):
+        self._dead_workers.update(self._live_workers.difference(current_alive))
+        self._live_workers.update(current_alive)
+
+        for k, v in worker_spec.items():
+            if k in self._dead_cluster_job:
+                pass
+
+            workers_in_spec = set(str(k) + g for g in v['group'])
+            if workers_in_spec.issubset(self._dead_workers):
+                self._dead_cluster_job.add(k)
+
+    @property
+    def num_dead(self):
+        return len(self._dead_cluster_job)
+
