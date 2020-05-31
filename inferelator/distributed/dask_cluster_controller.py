@@ -91,6 +91,7 @@ class DaskHPCClusterController(AbstractController):
 
     # Should any local workers be started on this node
     _num_local_workers = 0
+    _runaway_protection = 3
 
     # SLURM specific variables
     _queue = None
@@ -324,8 +325,8 @@ class DaskHPCClusterController(AbstractController):
 
         new_jobs = cls._job_n + cls._tracker.num_dead
 
-        if new_jobs > 3 * cls._job_n:
-            raise RuntimeError("Aborting excessive worker startups (Protecting against runaway job queueing")
+        if cls._runaway_protection is not None and new_jobs > cls._runaway_protection * cls._job_n:
+            raise RuntimeError("Aborting excessive worker startups / Protecting against runaway job queueing")
         elif new_jobs > len(cls._local_cluster.worker_spec):
             cls._local_cluster.scale(jobs=new_jobs)
 
