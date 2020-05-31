@@ -124,8 +124,7 @@ class DaskHPCClusterController(AbstractController):
                                                            local_directory=cls._local_directory,
                                                            memory=cls._job_mem,
                                                            job_extra=cls._job_slurm_commands,
-                                                           job_cls=SLURMJobNoMemLimit,
-                                                           nanny=False)
+                                                           job_cls=SLURMJobNoMemLimit)
 
         cls.client = distributed.Client(cls._local_cluster, direct_to_workers=True)
 
