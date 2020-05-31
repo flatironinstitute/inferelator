@@ -320,7 +320,7 @@ class DaskHPCClusterController(AbstractController):
         """
         Update the worker tracker. If an entire slurm job is dead, start a new one to replace it.
         """
-        cls._tracker.update_lists(cls._local_cluster.plan, cls._local_cluster.observed, cls._local_cluster.worker_spec)
+        cls._tracker.update_lists(cls._local_cluster.observed, cls._local_cluster.worker_spec)
 
         new_jobs = cls._job_n + cls._tracker.num_dead
 
@@ -331,6 +331,12 @@ class DaskHPCClusterController(AbstractController):
 
     @classmethod
     def _add_local_node_workers(cls, num_workers):
+        """
+        Start workers on the local node with the scheduler & client
+
+        :param num_workers: The number of workers to start on this node
+        :type num_workers: int
+        """
         check.argument_integer(num_workers, low=0, allow_none=True)
 
         if num_workers is not None and num_workers > 0:
@@ -342,28 +348,30 @@ class DaskHPCClusterController(AbstractController):
 
 
 class WorkerTracker:
+    """
+    Keep track of which workers have been started but are now gone
+    Workers with no live procs will be assumed dead
+    """
 
     def __init__(self):
         self._live_workers = set()
-        self._prospective_workers = set()
         self._dead_workers = set()
 
-        self._dead_worker_job = set()
+        self._dead_cluster_job = set()
 
-    def update_lists(self, current_plan, current_alive, worker_spec):
+    def update_lists(self, current_alive, worker_spec):
         self._dead_workers.update(self._live_workers.difference(current_alive))
         self._live_workers.update(current_alive)
-        self._prospective_workers.update(current_plan)
 
         for k, v in worker_spec.items():
-            if k in self._dead_worker_job:
+            if k in self._dead_cluster_job:
                 pass
 
             workers_in_spec = set(str(k) + g for g in v['group'])
             if workers_in_spec.issubset(self._dead_workers):
-                self._dead_worker_job.add(k)
+                self._dead_cluster_job.add(k)
 
     @property
     def num_dead(self):
-        return len(self._dead_worker_job)
+        return len(self._dead_cluster_job)
 
