@@ -2,6 +2,7 @@ from __future__ import absolute_import, division, print_function
 import time
 import os
 import math
+import subprocess
 
 from dask import distributed
 from dask_jobqueue import SLURMCluster
@@ -41,10 +42,17 @@ _KNOWN_CONFIG = {"prince": {"_job_n_workers": 20,
                                "_job_extra_env_commands": _DEFAULT_ENV_EXTRA}
                  }
 
+_DEFAULT_LOCAL_WORKER_COMMAND = "dask-worker {a} --nprocs {p} --nthreads 1 --memory-limit 0 --local-directory {d}"
+
 try:
     _DEFAULT_LOCAL_DIR = os.environ['TMPDIR']
 except KeyError:
     _DEFAULT_LOCAL_DIR = 'dask-worker-space'
+
+try:
+    _DEFAULT_SLURM_ID = os.environ['SLURM_JOB_ID']
+except KeyError:
+    _DEFAULT_SLURM_ID = "1"
 
 
 # This is the worst thing I've ever written
@@ -80,8 +88,8 @@ class DaskHPCClusterController(AbstractController):
     # The dask cluster object
     _local_cluster = None
 
-    # Controls for the adaptive parameter
-    _adapt_interval = _DEFAULT_ADAPTIVE_INTERVAL
+    # Should any local workers be started on this node
+    _num_local_workers = 0
 
     # SLURM specific variables
     _queue = None
@@ -96,7 +104,6 @@ class DaskHPCClusterController(AbstractController):
     _job_time = _DEFAULT_WALLTIME
     _job_slurm_commands = _DEFAULT_CONTROLLER_EXTRA
     _job_extra_env_commands = _DEFAULT_ENV_EXTRA
-
 
     @classmethod
     def connect(cls, *args, **kwargs):
@@ -117,9 +124,13 @@ class DaskHPCClusterController(AbstractController):
                                                            local_directory=cls._local_directory,
                                                            memory=cls._job_mem,
                                                            job_extra=cls._job_slurm_commands,
-                                                           job_cls=SLURMJobNoMemLimit)
+                                                           job_cls=SLURMJobNoMemLimit,
+                                                           nanny=False)
 
         cls.client = distributed.Client(cls._local_cluster, direct_to_workers=True)
+
+        cls._add_local_node_workers(cls._num_local_workers)
+
         return True
 
     @classmethod
@@ -183,7 +194,7 @@ class DaskHPCClusterController(AbstractController):
         cls._job_time = walltime if walltime is not None else cls._job_time
 
     @classmethod
-    def set_cluster_params(cls, queue=None, project=None, interface=None):
+    def set_cluster_params(cls, queue=None, project=None, interface=None, local_workers=None):
         """
         Set parameters which are specific to the HPC environment
 
@@ -194,11 +205,14 @@ class DaskHPCClusterController(AbstractController):
         :param interface: A string that identifies the network interface to use.
         Possible options may include 'eth0' or 'ib0'.
         :type interface: str
+        :param local_workers: The number of local workers to start on the same node as the main scheduler
+        :type local_workers: int
         """
 
         cls._queue = queue if queue is not None else cls._queue
         cls._project = project if project is not None else cls._project
         cls._interface = interface if interface is not None else cls._interface
+        cls._num_local_workers = local_workers if local_workers is not None else cls._num_local_workers
 
     @classmethod
     def set_processes(cls, process_count):
@@ -301,5 +315,20 @@ class DaskHPCClusterController(AbstractController):
     @classmethod
     def _scale_jobs(cls):
         expected_workers = cls._job_n * cls._job_n_workers
-        if len(cls._local_cluster.scheduler.identity()['workers']) < expected_workers:
-            cls._local_cluster.scale(jobs=cls._job_n)
+        observed_workers = len(cls._local_cluster.scheduler.identity()['workers'])
+
+        if observed_workers < expected_workers:
+            new_jobs = int((expected_workers - observed_workers) / cls._job_n_workers)
+            if new_jobs > 0:
+                cls._local_cluster.scale_up(jobs=new_jobs)
+
+    @classmethod
+    def _add_local_node_workers(cls, num_workers):
+        check.argument_integer(num_workers, low=0, allow_none=True)
+
+        if num_workers is not None and num_workers > 0:
+            cmd = _DEFAULT_LOCAL_WORKER_COMMAND.format(p=num_workers,
+                                                       a=cls._local_cluster.scheduler_address,
+                                                       d=cls._local_directory)
+            out_handle = open("slurm-{i}.out".format(i=_DEFAULT_SLURM_ID), mode="w")
+            subprocess.Popen(cmd, shell=True, stdout=out_handle, stderr=out_handle)
