@@ -87,6 +87,7 @@ class DaskHPCClusterController(AbstractController):
 
     # The dask cluster object
     _local_cluster = None
+    _tracker = None
 
     # Should any local workers be started on this node
     _num_local_workers = 0
@@ -129,6 +130,7 @@ class DaskHPCClusterController(AbstractController):
         cls.client = distributed.Client(cls._local_cluster, direct_to_workers=True)
 
         cls._add_local_node_workers(cls._num_local_workers)
+        cls._tracker = WorkerTracker()
 
         return True
 
@@ -293,15 +295,17 @@ class DaskHPCClusterController(AbstractController):
 
     @classmethod
     def check_cluster_state(cls):
+        """
+        Check to make sure that workers have been provisioned. Sleep until workers become available.
+        """
 
         cls._scale_jobs()
 
         sleep_time = 0
-        while len(cls._local_cluster.scheduler.identity()['workers']) == 0:
+        while not cls._local_cluster.observed:
             time.sleep(1)
             if sleep_time % 60 == 0:
-                utils.Debug.vprint("Awaiting workers ({sleep_time} seconds elapsed)".format(sleep_time=sleep_time),
-                                   level=0)
+                utils.Debug.vprint("Awaiting workers ({t} seconds elapsed)".format(t=sleep_time), level=0)
             sleep_time += 1
 
     @classmethod
@@ -313,13 +317,17 @@ class DaskHPCClusterController(AbstractController):
 
     @classmethod
     def _scale_jobs(cls):
-        expected_workers = cls._job_n * cls._job_n_workers
-        observed_workers = len(cls._local_cluster.scheduler.identity()['workers'])
+        """
+        Update the worker tracker. If an entire slurm job is dead, start a new one to replace it.
+        """
+        cls._tracker.update_lists(cls._local_cluster.plan, cls._local_cluster.observed, cls._local_cluster.worker_spec)
 
-        if observed_workers < expected_workers:
-            new_jobs = int((expected_workers - observed_workers) / cls._job_n_workers)
-            if new_jobs > 0:
-                cls._local_cluster.scale_up(jobs=new_jobs)
+        new_jobs = cls._job_n + cls._tracker.num_dead
+
+        if new_jobs > 3 * cls._job_n:
+            raise RuntimeError("Aborting excessive worker startups (Protecting against runaway job queueing")
+        elif new_jobs > len(cls._local_cluster.worker_spec):
+            cls._local_cluster.scale_up(jobs=new_jobs)
 
     @classmethod
     def _add_local_node_workers(cls, num_workers):
@@ -331,3 +339,31 @@ class DaskHPCClusterController(AbstractController):
                                                        d=cls._local_directory)
             out_handle = open("slurm-{i}.out".format(i=_DEFAULT_SLURM_ID), mode="w")
             subprocess.Popen(cmd, shell=True, stdout=out_handle, stderr=out_handle)
+
+
+class WorkerTracker:
+
+    def __init__(self):
+        self._live_workers = set()
+        self._prospective_workers = set()
+        self._dead_workers = set()
+
+        self._dead_worker_job = set()
+
+    def update_lists(self, current_plan, current_alive, worker_spec):
+        self._dead_workers.update(self._live_workers.difference(current_alive))
+        self._live_workers.update(current_alive)
+        self._prospective_workers.update(current_plan)
+
+        for k, v in worker_spec.items():
+            if k in self._dead_worker_job:
+                pass
+
+            workers_in_spec = set(str(k) + g for g in v['group'])
+            if workers_in_spec.issubset(self._dead_workers):
+                self._dead_worker_job.add(k)
+
+    @property
+    def num_dead(self):
+        return len(self._dead_worker_job)
+
