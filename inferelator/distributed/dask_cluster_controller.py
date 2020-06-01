@@ -3,6 +3,7 @@ import time
 import os
 import math
 import subprocess
+import copy
 
 from dask import distributed
 from dask_jobqueue import SLURMCluster
@@ -32,14 +33,21 @@ _KNOWN_CONFIG = {"prince": {"_job_n_workers": 20,
                             "_job_mem": "62GB",
                             "_job_time": "48:00:00",
                             "_interface": "ib0",
-                            "_job_extra_env_commands": _DEFAULT_ENV_EXTRA
+                            "_job_extra_env_commands": copy.copy(_DEFAULT_ENV_EXTRA)
                             },
                  "rusty_ccb": {"_job_n_workers": 28,
                                "_job_mem": "498GB",
                                "_job_time": "48:00:00",
                                "_interface": "ib0",
                                "_queue": "ccb",
-                               "_job_extra_env_commands": _DEFAULT_ENV_EXTRA}
+                               "_job_extra_env_commands": copy.copy(_DEFAULT_ENV_EXTRA)},
+                 "rusty_preempt": {"_job_n_workers": 40,
+                                   "_job_mem": "766GB",
+                                   "_job_time": "48:00:00",
+                                   "_interface": "ib0",
+                                   "_queue": "preempt",
+                                   "_job_extra_env_commands": copy.copy(_DEFAULT_ENV_EXTRA),
+                                   "_job_slurm_commands": copy.copy(_DEFAULT_ENV_EXTRA) + ["-q preempt", "-C info"]}
                  }
 
 _DEFAULT_LOCAL_WORKER_COMMAND = "dask-worker {a} --nprocs {p} --nthreads 1 --memory-limit 0 --local-directory {d}"
@@ -104,8 +112,8 @@ class DaskHPCClusterController(AbstractController):
     _job_n_workers = _DEFAULT_WORKERS_PER_JOB
     _job_mem = _DEFAULT_MEM_PER_JOB
     _job_time = _DEFAULT_WALLTIME
-    _job_slurm_commands = _DEFAULT_CONTROLLER_EXTRA
-    _job_extra_env_commands = _DEFAULT_ENV_EXTRA
+    _job_slurm_commands = copy.copy(_DEFAULT_CONTROLLER_EXTRA)
+    _job_extra_env_commands = copy.copy(_DEFAULT_ENV_EXTRA)
 
     @classmethod
     def connect(cls, *args, **kwargs):
@@ -375,4 +383,3 @@ class WorkerTracker:
     @property
     def num_dead(self):
         return len(self._dead_cluster_job)
-
