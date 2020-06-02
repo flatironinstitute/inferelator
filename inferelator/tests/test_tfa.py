@@ -61,14 +61,14 @@ class TestTFA(unittest.TestCase):
     def test_priors_no_columns(self):
         self.setup_one_column()
         self.drop_prior()
-        activities = tfa.TFA.compute_transcription_factor_activity(self.priors, self.exp)
+        activities = tfa.TFA().compute_transcription_factor_activity(self.priors, self.exp)
         # assert that there are no columns in the output activities matrix
         self.assertEqual(activities.shape[1], 0)
 
     def test_when_prior_is_zero_vector_activity_is_expression_one_column(self):
         self.setup_one_column()
         self.priors['tf1'] = [0, 0, 0]
-        activities = tfa.TFA.compute_transcription_factor_activity(self.priors, self.exp)
+        activities = tfa.TFA().compute_transcription_factor_activity(self.priors, self.exp)
         np.testing.assert_equal(activities.expression_data.T, [[1, 2]])
 
     # add a duplicate TF column to the priors matrix
@@ -76,7 +76,7 @@ class TestTFA(unittest.TestCase):
     def test_duplicate_removal_keeps_self_interaction_two_column(self):
         self.setup_one_column()
         self.priors['g3'] = self.priors['tf1']
-        activities = tfa.TFA.compute_transcription_factor_activity(self.priors, self.exp, keep_self=True)
+        activities = tfa.TFA().compute_transcription_factor_activity(self.priors, self.exp, keep_self=True)
         np.testing.assert_array_almost_equal_nulp(activities.expression_data.T,
                                                   np.array([[.5, 1.25], [.5, 1.25]]),
                                                   units_in_the_last_place_tolerance)
@@ -85,14 +85,14 @@ class TestTFA(unittest.TestCase):
     def test_duplicate_removal_does_not_happen_with_dupes_flag_false_two_column(self):
         self.setup_one_column()
         self.priors['g3'] = self.priors['tf1']
-        activities = tfa.TFA.compute_transcription_factor_activity(self.priors, self.exp)
+        activities = tfa.TFA().compute_transcription_factor_activity(self.priors, self.exp)
         np.testing.assert_allclose(activities.expression_data.T,
                                    np.array([[0, 1], [1, 2]]),
                                    atol=1e-15)
 
     def test_tfa_default_one_column(self):
         self.setup_one_column()
-        activities = tfa.TFA.compute_transcription_factor_activity(self.priors, self.exp)
+        activities = tfa.TFA().compute_transcription_factor_activity(self.priors, self.exp)
         np.testing.assert_array_almost_equal_nulp(activities.expression_data.T,
                                                   np.array([[1, 3]]),
                                                   units_in_the_last_place_tolerance)
@@ -100,7 +100,7 @@ class TestTFA(unittest.TestCase):
     def test_tfa_default_all_zero_prior_no_expression_data(self):
         self.setup_one_column()
         self.priors['tf2'] = [0, 0, 0]
-        activities = tfa.TFA.compute_transcription_factor_activity(self.priors, self.exp)
+        activities = tfa.TFA().compute_transcription_factor_activity(self.priors, self.exp)
         # Assert that the all-zero no-expression tf was dropped from the activity matrix
         np.testing.assert_array_almost_equal_nulp(activities.expression_data.T,
                                                   np.array([[1, 3]]),
@@ -108,21 +108,21 @@ class TestTFA(unittest.TestCase):
 
     def test_tfa_default_three_columns(self):
         self.setup_three_columns()
-        activities = tfa.TFA.compute_transcription_factor_activity(self.priors, self.exp, keep_self=True)
+        activities = tfa.TFA().compute_transcription_factor_activity(self.priors, self.exp, keep_self=True)
         np.testing.assert_allclose(activities.expression_data.T,
                                    np.array([[.5, 1], [.5, 1], [0, 1]]),
                                    atol=1e-15)
 
     def test_tfa_default_three_columns_dup_self_false(self):
         self.setup_three_columns()
-        activities = tfa.TFA.compute_transcription_factor_activity(self.priors, self.exp)
+        activities = tfa.TFA().compute_transcription_factor_activity(self.priors, self.exp)
         np.testing.assert_allclose(activities.expression_data.T,
                                    np.array([[0, 0.5], [1, 2], [0, 0.5]]),
                                    atol=1e-15)
 
     def test_tfa_default_using_mouse_th17(self):
         self.setup_mouse_th17()
-        activities = tfa.TFA.compute_transcription_factor_activity(self.priors, self.exp)
+        activities = tfa.TFA().compute_transcription_factor_activity(self.priors, self.exp)
         np.testing.assert_allclose(activities.expression_data.T,
                                    np.array([[1.706100, 1.765225, 1.739675, 1.791075, 1.70055],
                                              [8.160000, 8.553600, 7.765000, 7.890300, 8.08710],

@@ -6,8 +6,8 @@ from inferelator import utils
 class TFA:
     """ TFA calculates transcription factor activity using matrix pseudoinverse """
 
-    @staticmethod
-    def compute_transcription_factor_activity(prior, expression_data, expression_data_halftau=None, keep_self=False):
+    def compute_transcription_factor_activity(self, prior, expression_data, expression_data_halftau=None,
+                                              keep_self=False):
         """
         Calculate TFA from a prior and expression data object
 
@@ -21,7 +21,7 @@ class TFA:
         if not keep_self:
             prior = utils.df_set_diag(prior, 0)
 
-        activity_tfs, expr_tfs, drop_tfs = TFA._determine_tf_status(prior, expression_data)
+        activity_tfs, expr_tfs, drop_tfs = self._determine_tf_status(prior, expression_data)
 
         if len(drop_tfs) > 0:
             msg = "{n} TFs are removed from activity (no expression or prior exists)".format(n=len(drop_tfs))
@@ -35,7 +35,7 @@ class TFA:
         if len(activity_tfs) > 0:
             a_cols = prior.columns.isin(activity_tfs)
             expr = expression_data_halftau if expression_data_halftau is not None else expression_data
-            activity[:, a_cols] = TFA._calculate_activity(prior.loc[:, activity_tfs].values, expr)
+            activity[:, a_cols] = self._calculate_activity(prior.loc[:, activity_tfs].values, expr)
 
         if len(expr_tfs) > 0:
             activity[:, prior.columns.isin(expr_tfs)] = expression_data.get_gene_data(expr_tfs, force_dense=True)
@@ -67,8 +67,7 @@ class TFA:
 class NoTFA(TFA):
     """ NoTFA creates an activity matrix from the expression data only """
 
-    @staticmethod
-    def compute_transcription_factor_activity(prior, expression_data, expression_data_halftau=None, keep_self=False):
+    def compute_transcription_factor_activity(self, prior, expression_data, expression_data_halftau=None, keep_self=False):
         utils.Debug.vprint("Setting Activity to Expression Values", level=1)
         tf_gene_overlap = prior.columns[prior.columns.isin(expression_data.gene_names)]
 
