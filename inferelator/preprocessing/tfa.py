@@ -63,6 +63,22 @@ class TFA:
         return utils.DotProduct.dot(expression_data.values, sparse.csr_matrix(linalg.pinv2(prior).T, dtype=prior_dtype),
                                     dense=True, cast=True)
 
+class svd_TFA(TFA):
+    @staticmethod
+    def _calculate_activity(prior, expression_data):
+        tf_length = prior.shape[1]
+        U, S, V = np.linalg.svd(expression_data.values)
+        reconstruct = U[:, 0:tf_length] @ np.diag(S[0:tf_length]) @ V[0:tf_length, :]
+        activity = np.linalg.pinv(prior) @ reconstruct.T
+        activity = activity.T
+        return activity
+
+class ridge_TFA(TFA):
+    @staticmethod
+    def _calculate_activity(prior, expression_data):
+        RR = Ridge(alpha = 10).fit(prior, expression_data.X.T, sample_weight=None)
+        activity = RR.coef_
+        return activity
 
 class NoTFA(TFA):
     """ NoTFA creates an activity matrix from the expression data only """
