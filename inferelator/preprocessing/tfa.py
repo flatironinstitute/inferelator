@@ -66,6 +66,7 @@ class TFA:
 class svd_TFA(TFA):
     @staticmethod
     def _calculate_activity(prior, expression_data):
+        print("Computing SVD TFA")
         tf_length = prior.shape[1]
         U, S, V = np.linalg.svd(expression_data.values)
         reconstruct = U[:, 0:tf_length] @ np.diag(S[0:tf_length]) @ V[0:tf_length, :]
@@ -76,6 +77,7 @@ class svd_TFA(TFA):
 class ridge_TFA(TFA):
     @staticmethod
     def _calculate_activity(prior, expression_data):
+        print("Computing Ridge TFA")
         RR = Ridge(alpha = 10).fit(prior, expression_data.X.T, sample_weight=None)
         activity = RR.coef_
         return activity
