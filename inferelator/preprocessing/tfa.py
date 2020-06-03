@@ -1,7 +1,7 @@
 import numpy as np
 from scipy import linalg, sparse
 from inferelator import utils
-
+from sklearn.linear_model import Ridge
 
 class TFA:
     """ TFA calculates transcription factor activity using matrix pseudoinverse """
