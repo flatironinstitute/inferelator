@@ -90,7 +90,7 @@ class truncated_svd_TFA(TFA):
         svd = TruncatedSVD(n_components=tf_length)
         c = svd.fit_transform(expression_data.values)
         d = svd.inverse_transform(c)
-        activity = np.linalg.pinv(prior) @ d
+        activity = np.linalg.pinv(prior) @ d.T
         activity = activity.T
         return activity
 
