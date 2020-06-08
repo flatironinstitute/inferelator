@@ -82,6 +82,17 @@ class ridge_TFA(TFA):
         activity = RR.coef_
         return activity
 
+class truncated_svd_TFA(TFA):
+    @staticmethod
+    def _calculate_activity(prior, expression_data):
+        tf_length = prior.shape[1]
+        svd = TruncatedSVD(n_components=tf_length, n_iter=7, random_state=42)
+        svd.fit(expression_data.values)
+        transformed = TruncatedSVD.transform(svd, expression_data.values)
+        activity = np.linalg.pinv(prior) @ transformed.T
+        activity = activity.T
+        return activity
+
 class NoTFA(TFA):
     """ NoTFA creates an activity matrix from the expression data only """
 
