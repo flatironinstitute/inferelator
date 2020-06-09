@@ -86,6 +86,7 @@ class ridge_TFA(TFA):
 class truncated_svd_TFA(TFA):
     @staticmethod
     def _calculate_activity(prior, expression_data):
+        print("Computing truncated SVD TFA")
         tf_length = prior.shape[1]
         svd = TruncatedSVD(n_components=tf_length)
         c = svd.fit_transform(expression_data.values)
