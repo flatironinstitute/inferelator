@@ -19,6 +19,11 @@ class VelocityWorkflow(SingleCellWorkflow):
     tau = None
     tfa_driver = VelocityTFA
 
+    def startup_run(self):
+        super(VelocityWorkflow, self).startup_run()
+        self.load_velocity()
+        self._align_velocity()
+
     def set_velocity_parameters(self, velocity_file_name=None, velocity_file_type=None, velocity_file_layer=None):
         """
         Set velocity file arguments
