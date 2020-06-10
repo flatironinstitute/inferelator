@@ -18,17 +18,7 @@ class TFA:
         :return: InferelatorData [N x K]
         """
 
-        if not keep_self:
-            prior = utils.df_set_diag(prior, 0)
-
-        activity_tfs, expr_tfs, drop_tfs = self._determine_tf_status(prior, expression_data)
-
-        if len(drop_tfs) > 0:
-            msg = "{n} TFs are removed from activity (no expression or prior exists)".format(n=len(drop_tfs))
-            utils.Debug.vprint(msg, level=0)
-            utils.Debug.vprint(" ".join(drop_tfs), level=1)
-
-        prior = prior.drop(drop_tfs, axis=1)
+        prior, activity_tfs, expr_tfs = self._check_prior(prior, expression_data, keep_self=keep_self)
 
         activity = np.zeros((expression_data.shape[0], prior.shape[1]), dtype=np.float64)
 
@@ -44,6 +34,22 @@ class TFA:
                                      gene_names=prior.columns,
                                      sample_names=expression_data.sample_names,
                                      meta_data=expression_data.meta_data)
+
+    def _check_prior(self, prior, expression_data, keep_self=False):
+        if not keep_self:
+            prior = utils.df_set_diag(prior, 0)
+
+        activity_tfs, expr_tfs, drop_tfs = self._determine_tf_status(prior, expression_data)
+
+        if len(drop_tfs) > 0:
+            msg = "{n} TFs are removed from activity (no expression or prior exists)".format(n=len(drop_tfs))
+            utils.Debug.vprint(msg, level=0)
+            utils.Debug.vprint(" ".join(drop_tfs), level=1)
+
+        prior = prior.drop(drop_tfs, axis=1)
+
+        return prior, activity_tfs, expr_tfs
+
 
     @staticmethod
     def _determine_tf_status(prior, expression_data):
