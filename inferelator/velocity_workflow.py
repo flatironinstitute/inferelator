@@ -48,7 +48,7 @@ class VelocityWorkflow(SingleCellWorkflow):
     def load_velocity(self, velocity_file=None, loader_type=None):
 
         velocity_file = self._velocity_file_name if velocity_file is None else velocity_file
-        loader_type = self._velocity_file_name if loader_type is None else loader_type
+        loader_type = self._velocity_file_type if loader_type is None else loader_type
         transpose = not self.expression_matrix_columns_are_genes
 
         loader = InferelatorDataLoader(input_dir=self.input_dir, file_format_settings=self._file_format_settings)
@@ -62,6 +62,8 @@ class VelocityWorkflow(SingleCellWorkflow):
         elif loader_type == _HDF5:
             self._velocity_data = loader.load_data_hdf5(velocity_file, transpose_expression_data=transpose,
                                                         use_layer=self._velocity_h5_layer)
+        else:
+            raise ValueError("Invalid velocity_file_type: {a}".format(a=loader_type))
 
     def _align_velocity(self):
 
