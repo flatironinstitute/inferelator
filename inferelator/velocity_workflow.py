@@ -1,4 +1,5 @@
 from inferelator.workflow import _H5AD, _HDF5, _TSV
+from inferelator.tfa_workflow import TFAWorkFlow
 from inferelator.single_cell_workflow import SingleCellWorkflow
 from inferelator.utils import InferelatorDataLoader, InferelatorData, Debug, Validator as check
 from inferelator.preprocessing.velocity_tfa import VelocityTFA
@@ -19,10 +20,14 @@ class VelocityWorkflow(SingleCellWorkflow):
     tau = None
     tfa_driver = VelocityTFA
 
-    def startup_run(self):
-        super(VelocityWorkflow, self).startup_run()
+    def get_data(self):
+        super(VelocityWorkflow, self).get_data()
         self.load_velocity()
+
+    def startup_finish(self):
+        self.single_cell_normalize()
         self._align_velocity()
+        TFAWorkFlow.startup_finish(self)
 
     def set_velocity_parameters(self, velocity_file_name=None, velocity_file_type=None, velocity_file_layer=None):
         """
@@ -52,6 +57,7 @@ class VelocityWorkflow(SingleCellWorkflow):
         transpose = not self.expression_matrix_columns_are_genes
 
         loader = InferelatorDataLoader(input_dir=self.input_dir, file_format_settings=self._file_format_settings)
+        Debug.vprint("Loading velocity data from {f}".format(f=velocity_file), level=1)
 
         if loader_type == _TSV or loader_type is None:
             self._velocity_data = loader.load_data_tsv(velocity_file, transpose_expression_data=transpose)
@@ -65,9 +71,15 @@ class VelocityWorkflow(SingleCellWorkflow):
         else:
             raise ValueError("Invalid velocity_file_type: {a}".format(a=loader_type))
 
-        Debug.vprint("Loaded expression data: {s}".format(s=str(self._velocity_data)))
+        self._velocity_data.name = "Velocity"
 
     def _align_velocity(self):
+
+        keep_genes = self._velocity_data.gene_names.intersection(self.data.gene_names)
+        Debug.vprint("Aligning velocity and expression data on {n} genes".format(n=len(keep_genes)))
+
+        self._velocity_data.trim_genes(remove_constant_genes=False, trim_gene_list=keep_genes)
+        self.data.trim_genes(remove_constant_genes=False, trim_gene_list=keep_genes)
 
         check.indexes_align((self._velocity_data.gene_names, self.data.gene_names))
         check.indexes_align((self._velocity_data.sample_names, self.data.sample_names))
@@ -82,9 +94,10 @@ class VelocityWorkflow(SingleCellWorkflow):
         """
 
         self.response = self._combine_expression_velocity(self.data, self._velocity_data)
-        self.design = self.tfa_driver().compute_transcription_factor_activity(self.priors_data, self.response)
         self.data = None
         self._velocity_data = None
+
+        self.design = self.tfa_driver().compute_transcription_factor_activity(self.priors_data, self.response)
 
     def _combine_expression_velocity(self, expression, velocity):
         """
@@ -106,7 +119,7 @@ class VelocityWorkflow(SingleCellWorkflow):
         elif self.tau is not None:
             decay_constants = np.repeat(1 / self.tau, expression.num_genes)
         else:
-            return velocity.values
+            return velocity
 
         x = np.multiply(expression.values, decay_constants[None, :])
         return InferelatorData(np.add(velocity.values, x), gene_names=expression.gene_names,
