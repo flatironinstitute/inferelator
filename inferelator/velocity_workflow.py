@@ -16,6 +16,7 @@ class VelocityWorkflow(SingleCellWorkflow):
     _velocity_h5_layer = None
 
     _decay_constants = None
+    _use_precalculated_decay_constants = True
 
     tau = None
     tfa_driver = VelocityTFA
@@ -81,8 +82,8 @@ class VelocityWorkflow(SingleCellWorkflow):
         self._velocity_data.trim_genes(remove_constant_genes=False, trim_gene_list=keep_genes)
         self.data.trim_genes(remove_constant_genes=False, trim_gene_list=keep_genes)
 
-        check.indexes_align((self._velocity_data.gene_names, self.data.gene_names))
-        check.indexes_align((self._velocity_data.sample_names, self.data.sample_names))
+        assert check.indexes_align((self._velocity_data.gene_names, self.data.gene_names))
+        assert check.indexes_align((self._velocity_data.sample_names, self.data.sample_names))
 
     def compute_common_data(self):
         pass
@@ -112,12 +113,13 @@ class VelocityWorkflow(SingleCellWorkflow):
 
         if self._decay_constants is not None:
             decay_constants = self._decay_constants
-        elif "decay_constants" in velocity.gene_data.columns:
-            decay_constants = velocity.gene_data["decay_constants"].values
-        elif "decay_constants" in expression.gene_data.columns:
-            decay_constants = expression.gene_data["decay_constants"].values
         elif self.tau is not None:
+            Debug.vprint("Calculating decay constants for tau {t}".format(t=self.tau))
             decay_constants = np.repeat(1 / self.tau, expression.num_genes)
+        elif "decay_constants" in velocity.gene_data.columns and self._use_precalculated_decay_constants:
+            decay_constants = velocity.gene_data["decay_constants"].values
+        elif "decay_constants" in expression.gene_data.columns and self._use_precalculated_decay_constants:
+            decay_constants = expression.gene_data["decay_constants"].values
         else:
             return velocity
 
