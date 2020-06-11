@@ -1,6 +1,6 @@
 from inferelator.workflow import _H5AD, _HDF5, _TSV
 from inferelator.single_cell_workflow import SingleCellWorkflow
-from inferelator.utils import InferelatorDataLoader, InferelatorData, Validator as check
+from inferelator.utils import InferelatorDataLoader, InferelatorData, Debug, Validator as check
 from inferelator.preprocessing.velocity_tfa import VelocityTFA
 import numpy as np
 
@@ -64,6 +64,8 @@ class VelocityWorkflow(SingleCellWorkflow):
                                                         use_layer=self._velocity_h5_layer)
         else:
             raise ValueError("Invalid velocity_file_type: {a}".format(a=loader_type))
+
+        Debug.vprint("Loaded expression data: {s}".format(s=str(self._velocity_data)))
 
     def _align_velocity(self):
 
