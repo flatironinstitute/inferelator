@@ -112,15 +112,19 @@ class VelocityWorkflow(SingleCellWorkflow):
         assert check.indexes_align((expression.sample_names, velocity.sample_names))
 
         if self._decay_constants is not None:
+            Debug.vprint("Using preloaded decay constants in _decay_constants")
             decay_constants = self._decay_constants
         elif self.tau is not None:
             Debug.vprint("Calculating decay constants for tau {t}".format(t=self.tau))
             decay_constants = np.repeat(1 / self.tau, expression.num_genes)
         elif "decay_constants" in velocity.gene_data.columns and self._use_precalculated_decay_constants:
+            Debug.vprint("Extracting decay constants from {n}".format(n=velocity.name))
             decay_constants = velocity.gene_data["decay_constants"].values
         elif "decay_constants" in expression.gene_data.columns and self._use_precalculated_decay_constants:
+            Debug.vprint("Extracting decay constants from {n}".format(n=expression.name))
             decay_constants = expression.gene_data["decay_constants"].values
         else:
+            Debug.vprint("No decay information found. Solving dX/dt = AB for Betas")
             return velocity
 
         x = np.multiply(expression.values, decay_constants[None, :])
