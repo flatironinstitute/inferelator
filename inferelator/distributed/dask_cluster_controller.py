@@ -48,7 +48,8 @@ _KNOWN_CONFIG = {"prince": {"_job_n_workers": 20,
                                    "_interface": "ib0",
                                    "_queue": "preempt",
                                    "_job_extra_env_commands": copy.copy(_DEFAULT_ENV_EXTRA),
-                                   "_job_slurm_commands": copy.copy(_DEFAULT_ENV_EXTRA) + ["-q preempt", "-C info"]}
+                                   "_job_slurm_commands": copy.copy(_DEFAULT_ENV_EXTRA) + ["--qos=preempt",
+                                                                                           "--constraint=info"]}
                  }
 
 _DEFAULT_LOCAL_WORKER_COMMAND = "dask-worker {a} --nprocs {p} --nthreads 1 --memory-limit 0 --local-directory {d}"
