@@ -218,6 +218,8 @@ def apply_window_vector(vec, window, func):
 class InferelatorData(object):
     """ Store inferelator data in an AnnData object. This will always be Samples by Genes """
 
+    name = None
+
     _adata = None
     _is_integer = False
 
@@ -272,7 +274,6 @@ class InferelatorData(object):
         if new_meta_data.index.nunique() != new_meta_data.shape[0]:
             new_meta_data = new_meta_data.loc[~new_meta_data.duplicated(), :]
 
-
         # If the new one is the right size, force it in one way or the other
         # Reindex the metadata to match the sample names
         try:
@@ -280,7 +281,7 @@ class InferelatorData(object):
         except ValueError:
             # If the metadata is the wrong size, angrily die
             if new_meta_data.shape[0] != self.num_obs:
-                msg = "Metadata size {sh1} does not match expression data ({sh2})".format(sh1=new_meta_data.shape,
+                msg = "Metadata size {sh1} does not match data ({sh2})".format(sh1=new_meta_data.shape,
                                                                                           sh2=self.num_obs)
                 raise ValueError(msg)
             new_meta_data.index = self.sample_names
@@ -469,10 +470,10 @@ class InferelatorData(object):
             keep_column_bool &= self._adata.var_names.isin(self._adata.uns["trim_gene_list"])
 
         list_trim = len(self._adata.var_names) - np.sum(keep_column_bool)
-        comp = 0 if self._is_integer else np.finfo(self.expression_data.dtype).eps * 10
+        comp = 0 if self._is_integer else np.finfo(self.values.dtype).eps * 10
 
         if remove_constant_genes:
-            nz_var = (self.expression_data.max(axis=0) - self.expression_data.min(axis=0))
+            nz_var = (self.values.max(axis=0) - self.values.min(axis=0))
             nz_var = comp < (nz_var.A.flatten() if self.is_sparse else nz_var)
 
             keep_column_bool &= nz_var
@@ -484,13 +485,13 @@ class InferelatorData(object):
             err_msg = "No genes remain after trimming. ({lst} removed to match list, {v} removed for var=0)"
             raise ValueError(err_msg.format(lst=list_trim, v=var_zero_trim))
 
-        Debug.vprint("Trimming expression matrix {sh} to {n} columns".format(sh=self._adata.X.shape,
-                                                                             n=np.sum(keep_column_bool)),
-                     level=1)
-
         if np.sum(keep_column_bool) == self._adata.shape[1]:
             pass
         else:
+            Debug.vprint("Trimming {name} matrix {sh} to {n} columns".format(name=self.name, sh=self._adata.X.shape,
+                                                                             n=np.sum(keep_column_bool)),
+                         level=1)
+
             # This explicit copy allows the original to be deallocated
             # Otherwise the GC leaves the original because the view reference keeps it alive
             # At some point it will need to copy so why not now
@@ -572,7 +573,7 @@ class InferelatorData(object):
     def to_csv(self, file_name, sep="\t"):
 
         if self.is_sparse:
-            scipy.io.mmwrite(file_name, self.expression_data)
+            scipy.io.mmwrite(file_name, self.values)
         else:
             self._adata.to_df().to_csv(file_name, sep=sep)
 
@@ -662,7 +663,7 @@ class InferelatorData(object):
 
     def copy(self):
 
-        new_data = InferelatorData(self.expression_data.copy(),
+        new_data = InferelatorData(self.values.copy(),
                                    meta_data=self.meta_data.copy(),
                                    gene_data=self.gene_data.copy())
 

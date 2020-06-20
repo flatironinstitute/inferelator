@@ -148,26 +148,28 @@ class TFAWorkFlow(workflow.WorkflowBase):
         Compute Transcription Factor Activity
         """
         # If there is a tfa driver, run it to calculate TFA from the prior & expression data
-        Debug.vprint('Computing Transcription Factor Activity ... ')
-
-        self.design.convert_to_float()
 
         if self._tfa_input_file is not None:
             self.load_activity()
-
         else:
-            self.half_tau_response.convert_to_float()
-            self.design = self.tfa_driver().compute_transcription_factor_activity(self.priors_data,
-                                                                                  self.design,
-                                                                                  self.half_tau_response)
-
-            Debug.vprint("Rebuilt design matrix {d} with TF activity".format(d=self.design.shape), level=1)
+            self._recalculate_design()
 
         self.half_tau_response = None
 
         if self._tfa_output_file is not None and self.is_master():
             self.create_output_dir()
             self.design.to_csv(self.output_path(self._tfa_output_file), sep="\t")
+
+    def _recalculate_design(self):
+        """
+        Use the TFA driver to recalculate the design matrix
+        """
+        self.design.convert_to_float()
+        self.half_tau_response.convert_to_float()
+        self.design = self.tfa_driver().compute_transcription_factor_activity(self.priors_data,
+                                                                              self.design,
+                                                                              self.half_tau_response)
+        Debug.vprint("Rebuilt design matrix {d} with TF activity".format(d=self.design.shape), level=1)
 
     def load_activity(self, file=None, file_type=None):
 

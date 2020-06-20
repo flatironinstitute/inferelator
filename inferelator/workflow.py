@@ -473,6 +473,8 @@ class WorkflowBaseLoader(object):
                                               gene_data_file=gene_data_file,
                                               gene_name_column=self.gene_list_index)
 
+        self.data.name = "Expression"
+
     def read_tfs(self, file=None):
         """
         Read tf names file into tf_names

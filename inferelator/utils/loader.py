@@ -53,7 +53,7 @@ class InferelatorDataLoader(object):
                                    meta_data=meta_data,
                                    gene_data=gene_metadata)
 
-        self._check_loaded_data(data)
+        self._check_loaded_data(data, filename = h5ad_file)
         return data
 
     def load_data_mtx(self, mtx_file, mtx_obs=None, mtx_feature=None, meta_data_file=None,
@@ -146,7 +146,7 @@ class InferelatorDataLoader(object):
                                meta_data=meta_data,
                                gene_data=gene_metadata)
 
-        self._check_loaded_data(data)
+        self._check_loaded_data(data, filename=expression_matrix_file)
         return data
 
     def load_metadata_tsv(self, meta_data_file, sample_labels, meta_data_handler=None):
@@ -219,12 +219,15 @@ class InferelatorDataLoader(object):
         return pd.read_csv(filename, sep="\t", header=None)[0].tolist() if filename is not None else None
 
     @staticmethod
-    def _check_loaded_data(data):
+    def _check_loaded_data(data, filename=None):
+        msg = "Loaded {f}:\n".format(f=filename) if filename is not None else ""
+
         nnf, non_finite_genes = data.non_finite
         if nnf > 0:
-            Debug.vprint("{n} genes with non-finite expression ({g})".format(n=nnf, g=" ".join(non_finite_genes)))
+            msg += "\t{n} genes with non-finite expression ({g})\n".format(n=nnf, g=" ".join(non_finite_genes))
 
-        Debug.vprint("Expression data loaded: {dt}".format(dt=str(data)))
+        msg += "Data loaded: {dt}".format(dt=str(data))
+        Debug.vprint(msg, level=0)
 
     @staticmethod
     def filename_path_join(path, filename):
