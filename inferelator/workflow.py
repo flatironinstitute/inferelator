@@ -888,6 +888,9 @@ def _factory_build_inferelator(regression=RegressionWorkflow, workflow=WorkflowB
         elif workflow == "single-cell":
             from inferelator.single_cell_workflow import SingleCellWorkflow
             workflow_class = SingleCellWorkflow
+        elif workflow == "velocity":
+            from inferelator.velocity_workflow import VelocityWorkflow
+            workflow_class = VelocityWorkflow
         else:
             raise ValueError("{val} is not a string that can be mapped to a workflow class".format(val=workflow))
     # Or just use a workflow class directly
