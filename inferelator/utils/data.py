@@ -221,7 +221,10 @@ class InferelatorData(object):
     name = None
 
     _adata = None
-    _is_integer = False
+
+    @property
+    def _is_integer(self):
+        return pat.is_integer_dtype(self._adata.X.dtype)
 
     @property
     def expression_data(self):
@@ -379,6 +382,31 @@ class InferelatorData(object):
 
     def __init__(self, expression_data=None, transpose_expression=False, meta_data=None, gene_data=None,
                  gene_data_idx_column=None, gene_names=None, sample_names=None, dtype=None, name=None):
+        """
+        Create a new InferelatorData object
+
+        :param expression_data: A tabular observations x variables matrix
+        :type expression_data: np.array, scipy.sparse.spmatrix, anndata.AnnData, pd.DataFrame
+        :param transpose_expression: Should the table be transposed. Defaults to False
+        :type transpose_expression: bool
+        :param meta_data: Meta data for observations. Needs to align to the expression data
+        :type meta_data: pd.DataFrame
+        :param gene_data: Meta data for variables.
+        :type gene_data: pd.DataFrame
+        :param gene_data_idx_column: The gene_data column which should be used to align to expression_data
+        :type gene_data_idx_column: bool
+        :param gene_names: Names to be used for variables.
+            Will be inferred from a dataframe or anndata object if not set.
+        :type gene_names: list, pd.Index
+        :param sample_names: Names to be used for observations
+            Will be inferred from a dataframe or anndata object if not set.
+        :type sample_names: list, pd.Index
+        :param dtype: Explicitly convert the data to this dtype if set.
+            Only applies to data loaded from a pandas dataframe. Numpy arrays and scipy matrices will use existing type.
+        :type dtype: np.dtype
+        :param name: Name of this data structure.
+        :type name: None, str
+        """
 
         if expression_data is not None and isinstance(expression_data, pd.DataFrame):
             object_cols = expression_data.dtypes == object
@@ -393,7 +421,6 @@ class InferelatorData(object):
             elif dtype is None:
                 dtype = 'float64'
 
-            self._is_integer = pat.is_integer_dtype(dtype)
             self._make_idx_str(expression_data)
 
             if transpose_expression:
@@ -403,15 +430,11 @@ class InferelatorData(object):
 
         elif expression_data is not None and isinstance(expression_data, AnnData):
             self._adata = expression_data
-            self._is_integer = True if pat.is_integer_dtype(expression_data.X.dtype) else False
 
         elif expression_data is not None:
-            if transpose_expression:
-                self._adata = AnnData(X=expression_data.T, dtype=expression_data.dtype)
-            else:
-                self._adata = AnnData(X=expression_data, dtype=expression_data.dtype)
+            self._adata = AnnData(X=expression_data.T if transpose_expression else expression_data,
+                                  dtype=expression_data.dtype)
 
-            self._is_integer = True if pat.is_integer_dtype(expression_data.dtype) else False
         else:
             self._adata = AnnData()
 
@@ -438,6 +461,10 @@ class InferelatorData(object):
         self.name = name
 
     def convert_to_float(self):
+        """
+        Convert the data in-place to a float dtype
+        """
+
         if pat.is_float_dtype(self._data.dtype):
             return None
         elif self._data.dtype == np.int32:
@@ -447,11 +474,14 @@ class InferelatorData(object):
         else:
             raise ValueError("Data is not float, int32, or int64")
 
+        # Create a new memoryview with a specific dtype
         float_view = self._data.view(dtype)
-        float_view[:] = self._data
-        self._data = float_view
 
-        self._is_integer = False
+        # Assign the old data through the memoryview
+        float_view[:] = self._data
+
+        # Replace the old data with the newly converted data
+        self._data = float_view
 
     def trim_genes(self, remove_constant_genes=True, trim_gene_list=None):
         """
@@ -599,12 +629,29 @@ class InferelatorData(object):
             self._adata.X = func(self._adata.X)
 
     def add(self, val):
+        """
+        Add a value to the matrix in-place
+        :param val: Value to add
+        :type val: numeric
+        """
         self._data[...] = self._data + val
 
     def subtract(self, val):
+        """
+        Subtract a value from the matrix in-place
+        :param val: Value to subtract
+        :type val: numeric
+        """
         self._data[...] = self._data - val
 
     def divide(self, div_val, axis=None):
+        """
+        Divide a value from the matrix in-place
+        :param div_val: Value to divide
+        :type div_val: numeric
+        :param axis: Which axis to divide from (0, 1, or None)
+        :type axis: int, None
+        """
 
         if self._is_integer:
             self.convert_to_float()
@@ -628,6 +675,13 @@ class InferelatorData(object):
             raise ValueError("axis must be 0, 1 or None")
 
     def multiply(self, mult_val, axis=None):
+        """
+        Multiply the matrix by a value in-place
+        :param mult_val: Value to multiply
+        :type mult_val: numeric
+        :param axis: Which axis to divide from (0, 1, or None)
+        :type axis: int, None
+        """
 
         if self._is_integer:
             self.convert_to_float()
