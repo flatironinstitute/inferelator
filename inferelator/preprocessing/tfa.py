@@ -30,10 +30,12 @@ class TFA:
         if len(expr_tfs) > 0:
             activity[:, prior.columns.isin(expr_tfs)] = expression_data.get_gene_data(expr_tfs, force_dense=True)
 
+        data_name = "Activity" if expression_data.name is None else "{n} Activity".format(n=expression_data.name)
         return utils.InferelatorData(activity,
                                      gene_names=prior.columns,
                                      sample_names=expression_data.sample_names,
-                                     meta_data=expression_data.meta_data)
+                                     meta_data=expression_data.meta_data,
+                                     name=data_name)
 
     def _check_prior(self, prior, expression_data, keep_self=False):
         if not keep_self:
@@ -49,7 +51,6 @@ class TFA:
         prior = prior.drop(drop_tfs, axis=1)
 
         return prior, activity_tfs, expr_tfs
-
 
     @staticmethod
     def _determine_tf_status(prior, expression_data):
@@ -77,7 +78,9 @@ class NoTFA(TFA):
         utils.Debug.vprint("Setting Activity to Expression Values", level=1)
         tf_gene_overlap = prior.columns[prior.columns.isin(expression_data.gene_names)]
 
+        data_name = "Activity" if expression_data.name is None else "{n} Activity".format(n=expression_data.name)
         return utils.InferelatorData(expression_data.get_gene_data(tf_gene_overlap, copy=True, force_dense=True),
                                      sample_names=expression_data.sample_names,
                                      meta_data=expression_data.meta_data,
-                                     gene_names=tf_gene_overlap)
+                                     gene_names=tf_gene_overlap,
+                                     name=data_name)

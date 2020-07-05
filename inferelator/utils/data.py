@@ -378,7 +378,7 @@ class InferelatorData(object):
                           mem=(self._data_mem_usage / 1e6))
 
     def __init__(self, expression_data=None, transpose_expression=False, meta_data=None, gene_data=None,
-                 gene_data_idx_column=None, gene_names=None, sample_names=None, dtype=None):
+                 gene_data_idx_column=None, gene_names=None, sample_names=None, dtype=None, name=None):
 
         if expression_data is not None and isinstance(expression_data, pd.DataFrame):
             object_cols = expression_data.dtypes == object
@@ -435,6 +435,7 @@ class InferelatorData(object):
             self.gene_data = gene_data
 
         self._cached = {}
+        self.name = name
 
     def convert_to_float(self):
         if pat.is_float_dtype(self._data.dtype):
