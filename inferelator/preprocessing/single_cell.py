@@ -26,6 +26,17 @@ def normalize_expression_to_one(data, **kwargs):
     data.divide(data.sample_counts, axis=1)
 
 
+def normalize_expression_to_median(data, **kwargs):
+    """
+
+    :param data: InferelatorData [N x G]
+    """
+    kwargs, batch_factor_column = process_normalize_args(**kwargs)
+
+    target_value = np.median(data.sample_counts)
+    data.divide((data.sample_counts / target_value), axis=1)
+
+
 def normalize_medians_for_batch(data, **kwargs):
     """
     Calculate the median UMI count per cell for each batch. Transform all batches by dividing by a size correction
