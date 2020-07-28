@@ -221,21 +221,23 @@ class CrossValidationManager(object):
         self._check_grid_search_params_exist()
 
         # Run base grid search
-        self._grid_search()
+        results = self._grid_search()
 
         # Run size sampling
         if self.size_sample_vector is not None:
-            self._size_cv()
+            results.extend(self._size_cv())
 
         # Run dropin
         if self.dropin_column is not None:
-            self._dropin_cv()
+            results.extend(self._dropin_cv())
 
         # Run dropout
         if self.dropout_column is not None:
-            self._dropout_cv()
+            results.extend(self._dropout_cv())
 
         self._destroy_writer()
+
+        return results
 
     def append_to_path(self, var_name, to_append):
         """
@@ -365,6 +367,8 @@ class CrossValidationManager(object):
         # This is unpacked in the same order that is used in the header
         ordered_unpack = [self.grid_param_values[param] for param in self.grid_params]
 
+        results = []
+
         for param_values in itertools.product(*ordered_unpack):
             params = zip(self.grid_params, param_values)
             csv_line = []
@@ -400,12 +404,18 @@ class CrossValidationManager(object):
             cv_workflow.append_to_path("output_dir", output_path)
             utils.Debug.vprint("Writing results to {p} ".format(p=cv_workflow.output_dir), level=1)
             result = cv_workflow.run()
+
+            # Output the results to the CSV file
             csv_line.extend([test, value, n_obs, result.score])
+
+            results.append(((test, value), result))
 
             if MPControl.is_master:
                 self._csv_writer.writerow(csv_line)
 
             del cv_workflow
+
+        return results
 
     def _check_grid_search_params_exist(self):
         """
@@ -453,6 +463,8 @@ class CrossValidationManager(object):
 
         unique_groups = meta_data[col].unique().tolist()
 
+        results = []
+
         # Downsample if max_size is set for a comparable all-group control
         if len(unique_groups) > 2 and max_size is not None:
             rgen = np.random.RandomState(self.dropout_seed - 1)
@@ -466,7 +478,8 @@ class CrossValidationManager(object):
 
                 return include_mask
 
-            self._grid_search(test="dropout", value="all", mask_function=mask_function)
+            result = self._grid_search(test="dropout", value="all", mask_function=mask_function)
+            results.append((("dropout", "all"), result))
 
         # Iterate through groups and drop one
         for i, group in enumerate(unique_groups):
@@ -487,7 +500,10 @@ class CrossValidationManager(object):
 
                     return include_mask
 
-            self._grid_search(test="dropout", value=group, mask_function=mask_function)
+            result = self._grid_search(test="dropout", value=group, mask_function=mask_function)
+            results.append((("dropout", group), result))
+
+        return results
 
     def _dropin_cv(self):
         """
@@ -500,13 +516,16 @@ class CrossValidationManager(object):
 
         unique_groups = meta_data[col].unique().tolist()
 
+        results = []
+
         if len(unique_groups) > 1 and max_size:
             rgen = np.random.RandomState(self.dropin_seed - 1)
 
             def mask_function():
                 return group_index(meta_data, col, group=None, rgen=rgen, max_size=max_size)
 
-            self._grid_search(test="dropin", value="all", mask_function=mask_function)
+            result = self._grid_search(test="dropin", value="all", mask_function=mask_function)
+            results.append((("dropin", "all"), result))
 
         for i, group in enumerate(unique_groups):
             rgen = np.random.RandomState(self.dropin_seed + i)
@@ -517,12 +536,17 @@ class CrossValidationManager(object):
                 else:
                     return group_index(meta_data, col, group, rgen=rgen, max_size=max_size)
 
-            self._grid_search(test="dropin", value=group, mask_function=mask_function)
+            result = self._grid_search(test="dropin", value=group, mask_function=mask_function)
+            results.append((("dropin", group), result))
+
+        return results
 
     def _size_cv(self):
         """
         Run grid search on a subset of the data
         """
+
+        results = []
 
         for i, size_ratio in enumerate(self.size_sample_vector):
             rgen = np.random.RandomState(self.size_sample_seed + i)
@@ -551,7 +575,10 @@ class CrossValidationManager(object):
                     rgen.shuffle(size_mask)
                     return pd.Series(size_mask, index=meta_data.index)
 
-            self._grid_search(test="size", value=str(size_ratio), mask_function=data_masker)
+            result = self._grid_search(test="size", value=str(size_ratio), mask_function=data_masker)
+            results.append((("size", size_ratio), result))
+
+        return results
 
 
 def group_index(meta, meta_col, group=None, size_ratio=None, rgen=None, max_size=None):

@@ -57,9 +57,9 @@ class InferelatorResults(object):
         check.argument_path(output_dir, allow_none=True, create_if_needed=True)
 
         # Write TSV files
-        self.write_to_tsv(self.network, output_dir, self.network_file_name)
+        self.write_to_tsv(self.network, output_dir, self.network_file_name, index=False)
         self.write_to_tsv(self.combined_confidences, output_dir, self.confidence_file_name)
-        self.write_to_tsv(self.betas_stack, output_dir, self.threshold_file_name)
+        self.write_to_tsv(self.betas_stack, output_dir, self.threshold_file_name, index=False)
         self.write_to_tsv(self.curve, output_dir, self.curve_data_file_name)
 
         if self.curve_file_name is None:
@@ -80,7 +80,7 @@ class InferelatorResults(object):
 
 
     @staticmethod
-    def write_to_tsv(data_frame, output_dir, output_file_name):
+    def write_to_tsv(data_frame, output_dir, output_file_name, index=True):
         """
         Save a DataFrame to a TSV file
         :param data_frame: pd.DataFrame
@@ -89,6 +89,8 @@ class InferelatorResults(object):
             The path to the output file. If None, don't save anything
         :param output_file_name: str
             The output file name. If None, don't save anything
+        :param index: bool
+            Include the index in the output file
         """
 
         assert check.argument_type(data_frame, pd.DataFrame, allow_none=True)
