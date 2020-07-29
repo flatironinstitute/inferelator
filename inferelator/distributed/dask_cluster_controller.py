@@ -144,6 +144,9 @@ class DaskHPCClusterController(AbstractController):
         cls._add_local_node_workers(cls._num_local_workers)
         cls._tracker = WorkerTracker()
 
+        utils.Debug.vprint("Dask scheduler & client active", level=0)
+        utils.Debug.vprint(cls.client.scheduler_info()['services'], level=0)
+
         return True
 
     @classmethod
