@@ -980,6 +980,10 @@ def inferelator_workflow(regression=_RegressionWorkflowMixin, workflow=WorkflowB
 
         "elasticnet" loads Elastic Net Regression.
 
+        "sklearn" loads scikit-learn Regression.
+
+        "stars" loads the StARS stability Regression.
+
         "amusr" loads AMuSR Regression. This requires multitask workflow.
 
         "bbsr-by-task" loads Bayesian Best Subset Regression for multiple tasks. This requires multitask workflow.

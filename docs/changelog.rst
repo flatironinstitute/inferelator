@@ -1,6 +1,22 @@
 Change Log
 ==========
 
+Inferelator v0.4.1 `August, 4 2020`
+--------------------------------------
+
+New Functionality:
+
+- Added a regression module based on stability selection
+- Added a regression module that can apply any scikit-learn regression model
+
+Bug Fixes:
+
+- Fixed row labels in matrix outputs
+
+Code Refactoring:
+
+- Added additional tests
+
 Inferelator v0.4.0 `April, 7 2020`
 --------------------------------------
 
