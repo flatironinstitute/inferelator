@@ -2,8 +2,10 @@ import pandas as pd
 import numpy as np
 
 from inferelator import utils
-from inferelator import default
 from inferelator.utils import Validator as check
+
+DEFAULT_CV_AXIS = 0
+DEFAULT_SEED = 2001
 
 
 class ManagePriors(object):
@@ -208,7 +210,7 @@ class ManagePriors(object):
         return priors_data
 
     @staticmethod
-    def _split_for_cv(all_data, split_ratio, split_axis=default.DEFAULT_CV_AXIS, seed=default.DEFAULT_CV_RANDOM_SEED):
+    def _split_for_cv(all_data, split_ratio, split_axis=DEFAULT_CV_AXIS, seed=DEFAULT_SEED):
         """
         Take a dataframe and split it according to split_ratio on split_axis into two new dataframes. This is for
         crossvalidation splits of a gold standard.
@@ -240,7 +242,7 @@ class ManagePriors(object):
         return priors_data, gold_standard
 
     @staticmethod
-    def _remove_prior_circularity(priors, gold_standard, split_axis=default.DEFAULT_CV_AXIS):
+    def _remove_prior_circularity(priors, gold_standard, split_axis=DEFAULT_CV_AXIS):
         """
         Remove all axis labels that occur in the gold standard from the prior
         :param priors: pd.DataFrame [M x N]
@@ -257,7 +259,7 @@ class ManagePriors(object):
         return new_priors, gold_standard
 
     @staticmethod
-    def _split_flattened(data, split_ratio, seed=default.DEFAULT_CV_RANDOM_SEED):
+    def _split_flattened(data, split_ratio, seed=DEFAULT_SEED):
         """
         Instead of splitting by axis labels, split edges and ignore axes
         :param data: pd.DataFrame [M x N]
@@ -291,7 +293,7 @@ class ManagePriors(object):
         return priors_data, gold_standard
 
     @staticmethod
-    def _split_axis(priors, split_ratio, axis=default.DEFAULT_CV_AXIS, seed=default.DEFAULT_CV_RANDOM_SEED):
+    def _split_axis(priors, split_ratio, axis=DEFAULT_CV_AXIS, seed=DEFAULT_SEED):
         """
         Split by axis labels on the chosen axis
         :param priors: pd.DataFrame [M x N]
@@ -324,7 +326,7 @@ class ManagePriors(object):
         return priors_data, gold_standard
 
     @staticmethod
-    def _make_shuffled_index(idx_len, seed=default.DEFAULT_CV_RANDOM_SEED):
+    def _make_shuffled_index(idx_len, seed=DEFAULT_SEED):
         idx = list(range(idx_len))
         np.random.RandomState(seed=seed).shuffle(idx)
         return idx

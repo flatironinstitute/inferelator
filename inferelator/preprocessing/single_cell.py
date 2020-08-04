@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 
-from inferelator.default import DEFAULT_METADATA_FOR_BATCH_CORRECTION
 from inferelator import utils
 
 """
@@ -18,7 +17,6 @@ def normalize_expression_to_one(data, **kwargs):
 
     :param data: InferelatorData [N x G]
     """
-    kwargs, batch_factor_column = process_normalize_args(**kwargs)
 
     utils.Debug.vprint('Normalizing UMI counts per cell ... ')
 
@@ -31,13 +29,12 @@ def normalize_expression_to_median(data, **kwargs):
 
     :param data: InferelatorData [N x G]
     """
-    kwargs, batch_factor_column = process_normalize_args(**kwargs)
 
     target_value = np.median(data.sample_counts)
     data.divide((data.sample_counts / target_value), axis=1)
 
 
-def normalize_medians_for_batch(data, **kwargs):
+def normalize_medians_for_batch(data, batch_factor_column=None, **kwargs):
     """
     Calculate the median UMI count per cell for each batch. Transform all batches by dividing by a size correction
     factor, so that all batches have the same median UMI count (which is the median batch median UMI count)
@@ -47,7 +44,11 @@ def normalize_medians_for_batch(data, **kwargs):
         Which meta data column should be used to determine batches
     :return expression_matrix, meta_data: pd.DataFrame, pd.DataFrame
     """
-    kwargs, batch_factor_column = process_normalize_args(**kwargs)
+
+    if batch_factor_column is None or batch_factor_column not in data.meta_data:
+        _msg = "batch_factor_column must be set to one of the meta data columns"
+        utils.Debug.vprint(_msg + ": {c}".format(c=data.meta_data.columns), level=0)
+        raise ValueError(_msg)
 
     utils.Debug.vprint('Normalizing median counts between batches ... ')
 
@@ -68,7 +69,7 @@ def normalize_medians_for_batch(data, **kwargs):
     data.divide(umi['umi_mod'].values, axis=1)
 
 
-def normalize_sizes_within_batch(data, **kwargs):
+def normalize_sizes_within_batch(data, batch_factor_column=None, **kwargs):
     """
     Calculate the median UMI count within each batch and then resize each sample so that each sample has the same total
     UMI count
@@ -79,7 +80,10 @@ def normalize_sizes_within_batch(data, **kwargs):
     :return expression_matrix, meta_data: pd.DataFrame, pd.DataFrame
     """
 
-    kwargs, batch_factor_column = process_normalize_args(**kwargs)
+    if batch_factor_column is None or batch_factor_column not in data.meta_data:
+        _msg = "batch_factor_column must be set to one of the meta data columns"
+        utils.Debug.vprint(_msg + ": {c}".format(c=data.meta_data.columns), level=0)
+        raise ValueError(_msg)
 
     utils.Debug.vprint('Normalizing to median counts within batches ... ')
 
@@ -163,8 +167,3 @@ def filter_genes_for_count(data, count_minimum=None):
         keep_genes = counts_per_gene >= count_minimum
         utils.Debug.vprint("Filtering {gn} genes [Count]".format(gn=data.shape[1] - np.sum(keep_genes)), level=1)
         data.trim_genes(remove_constant_genes=True, trim_gene_list=data.gene_names[keep_genes])
-
-
-def process_normalize_args(**kwargs):
-    batch_factor_column = kwargs.pop('batch_factor_column', DEFAULT_METADATA_FOR_BATCH_CORRECTION)
-    return kwargs, batch_factor_column
