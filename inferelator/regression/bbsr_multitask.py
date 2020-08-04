@@ -6,7 +6,7 @@ from inferelator.regression.base_regression import _MultitaskRegressionWorkflowM
 from inferelator.regression.bbsr_python import BBSR, BBSRRegressionWorkflowMixin
 
 
-class BBSRByTaskRegressionWorkflow(_MultitaskRegressionWorkflowMixin, BBSRRegressionWorkflowMixin):
+class BBSRByTaskRegressionWorkflowMixin(_MultitaskRegressionWorkflowMixin, BBSRRegressionWorkflowMixin):
     """
     This runs BBSR regression on tasks defined by the AMUSR regression (MTL) workflow
     """
