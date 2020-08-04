@@ -936,11 +936,14 @@ def _factory_build_inferelator(regression=_RegressionWorkflowMixin, workflow=Wor
             from inferelator.regression.amusr_regression import AMUSRRegressionWorkflowMixin
             regression_class = AMUSRRegressionWorkflowMixin
         elif regression == "bbsr-by-task" or (regression == "bbsr" and use_mtl_regression):
-            from inferelator.regression.bbsr_multitask import BBSRByTaskRegressionWorkflow
-            regression_class = BBSRByTaskRegressionWorkflow
+            from inferelator.regression.bbsr_multitask import BBSRByTaskRegressionWorkflowMixin
+            regression_class = BBSRByTaskRegressionWorkflowMixin
         elif regression == "elasticnet-by-task" or (regression == "elasticnet" and use_mtl_regression):
             from inferelator.regression.elasticnet_python import ElasticNetByTaskRegressionWorkflowMixin
             regression_class = ElasticNetByTaskRegressionWorkflowMixin
+        elif regression == "stars-by-task" or (regression == "stars" and use_mtl_regression):
+            from inferelator.regression.stability_selection import StARSWorkflowByTaskMixin
+            regression_class = StARSWorkflowByTaskMixin
         elif regression == "stars":
             from inferelator.regression.stability_selection import StARSWorkflowMixin
             regression_class = StARSWorkflowMixin
