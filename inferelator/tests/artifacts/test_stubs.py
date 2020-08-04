@@ -1,6 +1,6 @@
 from inferelator import amusr_workflow
 from inferelator import workflow
-from inferelator.regression.base_regression import RegressionWorkflow
+from inferelator.regression.base_regression import _RegressionWorkflowMixin
 from inferelator.postprocessing.results_processor import ResultsProcessor
 from inferelator.tests.artifacts.test_data import TestDataSingleCellLike, TEST_DATA, TEST_DATA_SPARSE
 from inferelator.utils import InferelatorData
@@ -16,7 +16,7 @@ class NoOutputRP(ResultsProcessor):
 
 
 # Factory method to spit out a puppet workflow
-def create_puppet_workflow(regression_class=RegressionWorkflow,
+def create_puppet_workflow(regression_class=_RegressionWorkflowMixin,
                            base_class=workflow.WorkflowBase,
                            result_processor_class=NoOutputRP):
 
@@ -83,7 +83,7 @@ class FakeWriter(object):
         pass
 
 
-class FakeRegression(RegressionWorkflow):
+class FakeRegressionMixin(_RegressionWorkflowMixin):
 
     def run_regression(self):
         beta = [pd.DataFrame(np.array([[0, 1], [0.5, 0.05]]), index=['gene1', 'gene2'], columns=['tf1', 'tf2'])]
