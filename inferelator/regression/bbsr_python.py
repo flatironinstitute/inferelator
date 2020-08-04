@@ -162,7 +162,7 @@ class BBSR(base_regression.BaseRegression):
         return weights_mat.mask(p_matrix != 0, other=p_weight)
 
 
-class BBSRRegressionWorkflow(base_regression.RegressionWorkflow):
+class BBSRRegressionWorkflowMixin(base_regression._RegressionWorkflowMixin):
     """
     Add BBSR regression into a workflow object
     """

@@ -20,7 +20,7 @@ ELASTICNET_PARAMETERS = dict(l1_ratio=[0.5, 0.7, 0.9],
                              min_coef=0.1)
 
 
-class ElasticNetWorkflow(sklearn_regression.SKLearnWorkflow):
+class ElasticNetWorkflowMixin(sklearn_regression.SKLearnWorkflowMixin):
     """
     Add elasticnet regression into a workflow object
     """
@@ -29,15 +29,15 @@ class ElasticNetWorkflow(sklearn_regression.SKLearnWorkflow):
     _sklearn_add_random_state = True
 
     def __init__(self, *args, **kwargs):
-        super(ElasticNetWorkflow, self).__init__(*args, **kwargs)
+        super(ElasticNetWorkflowMixin, self).__init__(*args, **kwargs)
         self._sklearn_model_params = copy.copy(ELASTICNET_PARAMETERS)
 
 
-class ElasticNetByTaskRegressionWorkflow(sklearn_regression.SKLearnByTask):
+class ElasticNetByTaskRegressionWorkflowMixin(sklearn_regression.SKLearnByTaskMixin):
 
     _sklearn_model = ElasticNetCV
     _sklearn_add_random_state = True
 
     def __init__(self, *args, **kwargs):
-        super(ElasticNetByTaskRegressionWorkflow, self).__init__(*args, **kwargs)
+        super(ElasticNetByTaskRegressionWorkflowMixin, self).__init__(*args, **kwargs)
         self._sklearn_model_params = copy.copy(ELASTICNET_PARAMETERS)

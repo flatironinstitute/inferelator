@@ -12,7 +12,7 @@ from inferelator import workflow
 from inferelator.tests.artifacts.test_data import TestDataSingleCellLike, TEST_DATA, TEST_DATA_SPARSE
 from inferelator.tests.artifacts.test_stubs import TaskDataStub, create_puppet_workflow
 from inferelator.regression.bbsr_multitask import BBSRByTaskRegressionWorkflow
-from inferelator.regression.elasticnet_python import ElasticNetByTaskRegressionWorkflow
+from inferelator.regression.elasticnet_python import ElasticNetByTaskRegressionWorkflowMixin
 from inferelator.utils import InferelatorData, DotProduct
 from inferelator.preprocessing.metadata_parser import MetadataHandler
 
@@ -149,7 +149,7 @@ class TestMultitaskFactory(SetUpDenseDataMTL):
         self.assertEqual(self.workflow.results.score, 1)
 
     def test_mtl_elasticnet(self):
-        self.workflow = workflow.inferelator_workflow(workflow="amusr", regression=ElasticNetByTaskRegressionWorkflow)
+        self.workflow = workflow.inferelator_workflow(workflow="amusr", regression=ElasticNetByTaskRegressionWorkflowMixin)
         self.workflow.set_regression_parameters(copy_X=True)
         self.reset_workflow()
 

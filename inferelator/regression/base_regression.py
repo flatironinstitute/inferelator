@@ -118,7 +118,7 @@ class BaseRegression(object):
         return d_len, b_avg, null_m
 
 
-class RegressionWorkflow(object):
+class _RegressionWorkflowMixin(object):
     """
     RegressionWorkflow implements run_regression and run_bootstrap
     Each regression method needs to extend this to implement run_bootstrap (and also run_regression if necessary)
@@ -145,6 +145,32 @@ class RegressionWorkflow(object):
                 rescaled_betas.append(current_rescaled_betas)
 
             MPControl.sync_processes("post_bootstrap")
+
+        return betas, rescaled_betas
+
+    def run_bootstrap(self, bootstrap):
+        raise NotImplementedError
+
+
+class _MultitaskRegressionWorkflowMixin(_RegressionWorkflowMixin):
+    """
+    MultitaskRegressionWorkflow implements run_regression and run_bootstrap for multitask workflow
+    Each regression method needs to extend this to implement run_bootstrap (and also run_regression if necessary)
+    """
+
+    def run_regression(self):
+
+        betas = [[] for _ in range(self._n_tasks)]
+        rescaled_betas = [[] for _ in range(self._n_tasks)]
+
+        for idx in range(self.num_bootstraps):
+            Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps), level=0)
+            current_betas, current_rescaled_betas = self.run_bootstrap(idx)
+
+            if self.is_master():
+                for k in range(self._n_tasks):
+                    betas[k].append(current_betas[k])
+                    rescaled_betas[k].append(current_rescaled_betas[k])
 
         return betas, rescaled_betas
 

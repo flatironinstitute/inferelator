@@ -13,7 +13,7 @@ import pandas as pd
 from inferelator import tfa_workflow
 from inferelator import workflow
 from inferelator import default
-from inferelator.tests.artifacts.test_stubs import FakeResultProcessor, FakeRegression, FakeDRD
+from inferelator.tests.artifacts.test_stubs import FakeResultProcessor, FakeRegressionMixin, FakeDRD
 from inferelator.preprocessing import tfa
 from inferelator.preprocessing import design_response_translation as drt
 
@@ -23,7 +23,7 @@ my_dir = os.path.dirname(__file__)
 class TestTFASetup(unittest.TestCase):
 
     def setUp(self):
-        self.workflow = workflow._factory_build_inferelator(regression=FakeRegression,
+        self.workflow = workflow._factory_build_inferelator(regression=FakeRegressionMixin,
                                                             workflow=tfa_workflow.TFAWorkFlow)()
         self.workflow.input_dir = os.path.join(my_dir, "../../data/dream4")
         self.workflow.expression_matrix_columns_are_genes = False

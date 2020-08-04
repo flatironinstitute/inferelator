@@ -472,39 +472,7 @@ def weight_prior(prior, prior_weight):
     return prior
 
 
-class _MultitaskRegressionWorkflow(base_regression.RegressionWorkflow):
-
-    def run_regression(self):
-
-        betas = [[] for _ in range(self._n_tasks)]
-        rescaled_betas = [[] for _ in range(self._n_tasks)]
-
-        for idx in range(self.num_bootstraps):
-            utils.Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps), level=0)
-            current_betas, current_rescaled_betas = self.run_bootstrap(idx)
-
-            if self.is_master():
-                for k in range(self._n_tasks):
-                    betas[k].append(current_betas[k])
-                    rescaled_betas[k].append(current_rescaled_betas[k])
-
-        return betas, rescaled_betas
-
-    def run_bootstrap(self, bootstrap_idx):
-        x, y = [], []
-
-        # Select the appropriate bootstrap from each task and stash the data into X and Y
-        for k in range(self._n_tasks):
-            x.append(self._task_design[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx]))
-            y.append(self._task_response[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx]))
-
-        MPControl.sync_processes(pref="amusr_pre")
-        regress = AMuSR_regression(x, y, tfs=self._regulators, genes=self._targets, priors=self._task_priors,
-                                   prior_weight=self.prior_weight)
-        return regress.run()
-
-
-class AMUSRRegressionWorkflow(_MultitaskRegressionWorkflow):
+class AMUSRRegressionWorkflowMixin(base_regression._MultitaskRegressionWorkflowMixin):
     """
     Add AMuSR regression into a workflow object
     """
@@ -518,6 +486,19 @@ class AMUSRRegressionWorkflow(_MultitaskRegressionWorkflow):
         """
 
         self._set_with_warning("prior_weight", prior_weight)
+
+    def run_bootstrap(self, bootstrap_idx):
+        x, y = [], []
+
+        # Select the appropriate bootstrap from each task and stash the data into X and Y
+        for k in range(self._n_tasks):
+            x.append(self._task_design[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx]))
+            y.append(self._task_response[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx]))
+
+        MPControl.sync_processes(pref="amusr_pre")
+        regress = AMuSR_regression(x, y, tfs=self._regulators, genes=self._targets, priors=self._task_priors,
+                                   prior_weight=self.prior_weight)
+        return regress.run()
 
 
 def filter_genes_on_tasks(list_of_indexes, task_expression_filter):

@@ -21,7 +21,7 @@ from inferelator.utils import (Debug, InferelatorDataLoader, DEFAULT_PANDAS_TSV_
                                DotProduct)
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.preprocessing.priors import ManagePriors
-from inferelator.regression.base_regression import RegressionWorkflow
+from inferelator.regression.base_regression import _RegressionWorkflowMixin
 from inferelator.postprocessing.results_processor import ResultsProcessor
 
 SBATCH_VARS_FOR_WORKFLOW = ["output_dir", "input_dir"]
@@ -575,6 +575,24 @@ class WorkflowBaseLoader(object):
         """
         return InferelatorDataLoader.filename_path_join(self.output_dir, filename)
 
+    def load_data_and_save_h5ad(self, output_file_name, to_sparse=False):
+        """
+        Load the workflow data and then save it to an h5ad file
+
+        :param output_file_name: A path to the output file
+        :type output_file_name: str
+        :param to_sparse: Convert the data to sparse prior to saving it
+        :type to_sparse: bool
+        """
+
+        self.read_expression()
+        self.read_tfs()
+
+        if to_sparse and not self.data.is_sparse:
+            self.data.to_sparse()
+
+        self.data.to_h5ad(self.output_path(output_file_name), compression="gzip")
+
     @staticmethod
     def _create_null_prior(gene_names, tf_names):
         """
@@ -855,7 +873,7 @@ class WorkflowBase(WorkflowBaseLoader):
         raise NotImplementedError("This workflow does not support multiple tasks")
 
 
-def _factory_build_inferelator(regression=RegressionWorkflow, workflow=WorkflowBase):
+def _factory_build_inferelator(regression=_RegressionWorkflowMixin, workflow=WorkflowBase):
     """
     This is the factory method to create workflow classes that combine preprocessing and postprocessing (from workflow)
     with a regression method (from regression)
@@ -907,35 +925,35 @@ def _factory_build_inferelator(regression=RegressionWorkflow, workflow=WorkflowB
     elif is_string(regression):
         regression = regression.lower()
         if regression == "base":
-            regression_class = RegressionWorkflow
+            regression_class = _RegressionWorkflowMixin
         elif regression == "bbsr" and not use_mtl_regression:
-            from inferelator.regression.bbsr_python import BBSRRegressionWorkflow
-            regression_class = BBSRRegressionWorkflow
+            from inferelator.regression.bbsr_python import BBSRRegressionWorkflowMixin
+            regression_class = BBSRRegressionWorkflowMixin
         elif regression == "elasticnet" and not use_mtl_regression:
-            from inferelator.regression.elasticnet_python import ElasticNetWorkflow
-            regression_class = ElasticNetWorkflow
+            from inferelator.regression.elasticnet_python import ElasticNetWorkflowMixin
+            regression_class = ElasticNetWorkflowMixin
         elif regression == "amusr":
-            from inferelator.regression.amusr_regression import AMUSRRegressionWorkflow
-            regression_class = AMUSRRegressionWorkflow
+            from inferelator.regression.amusr_regression import AMUSRRegressionWorkflowMixin
+            regression_class = AMUSRRegressionWorkflowMixin
         elif regression == "bbsr-by-task" or (regression == "bbsr" and use_mtl_regression):
             from inferelator.regression.bbsr_multitask import BBSRByTaskRegressionWorkflow
             regression_class = BBSRByTaskRegressionWorkflow
         elif regression == "elasticnet-by-task" or (regression == "elasticnet" and use_mtl_regression):
-            from inferelator.regression.elasticnet_python import ElasticNetByTaskRegressionWorkflow
-            regression_class = ElasticNetByTaskRegressionWorkflow
+            from inferelator.regression.elasticnet_python import ElasticNetByTaskRegressionWorkflowMixin
+            regression_class = ElasticNetByTaskRegressionWorkflowMixin
         elif regression == "stars":
-            from inferelator.regression.stability_selection import StARSWorkflow
-            regression_class = StARSWorkflow
+            from inferelator.regression.stability_selection import StARSWorkflowMixin
+            regression_class = StARSWorkflowMixin
         elif regression == "sklearn" and not use_mtl_regression:
-            from inferelator.regression.sklearn_regression import SKLearnWorkflow
-            regression_class = SKLearnWorkflow
+            from inferelator.regression.sklearn_regression import SKLearnWorkflowMixin
+            regression_class = SKLearnWorkflowMixin
         elif regression == "sklearn" and use_mtl_regression:
-            from inferelator.regression.sklearn_regression import SKLearnByTask
-            regression_class = SKLearnByTask
+            from inferelator.regression.sklearn_regression import SKLearnByTaskMixin
+            regression_class = SKLearnByTaskMixin
         else:
             raise ValueError("{val} is not a string that can be mapped to a regression class".format(val=regression))
     # Or just use a regression class directly
-    elif inspect.isclass(regression) and issubclass(regression, RegressionWorkflow):
+    elif inspect.isclass(regression) and issubclass(regression, _RegressionWorkflowMixin):
         regression_class = regression
     else:
         raise ValueError("Regression must be a string that maps to a regression class or an actual regression class")
@@ -946,7 +964,7 @@ def _factory_build_inferelator(regression=RegressionWorkflow, workflow=WorkflowB
     return RegressWorkflow
 
 
-def inferelator_workflow(regression=RegressionWorkflow, workflow=WorkflowBase):
+def inferelator_workflow(regression=_RegressionWorkflowMixin, workflow=WorkflowBase):
     """
     Create and instantiate an Inferelator workflow.
 

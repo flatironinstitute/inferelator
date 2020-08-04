@@ -190,7 +190,7 @@ class StARS(base_regression.BaseRegression):
         return MPControl.map(regression_maker, range(self.G), tell_children=False)
 
 
-class StARSWorkflow(base_regression.RegressionWorkflow):
+class StARSWorkflowMixin(base_regression._RegressionWorkflowMixin):
     """
     Add elasticnet regression into a workflow object
     """
@@ -222,3 +222,29 @@ class StARSWorkflow(base_regression.RegressionWorkflow):
         MPControl.sync_processes("post_stars")
 
         return [betas], [resc_betas]
+
+
+class StARSWorkflowByTaskMixin(base_regression._MultitaskRegressionWorkflowMixin, StARSWorkflowMixin):
+    """
+    Add elasticnet regression into a workflow object
+    """
+
+    def run_bootstrap(self, bootstrap_idx):
+        betas, betas_resc = [], []
+
+        # Select the appropriate bootstrap from each task and stash the data into X and Y
+        for k in range(self._n_tasks):
+            x = self._task_design[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx])
+            y = self._task_response[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx])
+
+            MPControl.sync_processes(pref="sk_pre")
+
+            utils.Debug.vprint('Calculating task {k} betas using StARS'.format(k=k), level=0)
+            t_beta, t_br = StARS(x, y, self.random_seed, alphas=self.alphas,
+                                  method=self.regress_method,
+                                  num_subsamples=self.num_subsamples,
+                                  parameters=self.sklearn_params).run()
+            betas.append(t_beta)
+            betas_resc.append(t_br)
+
+        return betas, betas_resc

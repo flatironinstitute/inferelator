@@ -608,6 +608,10 @@ class InferelatorData(object):
         else:
             self._adata.to_df().to_csv(file_name, sep=sep)
 
+    def to_h5ad(self, file_name, compression="gzip"):
+
+        self._adata.write(file_name, compression=compression)
+
     def transform(self, func, add_pseudocount=False, memory_efficient=True, chunksize=1000):
 
         if add_pseudocount and self.is_sparse:
@@ -742,6 +746,15 @@ class InferelatorData(object):
 
         if self.is_sparse:
             self._adata.X = self._adata.X.A
+
+    def to_sparse(self, mode="csr"):
+
+        if not self.is_sparse and mode.lower() == "csr":
+            self._adata.X = sparse.csr_matrix(self._adata.X)
+        elif not self.is_sparse and mode.lower() == "csc":
+            self._adata.X = sparse.csc_matrix(self._adata.X)
+        elif not self.is_sparse:
+            raise ValueError("Mode must be csc or csr")
 
     @staticmethod
     def _make_idx_str(df):

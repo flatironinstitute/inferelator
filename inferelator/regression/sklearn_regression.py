@@ -4,7 +4,7 @@ from inferelator import utils
 from inferelator.regression import base_regression
 from inferelator.distributed.inferelator_mp import MPControl
 from sklearn.base import BaseEstimator
-from inferelator.regression.amusr_regression import _MultitaskRegressionWorkflow
+from inferelator.regression.base_regression import _MultitaskRegressionWorkflowMixin
 import copy
 
 
@@ -99,7 +99,7 @@ class SKLearnRegression(base_regression.BaseRegression):
         return MPControl.map(regression_maker, range(self.G), tell_children=False)
 
 
-class SKLearnWorkflow(base_regression.RegressionWorkflow):
+class SKLearnWorkflowMixin(base_regression._RegressionWorkflowMixin):
     """
     Add elasticnet regression into a workflow object
     """
@@ -110,7 +110,7 @@ class SKLearnWorkflow(base_regression.RegressionWorkflow):
 
     def __init__(self, *args, **kwargs):
         self._sklearn_model_params = {}
-        super(SKLearnWorkflow, self).__init__(*args, **kwargs)
+        super(SKLearnWorkflowMixin, self).__init__(*args, **kwargs)
 
     def set_regression_parameters(self, model=None, add_random_state=None, **kwargs):
         """
@@ -131,7 +131,7 @@ class SKLearnWorkflow(base_regression.RegressionWorkflow):
     def run_bootstrap(self, bootstrap):
         x = self.design.get_bootstrap(bootstrap)
         y = self.response.get_bootstrap(bootstrap)
-        utils.Debug.vprint('Calculating betas using SKLearn model {m}'.format(m=self._sklearn_model), level=0)
+        utils.Debug.vprint('Calculating betas using SKLearn model {m}'.format(m=self._sklearn_model.__name__), level=0)
         MPControl.sync_processes(pref="sk_pre")
         return SKLearnRegression(x,
                                  y,
@@ -140,7 +140,7 @@ class SKLearnWorkflow(base_regression.RegressionWorkflow):
                                  **self._sklearn_model_params).run()
 
 
-class SKLearnByTask(_MultitaskRegressionWorkflow, SKLearnWorkflow):
+class SKLearnByTaskMixin(_MultitaskRegressionWorkflowMixin, SKLearnWorkflowMixin):
     """
     This runs BBSR regression on tasks defined by the AMUSR regression (MTL) workflow
     """
@@ -155,7 +155,7 @@ class SKLearnByTask(_MultitaskRegressionWorkflow, SKLearnWorkflow):
 
             MPControl.sync_processes(pref="sk_pre")
 
-            utils.Debug.vprint('Calculating task {k} betas using MEN'.format(k=k), level=0)
+            utils.Debug.vprint('Calculating task {k} using {n}'.format(k=k, n=self._sklearn_model.__name__), level=0)
             t_beta, t_br = SKLearnRegression(x,
                                              y,
                                              self._sklearn_model,
