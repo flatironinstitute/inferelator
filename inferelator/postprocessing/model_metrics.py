@@ -6,11 +6,8 @@ from inferelator import utils
 from inferelator.utils import Validator as check
 from inferelator.postprocessing.model_performance import RankSummingMetric
 from inferelator.postprocessing import TARGET_COLUMN, REGULATOR_COLUMN, PRECISION_COLUMN, RECALL_COLUMN
-from inferelator.postprocessing import CONFIDENCE_COLUMN, GOLD_STANDARD_COLUMN
+from inferelator.postprocessing import CONFIDENCE_COLUMN, GOLD_STANDARD_COLUMN, MCC_COLUMN
 
-import matplotlib
-
-matplotlib.use('pdf')
 import matplotlib.pyplot as plt
 
 
@@ -166,3 +163,120 @@ class RankSummaryPR(RankSummingMetric):
         d_recall = np.diff(recall)
         m_precision = precision[:-1] + np.diff(precision) / 2
         return sum(d_recall * m_precision)
+
+
+class RankSummaryMCC(RankSummingMetric):
+    """
+    This class extends RankSumming and calculates Matthews correlation coefficient
+    """
+
+    name = "MCC"
+    curve_file_name = "mccVSconf_curve.pdf"
+
+    # PR
+    mcc = None
+
+    def __init__(self, rankable_data, gold_standard, filter_method='keep_all_gold_standard'):
+
+        super(RankSummaryMCC, self).__init__(rankable_data, gold_standard, filter_method=filter_method)
+
+        # Calculate the precision and recall and store them with confidence data
+        self.filtered_data = self.calculate_mcc(self.filtered_data.copy())
+
+        # Calculate the AUC
+        self.maxmcc = self.calculate_opt_mcc(self.filtered_data)
+
+        # Join the filtered precision/recall onto the full confidences
+        join_data = self.filtered_data.loc[:, [TARGET_COLUMN, REGULATOR_COLUMN, MCC_COLUMN]]
+        join_data = join_data.set_index([TARGET_COLUMN, REGULATOR_COLUMN])
+        self.confidence_data = self.confidence_data.join(join_data, on=[TARGET_COLUMN, REGULATOR_COLUMN])
+
+    def score(self):
+
+        return self.name, self.maxmcc
+
+    def curve_dataframe(self):
+
+        conf = self.filtered_data[CONFIDENCE_COLUMN].values
+        MCC = self.filtered_data[MCC_COLUMN].values
+        return MCC, conf
+
+    def output_curve_pdf(self, output_dir, file_name=None):
+
+        file_name = self.curve_file_name if file_name is None else file_name
+
+        # Extract the recall and precision data
+        MCC, conf = self.curve_dataframe()
+
+        # Plot the precision-recall curve
+        self.plot_mcc_conf(MCC, conf, self.maxmcc, output_dir, file_name)
+
+    @staticmethod
+    def plot_mcc_conf(mcc, conf, optmcc, output_dir=None, file_name=None, dpi=300, figsize=(6, 4), plot1m=False):
+
+        # Generate a plot
+        fig = plt.figure(figsize=figsize, constrained_layout=True)
+        ax = fig.add_subplot(1, 1, 1)
+        if plot1m:
+            conf = 1 - conf
+            xlabel = '1 - confidence'
+        else:
+            xlabel = 'confidence'
+        ax.plot(conf, mcc)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel('MCC')
+
+        ax.annotate("max MCC = {optmcc}".format(optmcc=optmcc), xy=(0.4, 0.05), xycoords='axes fraction')
+
+        if file_name is None or output_dir is None:
+            return fig, ax
+        else:
+            # Save the plot and close
+            fig.savefig(os.path.join(output_dir, file_name), dpi=dpi)
+            plt.close(fig)
+
+    @staticmethod
+    def calculate_opt_mcc(data):
+
+        return np.nanmax(data[MCC_COLUMN])
+
+    @staticmethod
+    def calculate_mcc(data):
+
+        # Make sure data is sorted
+        if not data.loc[~pd.isnull(data[CONFIDENCE_COLUMN]), CONFIDENCE_COLUMN].is_monotonic_decreasing:
+            data = data.sort_values(by=CONFIDENCE_COLUMN, ascending=False, na_position='last')
+            data.reset_index(inplace=True)
+            utils.Debug.vprint("Resorting confidences for MCC", level=0)
+
+        # Get indices for stuff
+        valid_gs_idx = ~pd.isnull(data[GOLD_STANDARD_COLUMN])
+
+        # Find the edges that are in the gold standard
+        # valid_gs = (data.loc[valid_gs_idx, GOLD_STANDARD_COLUMN] != 0).astype(int)
+
+        df = data.loc[valid_gs_idx, [CONFIDENCE_COLUMN, GOLD_STANDARD_COLUMN]].astype(bool)
+
+        TP = (df.sum(1) == 2).astype(int)
+        TN = (df.sum(1) == 0).astype(int)
+        FP = (df[CONFIDENCE_COLUMN] & (df.sum(1) == 1)).astype(int)
+        FN = (df[GOLD_STANDARD_COLUMN] & (df.sum(1) == 1)).astype(int)
+
+        MET = pd.concat([TP, TN, FP, FN], 1).astype(np.float64)
+        MET.columns = ['TP', 'TN', 'FP', 'FN']
+        MET['TPFN'] = MET['TP'] + MET['FN']
+        MET['FPTN'] = MET['FP'] + MET['TN']
+
+        METcs = MET.cumsum()
+        METcs['TN'] = METcs['FPTN'].max() - METcs['FPTN']
+        METcs['FN'] = METcs['TPFN'].max() - METcs['TP']
+        METcs['FP'] = METcs['FPTN']
+
+        den = (METcs['TP'] + METcs['FP']) * (METcs['TP'] + METcs['FN']) * (METcs['TN'] + METcs['FP']) * (METcs['TN'] + METcs['FN'])
+        num = METcs['TP'] * METcs['TN'] - METcs['FP'] * METcs['FN']
+
+        __ = (num / np.sqrt(den)).replace(np.nan, 0.0)
+
+        data.loc[valid_gs_idx, MCC_COLUMN] = __
+
+        return data
