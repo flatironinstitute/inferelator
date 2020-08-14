@@ -77,6 +77,9 @@ class FakeDRD:
     def run(self, expr, meta):
         return expr, expr, expr
 
+    def validate_run(self, meta):
+        return True
+
 
 class FakeWriter(object):
     def writerow(self, *args, **kwargs):

@@ -210,21 +210,26 @@ class TFAWorkFlow(workflow.WorkflowBase):
         Compute common data structures like design and response matrices.
         """
 
-        if self.drd_driver is not None:
-            # If there is a design-response driver, run it to create design and response
-            drd = self.drd_driver(metadata_handler=self.metadata_handler, return_half_tau=True)
+        drd = self.drd_driver(metadata_handler=self.metadata_handler,
+                              return_half_tau=True) if self.drd_driver is not None else None
+
+        # If there is no design-response driver set, use the expression data for design and response
+        # Also do this if there is no usable metadata
+        if drd is None or not drd.validate_run(self.data.meta_data):
+            self.design, self.response, self.half_tau_response = self.data, self.data, self.data
+
+        # Otherwise calculate the design-response ODE
+        # TODO: Rewrite DRD for InferelatorData
+        # TODO: This is *horrifying* as is from a memory perspective
+        # TODO: Really fix this soon
+        else:
             Debug.vprint('Creating design and response matrix ... ')
             drd.delTmin, drd.delTmax, drd.tau = self.delTmin, self.delTmax, self.tau
 
-            # TODO: Rewrite DRD for InferelatorData
             design, response, half_tau_response = drd.run(self.data.to_df().T, self.data.meta_data)
             self.design = InferelatorData(design.T)
             self.response = InferelatorData(response.T)
             self.half_tau_response = InferelatorData(half_tau_response.T)
-
-        else:
-            # If there is no design-response driver set, use the expression data for design and response
-            self.design, self.response, self.half_tau_response = self.data, self.data, self.data
 
         Debug.vprint("Constructed design {d} and response {r} matrices".format(d=self.design.shape,
                                                                                r=self.response.shape), level=1)
