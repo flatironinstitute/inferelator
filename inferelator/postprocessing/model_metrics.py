@@ -60,22 +60,24 @@ class RankSummaryPR(RankSummingMetric):
         self.plot_pr_curve(recall, precision, self.aupr, output_dir, file_name)
 
     @staticmethod
-    def plot_pr_curve(recall, precision, aupr, output_dir, file_name):
+    def plot_pr_curve(recall, precision, aupr, output_dir=None, file_name=None, dpi=300, figsize=(6, 4)):
+
+        # Generate a plot
+        fig = plt.figure(figsize=figsize, constrained_layout=True)
+        ax = fig.add_subplot(1, 1, 1)
+        ax.plot(recall, precision)
+        ax.set_xlabel('recall')
+        ax.set_ylabel('precision')
+
+        # Add the AUPR as an annotation
+        ax.annotate("aupr = {aupr}".format(aupr=aupr), xy=(0.4, 0.05), xycoords='axes fraction')
+
         if file_name is None or output_dir is None:
-            return None
+            return fig, ax
         else:
-            # Generate a plot
-            plt.figure()
-            plt.plot(recall, precision)
-            plt.xlabel('recall')
-            plt.ylabel('precision')
-
-            # Add the AUPR as an annotation
-            plt.annotate("aupr = {aupr}".format(aupr=aupr), xy=(0.4, 0.05), xycoords='axes fraction')
-
             # Save the plot and close
-            plt.savefig(os.path.join(output_dir, file_name))
-            plt.close()
+            fig.savefig(os.path.join(output_dir, file_name), dpi=dpi)
+            plt.close(fig)
 
     def num_over_precision_threshold(self, threshold):
         return np.sum(self.confidence_data[CONFIDENCE_COLUMN] >= self.find_threshold(PRECISION_COLUMN, threshold))
@@ -185,6 +187,7 @@ class RankSummaryMCC(RankSummingMetric):
 
         # Calculate the AUC
         self.maxmcc = self.calculate_opt_mcc(self.filtered_data)
+        self.nnzmcc = self.calculate_nnz_mcc(self.filtered_data)
 
         # Join the filtered precision/recall onto the full confidences
         join_data = self.filtered_data.loc[:, [TARGET_COLUMN, REGULATOR_COLUMN, MCC_COLUMN]]
@@ -239,6 +242,14 @@ class RankSummaryMCC(RankSummingMetric):
     def calculate_opt_mcc(data):
 
         return np.nanmax(data[MCC_COLUMN])
+
+    @staticmethod
+    def calculate_nnz_mcc(data):
+
+        from sklearn.metrics import matthews_corrcoef as mcc
+
+        nnzmcc = mcc(data[GOLD_STANDARD_COLUMN].astype(bool).values, data[CONFIDENCE_COLUMN].astype(bool).values)
+        return nnzmcc
 
     @staticmethod
     def calculate_mcc(data):
