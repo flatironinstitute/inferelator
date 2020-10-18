@@ -720,6 +720,8 @@ class InferelatorData(object):
             for i in range(self.shape[0]):
                 self._data[i, :] = scale_vector(self._data[i, :], ddof=ddof)
 
+        return self
+
     def copy(self):
 
         new_data = InferelatorData(self.values.copy(),
