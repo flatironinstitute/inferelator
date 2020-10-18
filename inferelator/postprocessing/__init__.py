@@ -18,3 +18,7 @@ REGULATOR_COLUMN = "regulator"
 
 PRECISION_COLUMN = "precision"
 RECALL_COLUMN = "recall"
+
+# Matthew Correlation Coef
+
+MCC_COLUMN = "MCC"

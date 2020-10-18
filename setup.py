@@ -15,6 +15,9 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/flatironinstitute/inferelator",
+    project_urls={
+        "Documentation": "https://inferelator.readthedocs.io/",
+    },
     author="Chris Jackson",
     author_email="cj59@nyu.edu",
     maintainer="Chris Jackson",
