@@ -135,6 +135,11 @@ class RankSummingMetric(object):
         # Return data where both columns are not NA
         return data.dropna(subset=[left_column, right_column])
 
+    @staticmethod
+    def transform_column(df, xform_col, group_col, xform):
+        # Transform one column based on a grouping column
+        df[xform_col] = df[[group_col, xform_col]].groupby(group_col)[xform_col].transform(xform)
+
 
 class MetricHandler(object):
 
@@ -150,9 +155,13 @@ class MetricHandler(object):
             The metadata parser that corresponds to the string, or the MetadataParser object will be passed through
         """
         if utils.is_string(metric_ref):
-            if metric_ref.lower() == "aupr" or metric_ref.lower() == "precision-recall":
+            metric_ref = metric_ref.lower()
+            if metric_ref == "aupr" or metric_ref == "precision-recall":
                 from inferelator.postprocessing.model_metrics import RankSummaryPR
                 return RankSummaryPR
+            if metric_ref.lower() == "mcc" or metric_ref == "matthews correlation coefficient":
+                from inferelator.postprocessing.model_metrics import RankSummaryMCC
+                return RankSummaryMCC
             else:
                 raise ValueError("Parser {parser_str} unknown".format(parser_str=metric_ref))
         elif issubclass(metric_ref, RankSummingMetric):

@@ -13,6 +13,9 @@ import os
 import tempfile
 import shutil
 
+import logging
+logging.getLogger('matplotlib').setLevel(logging.WARNING)
+
 
 class TestResults(unittest.TestCase):
 
@@ -29,7 +32,7 @@ class TestResults(unittest.TestCase):
 
         # Toy data
         self.beta = pd.DataFrame(np.array([[0, 1], [0.5, 0.05]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        self.beta_resc = pd.DataFrame(np.array([[0, 1], [1, 0.05]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        self.beta_resc = pd.DataFrame(np.array([[0, 1.1], [1, 0.05]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
         self.prior = pd.DataFrame([[0, 1], [1, 0]], ['gene1', 'gene2'], ['tf1', 'tf2'])
 
         self.gold_standard = pd.DataFrame([[0, 1], [1, 0]], ['gene1', 'gene2'], ['tf1', 'tf2'])
@@ -222,9 +225,9 @@ class TestPrecisionRecallMetric(TestResults):
         gs = pd.DataFrame(np.array([[0, 1], [1, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
         confidences = pd.DataFrame(np.array([[1, 0], [0, 0.5]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
         data = self.make_PR_data(gs, confidences)
-        data = self.metric.calculate_precision_recall(data)
+        data = self.metric.calculate_precision_recall(data, transform_ties='mean')
         recall, precision = self.metric.modify_pr(data)
-        np.testing.assert_equal(recall, [0., 0., 0., 0.5, 1.])
+        np.testing.assert_equal(recall, [0., 0., 0., 0.75, 0.75])
         np.testing.assert_array_almost_equal(precision, [0., 0., 0., 5. / 12, 5. / 12])
 
     def test_aupr_perfect_prediction(self):
@@ -243,13 +246,13 @@ class TestPrecisionRecallMetric(TestResults):
         aupr = self.metric.calculate_aupr(data)
         np.testing.assert_equal(aupr, 1.0)
 
-    def test_negative_gs_precision_recall_bad_prediction(self):
+    def test_negative_gs_precision_recallbeta_resc_bad_prediction(self):
         gs = pd.DataFrame(np.array([[0, -1], [-1, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
         confidences = pd.DataFrame(np.array([[1, 0], [0, 0.5]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
         data = self.make_PR_data(gs, confidences)
-        data = self.metric.calculate_precision_recall(data)
+        data = self.metric.calculate_precision_recall(data, transform_ties='mean')
         recall, precision = self.metric.modify_pr(data)
-        np.testing.assert_equal(recall, [0., 0., 0., 0.5, 1.])
+        np.testing.assert_equal(recall, [0., 0., 0., 0.75, 0.75])
         np.testing.assert_array_almost_equal(precision, [0., 0., 0., 5. / 12, 5. / 12])
 
     def test_aupr_prediction_off(self):
@@ -309,6 +312,31 @@ class TestPrecisionRecallMetric(TestResults):
         self.metric.plot_pr_curve(recall=[0, 1], precision=[1, 0], aupr=0.9, output_dir=temp_dir, file_name=None)
         self.assertFalse(os.path.exists(file_name))
         shutil.rmtree(temp_dir)
+
+
+class TestMCCMetric(TestResults):
+
+    def setUp(self):
+        super(TestMCCMetric, self).setUp()
+        self.metric = model_performance.MetricHandler.get_metric("mcc")
+
+    def test_mcc_perfect_prediction(self):
+        gs = pd.DataFrame(np.array([[1, 0], [1, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        confidences = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        mcc = self.metric([confidences, confidences], gs)
+        np.testing.assert_equal(mcc.score()[1], 1.0)
+
+    def test_mcc_perfect_inverse_prediction(self):
+        gs = pd.DataFrame(np.array([[0, 1], [0, 1]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        confidences = pd.DataFrame(np.array([[1, 0], [1, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        mcc = self.metric([confidences, confidences], gs)
+        np.testing.assert_approx_equal(mcc.score()[1], -1)
+
+    def test_mcc_bad_prediction(self):
+        gs = pd.DataFrame(np.array([[0, 1], [0, 1]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        confidences = pd.DataFrame(np.array([[1, 0], [0, 0.5]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        mcc = self.metric([confidences, confidences], gs)
+        np.testing.assert_approx_equal(mcc.score()[1], 0)
 
 
 class TestMTLResults(TestResults):

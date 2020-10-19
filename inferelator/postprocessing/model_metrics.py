@@ -10,6 +10,8 @@ from inferelator.postprocessing import CONFIDENCE_COLUMN, GOLD_STANDARD_COLUMN, 
 
 import matplotlib.pyplot as plt
 
+TP, FP, TN, FN = 'TP', 'FP', 'TN', 'FN'
+
 
 class RankSummaryPR(RankSummingMetric):
     """
@@ -101,7 +103,7 @@ class RankSummaryPR(RankSummingMetric):
             return self.confidence_data.loc[threshold_index, CONFIDENCE_COLUMN].min()
 
     @staticmethod
-    def calculate_precision_recall(data):
+    def calculate_precision_recall(data, transform_ties=None):
         """
         Calculate the precision & recall based on the confidence scores and gold standard
         :param data: pd.DataFrame
@@ -130,14 +132,19 @@ class RankSummaryPR(RankSummingMetric):
         data[RECALL_COLUMN] = np.nan
 
         # Calculate precision [TP / (TP + FP)]
-        data.loc[valid_gs_idx, PRECISION_COLUMN] = np.cumsum(valid_gs).astype(float) / np.cumsum([1] * len(valid_gs))
-
-        # Overwrite the precision of no-confidence with the mean value
-        zero_confidence_precision_val = data.loc[zero_confidence_precision_idx, PRECISION_COLUMN].mean()
-        data.loc[zero_confidence_precision_idx, PRECISION_COLUMN] = zero_confidence_precision_val
+        data.loc[valid_gs_idx, PRECISION_COLUMN] = np.cumsum(valid_gs).astype(float) / np.arange(1, len(valid_gs)+1, 1)
 
         # Calculate recall [TP / (TP + FN)]
         data.loc[valid_gs_idx, RECALL_COLUMN] = np.cumsum(valid_gs).astype(float) / sum(valid_gs)
+
+        if transform_ties is not None:
+            RankSummaryMCC.transform_column(data, PRECISION_COLUMN, CONFIDENCE_COLUMN, transform_ties)
+            RankSummaryMCC.transform_column(data, RECALL_COLUMN, CONFIDENCE_COLUMN, transform_ties)
+
+        else:
+            # Overwrite the precision of no-confidence with the mean value
+            zero_confidence_precision_val = data.loc[zero_confidence_precision_idx, PRECISION_COLUMN].mean()
+            data.loc[zero_confidence_precision_idx, PRECISION_COLUMN] = zero_confidence_precision_val
 
         return data
 
@@ -266,28 +273,31 @@ class RankSummaryMCC(RankSummingMetric):
         # Find the edges that are in the gold standard
         # valid_gs = (data.loc[valid_gs_idx, GOLD_STANDARD_COLUMN] != 0).astype(int)
 
-        df = data.loc[valid_gs_idx, [CONFIDENCE_COLUMN, GOLD_STANDARD_COLUMN]].astype(bool)
+        df = data.loc[valid_gs_idx, [CONFIDENCE_COLUMN, GOLD_STANDARD_COLUMN]]
+        print(df)
+        df[GOLD_STANDARD_COLUMN] = df[GOLD_STANDARD_COLUMN].astype(bool)
 
-        TP = (df.sum(1) == 2).astype(int)
-        TN = (df.sum(1) == 0).astype(int)
-        FP = (df[CONFIDENCE_COLUMN] & (df.sum(1) == 1)).astype(int)
-        FN = (df[GOLD_STANDARD_COLUMN] & (df.sum(1) == 1)).astype(int)
+        df[TP] = (df[GOLD_STANDARD_COLUMN]).astype(int).cumsum()
+        df[FP] = (~df[GOLD_STANDARD_COLUMN]).astype(int).cumsum()
+        df[TN] = pd.Series((~df[GOLD_STANDARD_COLUMN].iloc[::-1]).astype(int).cumsum(),
+                           index=df.index).shift(-1, fill_value=0)
+        df[FN] = pd.Series((df[GOLD_STANDARD_COLUMN].iloc[::-1]).astype(int).cumsum(),
+                           index=df.index).shift(-1, fill_value=0)
 
-        MET = pd.concat([TP, TN, FP, FN], 1).astype(np.float64)
-        MET.columns = ['TP', 'TN', 'FP', 'FN']
-        MET['TPFN'] = MET['TP'] + MET['FN']
-        MET['FPTN'] = MET['FP'] + MET['TN']
+        RankSummaryMCC.transform_column(df, TP, CONFIDENCE_COLUMN, 'max')
+        RankSummaryMCC.transform_column(df, FP, CONFIDENCE_COLUMN, 'max')
+        RankSummaryMCC.transform_column(df, TN, CONFIDENCE_COLUMN, 'min')
+        RankSummaryMCC.transform_column(df, FN, CONFIDENCE_COLUMN, 'min')
 
-        METcs = MET.cumsum()
-        METcs['TN'] = METcs['FPTN'].max() - METcs['FPTN']
-        METcs['FN'] = METcs['TPFN'].max() - METcs['TP']
-        METcs['FP'] = METcs['FPTN']
+        df[MCC_COLUMN] = RankSummaryMCC.confusion_to_mcc(df[TP], df[TN], df[FP], df[FN])
 
-        den = (METcs['TP'] + METcs['FP']) * (METcs['TP'] + METcs['FN']) * (METcs['TN'] + METcs['FP']) * (METcs['TN'] + METcs['FN'])
-        num = METcs['TP'] * METcs['TN'] - METcs['FP'] * METcs['FN']
+        print(df)
 
-        __ = (num / np.sqrt(den)).replace(np.nan, 0.0)
-
-        data.loc[valid_gs_idx, MCC_COLUMN] = __
-
+        data.loc[valid_gs_idx, MCC_COLUMN] = df[MCC_COLUMN]
         return data
+
+    @staticmethod
+    def confusion_to_mcc(tp, tn, fp, fn):
+        return (tp * tn - fp * fn) / np.sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
+
+
