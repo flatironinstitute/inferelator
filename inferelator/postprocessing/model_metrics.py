@@ -274,7 +274,7 @@ class RankSummaryMCC(RankSummingMetric):
         # valid_gs = (data.loc[valid_gs_idx, GOLD_STANDARD_COLUMN] != 0).astype(int)
 
         df = data.loc[valid_gs_idx, [CONFIDENCE_COLUMN, GOLD_STANDARD_COLUMN]]
-        print(df)
+
         df[GOLD_STANDARD_COLUMN] = df[GOLD_STANDARD_COLUMN].astype(bool)
 
         df[TP] = (df[GOLD_STANDARD_COLUMN]).astype(int).cumsum()
@@ -290,8 +290,6 @@ class RankSummaryMCC(RankSummingMetric):
         RankSummaryMCC.transform_column(df, FN, CONFIDENCE_COLUMN, 'min')
 
         df[MCC_COLUMN] = RankSummaryMCC.confusion_to_mcc(df[TP], df[TN], df[FP], df[FN])
-
-        print(df)
 
         data.loc[valid_gs_idx, MCC_COLUMN] = df[MCC_COLUMN]
         return data
