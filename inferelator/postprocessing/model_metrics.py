@@ -26,7 +26,7 @@ class RankSummaryPR(RankSummingMetric):
 
     def __init__(self, rankable_data, gold_standard, filter_method='keep_all_gold_standard'):
 
-        super(RankSummaryPR, self).__init__(rankable_data, gold_standard, filter_method=filter_method)
+        super().__init__(rankable_data, gold_standard, filter_method=filter_method)
 
         # Calculate the precision and recall and store them with confidence data
         self.filtered_data = self.calculate_precision_recall(self.filtered_data.copy())
@@ -187,7 +187,7 @@ class RankSummaryMCC(RankSummingMetric):
 
     def __init__(self, rankable_data, gold_standard, filter_method='keep_all_gold_standard'):
 
-        super(RankSummaryMCC, self).__init__(rankable_data, gold_standard, filter_method=filter_method)
+        super().__init__(rankable_data, gold_standard, filter_method=filter_method)
 
         # Calculate the precision and recall and store them with confidence data
         self.filtered_data = self.calculate_mcc(self.filtered_data.copy())
@@ -255,7 +255,15 @@ class RankSummaryMCC(RankSummingMetric):
 
         from sklearn.metrics import matthews_corrcoef as mcc
 
-        nnzmcc = mcc(data[GOLD_STANDARD_COLUMN].astype(bool).values, data[CONFIDENCE_COLUMN].astype(bool).values)
+        gs = data[GOLD_STANDARD_COLUMN].astype(bool).astype(float).values
+        preds = data[CONFIDENCE_COLUMN].astype(bool).astype(float).values
+
+        cond = preds.size - preds.sum()
+
+        if cond < np.finfo(float).eps:
+            return 0.
+
+        nnzmcc = mcc(gs, preds)
         return nnzmcc
 
     @staticmethod
