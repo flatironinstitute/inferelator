@@ -304,6 +304,5 @@ class RankSummaryMCC(RankSummingMetric):
 
     @staticmethod
     def confusion_to_mcc(tp, tn, fp, fn):
-        return (tp * tn - fp * fn) / np.sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
-
-
+        denominator = np.sqrt(tp + fp) * np.sqrt(tp + fn) * np.sqrt(tn + fp) * np.sqrt(tn + fn)
+        return ((tp * tn - fp * fn) / denominator).fillna(0)
