@@ -194,6 +194,7 @@ class RankSummaryMCC(RankSummingMetric):
 
         # Calculate the AUC
         self.maxmcc = self.calculate_opt_mcc(self.filtered_data)
+        self.optconf = self.calculate_opt_conf(self.filtered_data)
         self.nnzmcc = self.calculate_nnz_mcc(self.filtered_data)
 
         # Join the filtered precision/recall onto the full confidences
@@ -207,36 +208,36 @@ class RankSummaryMCC(RankSummingMetric):
 
     def curve_dataframe(self):
 
-        conf = self.filtered_data[CONFIDENCE_COLUMN].values
-        MCC = self.filtered_data[MCC_COLUMN].values
-        return MCC, conf
+        return self.filtered_data[[CONFIDENCE_COLUMN, MCC_COLUMN]]
 
     def output_curve_pdf(self, output_dir, file_name=None):
 
         file_name = self.curve_file_name if file_name is None else file_name
 
         # Extract the recall and precision data
-        MCC, conf = self.curve_dataframe()
+        curve = self.curve_dataframe()
 
         # Plot the precision-recall curve
-        self.plot_mcc_conf(MCC, conf, self.maxmcc, output_dir, file_name)
+        self.plot_mcc_conf(curve[MCC_COLUMN].values, curve[CONFIDENCE_COLUMN].values,
+                           self.maxmcc, self.optconf, output_dir, file_name)
 
     @staticmethod
-    def plot_mcc_conf(mcc, conf, optmcc, output_dir=None, file_name=None, dpi=300, figsize=(6, 4), plot1m=False):
+    def plot_mcc_conf(mcc, conf, optmcc, optconf, output_dir=None, file_name=None, dpi=300, figsize=(6, 4)):
 
         # Generate a plot
         fig = plt.figure(figsize=figsize, constrained_layout=True)
         ax = fig.add_subplot(1, 1, 1)
-        if plot1m:
-            conf = 1 - conf
-            xlabel = '1 - confidence'
-        else:
-            xlabel = 'confidence'
         ax.plot(conf, mcc)
-        ax.set_xlabel(xlabel)
+        ax.set_xlabel('Confidence')
+        ax.set_xlim(1, 0)
+        ax.set_ylim(0, 1)
         ax.set_ylabel('MCC')
+        ax.vlines(float(optconf), 0, 1, transform=ax.get_xaxis_transform(), colors='r', linestyles='dashed')
 
-        ax.annotate("max MCC = {optmcc}".format(optmcc=optmcc), xy=(0.4, 0.05), xycoords='axes fraction')
+        _msg = "max MCC = {optmcc:.5f}\noptimal conf = {optconf:.5f}\nnum_edges = {n}".format(optmcc=optmcc,
+                                                                                              optconf=optconf,
+                                                                                              n=np.sum(conf >= optconf))
+        ax.annotate(_msg, xy=(0.4, 0.075), xycoords='axes fraction')
 
         if file_name is None or output_dir is None:
             return fig, ax
@@ -249,6 +250,11 @@ class RankSummaryMCC(RankSummingMetric):
     def calculate_opt_mcc(data):
 
         return np.nanmax(data[MCC_COLUMN])
+
+    @staticmethod
+    def calculate_opt_conf(data):
+
+        return data[CONFIDENCE_COLUMN].iloc[np.argmax(data[MCC_COLUMN])]
 
     @staticmethod
     def calculate_nnz_mcc(data):

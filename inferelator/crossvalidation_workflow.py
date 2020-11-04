@@ -25,6 +25,7 @@ from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.utils import Validator as check
 from inferelator import utils
 from inferelator import workflow
+from inferelator.postprocessing.model_metrics import MetricHandler
 
 
 class CrossValidationManager(object):
@@ -35,7 +36,7 @@ class CrossValidationManager(object):
     # Output settings
     _csv_writer = None  # csv.csvwriter
     _csv_header = None  # list[]
-    output_file_name = "aupr.tsv"  # str
+    output_file_name = "crossvalidation_performance.tsv"  # str
     _csv_writer_object = csv.writer
     _csv_file_handle = None
 
@@ -265,8 +266,9 @@ class CrossValidationManager(object):
             # Add Test & Value columns for dropouts/etc
             self._csv_header.extend(["Test", "Value", "Num_Obs"])
 
-            # Also add the metric
-            self._csv_header.append(self.workflow.metric)
+            # Also add the metric name
+            metric_name = MetricHandler.get_metric(self.workflow.metric).name
+            self._csv_header.append(MetricHandler.get_metric(self.workflow.metric).name)
 
             # Create a CSV writer
             self._create_output_path()

@@ -387,9 +387,8 @@ class WorkflowBaseLoader(object):
 
         current_value = getattr(self, attr_name)
         if current_value is not None:
-            warnings.warn("Setting {a}: replacing value {vo} with value {vn}".format(a=attr_name,
-                                                                                     vo=current_value,
-                                                                                     vn=value))
+            _msg = "Setting {a}: replacing value {vo} with value {vn}".format(a=attr_name, vo=current_value, vn=value)
+            warnings.warn(_msg)
 
         setattr(self, attr_name, value)
 
@@ -654,7 +653,7 @@ class WorkflowBase(WorkflowBaseLoader):
     # Result processing & model metrics
     _result_processor_driver = ResultsProcessor
     gold_standard_filter_method = "keep_all_gold_standard"
-    metric = "aupr"
+    metric = "combined"
 
     # Output results in an InferelatorResults object
     results = None
