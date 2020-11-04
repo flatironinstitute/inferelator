@@ -16,11 +16,12 @@ class RankSummaryMCC(RankSummingMetric):
     name = "MCC"
     curve_file_name = "mccVSconf_curve.pdf"
 
-    # MCC values
-    mcc = None
+    @property
+    def mcc(self):
+        return self.maxmcc
 
     @property
-    def optconfmmc(self):
+    def optconfmcc(self):
         return RankSummaryMCC.calculate_opt_conf_mcc(self.filtered_data)
 
     @property
@@ -29,7 +30,7 @@ class RankSummaryMCC(RankSummingMetric):
 
     @property
     def nnzmmc(self):
-        return self.calculate_nnz_mcc(self.filtered_data, self.optconfmmc)
+        return self.calculate_nnz_mcc(self.filtered_data, self.optconfmcc)
 
     # Plotter function
 
@@ -61,7 +62,7 @@ class RankSummaryMCC(RankSummingMetric):
 
         # Extract the recall and precision data
         curve = self.curve_dataframe()
-        self.plot_mcc_conf(curve[MCC_COLUMN].values, curve[CONFIDENCE_COLUMN].values, self.maxmcc, self.optconf, ax)
+        self.plot_mcc_conf(curve[MCC_COLUMN].values, curve[CONFIDENCE_COLUMN].values, self.maxmcc, self.optconfmcc, ax)
 
         return ax
 
@@ -91,7 +92,7 @@ class RankSummaryMCC(RankSummingMetric):
     @staticmethod
     def calculate_opt_conf_mcc(data):
 
-        return data[CONFIDENCE_COLUMN].iloc[np.argmax(data[MCC_COLUMN])]
+        return data.loc[data[MCC_COLUMN] >= np.max(data[MCC_COLUMN]), CONFIDENCE_COLUMN].min()
 
     @staticmethod
     def calculate_nnz_mcc(data, conf):

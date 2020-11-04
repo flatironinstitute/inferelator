@@ -107,7 +107,7 @@ class InferelatorResults(object):
 
 
     @staticmethod
-    def write_to_tsv(data_frame, output_dir, output_file_name, index=True):
+    def write_to_tsv(data_frame, output_dir, output_file_name, index=False, float_format='%.6f'):
         """
         Save a DataFrame to a TSV file
         :param data_frame: pd.DataFrame
@@ -118,6 +118,8 @@ class InferelatorResults(object):
             The output file name. If None, don't save anything
         :param index: bool
             Include the index in the output file
+        :param float_format: str
+            Reformat floats. Set to None to disable.
         """
 
         assert check.argument_type(data_frame, pd.DataFrame, allow_none=True)
@@ -126,7 +128,8 @@ class InferelatorResults(object):
 
         # Write output
         if output_dir is not None and output_file_name is not None and data_frame is not None:
-            data_frame.to_csv(os.path.join(output_dir, output_file_name), sep="\t", index=False, header=True)
+            data_frame.to_csv(os.path.join(output_dir, output_file_name), sep="\t", index=index, header=True,
+                              float_format=float_format)
 
 
 class ResultsProcessor(object):

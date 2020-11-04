@@ -76,14 +76,17 @@ class RankSummaryF1(RankSummaryPR):
 
     @staticmethod
     def calculate_opt_f1(data):
+
         return np.nanmax(data[F1_COLUMN])
 
     @staticmethod
     def calculate_opt_conf_f1(data):
-        return data[CONFIDENCE_COLUMN].iloc[np.argmax(data[F1_COLUMN])]
+
+        return data.loc[data[F1_COLUMN] >= np.max(data[F1_COLUMN]), CONFIDENCE_COLUMN].min()
 
     @staticmethod
     def calculate_f1(data):
+
         data[F1_COLUMN] = RankSummaryF1.pr_to_f1(data[PRECISION_COLUMN], data[RECALL_COLUMN])
         return data
 

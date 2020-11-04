@@ -17,8 +17,14 @@ TEMP_DIR_1 = os.path.join(TEMP_DIR, "test1")
 
 class FakeResult(object):
 
-    score=1
-    name="NAME"
+    score = 1
+    name = "NAME"
+
+    def all_names(self):
+        return ["NAME"]
+
+    def all_scores(self):
+        return {"NAME": 1}
 
 
 class FakeWorkflow(WorkflowBase):
@@ -123,10 +129,20 @@ class TestCVSetup(TestCV):
     def test_csv(self):
         self.cv.add_gridsearch_parameter("seed", [1, 2, 3])
         self.cv.add_gridsearch_parameter("test", [3, 4, 5])
+        self.cv.workflow.metric = "aupr"
 
         self.assertIsNone(self.cv._csv_header)
         self.cv._create_writer()
-        self.assertListEqual(self.cv._csv_header, ["seed", "test", "Test", "Value", "Num_Obs", "aupr"])
+        self.assertListEqual(self.cv._csv_header, ["seed", "test", "Test", "Value", "Num_Obs", "AUPR"])
+
+    def test_csv_combined(self):
+        self.cv.add_gridsearch_parameter("seed", [1, 2, 3])
+        self.cv.add_gridsearch_parameter("test", [3, 4, 5])
+        self.cv.metric = "combined"
+
+        self.assertIsNone(self.cv._csv_header)
+        self.cv._create_writer()
+        self.assertListEqual(self.cv._csv_header, ["seed", "test", "Test", "Value", "Num_Obs", "AUPR", "F1", "MCC"])
 
     def test_validate_params(self):
         self.cv.add_gridsearch_parameter("seed", [1, 2, 3])

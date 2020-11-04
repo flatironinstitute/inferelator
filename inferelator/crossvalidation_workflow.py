@@ -267,8 +267,7 @@ class CrossValidationManager(object):
             self._csv_header.extend(["Test", "Value", "Num_Obs"])
 
             # Also add the metric name
-            metric_name = MetricHandler.get_metric(self.workflow.metric).name
-            self._csv_header.append(MetricHandler.get_metric(self.workflow.metric).name)
+            self._csv_header.extend(MetricHandler.get_metric(self.workflow.metric).all_names())
 
             # Create a CSV writer
             self._create_output_path()
@@ -408,7 +407,7 @@ class CrossValidationManager(object):
             result = cv_workflow.run()
 
             # Output the results to the CSV file
-            csv_line.extend([test, value, n_obs, result.score])
+            csv_line.extend([test, value, n_obs] + [result.all_scores()[n] for n in result.all_names()])
 
             results.append(((test, value), result))
 

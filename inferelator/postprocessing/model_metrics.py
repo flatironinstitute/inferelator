@@ -43,7 +43,7 @@ class MetricHandler(object):
 
 class CombinedMetric(RankSummaryF1, RankSummaryPR, RankSummaryMCC):
 
-    name = "aupr"
+    name = "combined"
 
     def __init__(self, rankable_data, gold_standard, filter_method='keep_all_gold_standard'):
 
@@ -64,6 +64,15 @@ class CombinedMetric(RankSummaryF1, RankSummaryPR, RankSummaryMCC):
 
     def score(self):
         return self.name, self.aupr
+
+    def all_scores(self):
+        """Return a dict keyed by metric name with the metric score"""
+        return dict([('AUPR', self.aupr), ('F1', self.maxf1), ('MCC', self.maxmcc)])
+
+    @classmethod
+    def all_names(cls):
+        """Return a list of metric names used"""
+        return ['AUPR', 'F1', 'MCC']
 
     def auc(self):
         return self.aupr
