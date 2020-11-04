@@ -1,4 +1,5 @@
 import numpy as np
+from sklearn.metrics import matthews_corrcoef as mcc
 
 from inferelator.postprocessing.model_performance import RankSummingMetric
 from inferelator.postprocessing import (TARGET_COLUMN, REGULATOR_COLUMN, CONFIDENCE_COLUMN, GOLD_STANDARD_COLUMN,
@@ -19,7 +20,7 @@ class RankSummaryMCC(RankSummingMetric):
     mcc = None
 
     @property
-    def optconf(self):
+    def optconfmmc(self):
         return RankSummaryMCC.calculate_opt_conf_mcc(self.filtered_data)
 
     @property
@@ -28,7 +29,7 @@ class RankSummaryMCC(RankSummingMetric):
 
     @property
     def nnzmmc(self):
-        return self.calculate_nnz_mcc(self.filtered_data)
+        return self.calculate_nnz_mcc(self.filtered_data, self.optconfmmc)
 
     # Plotter function
 
@@ -93,12 +94,9 @@ class RankSummaryMCC(RankSummingMetric):
         return data[CONFIDENCE_COLUMN].iloc[np.argmax(data[MCC_COLUMN])]
 
     @staticmethod
-    def calculate_nnz_mcc(data):
+    def calculate_nnz_mcc(data, conf):
 
-        from sklearn.metrics import matthews_corrcoef as mcc
-
-        nnzmcc = mcc(data[GOLD_STANDARD_COLUMN].astype(bool).values, data[CONFIDENCE_COLUMN].astype(bool).values)
-        return nnzmcc
+        return (data[CONFIDENCE_COLUMN] >= conf).sum()
 
     @staticmethod
     def calculate_mcc(data):
@@ -109,6 +107,4 @@ class RankSummaryMCC(RankSummingMetric):
 
     @staticmethod
     def confusion_to_mcc(tp, tn, fp, fn):
-        return (tp * tn - fp * fn) / np.sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
-
-
+        return (tp * tn - fp * fn) / (np.sqrt(tp + fp) * np.sqrt(tp + fn) * np.sqrt(tn + fp) * np.sqrt(tn + fn))

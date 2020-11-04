@@ -339,7 +339,7 @@ class TestMCCMetric(TestResults):
         gs = pd.DataFrame(np.array([[1, 0], [1, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
         confidences = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
         mcc = self.metric([confidences, confidences], gs)
-        np.testing.assert_equal(mcc.score()[1], 1.0)
+        np.testing.assert_approx_equal(mcc.score()[1], 1.0)
 
     def test_mcc_perfect_inverse_prediction(self):
         gs = pd.DataFrame(np.array([[0, 1], [0, 1]]), ['gene1', 'gene2'], ['tf1', 'tf2'])

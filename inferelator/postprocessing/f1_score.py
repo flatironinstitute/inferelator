@@ -21,7 +21,7 @@ class RankSummaryF1(RankSummaryPR):
     # Plotter function
 
     @property
-    def optconf(self):
+    def optconff1(self):
         return RankSummaryF1.calculate_opt_conf_f1(self.filtered_data)
 
     @property
@@ -53,7 +53,7 @@ class RankSummaryF1(RankSummaryPR):
 
         # Extract the recall and precision data
         curve = self.curve_dataframe()
-        self.plot_f1_conf(curve[F1_COLUMN].values, curve[CONFIDENCE_COLUMN].values, self.maxf1, self.optconf, ax)
+        self.plot_f1_conf(curve[F1_COLUMN].values, curve[CONFIDENCE_COLUMN].values, self.maxf1, self.optconff1, ax)
 
         return ax
 
