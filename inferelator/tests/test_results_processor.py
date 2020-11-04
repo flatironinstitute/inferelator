@@ -5,7 +5,7 @@ from inferelator import utils
 from inferelator.postprocessing import GOLD_STANDARD_COLUMN, CONFIDENCE_COLUMN, TARGET_COLUMN, REGULATOR_COLUMN
 from inferelator.postprocessing import results_processor
 from inferelator.postprocessing import results_processor_mtl
-from inferelator.postprocessing import model_performance
+from inferelator.postprocessing import MetricHandler, RankSummingMetric
 import pandas as pd
 import pandas.testing as pdt
 import numpy as np
@@ -14,7 +14,7 @@ import tempfile
 import shutil
 
 import logging
-logging.getLogger('matplotlib').setLevel(logging.WARNING)
+logging.getLogger('matplotlib').setLevel(logging.ERROR)
 
 
 class TestResults(unittest.TestCase):
@@ -101,7 +101,7 @@ class TestNetworkCreator(TestResults):
 
     def setUp(self):
         super(TestNetworkCreator, self).setUp()
-        self.metric = model_performance.MetricHandler.get_metric("aupr")
+        self.metric = MetricHandler.get_metric("aupr")
         self.pr_calc = self.metric([self.rescaled_beta1, self.rescaled_beta2], self.gold_standard,
                                    "keep_all_gold_standard")
         self.beta_sign, self.beta_nonzero = results_processor.ResultsProcessor.summarize([self.beta1, self.beta2])
@@ -133,7 +133,7 @@ class TestRankSummary(TestResults):
 
     def setUp(self):
         super(TestRankSummary, self).setUp()
-        self.metric = model_performance.RankSummingMetric
+        self.metric = RankSummingMetric
 
     def test_making_network_dataframe(self):
         calc = self.metric([self.beta_resc, self.beta_resc], self.gold_standard_unaligned)
@@ -186,7 +186,7 @@ class TestPrecisionRecallMetric(TestResults):
 
     def setUp(self):
         super(TestPrecisionRecallMetric, self).setUp()
-        self.metric = model_performance.MetricHandler.get_metric("aupr")
+        self.metric = MetricHandler.get_metric("aupr")
 
     ####################
 
@@ -297,20 +297,35 @@ class TestPrecisionRecallMetric(TestResults):
         np.testing.assert_array_equal(combine_conf, np.array([[0, 0], [0, 0]]))
 
     def test_plot_pr_curve(self):
+        gs = pd.DataFrame(np.array([[-1, 0], [-1, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        confidences = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+
         temp_dir = tempfile.mkdtemp()
         file_name = os.path.join(temp_dir, "pr_curve.pdf")
-        self.metric.plot_pr_curve([0, 1], [1, 0], "x", temp_dir, "pr_curve.pdf")
+        self.metric = self.metric([confidences, confidences], gs)
+        self.metric.output_curve_pdf(temp_dir, "pr_curve.pdf")
         self.assertTrue(os.path.exists(file_name))
+
         os.remove(file_name)
-
-        self.metric.plot_pr_curve(recall=[0, 1], precision=[1, 0], aupr=0.9, output_dir=temp_dir,
-                                  file_name="pr_curve.pdf")
-
-        self.assertTrue(os.path.exists(file_name))
-        os.remove(file_name)
-
-        self.metric.plot_pr_curve(recall=[0, 1], precision=[1, 0], aupr=0.9, output_dir=temp_dir, file_name=None)
         self.assertFalse(os.path.exists(file_name))
+        self.metric.output_curve_pdf(output_dir=temp_dir, file_name="pr_curve.pdf")
+        self.assertTrue(os.path.exists(file_name))
+
+        os.remove(file_name)
+        self.assertFalse(os.path.exists(file_name))
+        self.metric.curve_file_name = "pr_curve.pdf"
+        self.metric.output_curve_pdf(output_dir=temp_dir, file_name=None)
+        self.assertTrue(os.path.exists(file_name))
+
+        os.remove(file_name)
+        self.metric.curve_file_name = None
+        self.assertFalse(os.path.exists(file_name))
+        self.metric.output_curve_pdf(output_dir=temp_dir, file_name=None)
+        self.assertFalse(os.path.exists(file_name))
+
+        self.metric.output_curve_pdf(output_dir=None, file_name="pr_curve.pdf")
+        self.assertFalse(os.path.exists(file_name))
+
         shutil.rmtree(temp_dir)
 
 
@@ -318,7 +333,7 @@ class TestMCCMetric(TestResults):
 
     def setUp(self):
         super(TestMCCMetric, self).setUp()
-        self.metric = model_performance.MetricHandler.get_metric("mcc")
+        self.metric = MetricHandler.get_metric("mcc")
 
     def test_mcc_perfect_prediction(self):
         gs = pd.DataFrame(np.array([[1, 0], [1, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
@@ -337,6 +352,35 @@ class TestMCCMetric(TestResults):
         confidences = pd.DataFrame(np.array([[1, 0], [0, 0.5]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
         mcc = self.metric([confidences, confidences], gs)
         np.testing.assert_approx_equal(mcc.score()[1], 0)
+
+
+class TestF1Metric(TestResults):
+
+    def setUp(self):
+        super(TestF1Metric, self).setUp()
+        self.metric = MetricHandler.get_metric("f1")
+
+    def test_f1_perfect_prediction(self):
+        gs = pd.DataFrame(np.array([[1, 0], [1, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        confidences = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        f1 = self.metric([confidences, confidences], gs)
+        np.testing.assert_equal(f1.score()[1], 1.0)
+
+    @unittest.skip
+    def test_f1_perfect_inverse_prediction(self):
+        gs = pd.DataFrame(np.array([[0, 1], [0, 1]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        confidences = pd.DataFrame(np.array([[1, 0], [1, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        f1 = self.metric([confidences, confidences], gs)
+        print(f1.filtered_data)
+        np.testing.assert_approx_equal(f1.score()[1], -1)
+
+    @unittest.skip
+    def test_f1_bad_prediction(self):
+        gs = pd.DataFrame(np.array([[0, 1], [0, 1]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        confidences = pd.DataFrame(np.array([[1, 0], [0, 0.5]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        f1 = self.metric([confidences, confidences], gs)
+        print(f1.filtered_data)
+        np.testing.assert_approx_equal(f1.score()[1], 0)
 
 
 class TestMTLResults(TestResults):

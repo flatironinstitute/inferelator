@@ -4,7 +4,7 @@ import os
 
 from inferelator import utils
 from inferelator.utils import Validator as check
-from inferelator.postprocessing.model_performance import RankSummingMetric, MetricHandler
+from inferelator.postprocessing.model_metrics import RankSummingMetric, MetricHandler
 from inferelator.postprocessing import BETA_SIGN_COLUMN, MEDIAN_EXPLAIN_VAR_COLUMN, CONFIDENCE_COLUMN
 from inferelator.postprocessing import BETA_THRESHOLD_COLUMN, TARGET_COLUMN, REGULATOR_COLUMN, PRIOR_COLUMN
 
@@ -20,6 +20,7 @@ class InferelatorResults(object):
 
     # Network data
     network = None
+    betas = None
     betas_stack = None
     betas_sign = None
     combined_confidences = None
@@ -44,6 +45,32 @@ class InferelatorResults(object):
         self.curve = metric_object.curve_dataframe()
         _, self.score = metric_object.score()
         self.betas_sign = betas_sign
+
+    def new_metric(self, metric_object, curve_file_name=None, curve_data_file_name=None):
+        """
+        Generate a new result object with a new metric
+        :param metric_object:
+        :param curve_file_name:
+        :param curve_data_file_name:
+        :return:
+        """
+        new_result = InferelatorResults(self.network, self.betas_stack, self.combined_confidences, metric_object)
+        new_result.curve_data_file_name = curve_data_file_name
+        new_result.curve_file_name = curve_file_name
+        return new_result
+
+    def plot_other_metric(self, metric_object, output_dir, curve_file_name=None, curve_data_file_name=None):
+        """
+        Write just the curve files for another provided metric
+        :param metric_object:
+        :param output_dir:
+        :param curve_file_name:
+        :param curve_data_file_name:
+        :return:
+        """
+        nm = self.new_metric(metric_object, curve_file_name=curve_file_name, curve_data_file_name=curve_data_file_name)
+        nm.metric.output_curve_pdf(output_dir, curve_file_name) if curve_file_name is not None else None
+        self.write_to_tsv(nm.curve, output_dir, curve_data_file_name) if curve_data_file_name is not None else None
 
     def write_result_files(self, output_dir):
         """
@@ -118,7 +145,7 @@ class ResultsProcessor(object):
     network_file_name = "network.tsv"
     confidence_file_name = "combined_confidences.tsv"
     threshold_file_name = "betas_stack.tsv"
-    pr_curve_file_name = "pr_curve.pdf"
+    pr_curve_file_name = "result_curve.pdf"
 
     # Flag to write results
     write_results = True

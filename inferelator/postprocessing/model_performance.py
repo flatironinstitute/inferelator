@@ -1,8 +1,10 @@
+import os
 import pandas as pd
 import numpy as np
 from inferelator import utils
 from inferelator.utils import Validator as check
-from inferelator.postprocessing import GOLD_STANDARD_COLUMN, CONFIDENCE_COLUMN, TARGET_COLUMN, REGULATOR_COLUMN
+from inferelator.postprocessing import (GOLD_STANDARD_COLUMN, CONFIDENCE_COLUMN, TARGET_COLUMN, REGULATOR_COLUMN,
+                                        TN, FN, TP, FP)
 
 
 class RankSummingMetric(object):
@@ -69,7 +71,7 @@ class RankSummingMetric(object):
                                                                               conf=self.confidence_data.shape[0]),
                            level=0)
 
-        self.filtered_data = self.filter_method(GOLD_STANDARD_COLUMN, CONFIDENCE_COLUMN, self.confidence_data)
+        self.filtered_data = self.filter_method(GOLD_STANDARD_COLUMN, CONFIDENCE_COLUMN, self.confidence_data).copy()
         utils.Debug.vprint("Filtered data to {e} edges".format(e=self.filtered_data.shape[0], level=0))
 
     def score(self):
@@ -84,7 +86,22 @@ class RankSummingMetric(object):
     def curve_dataframe(self):
         raise NotImplementedError
 
-    def output_curve_pdf(self, output_dir, file_name):
+    def output_curve_pdf(self, output_dir, file_name=None, dpi=300, figsize=(6, 4)):
+
+        file_name = self.curve_file_name if file_name is None else file_name
+
+        # Plot the curve
+        ax = self.output_curve(figsize=figsize)
+        fig = ax.get_figure()
+
+        # If there's a file name set, make the output file
+        if file_name is not None and output_dir is not None:
+            # Save the plot and close
+            fig.savefig(os.path.join(output_dir, file_name), dpi=dpi)
+
+        return ax
+
+    def output_curve(self, ax=None, figsize=(6, 4)):
         raise NotImplementedError
 
     @staticmethod
@@ -126,6 +143,49 @@ class RankSummingMetric(object):
         return combine_conf
 
     @staticmethod
+    def compute_confusion_matrix(data, rank_col=CONFIDENCE_COLUMN, gs_col=GOLD_STANDARD_COLUMN):
+
+        # Copy off just needed columns
+        data = data[[rank_col, gs_col]].copy()
+
+        # Force sort if necessary
+        if not data.loc[~pd.isnull(data[rank_col]), rank_col].is_monotonic_decreasing:
+            _reindex = data.index.copy()
+            data.sort_values(by=rank_col, ascending=False, na_position='last', inplace=True)
+        else:
+            _reindex = None
+
+        # Get indices for testable edges
+        valid_gs_idx = ~pd.isnull(data[gs_col])
+
+        # Find the edges that are in the gold standard
+        df = data.loc[valid_gs_idx, [rank_col, gs_col]].copy()
+        df[gs_col] = df[gs_col].astype(bool)
+
+        # Calculate cumulative confusion matrix at each row
+        df[TP] = (df[gs_col]).astype(int).cumsum()
+        df[FP] = (~df[gs_col]).astype(int).cumsum()
+        df[TN] = pd.Series((~df[gs_col].iloc[::-1]).astype(int).cumsum(),
+                           index=df.index).shift(-1, fill_value=0)
+        df[FN] = pd.Series((df[gs_col].iloc[::-1]).astype(int).cumsum(),
+                           index=df.index).shift(-1, fill_value=0)
+
+        # Handle ties
+        RankSummingMetric.transform_column(df, rank_col, TP, 'max')
+        RankSummingMetric.transform_column(df, rank_col, FP, 'max')
+        RankSummingMetric.transform_column(df, rank_col, TN, 'min')
+        RankSummingMetric.transform_column(df, rank_col, FN, 'min')
+
+        # Stick confusion results back onto the data and return it
+        data[[TP, FP, TN, FN]] = pd.NA
+        data.loc[valid_gs_idx, [TP, FP, TN, FN]] = df[[TP, FP, TN, FN]]
+
+        if _reindex is not None:
+            data = data.reindex(_reindex)
+
+        return data
+
+    @staticmethod
     def filter_to_left_size(left_column, right_column, data):
         # Return data where one column (left) is not NA
         return data.dropna(subset=[left_column])
@@ -136,35 +196,6 @@ class RankSummingMetric(object):
         return data.dropna(subset=[left_column, right_column])
 
     @staticmethod
-    def transform_column(df, xform_col, group_col, xform):
-        # Transform one column based on a grouping column
+    def transform_column(df, group_col, xform_col, xform):
+        # Transform column based on a grouping column
         df[xform_col] = df[[group_col, xform_col]].groupby(group_col)[xform_col].transform(xform)
-
-
-class MetricHandler(object):
-
-    @classmethod
-    def get_metric(cls, metric_ref):
-
-        """
-        This wrappers a metric reference so that strings can be used instead of python imports
-        Will either return a metric class or will raise an error
-        :param metric_ref: str / RankSummingMetric
-            String or subclass of RankSummingMetric
-        :return: RankSummingMetric
-            The metadata parser that corresponds to the string, or the MetadataParser object will be passed through
-        """
-        if utils.is_string(metric_ref):
-            metric_ref = metric_ref.lower()
-            if metric_ref == "aupr" or metric_ref == "precision-recall":
-                from inferelator.postprocessing.model_metrics import RankSummaryPR
-                return RankSummaryPR
-            if metric_ref.lower() == "mcc" or metric_ref == "matthews correlation coefficient":
-                from inferelator.postprocessing.model_metrics import RankSummaryMCC
-                return RankSummaryMCC
-            else:
-                raise ValueError("Parser {parser_str} unknown".format(parser_str=metric_ref))
-        elif issubclass(metric_ref, RankSummingMetric):
-            return metric_ref
-        else:
-            raise ValueError("Handler must be a string or a RankSummingMetric class")
