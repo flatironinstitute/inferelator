@@ -78,7 +78,7 @@ class RankSummingMetric(object):
         raise NotImplementedError
 
     def all_scores(self):
-        return dict([tuple(*self.score())])
+        return dict([tuple(self.score())])
 
     @classmethod
     def all_names(cls):

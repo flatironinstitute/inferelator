@@ -37,6 +37,10 @@ class InferelatorResults(object):
     curve = None
     score = None
 
+    # Performance metrics - all scores
+    all_scores = None
+    all_names = None
+
     def __init__(self, network_data, betas_stack, combined_confidences, metric_object, betas_sign=None):
         self.network = network_data
         self.betas_stack = betas_stack
@@ -44,6 +48,8 @@ class InferelatorResults(object):
         self.metric = metric_object
         self.curve = metric_object.curve_dataframe()
         _, self.score = metric_object.score()
+        self.all_names = metric_object.all_names()
+        self.all_scores = metric_object.all_scores()
         self.betas_sign = betas_sign
 
     def new_metric(self, metric_object, curve_file_name=None, curve_data_file_name=None):

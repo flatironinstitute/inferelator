@@ -44,6 +44,7 @@ class MetricHandler(object):
 class CombinedMetric(RankSummaryF1, RankSummaryPR, RankSummaryMCC):
 
     name = "combined"
+    curve_file_name = "combined_metrics.pdf"
 
     def __init__(self, rankable_data, gold_standard, filter_method='keep_all_gold_standard'):
 

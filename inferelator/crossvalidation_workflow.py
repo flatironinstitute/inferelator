@@ -407,7 +407,7 @@ class CrossValidationManager(object):
             result = cv_workflow.run()
 
             # Output the results to the CSV file
-            csv_line.extend([test, value, n_obs] + [result.all_scores()[n] for n in result.all_names()])
+            csv_line.extend([test, value, n_obs] + [result.all_scores[n] for n in result.all_names])
 
             results.append(((test, value), result))
 

@@ -20,11 +20,8 @@ class FakeResult(object):
     score = 1
     name = "NAME"
 
-    def all_names(self):
-        return ["NAME"]
-
-    def all_scores(self):
-        return {"NAME": 1}
+    all_names = ["NAME"]
+    all_scores = {"NAME": 1}
 
 
 class FakeWorkflow(WorkflowBase):
