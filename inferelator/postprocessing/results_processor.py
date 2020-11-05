@@ -41,7 +41,7 @@ class InferelatorResults(object):
     all_scores = None
     all_names = None
 
-    def __init__(self, network_data, betas_stack, combined_confidences, metric_object, betas_sign=None):
+    def __init__(self, network_data, betas_stack, combined_confidences, metric_object, betas_sign=None, betas=None):
         self.network = network_data
         self.betas_stack = betas_stack
         self.combined_confidences = combined_confidences
@@ -51,6 +51,7 @@ class InferelatorResults(object):
         self.all_names = metric_object.all_names()
         self.all_scores = metric_object.all_scores()
         self.betas_sign = betas_sign
+        self.betas = betas
 
     def new_metric(self, metric_object, curve_file_name=None, curve_data_file_name=None):
         """
@@ -229,7 +230,8 @@ class ResultsProcessor(object):
         network_data = self.process_network(rs_calc, priors, beta_threshold=beta_threshold, extra_columns=extra_cols)
 
         # Create a InferelatorResult object and have it write output files
-        result = self.result_object(network_data, beta_threshold, rs_calc.all_confidences, rs_calc)
+        result = self.result_object(network_data, beta_threshold, rs_calc.all_confidences, rs_calc,
+                                    betas_sign=beta_sign, betas=self.betas)
 
         if self.write_results and output_dir is not None:
             result.write_result_files(output_dir)
