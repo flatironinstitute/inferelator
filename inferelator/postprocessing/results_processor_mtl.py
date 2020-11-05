@@ -118,7 +118,7 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
             utils.Debug.vprint("Task {t} Model {m}:\t{score}".format(t=task_name, m=m_name, score=score), level=0)
 
             task_result = self.result_object(task_network_data, task_threshold, task_rs_calc.all_confidences,
-                                             task_rs_calc)
+                                             task_rs_calc, betas_sign=task_sign, betas=self.betas[task_id])
 
             if self.write_task_files is True and output_dir is not None:
                 task_result.write_result_files(os.path.join(output_dir, task_name))
@@ -139,8 +139,9 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
 
         overall_result = self.result_object(network_data, overall_threshold,
                                             _df_resizer(overall_rs_calc.all_confidences, gene_set, tf_set),
-                                            overall_rs_calc)
+                                            overall_rs_calc, betas_sign=overall_sign)
         overall_result.write_result_files(output_dir)
+        overall_result.tasks = self.tasks_networks
 
         return overall_result
 

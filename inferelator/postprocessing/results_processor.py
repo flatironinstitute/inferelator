@@ -25,6 +25,10 @@ class InferelatorResults(object):
     betas_sign = None
     combined_confidences = None
 
+    # Task result objects
+    # Dict, keyed by task ID
+    tasks = None
+
     # File names
     network_file_name = "network.tsv"
     confidence_file_name = "combined_confidences.tsv"
