@@ -88,11 +88,37 @@ class CombinedMetric(RankSummaryF1, RankSummaryPR, RankSummaryMCC):
         # Create a figure
         fig, axes = plt.subplots(nrows=2, ncols=2, figsize=figsize, constrained_layout=True)
 
+        # Draw the PR curve
         RankSummaryPR.output_curve(self, ax=axes[0, 0])
+
+        # Add the cutoff at optimal MCC to the curve
+        _ocr = self.filtered_data.loc[self.filtered_data[CONFIDENCE_COLUMN] >= self.optconfmcc, RECALL_COLUMN].max()
+        _ocp = self.filtered_data.loc[self.filtered_data[CONFIDENCE_COLUMN] >= self.optconfmcc, PRECISION_COLUMN].min()
+        axes[0, 0].vlines(_ocr, 0, _ocp, colors='r', linestyles='dashed')
+
+        # Draw the MCC curve
         RankSummaryMCC.output_curve(self, ax=axes[0, 1])
+
+        # Draw the F1 curve
         RankSummaryF1.output_curve(self, ax=axes[1, 0])
+
+        # Draw the histogram
+        self.output_histogram_edges_conf(self.filtered_data[CONFIDENCE_COLUMN].values, ax=axes[1, 1])
 
         # If there's a file name set, make the output file
         if file_name is not None and output_dir is not None:
             # Save the plot and close
             fig.savefig(os.path.join(output_dir, file_name), dpi=dpi)
+
+    @staticmethod
+    def output_histogram_edges_conf(conf, ax):
+
+        conf = conf[conf > 0.]
+
+        ax.hist(conf, bins=50)
+        ax.set_xlabel('Confidence')
+        ax.set_xlim(1, 0)
+        ax.set_ylabel('# Edges')
+        ax.set_yscale('log')
+
+        return ax

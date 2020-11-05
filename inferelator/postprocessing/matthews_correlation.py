@@ -62,12 +62,15 @@ class RankSummaryMCC(RankSummingMetric):
 
         # Extract the recall and precision data
         curve = self.curve_dataframe()
-        self.plot_mcc_conf(curve[MCC_COLUMN].values, curve[CONFIDENCE_COLUMN].values, self.maxmcc, self.optconfmcc, ax)
+        self.plot_mcc_conf(curve[MCC_COLUMN].values, curve[CONFIDENCE_COLUMN].values, self.maxmcc, self.optconfmcc, ax,
+                           num_edges=(self.confidence_data[CONFIDENCE_COLUMN] >= self.optconfmcc).sum())
 
         return ax
 
     @staticmethod
-    def plot_mcc_conf(mcc, conf, optmcc, optconf, ax):
+    def plot_mcc_conf(mcc, conf, optmcc, optconf, ax, num_edges=None):
+
+        num_edges = np.sum(conf >= optconf) if num_edges is None else num_edges
 
         # Generate a plot
         ax.plot(conf, mcc)
@@ -79,7 +82,7 @@ class RankSummaryMCC(RankSummingMetric):
 
         _msg = "max MCC = {optmcc:.4f}\noptimal conf = {optconf:.4f}\nnum_edges = {n}".format(optmcc=optmcc,
                                                                                               optconf=optconf,
-                                                                                              n=np.sum(conf >= optconf))
+                                                                                              n=num_edges)
         ax.annotate(_msg, xy=(0.4, 0.075), xycoords='axes fraction')
 
         return ax

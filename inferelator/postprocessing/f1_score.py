@@ -53,12 +53,16 @@ class RankSummaryF1(RankSummaryPR):
 
         # Extract the recall and precision data
         curve = self.curve_dataframe()
-        self.plot_f1_conf(curve[F1_COLUMN].values, curve[CONFIDENCE_COLUMN].values, self.maxf1, self.optconff1, ax)
+        self.plot_f1_conf(curve[F1_COLUMN].values, curve[CONFIDENCE_COLUMN].values, self.maxf1, self.optconff1, ax,
+                          num_edges=(self.confidence_data[CONFIDENCE_COLUMN] >= self.optconff1).sum())
 
         return ax
 
     @staticmethod
-    def plot_f1_conf(f1, conf, optf1, optconf, ax):
+    def plot_f1_conf(f1, conf, optf1, optconf, ax, num_edges=None):
+
+        num_edges = np.sum(conf >= optconf) if num_edges is None else num_edges
+
         # Generate a plot
         ax.plot(conf, f1)
         ax.set_xlabel('Confidence')
@@ -69,7 +73,7 @@ class RankSummaryF1(RankSummaryPR):
 
         _msg = "max F1 = {optf1:.4f}\noptimal conf = {optconf:.4f}\nnum_edges = {n}".format(optf1=optf1,
                                                                                             optconf=optconf,
-                                                                                            n=np.sum(conf >= optconf))
+                                                                                            n=num_edges)
         ax.annotate(_msg, xy=(0.4, 0.075), xycoords='axes fraction')
 
         return ax
