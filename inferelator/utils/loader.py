@@ -54,7 +54,11 @@ class InferelatorDataLoader(object):
                                    meta_data=meta_data,
                                    gene_data=gene_metadata)
 
-        self._check_loaded_data(data, filename = h5ad_file)
+        # Make sure bytestrings are decoded
+        _safe_dataframe_decoder(data.gene_data)
+        _safe_dataframe_decoder(data.meta_data)
+
+        self._check_loaded_data(data, filename=h5ad_file)
         return data
 
     def load_data_mtx(self, mtx_file, mtx_obs=None, mtx_feature=None, meta_data_file=None,

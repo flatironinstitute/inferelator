@@ -110,6 +110,8 @@ class CombinedMetric(RankSummaryF1, RankSummaryPR, RankSummaryMCC):
             # Save the plot and close
             fig.savefig(os.path.join(output_dir, file_name), dpi=dpi)
 
+        plt.close(fig)
+
     @staticmethod
     def output_histogram_edges_conf(conf, ax):
 
