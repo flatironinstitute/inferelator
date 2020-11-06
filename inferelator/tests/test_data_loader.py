@@ -2,9 +2,13 @@ import unittest
 import shutil
 import os
 import tempfile
+import pandas as pd
+import numpy as np
 import numpy.testing as npt
+import pandas.testing as pdt
 import bio_test_artifacts.prebuilt as test_prebuilt
 from inferelator.workflow import inferelator_workflow
+from inferelator.utils import loader
 
 
 class TestExpressionLoader(unittest.TestCase):
@@ -72,3 +76,21 @@ class TestExpressionLoader(unittest.TestCase):
             self.worker.read_expression()
 
             npt.assert_array_almost_equal(data.values, self.worker.data.expression_data.A)
+
+    def test_df_decode(self):
+        idx = pd.Index(['str1', b'str2', b'str3', 'str4', 5, 17.4, pd.NA, np.inf, None, ('str1',)])
+        correct = pd.Index(['str1', 'str2', 'str3', 'str4', 5, 17.4, pd.NA, np.inf, None, ('str1',)])
+
+        df1 = pd.DataFrame(idx.tolist(), index=idx)
+        df1_c = pd.DataFrame(correct.tolist(), index=correct)
+
+        loader._safe_dataframe_decoder(df1)
+        pdt.assert_frame_equal(df1, df1_c)
+
+        vals = np.random.rand(len(idx), len(idx))
+        df2 = pd.DataFrame(vals, index=idx, columns=idx)
+        df2_c = pd.DataFrame(vals, index=correct, columns=correct)
+
+        loader._safe_dataframe_decoder(df2)
+
+        pdt.assert_frame_equal(df2, df2_c)

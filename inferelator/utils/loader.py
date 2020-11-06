@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import os
 import copy as cp
 import anndata
@@ -87,6 +88,10 @@ class InferelatorDataLoader(object):
         data = InferelatorData(data,
                                meta_data=meta_data,
                                gene_data=gene_metadata)
+
+        # Make sure bytestrings are decoded
+        _safe_dataframe_decoder(data.gene_data)
+        _safe_dataframe_decoder(data.meta_data)
 
         return data
 
@@ -262,3 +267,50 @@ class InferelatorDataLoader(object):
             return os.path.abspath(os.path.expanduser(path))
         else:
             return None
+
+
+def _safe_dataframe_decoder(data_frame, encoding='utf-8'):
+    """
+    Decode dataframe bytestrings
+
+    :param data_frame: pd.DataFrame
+    """
+
+    if _is_dtype_object(data_frame.index.dtype):
+        data_frame.index = _decode_series(data_frame.index, encoding=encoding)
+
+    if _is_dtype_object(data_frame.columns.dtype):
+        data_frame.columns = _decode_series(data_frame.columns, encoding=encoding)
+
+    for col in data_frame.columns:
+        if _is_dtype_object(data_frame[col].dtype):
+            data_frame[col] = _decode_series(data_frame[col], encoding=encoding)
+
+
+def _is_dtype_object(dtype):
+    return dtype == np.dtype('object')
+
+
+def _decode_series(series, encoding):
+    """
+    Decode and return a series or index object from pandas
+
+    :param series: pd.Series, pd.Index
+    :param encoding: str
+    :return: pd.Series, pd.Index
+    """
+
+    _new_series = series.str.decode(encoding).values
+    _no_decode = pd.isna(_new_series)
+
+    if np.all(_no_decode):
+        return series
+    
+    _new_series[_no_decode] = series.values[_no_decode]
+
+    try:
+        new_series = pd.Series(_new_series, index=series.index)
+    except AttributeError:
+        new_series = pd.Index(_new_series)
+
+    return new_series
