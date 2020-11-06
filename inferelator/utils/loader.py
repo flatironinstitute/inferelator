@@ -1,4 +1,5 @@
 import pandas as pd
+import pandas.api.types as pat
 import numpy as np
 import os
 import copy as cp
@@ -292,7 +293,12 @@ def _safe_dataframe_decoder(data_frame, encoding='utf-8'):
 
 
 def _is_dtype_object(dtype):
-    return dtype == np.dtype('object')
+    if pat.is_object_dtype(dtype):
+        return True
+    elif pat.is_categorical_dtype(dtype):
+        return pat.is_object_dtype(dtype.categories.dtype)
+    else:
+        return False
 
 
 def _decode_series(series, encoding):
@@ -303,6 +309,10 @@ def _decode_series(series, encoding):
     :param encoding: str
     :return: pd.Series, pd.Index
     """
+
+    if pat.is_categorical_dtype(series):
+        series.cat.categories = _decode_series(series.dtype.categories, encoding=encoding)
+        return series
 
     _new_series = series.str.decode(encoding).values
     _no_decode = pd.isna(_new_series)

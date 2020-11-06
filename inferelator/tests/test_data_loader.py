@@ -94,3 +94,10 @@ class TestExpressionLoader(unittest.TestCase):
         loader._safe_dataframe_decoder(df2)
 
         pdt.assert_frame_equal(df2, df2_c)
+
+        df3 = pd.DataFrame(pd.Categorical(idx.tolist()), index=idx)
+        df3_c = pd.DataFrame(pd.Categorical(correct.tolist()), index=correct)
+
+        loader._safe_dataframe_decoder(df3)
+
+        pdt.assert_frame_equal(df3, df3_c)
