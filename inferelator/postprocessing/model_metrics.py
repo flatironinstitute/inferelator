@@ -6,8 +6,11 @@ from inferelator.postprocessing.column_names import (PRECISION_COLUMN, CONFIDENC
                                                      F1_COLUMN, TARGET_COLUMN, REGULATOR_COLUMN)
 
 from inferelator.utils import is_string
-import matplotlib.pyplot as plt
 import os
+
+import matplotlib
+matplotlib.use('pdf')
+import matplotlib.pyplot as plt
 
 
 class MetricHandler(object):

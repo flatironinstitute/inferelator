@@ -1,10 +1,11 @@
 import numpy as np
-from sklearn.metrics import matthews_corrcoef as mcc
 
 from inferelator.postprocessing.model_performance import RankSummingMetric
 from inferelator.postprocessing import (TARGET_COLUMN, REGULATOR_COLUMN, CONFIDENCE_COLUMN, GOLD_STANDARD_COLUMN,
                                         MCC_COLUMN, TP, FP, TN, FN)
 
+import matplotlib
+matplotlib.use('pdf')
 import matplotlib.pyplot as plt
 
 

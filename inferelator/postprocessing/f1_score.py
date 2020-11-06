@@ -4,6 +4,8 @@ from inferelator.postprocessing.precision_recall import RankSummaryPR
 from inferelator.postprocessing import (TARGET_COLUMN, REGULATOR_COLUMN, CONFIDENCE_COLUMN,
                                         F1_COLUMN, PRECISION_COLUMN, RECALL_COLUMN)
 
+import matplotlib
+matplotlib.use('pdf')
 import matplotlib.pyplot as plt
 
 
