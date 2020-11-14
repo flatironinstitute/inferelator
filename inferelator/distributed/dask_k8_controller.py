@@ -17,14 +17,14 @@ except KeyError:
     DEFAULT_LOCAL_DIR = 'dask-worker-space'
 
 
-class DaskController(AbstractController):
+class DaskK8Controller(AbstractController):
     """
-    The DaskController class launches a local dask cluster and connects as a client
+    The DaskK8Controller class launches a local dask cluster and connects as a client
 
     The map functionality is deliberately not implemented; dask-specific multiprocessing functions are used instead
     """
 
-    _controller_name = "dask-local"
+    _controller_name = "dask-k8"
     _controller_dask = True
 
     is_master = True
@@ -36,7 +36,7 @@ class DaskController(AbstractController):
     local_cluster = None
 
     # Settings for dask workers
-    processes = 4
+    processes = 2
     local_dir = DEFAULT_LOCAL_DIR
 
     @classmethod
@@ -45,8 +45,8 @@ class DaskController(AbstractController):
         Setup local cluster
         """
 
-        kwargs["n_workers"] = kwargs.pop("n_workers", cls.processes)
-        kwargs["threads_per_worker"] = kwargs.pop("threads_per_worker", 1)
+        # kwargs["n_workers"] = kwargs.pop("n_workers", cls.processes)
+        # kwargs["threads_per_worker"] = kwargs.pop("threads_per_worker", 1)
         kwargs["processes"] = kwargs.pop("processes", True)
 
         # Ugly hack because dask-jobqueue changed this keyword arg
@@ -54,14 +54,14 @@ class DaskController(AbstractController):
         local_directory = kwargs.pop("local_directory", None) if local_directory is None else local_directory
         kwargs["local_directory"] = local_directory if local_directory is not None else cls.local_dir
 
-        cls.local_cluster = distributed.LocalCluster(*args, **kwargs)
-        cls.client = distributed.Client(cls.local_cluster)
+        cls.local_cluster = distributed.LocalCluster()
+        cls.client = distributed.Client()
         return True
 
     @classmethod
     def shutdown(cls):
         cls.client.close()
-        cls.local_cluster.close()
+        # cls.local_cluster.close()
 
     @classmethod
     def map(cls, func, *args, **kwargs):
@@ -84,8 +84,8 @@ class DaskController(AbstractController):
         return True
 
     @classmethod
-    def check_cluster_state(cls):
+    def check_cluster_state(cls, *args, **kwargs):
         """
-        This is a thing for the non-local dask. Just return True.
+        This is a thing for dask. Just return True.
         """
         return True

@@ -8,7 +8,7 @@ import numpy as np
 from inferelator import workflow
 from inferelator.preprocessing import design_response_translation
 from inferelator.preprocessing.tfa import TFA, NoTFA
-from inferelator import utils
+from inferelator.utils import InferelatorDataLoader, Debug, InferelatorData, Validator as check
 
 
 class TFAWorkFlow(workflow.WorkflowBase):
@@ -31,6 +31,10 @@ class TFAWorkFlow(workflow.WorkflowBase):
     # TFA implementation
     tfa_driver = TFA
     _tfa_output_file = None
+
+    # Precalculated TFA
+    _tfa_input_file = None
+    _tfa_input_file_type = None
 
     # Design-Response Driver implementation
     drd_driver = design_response_translation.PythonDRDriver
@@ -67,7 +71,7 @@ class TFAWorkFlow(workflow.WorkflowBase):
         self._set_without_warning("delTmax", delTmax)
         self._set_without_warning("tau", tau)
 
-    def set_tfa(self, tfa_driver=None, tfa_output_file=None):
+    def set_tfa(self, tfa_driver=None, tfa_output_file=None, tfa_input_file=None, tfa_input_file_type=None):
         """
         Perform or skip the TFA calculations; by default the design matrix will be transcription factor activity.
         If this is called with `tfa_driver = False`, the design matrix will be transcription factor expression.
@@ -81,6 +85,15 @@ class TFAWorkFlow(workflow.WorkflowBase):
             If None, no output file will be produced.
             Defaults to None
         :type tfa_output_file: str, optional
+        :param tfa_input_file: A path to a TFA file which will be loaded and used in place of activity calculations
+            If set, all TFA-related settings will be irrelevant. TSV file MUST be Samples X TFA.
+            If None, the inferelator will calculate TFA
+            Defaults to None
+        :type tfa_output_file: str, optional
+        :param tfa_input_file_type: A string which identifies file type. Accepts "tsv" and "h5ad".
+            If None, assume the file is a TSV
+            Defaults to None
+        :type tfa_output_file: str, optional
         """
 
         if tfa_driver is None:
@@ -91,6 +104,8 @@ class TFAWorkFlow(workflow.WorkflowBase):
             self.tfa_driver = NoTFA
 
         self._set_with_warning("_tfa_output_file", tfa_output_file)
+        self._set_file_name("_tfa_input_file", tfa_input_file)
+        self._set_without_warning("_tfa_input_file_type", tfa_input_file_type)
 
     def run(self):
         """
@@ -115,8 +130,12 @@ class TFAWorkFlow(workflow.WorkflowBase):
 
     def startup_finish(self):
         self.align_priors_and_expression()
+
         self.compute_common_data()
         self.compute_activity()
+
+        # Most operations will be column-wise; change sparse type if needed here
+        self.response.to_csc()
 
     def run_regression(self):
         raise NotImplementedError
@@ -129,20 +148,49 @@ class TFAWorkFlow(workflow.WorkflowBase):
         Compute Transcription Factor Activity
         """
         # If there is a tfa driver, run it to calculate TFA from the prior & expression data
-        utils.Debug.vprint('Computing Transcription Factor Activity ... ')
 
-        self.design.convert_to_float()
-        self.half_tau_response.convert_to_float()
-        self.design = self.tfa_driver().compute_transcription_factor_activity(self.priors_data,
-                                                                              self.design,
-                                                                              self.half_tau_response)
+        if self._tfa_input_file is not None:
+            self.load_activity()
+        else:
+            self._recalculate_design()
+
         self.half_tau_response = None
 
         if self._tfa_output_file is not None and self.is_master():
             self.create_output_dir()
             self.design.to_csv(self.output_path(self._tfa_output_file), sep="\t")
 
-        utils.Debug.vprint("Rebuilt design matrix {d} with TF activity".format(d=self.design.shape), level=1)
+    def _recalculate_design(self):
+        """
+        Use the TFA driver to recalculate the design matrix
+        """
+        self.design.convert_to_float()
+        self.half_tau_response.convert_to_float()
+        self.design = self.tfa_driver().compute_transcription_factor_activity(self.priors_data,
+                                                                              self.design,
+                                                                              self.half_tau_response)
+        Debug.vprint("Rebuilt design matrix {d} with TF activity".format(d=self.design.shape), level=1)
+
+    def load_activity(self, file=None, file_type=None):
+
+        file = self._tfa_input_file if file is None else file
+        file_type = self._tfa_input_file_type if file_type is None else file_type
+
+        loader = InferelatorDataLoader(input_dir=self.input_dir, file_format_settings=self._file_format_settings)
+
+        if file_type.lower() == "h5ad":
+            self.design = loader.load_data_h5ad(file)
+        elif self._expression_loader.lower() == "tsv":
+            self.design = loader.load_data_tsv(file)
+
+        Debug.vprint("Loaded {f} as design matrix {d}".format(d=self.design.shape, f=file), level=1)
+
+        self.design.trim_genes(remove_constant_genes=False,
+                               trim_gene_list=self.design.gene_names.intersection(self.tf_names))
+
+        Debug.vprint("Trimmed to {d} for TF activity".format(d=self.design.shape, f=file), level=1)
+
+        assert check.indexes_align([self.design.sample_names, self.response.sample_names])
 
     def emit_results(self, betas, rescaled_betas, gold_standard, priors):
         """
@@ -162,24 +210,28 @@ class TFAWorkFlow(workflow.WorkflowBase):
         Compute common data structures like design and response matrices.
         """
 
-        if self.drd_driver is not None:
-            # If there is a design-response driver, run it to create design and response
-            drd = self.drd_driver(metadata_handler=self.metadata_handler, return_half_tau=True)
-            utils.Debug.vprint('Creating design and response matrix ... ')
-            drd.delTmin, drd.delTmax, drd.tau = self.delTmin, self.delTmax, self.tau
+        drd = self.drd_driver(metadata_handler=self.metadata_handler,
+                              return_half_tau=True) if self.drd_driver is not None else None
 
-            # TODO: Rewrite DRD for InferelatorData
-            design, response, half_tau_response = drd.run(self.data.to_df().T, self.data.meta_data)
-            self.design = utils.data.InferelatorData(design.T)
-            self.response = utils.data.InferelatorData(response.T)
-            self.half_tau_response = utils.data.InferelatorData(half_tau_response.T)
-
-        else:
-            # If there is no design-response driver set, use the expression data for design and response
+        # If there is no design-response driver set, use the expression data for design and response
+        # Also do this if there is no usable metadata
+        if drd is None or not drd.validate_run(self.data.meta_data):
             self.design, self.response, self.half_tau_response = self.data, self.data, self.data
 
-        utils.Debug.vprint("Constructed design {d} and response {r} matrices".format(d=self.design.shape,
-                                                                                     r=self.response.shape),
-                           level=1)
+        # Otherwise calculate the design-response ODE
+        # TODO: Rewrite DRD for InferelatorData
+        # TODO: This is *horrifying* as is from a memory perspective
+        # TODO: Really fix this soon
+        else:
+            Debug.vprint('Creating design and response matrix ... ')
+            drd.delTmin, drd.delTmax, drd.tau = self.delTmin, self.delTmax, self.tau
+
+            design, response, half_tau_response = drd.run(self.data.to_df().T, self.data.meta_data)
+            self.design = InferelatorData(design.T)
+            self.response = InferelatorData(response.T)
+            self.half_tau_response = InferelatorData(half_tau_response.T)
+
+        Debug.vprint("Constructed design {d} and response {r} matrices".format(d=self.design.shape,
+                                                                               r=self.response.shape), level=1)
 
         self.data = None

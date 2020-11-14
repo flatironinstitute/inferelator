@@ -42,6 +42,14 @@ class PythonDRDriver(object):
         self.return_half_tau = return_half_tau
         self.metadata_handler = metadata_handler if metadata_handler is not None else self.metadata_handler
 
+    def validate_run(self, meta_data):
+        """
+        Return False if the metadata provided will not work with this module. Return True otherwise
+        :param meta_data: pd.DataFrame [N x 5]
+        :return: bool
+        """
+        return MetadataHandler.get_handler(self.metadata_handler).validate_metadata_columns(meta_data)
+
     def run(self, exp_data, meta_data):
         """
         Process expression data and metadata into design & response data

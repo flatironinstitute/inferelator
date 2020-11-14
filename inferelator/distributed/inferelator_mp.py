@@ -37,20 +37,23 @@ class MPControl(AbstractController):
         return cls.client.is_dask()
 
     @classmethod
-    def set_multiprocess_engine(cls, engine):
+    def set_multiprocess_engine(cls, engine, processes=None):
         """
         Register the multiprocessing engine to use
 
         Currently available are:
 
         dask-cluster
+        dask-k8
         dask-local
         kvs
         multiprocessing
         local
 
-        :param engine: str / Controller object
-            A string to lookup the controller or a Controller object
+        :param engine: A string to lookup the controller or a Controller object
+        :type engine: str, Controller
+        :param processes: Number of processes to use. Equivalent to calling `set_processes`
+        :type processes: int
         """
         if cls.is_initialized:
             raise RuntimeError("Client is currently active. Run .shutdown() before changing engines.")
@@ -62,6 +65,9 @@ class MPControl(AbstractController):
             elif engine == "dask-local":
                 from inferelator.distributed.dask_local_controller import DaskController
                 cls.client = DaskController
+            elif engine == "dask-k8":
+                from inferelator.distributed.dask_k8_controller import DaskK8Controller
+                cls.client = DaskK8Controller
             elif engine == "kvs":
                 warnings.warn("The KVS engine is deprecated. It has been replaced by Dask-based multiprocessing",
                               DeprecationWarning)
@@ -81,6 +87,9 @@ class MPControl(AbstractController):
             raise ValueError("Engine must be provided as a string for lookup or an implemented Controller class object")
 
         utils.Debug.vprint("Inferelator MPControl using engine {eng}".format(eng=cls.name()))
+
+        if processes is not None:
+            cls.set_processes(processes)
 
     @classmethod
     def connect(cls, *args, **kwargs):

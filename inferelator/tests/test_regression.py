@@ -4,7 +4,7 @@ import tempfile
 import pandas as pd
 import shutil
 import numpy as np
-import scipy.sparse as sps
+from sklearn.linear_model import LinearRegression
 
 from inferelator.distributed.inferelator_mp import MPControl
 
@@ -12,9 +12,7 @@ from inferelator import tfa_workflow
 from inferelator import workflow
 from inferelator.tests.artifacts.test_data import TestDataSingleCellLike, TEST_DATA, TEST_DATA_SPARSE
 from inferelator.tests.artifacts.test_stubs import TaskDataStub, create_puppet_workflow
-from inferelator.regression.bbsr_multitask import BBSRByTaskRegressionWorkflow
-from inferelator.regression.elasticnet_multitask import ElasticNetByTaskRegressionWorkflow
-from inferelator.utils import InferelatorData
+from inferelator.utils import InferelatorData, DotProduct
 from inferelator.preprocessing.metadata_parser import MetadataHandler
 
 try:
@@ -79,6 +77,12 @@ class SetUpSparseDataMTL(SetUpSparseData):
 
 class TestSingleTaskRegressionFactory(SetUpDenseData):
 
+    @classmethod
+    def setUpClass(cls):
+        if not MPControl.is_initialized:
+            MPControl.set_multiprocess_engine("local")
+            MPControl.connect()
+
     def test_base(self):
         self.workflow = create_puppet_workflow(base_class=tfa_workflow.TFAWorkFlow)
         self.workflow = self.workflow(self.data, self.prior, self.gold_standard)
@@ -112,12 +116,57 @@ class TestSingleTaskRegressionFactory(SetUpDenseData):
             
         self.assertEqual(self.workflow.results.score, 1)
 
+    def test_sklearn(self):
+        self.workflow = create_puppet_workflow(base_class="tfa", regression_class="sklearn")
+        self.workflow = self.workflow(self.data, self.prior, self.gold_standard)
+        self.workflow.tf_names = self.tf_names
+
+        with self.assertRaises(ValueError):
+            self.workflow.set_regression_parameters(model=42)
+
+        with self.assertRaises(ValueError):
+            self.workflow.set_regression_parameters(model=LinearRegression())
+
+        self.workflow.set_regression_parameters(model=LinearRegression)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self.workflow.run()
+
+        self.assertEqual(self.workflow.results.score, 1)
+
+    def test_stars(self):
+        self.workflow = create_puppet_workflow(base_class="tfa", regression_class="stars")
+        self.workflow = self.workflow(self.data, self.prior, self.gold_standard)
+        self.workflow.set_regression_parameters(num_subsamples=5)
+        self.workflow.tf_names = self.tf_names
+
+        self.workflow.run()
+        self.assertAlmostEqual(self.workflow.results.score, 0.32222, places=4)
+
 
 class TestSingleTaskRegressionFactorySparse(SetUpSparseData, TestSingleTaskRegressionFactory):
-    pass
+
+    @classmethod
+    def setUpClass(cls):
+
+        if not MPControl.is_initialized:
+            MPControl.set_multiprocess_engine("local")
+            MPControl.connect()
+
+        DotProduct.set_mkl(True)
+
+    @classmethod
+    def tearDownClass(cls):
+        DotProduct.set_mkl(False)
 
 
 class TestMultitaskFactory(SetUpDenseDataMTL):
+
+    @classmethod
+    def setUpClass(cls):
+        if not MPControl.is_initialized:
+            MPControl.connect()
 
     def reset_workflow(self):
         self.workflow.priors_data = self.prior
@@ -135,7 +184,7 @@ class TestMultitaskFactory(SetUpDenseDataMTL):
         self.assertAlmostEqual(self.workflow.results.score, 0.84166, places=4)
 
     def test_mtl_bbsr(self):
-        self.workflow = workflow.inferelator_workflow(workflow="amusr", regression=BBSRByTaskRegressionWorkflow)
+        self.workflow = workflow.inferelator_workflow(workflow="multitask", regression="bbsr")
         self.workflow.set_regression_parameters(prior_weight=1.)
         self.reset_workflow()
 
@@ -143,7 +192,7 @@ class TestMultitaskFactory(SetUpDenseDataMTL):
         self.assertEqual(self.workflow.results.score, 1)
 
     def test_mtl_elasticnet(self):
-        self.workflow = workflow.inferelator_workflow(workflow="amusr", regression=ElasticNetByTaskRegressionWorkflow)
+        self.workflow = workflow.inferelator_workflow(workflow="multitask", regression="elasticnet")
         self.workflow.set_regression_parameters(copy_X=True)
         self.reset_workflow()
 
@@ -152,6 +201,14 @@ class TestMultitaskFactory(SetUpDenseDataMTL):
             self.workflow.run()
 
         self.assertEqual(self.workflow.results.score, 1)
+
+    def test_mtl_stars(self):
+        self.workflow = workflow.inferelator_workflow(workflow="multitask", regression="stars")
+        self.workflow.set_regression_parameters(num_subsamples=5)
+        self.reset_workflow()
+
+        self.workflow.run()
+        self.assertAlmostEqual(self.workflow.results.score, 0.32222, places=4)
 
 
 class TestMultitaskFactorySparse(SetUpSparseDataMTL, TestMultitaskFactory):

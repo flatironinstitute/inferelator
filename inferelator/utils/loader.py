@@ -1,4 +1,6 @@
 import pandas as pd
+import pandas.api.types as pat
+import numpy as np
 import os
 import copy as cp
 import anndata
@@ -53,7 +55,11 @@ class InferelatorDataLoader(object):
                                    meta_data=meta_data,
                                    gene_data=gene_metadata)
 
-        self._check_loaded_data(data)
+        # Make sure bytestrings are decoded
+        _safe_dataframe_decoder(data.gene_data)
+        _safe_dataframe_decoder(data.meta_data)
+
+        self._check_loaded_data(data, filename=h5ad_file)
         return data
 
     def load_data_mtx(self, mtx_file, mtx_obs=None, mtx_feature=None, meta_data_file=None,
@@ -87,6 +93,10 @@ class InferelatorDataLoader(object):
         data = InferelatorData(data,
                                meta_data=meta_data,
                                gene_data=gene_metadata)
+
+        # Make sure bytestrings are decoded
+        _safe_dataframe_decoder(data.gene_data)
+        _safe_dataframe_decoder(data.meta_data)
 
         return data
 
@@ -146,7 +156,7 @@ class InferelatorDataLoader(object):
                                meta_data=meta_data,
                                gene_data=gene_metadata)
 
-        self._check_loaded_data(data)
+        self._check_loaded_data(data, filename=expression_matrix_file)
         return data
 
     def load_metadata_tsv(self, meta_data_file, sample_labels, meta_data_handler=None):
@@ -219,12 +229,15 @@ class InferelatorDataLoader(object):
         return pd.read_csv(filename, sep="\t", header=None)[0].tolist() if filename is not None else None
 
     @staticmethod
-    def _check_loaded_data(data):
+    def _check_loaded_data(data, filename=None):
+        msg = "Loaded {f}:\n".format(f=filename) if filename is not None else ""
+
         nnf, non_finite_genes = data.non_finite
         if nnf > 0:
-            Debug.vprint("{n} genes with non-finite expression ({g})".format(n=nnf, g=" ".join(non_finite_genes)))
+            msg += "\t{n} genes with non-finite expression ({g})\n".format(n=nnf, g=" ".join(non_finite_genes))
 
-        Debug.vprint("Expression data loaded: {dt}".format(dt=str(data)))
+        msg += "Data loaded: {dt}".format(dt=str(data))
+        Debug.vprint(msg, level=0)
 
     @staticmethod
     def filename_path_join(path, filename):
@@ -259,3 +272,59 @@ class InferelatorDataLoader(object):
             return os.path.abspath(os.path.expanduser(path))
         else:
             return None
+
+
+def _safe_dataframe_decoder(data_frame, encoding='utf-8'):
+    """
+    Decode dataframe bytestrings
+
+    :param data_frame: pd.DataFrame
+    """
+
+    if _is_dtype_object(data_frame.index.dtype):
+        data_frame.index = _decode_series(data_frame.index, encoding=encoding)
+
+    if _is_dtype_object(data_frame.columns.dtype):
+        data_frame.columns = _decode_series(data_frame.columns, encoding=encoding)
+
+    for col in data_frame.columns:
+        if _is_dtype_object(data_frame[col].dtype):
+            data_frame[col] = _decode_series(data_frame[col], encoding=encoding)
+
+
+def _is_dtype_object(dtype):
+    if pat.is_object_dtype(dtype):
+        return True
+    elif pat.is_categorical_dtype(dtype):
+        return pat.is_object_dtype(dtype.categories.dtype)
+    else:
+        return False
+
+
+def _decode_series(series, encoding):
+    """
+    Decode and return a series or index object from pandas
+
+    :param series: pd.Series, pd.Index
+    :param encoding: str
+    :return: pd.Series, pd.Index
+    """
+
+    if pat.is_categorical_dtype(series):
+        series.cat.categories = _decode_series(series.dtype.categories, encoding=encoding)
+        return series
+
+    _new_series = series.str.decode(encoding).values
+    _no_decode = pd.isna(_new_series)
+
+    if np.all(_no_decode):
+        return series
+    
+    _new_series[_no_decode] = series.values[_no_decode]
+
+    try:
+        new_series = pd.Series(_new_series, index=series.index)
+    except AttributeError:
+        new_series = pd.Index(_new_series)
+
+    return new_series

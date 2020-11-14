@@ -231,7 +231,7 @@ class TestFunctions(TestWrapperSetup):
         inv_expr = np.asarray(linalg.pinv(self.adata_sparse.expression_data.A), order="C")
         eye_expr = np.eye(self.adata_sparse.shape[1])
 
-        sdot1a = self.adata_sparse.dot(eye_expr)
+        sdot1a = self.adata_sparse.dot(eye_expr).A
         sdot1b = self.adata_sparse.dot(sparse.csr_matrix(eye_expr)).A
         npt.assert_array_almost_equal(sdot1a, sdot1b)
 

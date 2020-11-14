@@ -1,11 +1,11 @@
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.regression import base_regression
 from inferelator import utils
+import copy
 
 import numpy as np
 import scipy.sparse as sps
 from dask import distributed
-import time
 
 """
 This package contains the dask-specific multiprocessing functions (these are used in place of map calls to allow the
@@ -124,22 +124,60 @@ def bbsr_regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS):
     return result_list
 
 
-def elasticnet_regress_dask(X, Y, params, G, genes):
+def sklearn_regress_dask(X, Y, model, G, genes, min_coef):
     """
-    Execute regression (ElasticNet)
+    Execute regression (SKLearn)
 
     :return: list
         Returns a list of regression results that the pileup_data can process
     """
     assert MPControl.is_dask()
 
-    from inferelator.regression import elasticnet_python
+    from inferelator.regression import sklearn_regression
     DaskController = MPControl.client
 
     def regression_maker(j, x, y):
         level = 0 if j % 100 == 0 else 2
         utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=genes[j], i=j, total=G), level=level)
-        data = elasticnet_python.elastic_net(x, utils.scale_vector(y), params=params)
+        data = sklearn_regression.sklearn_gene(x, utils.scale_vector(y), copy.copy(model))
+        data['ind'] = j
+        return j, data
+
+    # Scatter common data to workers
+    [scatter_x] = DaskController.client.scatter([X.values], broadcast=True, hash=False)
+
+    # Wait for scattering to finish before creating futures
+    distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
+
+    future_list = [DaskController.client.submit(regression_maker, i, scatter_x,
+                                                Y.get_gene_data(i, force_dense=True).flatten())
+                   for i in range(G)]
+
+    # Collect results as they finish instead of waiting for all workers to be done
+    result_list = process_futures_into_list(future_list)
+
+    DaskController.client.cancel(scatter_x)
+
+    return result_list
+
+
+def lasso_stars_regress_dask(X, Y, alphas, num_subsamples, random_seed, method, params, G, genes):
+    """
+    Execute regression (LASSO-StARS)
+
+    :return: list
+        Returns a list of regression results that the pileup_data can process
+    """
+    assert MPControl.is_dask()
+
+    from inferelator.regression import stability_selection
+    DaskController = MPControl.client
+
+    def regression_maker(j, x, y):
+        level = 0 if j % 100 == 0 else 2
+        utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=genes[j], i=j, total=G), level=level)
+        data = stability_selection.stars_model_select(x, utils.scale_vector(y), alphas, num_subsamples=num_subsamples,
+                                                      method=method, random_seed=random_seed, **params)
         data['ind'] = j
         return j, data
 
@@ -214,12 +252,22 @@ def build_mi_array_dask(X, Y, bins, logtype):
     return mi
 
 
-def process_futures_into_list(future_list, raise_on_error=False, check_results=False):
+def process_futures_into_list(future_list, raise_on_error=True, check_results=True):
     """
     Take a list of futures and turn them into a list of results
     Results must be of the form i, data (where i is the output order)
-    :param future_list: list(Futures)
-    :return output_list: list(Data)
+
+    :param future_list: A list of executing futures
+    :type future_list: list
+    :param raise_on_error: Should an error be raised if a job can't be restarted or just move on from it.
+    Defaults to True
+    :type raise_on_error: bool
+    :param check_results: Should the result object be checked (and restarted if there's a problem)
+    If False, this will raise an error with the result of a failed future is retrieved.
+    Defaults to True.
+    :type check_results: bool
+    :return output_list: A list of results from the completed futures
+    :rtype: list
     """
 
     DaskController = MPControl.client
@@ -227,6 +275,8 @@ def process_futures_into_list(future_list, raise_on_error=False, check_results=F
     complete_gen = distributed.as_completed(future_list)
 
     for finished_future in complete_gen:
+
+        DaskController.check_cluster_state()
 
         # Jobs can be cancelled in certain situations
         if check_results and (finished_future.cancelled() or (finished_future.status == "erred")):
@@ -240,8 +290,6 @@ def process_futures_into_list(future_list, raise_on_error=False, check_results=F
             except KeyError:
                 if raise_on_error:
                     raise
-                else:
-                    continue
 
         # In the event of success, get the data
         else:
@@ -250,3 +298,4 @@ def process_futures_into_list(future_list, raise_on_error=False, check_results=F
             finished_future.cancel()
 
     return output_list
+

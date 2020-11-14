@@ -503,6 +503,7 @@ def create_task_data_class(workflow_class="single-cell"):
 
                 # Reset expression matrix, metadata, and task_name in the copy
                 task_obj.data = data.subset_copy(row_index=task_idx)
+                task_obj.data.name = task
                 task_obj.task_name = task
                 new_task_objects.append(task_obj)
 

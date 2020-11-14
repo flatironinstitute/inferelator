@@ -1,8 +1,7 @@
 import unittest
 from inferelator.regression import elasticnet_python
-import pandas as pd
+from inferelator.regression import sklearn_regression
 import numpy as np
-import os
 
 TEST_SEED = 50
 
@@ -26,6 +25,8 @@ PARAMS = {"l1_ratio": [0.5, 0.7, 0.9],
           'positive': False,
           'random_state': 99,
           'selection': 'random'}
+
+MIN_COEF = 0.1
 
 
 class TestElasticNet(unittest.TestCase):
@@ -51,7 +52,7 @@ class TestElasticNet(unittest.TestCase):
         x = PREDICT_ARRAY.copy()
         y = RESPONSE_ARRAY.copy()
 
-        result = elasticnet_python.elastic_net(x, y, PARAMS)
+        result = sklearn_regression.sklearn_gene(x, y, elasticnet_python.ElasticNetCV(**PARAMS), min_coef=MIN_COEF)
 
         self.assertEqual(len(result["pp"]), 5)
         self.assertEqual(len(result["betas"]), 5)
@@ -71,7 +72,7 @@ class TestElasticNet(unittest.TestCase):
 
         x[:, 2] = np.sort(x[:, 2])
 
-        result = elasticnet_python.elastic_net(x, y, PARAMS)
+        result = sklearn_regression.sklearn_gene(x, y, elasticnet_python.ElasticNetCV(**PARAMS), min_coef=MIN_COEF)
 
         self.assertEqual(len(result["pp"]), 5)
         self.assertEqual(len(result["betas"]), 1)

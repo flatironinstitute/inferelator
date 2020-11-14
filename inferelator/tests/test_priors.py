@@ -8,7 +8,6 @@ from inferelator.preprocessing.priors import ManagePriors
 from inferelator import workflow
 
 import os
-import numpy as np
 import pandas.testing as pdt
 
 my_dir = os.path.dirname(__file__)
@@ -72,11 +71,39 @@ class TestPriorManager(unittest.TestCase):
         npr1, ngs1 = ManagePriors.cross_validate_gold_standard(self.priors_data, self.gold_standard, 0, 0.5, 42)
         self.assertEqual(npr1.shape, ngs1.shape)
         self.assertEqual(len(npr1.index.intersection(ngs1.index)), 0)
+        pdt.assert_index_equal(npr1.columns, self.priors_data.columns)
+        pdt.assert_index_equal(ngs1.columns, self.gold_standard.columns)
+
+        npr2, ngs2 = ManagePriors.cross_validate_gold_standard(self.priors_data, self.gold_standard, 0, 0.5, 43)
+        npr3, ngs3 = ManagePriors.cross_validate_gold_standard(self.priors_data, self.gold_standard, 0, 0.5, 42)
+
+        pdt.assert_frame_equal(npr1, npr3)
+        pdt.assert_frame_equal(ngs1, ngs3)
+
+        with self.assertRaises(AssertionError):
+            pdt.assert_frame_equal(npr1, npr2)
+
+        with self.assertRaises(AssertionError):
+            pdt.assert_frame_equal(ngs1, ngs2)
 
     def test_cv_tfs(self):
         npr1, ngs1 = ManagePriors.cross_validate_gold_standard(self.priors_data, self.gold_standard, 1, 0.5, 42)
         self.assertEqual(npr1.shape, ngs1.shape)
         self.assertEqual(len(npr1.columns.intersection(ngs1.columns)), 0)
+        pdt.assert_index_equal(npr1.index, self.priors_data.index)
+        pdt.assert_index_equal(ngs1.index, self.gold_standard.index)
+
+        npr2, ngs2 = ManagePriors.cross_validate_gold_standard(self.priors_data, self.gold_standard, 1, 0.5, 43)
+        npr3, ngs3 = ManagePriors.cross_validate_gold_standard(self.priors_data, self.gold_standard, 1, 0.5, 42)
+
+        pdt.assert_frame_equal(npr1, npr3)
+        pdt.assert_frame_equal(ngs1, ngs3)
+
+        with self.assertRaises(AssertionError):
+            pdt.assert_frame_equal(npr1, npr2)
+
+        with self.assertRaises(AssertionError):
+            pdt.assert_frame_equal(ngs1, ngs2)
 
     def test_cv_downsample(self):
         npr1, ngs1 = ManagePriors.cross_validate_gold_standard(self.priors_data, self.gold_standard, None, 0.5, 42)

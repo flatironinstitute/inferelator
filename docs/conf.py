@@ -12,6 +12,7 @@
 #
 import os
 import sys
+
 sys.path.insert(0, os.path.abspath('..'))
 
 
@@ -22,7 +23,7 @@ copyright = '2019, Flatiron Institute'
 author = 'Chris Jackson'
 
 # The full version, including alpha/beta/rc tags
-release = 'v0.4.0'
+release = 'v0.4.1'
 
 
 # -- General configuration ---------------------------------------------------
@@ -33,7 +34,7 @@ release = 'v0.4.0'
 extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.coverage',
               'sphinx.ext.napoleon',
-              'm2r']
+              'm2r2']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']

@@ -1,4 +1,3 @@
 dask[complete]
 dask_jobqueue
 pathos
-git+https://github.com/flatironinstitute/kvsstcp
