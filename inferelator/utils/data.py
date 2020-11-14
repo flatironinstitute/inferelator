@@ -50,7 +50,9 @@ class DotProduct:
                 from sparse_dot_mkl import get_version_string, dot_product_mkl as dp
                 msg = "Matrix multiplication will use sparse_dot_mkl package with MKL: {m}"
                 vstring = get_version_string()
-                Debug.vprint(msg.format(m=vstring if vstring is not None else "Install mkl-service for details"), level=0)
+                Debug.vprint(msg.format(m=vstring if vstring is not None else "Install mkl-service for details"),
+                             level=2)
+
                 cls._dot_func = dp
 
             # If it isn't available, use the scipy/numpy functions instead
@@ -60,7 +62,7 @@ class DotProduct:
 
         # If the MKL flag is True, use the python (numpy/scipy) functions when .dot() is called
         else:
-            Debug.vprint("Matrix multiplication will use Numpy; this is not advised for sparse data", level=0)
+            Debug.vprint("Matrix multiplication will use Numpy; this is not advised for sparse data", level=2)
             cls._dot_func = dot_product
 
     @classmethod

@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 from copy import deepcopy
 from scipy.special import comb
-from scipy.optimize import minimize
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
 
@@ -16,6 +15,8 @@ try:
     from itertools import izip as zip
 except ImportError:
     pass
+
+DEFAULT_prior_weight = 1
 
 
 class AMuSR_OneGene:
@@ -474,7 +475,9 @@ def weight_prior(prior, prior_weight):
 
 class AMUSRRegressionWorkflowMixin(base_regression._MultitaskRegressionWorkflowMixin):
     """
-    Add AMuSR regression into a workflow object
+    Multi-Task AMuSR regression
+
+    https://doi.org/10.1371/journal.pcbi.1006591
     """
 
     prior_weight = default.DEFAULT_prior_weight
@@ -482,7 +485,11 @@ class AMUSRRegressionWorkflowMixin(base_regression._MultitaskRegressionWorkflowM
     def set_regression_parameters(self, prior_weight=None):
         """
         Set regression parameters for AmUSR
-        :param prior_weight:
+
+        :param prior_weight: Weight for edges that are present in the prior network.
+            Non-prior edges have a weight of 1. Set this to 1 to weight prior and non-prior edges equally.
+            Defaults to 1.
+        :type prior_weight: numeric
         """
 
         self._set_with_warning("prior_weight", prior_weight)

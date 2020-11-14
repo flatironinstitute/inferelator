@@ -1,6 +1,21 @@
 Change Log
 ==========
 
+Inferelator v0.5.0 `December, 1 2020`
+--------------------------------------
+
+New Functionality:
+
+- Changed output to include additional performance metrics
+
+Bug Fixes:
+
+- Fixed several bugs around data loading
+
+Code Refactoring:
+
+- Added additional tests
+
 Inferelator v0.4.1 `August, 4 2020`
 --------------------------------------
 

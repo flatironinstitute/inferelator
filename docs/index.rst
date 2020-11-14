@@ -5,6 +5,7 @@
    :hidden:
 
    workflow
+   model_selection
    tutorial
    examples
    references

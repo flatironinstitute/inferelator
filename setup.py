@@ -2,11 +2,21 @@ import os
 from setuptools import setup, find_packages
 
 # Current Inferelator Version Number
-version = "0.4.1"
+version = "0.5.0"
 
 # Description from README.md
 base_dir = os.path.dirname(os.path.abspath(__file__))
 long_description = "\n\n".join([open(os.path.join(base_dir, "README.md"), "r").read()])
+
+# Required packages
+requires = [
+    "numpy >=1.14.0",
+    "scipy >=0.9",
+    "pandas >=0.24.0",
+    "scikit-learn",
+    "matplotlib >=1.5.1",
+    "anndata >=0.7.4"
+]
 
 setup(
     name="inferelator",
@@ -24,7 +34,7 @@ setup(
     maintainer_email="cj59@nyu.edu",
     packages=find_packages(include=["inferelator", "inferelator.*"], exclude=["tests", "*.tests"]),
     zip_safe=False,
-    install_requires=["numpy", "scipy", "pandas", "scikit-learn", "matplotlib", "anndata", "sparse_dot_mkl"],
+    install_requires=requires,
     python_requires=">=3.5",
     tests_require=["coverage", "nose", "bio-test-artifacts", "tables"],
     test_suite="nose.collector",

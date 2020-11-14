@@ -50,6 +50,15 @@ class Debug:
             return
 
 
+def inferelator_verbose_level(level):
+    """
+    Set verbosity.
+    :param level: Verbose level. 0 is normal, 1 is extra information. 2+ is not recommended. -1 silences most outputs.
+    :type level: int
+    """
+    Debug.set_verbose_level(level)
+
+
 def slurm_envs(var_names=None):
     """
     Get environment variable names and return them as a dict

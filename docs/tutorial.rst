@@ -69,9 +69,9 @@ Workflow setup
 The inferelator is implemented on a workflow model. The first step is to create a workflow object.
 At this stage, the type of regression model and workflow must be chosen::
 
-   from inferelator import workflow
+   from inferelator import inferelator_workflow
 
-   worker = workflow.inferelator_workflow(regression="bbsr", workflow="tfa")
+   worker = inferelator_workflow(regression="bbsr", workflow="tfa")
 
 - Valid options for regression include "bbsr", "elastic-net", and "amusr".
 - Valid options for workflow include "tfa", "single-cell", and "multitask".
@@ -103,7 +103,7 @@ Multitask Workflows
 The inferelator supports inferring networks from multiple separate "tasks" at the same time.
 Several modeling options exist, but all must use the multitask workflow::
 
-  worker = workflow.inferelator_workflow(regression="amusr", workflow="multitask")
+  worker = inferelator_workflow(regression="amusr", workflow="multitask")
 
 - **amusr** regression is a multitask learning model that shares information during regression.
 - **bbsr-by-task** regression learns separate networks using the BBSR model,
@@ -147,11 +147,12 @@ Parallelization
 ===============
 
 The inferelator supports three major parallelization options. These can be set using a controller class.
-In all cases, calling the multiprocessing environment should be protected with the ``if __name__ == '__main__'`` pragma.
+Calling the multiprocessing environment should be protected with the ``if __name__ == '__main__'`` pragma.
+This is necessary to prevent a specific error in creating new processes that occurs when ``os.fork()`` is unavailable.
 Multiprocessing options should be set prior to creating and running workflows.
 It is not necessary to set multiprocessing more then once per session::
 
-    from inferelator.distributed.inferelator_mp import MPControl
+    from inferelator import MPControl
 
     if __name__ == '__main__':
         MPControl.set_multiprocess_engine("multiprocessing")

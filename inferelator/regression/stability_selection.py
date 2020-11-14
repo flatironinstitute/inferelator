@@ -6,7 +6,6 @@ from sklearn.linear_model import LinearRegression as _LinearRegression, Lasso as
 
 from inferelator.regression import base_regression
 from inferelator.distributed.inferelator_mp import MPControl
-from inferelator.utils import Validator as check
 from inferelator import utils
 
 _DEFAULT_ALPHAS = np.insert(np.logspace(-2, 1, 20), 0, 0)
@@ -47,6 +46,7 @@ def stars_model_select(x, y, alphas, threshold=_DEFAULT_THRESHOLD, num_subsample
     :param threshold:
     :param num_subsamples:
     :param random_seed:
+    :param method:
     :param kwargs:
     :return:
     """
@@ -200,18 +200,32 @@ class StARSWorkflowMixin(base_regression._RegressionWorkflowMixin):
     regress_method = _DEFAULT_METHOD
     num_subsamples = _DEFAULT_NUM_SUBSAMPLES
 
+    def __init__(self, *args, **kwargs):
+        self.sklearn_params = {}
+        super(StARSWorkflowMixin, self).__init__(*args, **kwargs)
+
     def set_regression_parameters(self, alphas=None, num_subsamples=None, method=None, **kwargs):
         """
-        Set regression parameters for elastic_net
+        Set regression parameters for StARS-LASSO
+
+        :param alphas: A list of alpha (L1 term) values to search. Defaults to logspace between 0. and 10.
+        :type alphas: list(float)
+        :param num_subsamples: The number of groups to break data into. Defaults to 20.
+        :type num_subsamples: int
+        :param method: The model to use. Can choose from 'lasso' or 'ridge'. Defaults to 'lasso'.
+            If 'ridge' is set, ridge_threshold should also be passed. Any value below ridge_threshold will be set to 0.
+        :type method: str
+        :param kwargs: Any additional arguments will be passed to the LASSO or Ridge scikit-learn object at
+            instantiation
+        :type kwargs: any
         """
 
-        self.sklearn_params = kwargs
+        self.sklearn_params.update(kwargs)
         self.alphas = alphas if alphas is not None else self.alphas
         self.num_subsamples = num_subsamples if num_subsamples is not None else self.num_subsamples
         self.regress_method = method if method is not None else self.regress_method
 
     def run_regression(self):
-
         MPControl.sync_processes("pre_stars")
 
         betas, resc_betas = StARS(self.design, self.response, self.random_seed, alphas=self.alphas,
@@ -241,9 +255,9 @@ class StARSWorkflowByTaskMixin(base_regression._MultitaskRegressionWorkflowMixin
 
             utils.Debug.vprint('Calculating task {k} betas using StARS'.format(k=k), level=0)
             t_beta, t_br = StARS(x, y, self.random_seed, alphas=self.alphas,
-                                  method=self.regress_method,
-                                  num_subsamples=self.num_subsamples,
-                                  parameters=self.sklearn_params).run()
+                                 method=self.regress_method,
+                                 num_subsamples=self.num_subsamples,
+                                 parameters=self.sklearn_params).run()
             betas.append(t_beta)
             betas_resc.append(t_br)
 

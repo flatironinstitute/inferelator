@@ -4,6 +4,7 @@ import tempfile
 import pandas as pd
 import shutil
 import numpy as np
+from sklearn.linear_model import LinearRegression
 
 from inferelator.distributed.inferelator_mp import MPControl
 
@@ -76,6 +77,12 @@ class SetUpSparseDataMTL(SetUpSparseData):
 
 class TestSingleTaskRegressionFactory(SetUpDenseData):
 
+    @classmethod
+    def setUpClass(cls):
+        if not MPControl.is_initialized:
+            MPControl.set_multiprocess_engine("local")
+            MPControl.connect()
+
     def test_base(self):
         self.workflow = create_puppet_workflow(base_class=tfa_workflow.TFAWorkFlow)
         self.workflow = self.workflow(self.data, self.prior, self.gold_standard)
@@ -109,6 +116,25 @@ class TestSingleTaskRegressionFactory(SetUpDenseData):
             
         self.assertEqual(self.workflow.results.score, 1)
 
+    def test_sklearn(self):
+        self.workflow = create_puppet_workflow(base_class="tfa", regression_class="sklearn")
+        self.workflow = self.workflow(self.data, self.prior, self.gold_standard)
+        self.workflow.tf_names = self.tf_names
+
+        with self.assertRaises(ValueError):
+            self.workflow.set_regression_parameters(model=42)
+
+        with self.assertRaises(ValueError):
+            self.workflow.set_regression_parameters(model=LinearRegression())
+
+        self.workflow.set_regression_parameters(model=LinearRegression)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self.workflow.run()
+
+        self.assertEqual(self.workflow.results.score, 1)
+
     def test_stars(self):
         self.workflow = create_puppet_workflow(base_class="tfa", regression_class="stars")
         self.workflow = self.workflow(self.data, self.prior, self.gold_standard)
@@ -123,6 +149,11 @@ class TestSingleTaskRegressionFactorySparse(SetUpSparseData, TestSingleTaskRegre
 
     @classmethod
     def setUpClass(cls):
+
+        if not MPControl.is_initialized:
+            MPControl.set_multiprocess_engine("local")
+            MPControl.connect()
+
         DotProduct.set_mkl(True)
 
     @classmethod
@@ -131,6 +162,11 @@ class TestSingleTaskRegressionFactorySparse(SetUpSparseData, TestSingleTaskRegre
 
 
 class TestMultitaskFactory(SetUpDenseDataMTL):
+
+    @classmethod
+    def setUpClass(cls):
+        if not MPControl.is_initialized:
+            MPControl.connect()
 
     def reset_workflow(self):
         self.workflow.priors_data = self.prior

@@ -1,10 +1,5 @@
 """
-Base implementation for high level Inferelator workflow.
-
-The base workflow has functions for loading and managing data,
-but does not have any functions for regression or analysis
-
-The functions in these classes are available in all subclassed workflows
+Construct inferelator workflows from preprocessing, postprocessing, and regression modules
 """
 from __future__ import unicode_literals, print_function
 
@@ -1005,9 +1000,9 @@ def inferelator_workflow(regression=_RegressionWorkflowMixin, workflow=WorkflowB
 
         Defaults to "base".
     :type workflow: str, WorkflowBase subclass
-    :return: This returns an initialized object which is the multi-inheritance result of both the regression workflow
-        and the preprocessing/postprocessing workflow. This object can then have settings assigned to it, and can
-        be run with `.run()`
+    :return: This returns an initialized object which has both the regression workflow and the
+        preprocessing/postprocessing workflow. This object can then have settings assigned to it, and can be run
+        with `.run()`
     :rtype: Workflow instance
     """
     return _factory_build_inferelator(regression=regression, workflow=workflow)()

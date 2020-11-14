@@ -6,6 +6,7 @@ from inferelator.distributed.inferelator_mp import MPControl
 from sklearn.base import BaseEstimator
 from inferelator.regression.base_regression import _MultitaskRegressionWorkflowMixin
 import copy
+import inspect
 
 
 def sklearn_gene(x, y, model, min_coef=None, **kwargs):
@@ -101,7 +102,7 @@ class SKLearnRegression(base_regression.BaseRegression):
 
 class SKLearnWorkflowMixin(base_regression._RegressionWorkflowMixin):
     """
-    Add elasticnet regression into a workflow object
+    Use any scikit-learn regression module
     """
 
     _sklearn_model = None
@@ -116,13 +117,16 @@ class SKLearnWorkflowMixin(base_regression._RegressionWorkflowMixin):
         """
         Set parameters to use a sklearn model for regression
 
-        :param model: A sklearn model class
+        :param model: A scikit-learn model class
         :type model: BaseEstimator subclass
         :param add_random_state: Flag to include workflow random seed as "random_state" in the model
         :type add_random_state: bool
-        :param kwargs: Any arguments which should be passed to the model class instantiation
+        :param kwargs: Any arguments which should be passed to the scikit-learn model class instantiation
         :type kwargs: any
         """
+
+        if model is not None and not inspect.isclass(model):
+            raise ValueError("Pass an uninstantiated scikit-learn model (i.e. LinearRegression, not LinearRegression()")
 
         self._set_with_warning("_sklearn_model", model)
         self._set_without_warning("_sklearn_add_random_state", add_random_state)
