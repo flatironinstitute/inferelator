@@ -17,7 +17,7 @@ from inferelator.utils import (Debug, InferelatorDataLoader, DEFAULT_PANDAS_TSV_
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.preprocessing.priors import ManagePriors
 from inferelator.regression.base_regression import _RegressionWorkflowMixin
-from inferelator.postprocessing.results_processor import ResultsProcessor
+from inferelator.postprocessing import ResultsProcessor, InferelatorResults
 
 SBATCH_VARS_FOR_WORKFLOW = ["output_dir", "input_dir"]
 
@@ -705,13 +705,46 @@ class WorkflowBase(WorkflowBaseLoader):
             inferred gene regulatory network. "keep_all_gold_standard" will score on the entire gold standard.
             Defaults to "keep_all_gold_standard".
         :type gold_standard_filter_method: str
-        :param metric: The model metric to use for scoring. Currently only "precision-recall" is implemented.
-            Defaults to "precision-recall".
+        :param metric: The model metric to use for scoring. Supports "precision-recall", "mcc", "f1", and "combined"
+            Defaults to "combined".
         :type metric: str
         """
 
         self._set_with_warning("gold_standard_filter_method", gold_standard_filter_method)
         self._set_with_warning("metric", metric)
+
+    @staticmethod
+    def set_output_file_names(network_file_name="", confidence_file_name="", nonzero_coefficient_file_name="",
+                              pdf_curve_file_name="", curve_data_file_name=""):
+        """
+        Set output file names
+
+        :param network_file_name: Long-format network TSV file with TF->Gene edge information.
+            Default is "network.tsv".
+        :type network_file_name: str
+        :param confidence_file_name: Genes x TFs TSV with confidence scores for each edge.
+            Default is "combined_confidences.tsv"
+        :type confidence_file_name: str
+        :param nonzero_coefficient_file_name: Genes x TFs TSV with the number of non-zero model coefficients for each
+            edge. Default is None (this file is not produced).
+        :type nonzero_coefficient_file_name: str
+        :param pdf_curve_file_name: PDF file with plotted curve(s). Default is "combined_metrics.pdf".
+        :type pdf_curve_file_name: str
+        :param curve_data_file_name: TSV file with the data used to plot curves.
+            Default is None (this file is not produced).
+        :type curve_data_file_name: str
+        """
+
+        if network_file_name != "":
+            InferelatorResults.network_file_name = network_file_name
+        if confidence_file_name != "":
+            InferelatorResults.confidence_file_name = confidence_file_name
+        if nonzero_coefficient_file_name != "":
+            InferelatorResults.threshold_file_name = nonzero_coefficient_file_name
+        if pdf_curve_file_name != "":
+            InferelatorResults.curve_file_name = pdf_curve_file_name
+        if curve_data_file_name != "":
+            InferelatorResults.curve_data_file_name = curve_data_file_name
 
     def set_run_parameters(self, num_bootstraps=None, random_seed=None, use_mkl=None):
         """

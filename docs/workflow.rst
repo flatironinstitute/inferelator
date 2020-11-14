@@ -15,7 +15,7 @@ Common Workflow
    :no-undoc-members:
 
 .. autoclass:: inferelator.workflow.WorkflowBase
-   :members: set_crossvalidation_parameters, set_shuffle_parameters, set_postprocessing_parameters, set_run_parameters, run
+   :members: set_crossvalidation_parameters, set_shuffle_parameters, set_postprocessing_parameters, set_run_parameters, set_output_file_names, run
    :no-undoc-members:
 
 Transcription Factor Activity (TFA) Workflow

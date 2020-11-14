@@ -6,15 +6,18 @@ Inferelator v0.5.0 `December, 1 2020`
 
 New Functionality:
 
-- Changed output to include additional performance metrics
+- Changed output to include additional performance metrics (Matthews Correlation Coefficient and F1)
 
 Bug Fixes:
 
 - Fixed several bugs around data loading
+- Fixed several float tolerance bugs
 
 Code Refactoring:
 
 - Added additional tests
+- Improved dask cluster configurations
+- Improved documentation
 
 Inferelator v0.4.1 `August, 4 2020`
 --------------------------------------
