@@ -1,7 +1,7 @@
 Change Log
 ==========
 
-Inferelator v0.5.0 `December, 1 2020`
+Inferelator v0.5.0 `November 14, 2020`
 --------------------------------------
 
 New Functionality:
@@ -19,7 +19,7 @@ Code Refactoring:
 - Improved dask cluster configurations
 - Improved documentation
 
-Inferelator v0.4.1 `August, 4 2020`
+Inferelator v0.4.1 `August 4, 2020`
 --------------------------------------
 
 New Functionality:
@@ -35,7 +35,7 @@ Code Refactoring:
 
 - Added additional tests
 
-Inferelator v0.4.0 `April, 7 2020`
+Inferelator v0.4.0 `April 7, 2020`
 --------------------------------------
 
 New Functionality:
