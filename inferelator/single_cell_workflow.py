@@ -12,7 +12,7 @@ from inferelator import utils
 PREPROCESSING_FUNCTIONS = {"log2": single_cell.log2_data,
                            "ln": single_cell.ln_data,
                            "log10": single_cell.log10_data,
-                           "fft": single_cell.tf_sqrt_data}
+                           "ftt": single_cell.tf_sqrt_data}
 
 
 class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):

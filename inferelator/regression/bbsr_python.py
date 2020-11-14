@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import scipy.stats
 
 from inferelator import utils
 from inferelator.regression import bayes_stats
@@ -162,9 +161,11 @@ class BBSR(base_regression.BaseRegression):
         return weights_mat.mask(p_matrix != 0, other=p_weight)
 
 
-class BBSRRegressionWorkflow(base_regression.RegressionWorkflow):
+class BBSRRegressionWorkflowMixin(base_regression._RegressionWorkflowMixin):
     """
-    Add BBSR regression into a workflow object
+    Bayesian Best Subset Regression (BBSR)
+
+    https://doi.org/10.15252/msb.20156236
     """
 
     mi_driver = mi.MIDriver
@@ -180,10 +181,18 @@ class BBSRRegressionWorkflow(base_regression.RegressionWorkflow):
                                   ordinary_least_squares_only=None):
         """
         Set regression parameters for BBSR
-        :param prior_weight:
-        :param no_prior_weight:
-        :param bsr_feature_num:
-        :param clr_only:
+
+        :param prior_weight: Weight for edges that are present in the prior network. Defaults to 1.
+        :type prior_weight: float
+        :param no_prior_weight: Weight for edges that are not present in the prior network. Defaults to 1.
+        :type no_prior_weight: float
+        :param bsr_feature_num: The number of features to include in best subset regression. Defaults to 10.
+        :type bsr_feature_num: int
+        :param clr_only: Only use Context Likelihood of Relatedness to select features for BSR, not prior edges.
+            Defaults to False.
+        :type clr_only: bool
+        :param ordinary_least_squares_only: Use OLS instead of Bayesian regression, for testing. Defaults to False.
+        :type ordinary_least_squares_only: bool
         """
 
         self._set_with_warning("prior_weight", prior_weight)

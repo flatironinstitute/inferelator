@@ -4,16 +4,18 @@ Test base workflow stepwise.
 
 import unittest
 import os
-import sys
 import tempfile
 import shutil
 import numpy as np
 import pandas as pd
+import anndata as ad
+import scipy.sparse as sps
 import pandas.testing as pdt
+import numpy.testing as npt
 
 from inferelator import workflow
 from inferelator import default
-from inferelator.regression.base_regression import RegressionWorkflow
+from inferelator.regression.base_regression import _RegressionWorkflowMixin
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.preprocessing.metadata_parser import MetadataParserBranching
 
@@ -257,6 +259,27 @@ class TestWorkflowLoadData(unittest.TestCase):
         self.assertListEqual(self.workflow.gold_standard.columns.tolist(), self.workflow.tf_names)
         self.assertTrue(all(self.workflow.data.gene_names == self.workflow.gold_standard.index))
 
+    def test_load_to_h5ad(self):
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+
+            dname = os.path.join(tmpdir, "dense.h5ad")
+            sname = os.path.join(tmpdir, "sparse.h5ad")
+
+            self.workflow.output_dir = tmpdir
+            self.workflow.load_data_and_save_h5ad("dense.h5ad")
+
+            data = ad.read_h5ad(dname)
+            npt.assert_array_almost_equal_nulp(data.X, self.workflow.data.values)
+            os.remove(dname)
+
+            self.workflow.load_data_and_save_h5ad("sparse.h5ad", to_sparse=True)
+
+            data = ad.read_h5ad(sname)
+            self.assertTrue(sps.isspmatrix_csr(data.X))
+            npt.assert_array_almost_equal_nulp(data.X.A, self.workflow.data.values.A)
+            os.remove(sname)
+
 
 class TestWorkflowFunctions(unittest.TestCase):
     data = None
@@ -436,20 +459,20 @@ class TestWorkflowFactory(unittest.TestCase):
             worker.run()
 
     def test_bbsr(self):
-        from inferelator.regression.bbsr_python import BBSRRegressionWorkflow
+        from inferelator.regression.bbsr_python import BBSRRegressionWorkflowMixin
         worker = workflow.inferelator_workflow(regression="bbsr", workflow=workflow.WorkflowBase)
-        self.assertTrue(isinstance(worker, BBSRRegressionWorkflow))
+        self.assertTrue(isinstance(worker, BBSRRegressionWorkflowMixin))
 
     def test_elasticnet(self):
-        from inferelator.regression.elasticnet_python import ElasticNetWorkflow
+        from inferelator.regression.elasticnet_python import ElasticNetWorkflowMixin
         worker = workflow.inferelator_workflow(regression="elasticnet", workflow=workflow.WorkflowBase)
-        self.assertTrue(isinstance(worker, ElasticNetWorkflow))
+        self.assertTrue(isinstance(worker, ElasticNetWorkflowMixin))
 
     def test_amusr(self):
-        from inferelator.regression.amusr_regression import AMUSRRegressionWorkflow
+        from inferelator.regression.amusr_regression import AMUSRRegressionWorkflowMixin
         from inferelator.amusr_workflow import MultitaskLearningWorkflow
         worker = workflow.inferelator_workflow(regression="amusr", workflow="amusr")
-        self.assertTrue(isinstance(worker, AMUSRRegressionWorkflow))
+        self.assertTrue(isinstance(worker, AMUSRRegressionWorkflowMixin))
         self.assertTrue(isinstance(worker, MultitaskLearningWorkflow))
 
     def test_bad_inputs(self):
@@ -458,18 +481,18 @@ class TestWorkflowFactory(unittest.TestCase):
         with self.assertRaises(ValueError):
             worker = workflow.inferelator_workflow(regression=1, workflow=workflow.WorkflowBase)
         with self.assertRaises(ValueError):
-            worker = workflow.inferelator_workflow(regression=RegressionWorkflow, workflow="restlne")
+            worker = workflow.inferelator_workflow(regression=_RegressionWorkflowMixin, workflow="restlne")
         with self.assertRaises(ValueError):
-            worker = workflow.inferelator_workflow(regression=RegressionWorkflow, workflow=None)
+            worker = workflow.inferelator_workflow(regression=_RegressionWorkflowMixin, workflow=None)
         with self.assertRaises(ValueError):
-            worker = workflow.inferelator_workflow(regression=RegressionWorkflow, workflow=1)
+            worker = workflow.inferelator_workflow(regression=_RegressionWorkflowMixin, workflow=1)
 
     def test_tfa(self):
         from inferelator.tfa_workflow import TFAWorkFlow
-        worker = workflow.inferelator_workflow(regression=RegressionWorkflow, workflow="tfa")
+        worker = workflow.inferelator_workflow(regression=_RegressionWorkflowMixin, workflow="tfa")
         self.assertTrue(isinstance(worker, TFAWorkFlow))
 
     def test_singlecell(self):
         from inferelator.single_cell_workflow import SingleCellWorkflow
-        worker = workflow.inferelator_workflow(regression=RegressionWorkflow, workflow="single-cell")
+        worker = workflow.inferelator_workflow(regression=_RegressionWorkflowMixin, workflow="single-cell")
         self.assertTrue(isinstance(worker, SingleCellWorkflow))

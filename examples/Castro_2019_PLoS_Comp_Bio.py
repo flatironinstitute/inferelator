@@ -1,12 +1,9 @@
 # Load modules
-from inferelator import utils
-from inferelator.distributed.inferelator_mp import MPControl
-
-from inferelator import workflow
-from inferelator.crossvalidation_workflow import CrossValidationManager
+from inferelator import inferelator_workflow, inferelator_verbose_level, MPControl, CrossValidationManager
 
 # Set verbosity level to "Talky"
-utils.Debug.set_verbose_level(1)
+inferelator_verbose_level(1)
+
 
 # Set the location of the input data and the desired location of the output files
 
@@ -49,7 +46,8 @@ cv_wrap = CrossValidationManager()
 cv_wrap.add_gridsearch_parameter('random_seed', CV_SEEDS)
 
 # Create a worker
-worker = workflow.inferelator_workflow(regression="bbsr", workflow="tfa")
+worker = inferelator_workflow(regression="bbsr", workflow="tfa")
+
 worker.set_file_paths(input_dir=DATA_DIR,
                       output_dir=OUTPUT_DIR,
                       expression_matrix_file=BSUBTILIS_1_EXPRESSION,
@@ -58,6 +56,7 @@ worker.set_file_paths(input_dir=DATA_DIR,
                       priors_file=PRIORS_FILE_NAME,
                       gold_standard_file=GOLD_STANDARD_FILE_NAME)
 worker.set_file_properties(expression_matrix_columns_are_genes=False)
+
 worker.set_run_parameters(num_bootstraps=5)
 worker.set_crossvalidation_parameters(split_gold_standard_for_crossvalidation=True, cv_split_ratio=0.2)
 worker.append_to_path("output_dir", "bsubtilis_1")
@@ -80,7 +79,8 @@ cv_wrap = CrossValidationManager()
 cv_wrap.add_gridsearch_parameter('random_seed', CV_SEEDS)
 
 # Create a worker
-worker = workflow.inferelator_workflow(regression="bbsr", workflow="tfa")
+worker = inferelator_workflow(regression="bbsr", workflow="tfa")
+
 worker.set_file_paths(input_dir=DATA_DIR,
                       output_dir=OUTPUT_DIR,
                       expression_matrix_file=BSUBTILIS_2_EXPRESSION,
@@ -89,6 +89,7 @@ worker.set_file_paths(input_dir=DATA_DIR,
                       priors_file=PRIORS_FILE_NAME,
                       gold_standard_file=GOLD_STANDARD_FILE_NAME)
 worker.set_file_properties(expression_matrix_columns_are_genes=False)
+
 worker.set_run_parameters(num_bootstraps=5)
 worker.set_crossvalidation_parameters(split_gold_standard_for_crossvalidation=True, cv_split_ratio=0.2)
 worker.append_to_path("output_dir", "bsubtilis_2")
@@ -112,23 +113,29 @@ cv_wrap = CrossValidationManager()
 cv_wrap.add_gridsearch_parameter('random_seed', CV_SEEDS)
 
 # Create a worker
-worker = workflow.inferelator_workflow(regression="bbsr-by-task", workflow="multitask")
+worker = inferelator_workflow(regression="bbsr-by-task", workflow="multitask")
 worker.set_file_paths(input_dir=DATA_DIR, output_dir=OUTPUT_DIR,
                       gold_standard_file=GOLD_STANDARD_FILE_NAME)
-worker.create_task(task_name="Bsubtilis_1",
-                   input_dir=DATA_DIR,
-                   expression_matrix_file=BSUBTILIS_1_EXPRESSION,
-                   tf_names_file=TF_LIST_FILE_NAME,
-                   meta_data_file=BSUBTILIS_1_METADATA,
-                   priors_file=PRIORS_FILE_NAME,
-                   workflow_type="tfa")
-worker.create_task(task_name="Bsubtilis_2",
-                   input_dir=DATA_DIR,
-                   expression_matrix_file=BSUBTILIS_2_EXPRESSION,
-                   tf_names_file=TF_LIST_FILE_NAME,
-                   meta_data_file=BSUBTILIS_2_METADATA,
-                   priors_file=PRIORS_FILE_NAME,
-                   workflow_type="tfa")
+
+# Create tasks
+task1 = worker.create_task(task_name="Bsubtilis_1",
+                           input_dir=DATA_DIR,
+                           expression_matrix_file=BSUBTILIS_1_EXPRESSION,
+                           tf_names_file=TF_LIST_FILE_NAME,
+                           meta_data_file=BSUBTILIS_1_METADATA,
+                           priors_file=PRIORS_FILE_NAME,
+                           workflow_type="tfa")
+task1.set_file_properties(expression_matrix_columns_are_genes=False)
+
+task2 = worker.create_task(task_name="Bsubtilis_2",
+                           input_dir=DATA_DIR,
+                           expression_matrix_file=BSUBTILIS_2_EXPRESSION,
+                           tf_names_file=TF_LIST_FILE_NAME,
+                           meta_data_file=BSUBTILIS_2_METADATA,
+                           priors_file=PRIORS_FILE_NAME,
+                           workflow_type="tfa")
+task2.set_file_properties(expression_matrix_columns_are_genes=False)
+
 worker.set_run_parameters(num_bootstraps=5)
 worker.set_crossvalidation_parameters(split_gold_standard_for_crossvalidation=True, cv_split_ratio=0.2)
 worker.append_to_path("output_dir", "bsubtilis_1_2_STL")
@@ -151,23 +158,29 @@ cv_wrap = CrossValidationManager()
 cv_wrap.add_gridsearch_parameter('random_seed', CV_SEEDS)
 
 # Create a worker
-worker = workflow.inferelator_workflow(regression="amusr", workflow="multitask")
+worker = inferelator_workflow(regression="amusr", workflow="multitask")
 worker.set_file_paths(input_dir=DATA_DIR, output_dir=OUTPUT_DIR,
                       gold_standard_file=GOLD_STANDARD_FILE_NAME)
-worker.create_task(task_name="Bsubtilis_1",
-                   input_dir=DATA_DIR,
-                   expression_matrix_file=BSUBTILIS_1_EXPRESSION,
-                   tf_names_file=TF_LIST_FILE_NAME,
-                   meta_data_file=BSUBTILIS_1_METADATA,
-                   priors_file=PRIORS_FILE_NAME,
-                   workflow_type="tfa")
-worker.create_task(task_name="Bsubtilis_2",
-                   input_dir=DATA_DIR,
-                   expression_matrix_file=BSUBTILIS_2_EXPRESSION,
-                   tf_names_file=TF_LIST_FILE_NAME,
-                   meta_data_file=BSUBTILIS_2_METADATA,
-                   priors_file=PRIORS_FILE_NAME,
-                   workflow_type="tfa")
+
+# Create tasks
+task1 = worker.create_task(task_name="Bsubtilis_1",
+                           input_dir=DATA_DIR,
+                           expression_matrix_file=BSUBTILIS_1_EXPRESSION,
+                           tf_names_file=TF_LIST_FILE_NAME,
+                           meta_data_file=BSUBTILIS_1_METADATA,
+                           priors_file=PRIORS_FILE_NAME,
+                           workflow_type="tfa")
+task1.set_file_properties(expression_matrix_columns_are_genes=False)
+
+task2 = worker.create_task(task_name="Bsubtilis_2",
+                           input_dir=DATA_DIR,
+                           expression_matrix_file=BSUBTILIS_2_EXPRESSION,
+                           tf_names_file=TF_LIST_FILE_NAME,
+                           meta_data_file=BSUBTILIS_2_METADATA,
+                           priors_file=PRIORS_FILE_NAME,
+                           workflow_type="tfa")
+task2.set_file_properties(expression_matrix_columns_are_genes=False)
+
 worker.set_run_parameters(num_bootstraps=5)
 worker.set_crossvalidation_parameters(split_gold_standard_for_crossvalidation=True, cv_split_ratio=0.2)
 worker.append_to_path("output_dir", "bsubtilis_1_2_MTL")
@@ -180,23 +193,28 @@ cv_wrap.run()
 
 # Final network
 # Create a worker
-worker = workflow.inferelator_workflow(regression="amusr", workflow="multitask")
+worker = inferelator_workflow(regression="amusr", workflow="multitask")
 worker.set_file_paths(input_dir=DATA_DIR, output_dir=OUTPUT_DIR,
                       gold_standard_file=GOLD_STANDARD_FILE_NAME)
-worker.create_task(task_name="Bsubtilis_1",
-                   input_dir=DATA_DIR,
-                   expression_matrix_file=BSUBTILIS_1_EXPRESSION,
-                   tf_names_file=TF_LIST_FILE_NAME,
-                   meta_data_file=BSUBTILIS_1_METADATA,
-                   priors_file=PRIORS_FILE_NAME,
-                   workflow_type="tfa")
-worker.create_task(task_name="Bsubtilis_2",
-                   input_dir=DATA_DIR,
-                   expression_matrix_file=BSUBTILIS_2_EXPRESSION,
-                   tf_names_file=TF_LIST_FILE_NAME,
-                   meta_data_file=BSUBTILIS_2_METADATA,
-                   priors_file=PRIORS_FILE_NAME,
-                   workflow_type="tfa")
+# Create tasks
+task1 = worker.create_task(task_name="Bsubtilis_1",
+                           input_dir=DATA_DIR,
+                           expression_matrix_file=BSUBTILIS_1_EXPRESSION,
+                           tf_names_file=TF_LIST_FILE_NAME,
+                           meta_data_file=BSUBTILIS_1_METADATA,
+                           priors_file=PRIORS_FILE_NAME,
+                           workflow_type="tfa")
+task1.set_file_properties(expression_matrix_columns_are_genes=False)
+
+task2 = worker.create_task(task_name="Bsubtilis_2",
+                           input_dir=DATA_DIR,
+                           expression_matrix_file=BSUBTILIS_2_EXPRESSION,
+                           tf_names_file=TF_LIST_FILE_NAME,
+                           meta_data_file=BSUBTILIS_2_METADATA,
+                           priors_file=PRIORS_FILE_NAME,
+                           workflow_type="tfa")
+task2.set_file_properties(expression_matrix_columns_are_genes=False)
+
 worker.set_crossvalidation_parameters(split_gold_standard_for_crossvalidation=False, cv_split_ratio=None)
 worker.append_to_path("output_dir", "MTL_Final")
 worker.set_run_parameters(num_bootstraps=50, random_seed=100)

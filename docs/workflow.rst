@@ -1,24 +1,25 @@
 Workflows
 =====================
 
-inferelator.workflow module
----------------------------
+Workflow Constructor
+--------------------
 .. automodule:: inferelator.workflow
    :members: inferelator_workflow
    :no-undoc-members:
 
+
+Common Workflow
+---------------------------
 .. autoclass:: inferelator.workflow.WorkflowBaseLoader
    :members: set_file_paths, set_expression_file, set_file_properties, set_network_data_flags, set_file_loading_arguments, print_file_loading_arguments, append_to_path
    :no-undoc-members:
-   :show-inheritance:
 
 .. autoclass:: inferelator.workflow.WorkflowBase
-   :members: set_crossvalidation_parameters, set_shuffle_parameters, set_postprocessing_parameters, set_run_parameters, run
+   :members: set_crossvalidation_parameters, set_shuffle_parameters, set_postprocessing_parameters, set_run_parameters, set_output_file_names, run
    :no-undoc-members:
-   :show-inheritance:
 
-inferelator.tfa\_workflow module
---------------------------------
+Transcription Factor Activity (TFA) Workflow
+--------------------------------------------
 
 .. automodule:: inferelator.tfa_workflow
    :no-members:
@@ -29,8 +30,8 @@ inferelator.tfa\_workflow module
    :no-undoc-members:
    :show-inheritance:
 
-inferelator.single\_cell\_workflow module
------------------------------------------
+Single-Cell Workflow
+--------------------
 
 .. automodule:: inferelator.single_cell_workflow
    :no-members:
@@ -41,8 +42,8 @@ inferelator.single\_cell\_workflow module
    :no-undoc-members:
    :show-inheritance:
 
-inferelator.amusr\_workflow module
-----------------------------------
+Multi-Task AMuSR Workflow
+-------------------------
 
 .. automodule:: inferelator.amusr_workflow
    :no-members:
@@ -54,8 +55,8 @@ inferelator.amusr\_workflow module
    :show-inheritance:
 
 
-inferelator.crossvalidation\_workflow module
---------------------------------------------
+Cross-Validation Workflow Wrapper
+---------------------------------
 
 .. automodule:: inferelator.crossvalidation_workflow
    :no-members:

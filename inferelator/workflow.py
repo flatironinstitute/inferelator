@@ -1,10 +1,5 @@
 """
-Base implementation for high level Inferelator workflow.
-
-The base workflow has functions for loading and managing data,
-but does not have any functions for regression or analysis
-
-The functions in these classes are available in all subclassed workflows
+Construct inferelator workflows from preprocessing, postprocessing, and regression modules
 """
 from __future__ import unicode_literals, print_function
 
@@ -17,11 +12,12 @@ import copy
 import numpy as np
 import pandas as pd
 
-from inferelator.utils import Debug, InferelatorDataLoader, DEFAULT_PANDAS_TSV_SETTINGS, slurm_envs, is_string
+from inferelator.utils import (Debug, InferelatorDataLoader, DEFAULT_PANDAS_TSV_SETTINGS, slurm_envs, is_string,
+                               DotProduct)
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.preprocessing.priors import ManagePriors
-from inferelator.regression.base_regression import RegressionWorkflow
-from inferelator.postprocessing.results_processor import ResultsProcessor
+from inferelator.regression.base_regression import _RegressionWorkflowMixin
+from inferelator.postprocessing import ResultsProcessor, InferelatorResults
 
 SBATCH_VARS_FOR_WORKFLOW = ["output_dir", "input_dir"]
 
@@ -386,9 +382,8 @@ class WorkflowBaseLoader(object):
 
         current_value = getattr(self, attr_name)
         if current_value is not None:
-            warnings.warn("Setting {a}: replacing value {vo} with value {vn}".format(a=attr_name,
-                                                                                     vo=current_value,
-                                                                                     vn=value))
+            _msg = "Setting {a}: replacing value {vo} with value {vn}".format(a=attr_name, vo=current_value, vn=value)
+            warnings.warn(_msg)
 
         setattr(self, attr_name, value)
 
@@ -471,6 +466,8 @@ class WorkflowBaseLoader(object):
                                               meta_data_handler=self.metadata_handler,
                                               gene_data_file=gene_data_file,
                                               gene_name_column=self.gene_list_index)
+
+        self.data.name = "Expression"
 
     def read_tfs(self, file=None):
         """
@@ -572,6 +569,24 @@ class WorkflowBaseLoader(object):
         """
         return InferelatorDataLoader.filename_path_join(self.output_dir, filename)
 
+    def load_data_and_save_h5ad(self, output_file_name, to_sparse=False):
+        """
+        Load the workflow data and then save it to an h5ad file
+
+        :param output_file_name: A path to the output file
+        :type output_file_name: str
+        :param to_sparse: Convert the data to sparse prior to saving it
+        :type to_sparse: bool
+        """
+
+        self.read_expression()
+        self.read_tfs()
+
+        if to_sparse and not self.data.is_sparse:
+            self.data.to_sparse()
+
+        self.data.to_h5ad(self.output_path(output_file_name), compression="gzip")
+
     @staticmethod
     def _create_null_prior(gene_names, tf_names):
         """
@@ -620,6 +635,9 @@ class WorkflowBase(WorkflowBaseLoader):
     # The number of inference bootstraps to run
     num_bootstraps = 2
 
+    # Use the Intel MKL libraries for matrix multiplication
+    use_mkl = None
+
     # Multiprocessing controller
     initialize_mp = True
     multiprocessing_controller = None
@@ -630,7 +648,7 @@ class WorkflowBase(WorkflowBaseLoader):
     # Result processing & model metrics
     _result_processor_driver = ResultsProcessor
     gold_standard_filter_method = "keep_all_gold_standard"
-    metric = "aupr"
+    metric = "combined"
 
     # Output results in an InferelatorResults object
     results = None
@@ -687,15 +705,48 @@ class WorkflowBase(WorkflowBaseLoader):
             inferred gene regulatory network. "keep_all_gold_standard" will score on the entire gold standard.
             Defaults to "keep_all_gold_standard".
         :type gold_standard_filter_method: str
-        :param metric: The model metric to use for scoring. Currently only "precision-recall" is implemented.
-            Defaults to "precision-recall".
+        :param metric: The model metric to use for scoring. Supports "precision-recall", "mcc", "f1", and "combined"
+            Defaults to "combined".
         :type metric: str
         """
 
         self._set_with_warning("gold_standard_filter_method", gold_standard_filter_method)
         self._set_with_warning("metric", metric)
 
-    def set_run_parameters(self, num_bootstraps=None, random_seed=None):
+    @staticmethod
+    def set_output_file_names(network_file_name="", confidence_file_name="", nonzero_coefficient_file_name="",
+                              pdf_curve_file_name="", curve_data_file_name=""):
+        """
+        Set output file names
+
+        :param network_file_name: Long-format network TSV file with TF->Gene edge information.
+            Default is "network.tsv".
+        :type network_file_name: str
+        :param confidence_file_name: Genes x TFs TSV with confidence scores for each edge.
+            Default is "combined_confidences.tsv"
+        :type confidence_file_name: str
+        :param nonzero_coefficient_file_name: Genes x TFs TSV with the number of non-zero model coefficients for each
+            edge. Default is None (this file is not produced).
+        :type nonzero_coefficient_file_name: str
+        :param pdf_curve_file_name: PDF file with plotted curve(s). Default is "combined_metrics.pdf".
+        :type pdf_curve_file_name: str
+        :param curve_data_file_name: TSV file with the data used to plot curves.
+            Default is None (this file is not produced).
+        :type curve_data_file_name: str
+        """
+
+        if network_file_name != "":
+            InferelatorResults.network_file_name = network_file_name
+        if confidence_file_name != "":
+            InferelatorResults.confidence_file_name = confidence_file_name
+        if nonzero_coefficient_file_name != "":
+            InferelatorResults.threshold_file_name = nonzero_coefficient_file_name
+        if pdf_curve_file_name != "":
+            InferelatorResults.curve_file_name = pdf_curve_file_name
+        if curve_data_file_name != "":
+            InferelatorResults.curve_data_file_name = curve_data_file_name
+
+    def set_run_parameters(self, num_bootstraps=None, random_seed=None, use_mkl=None):
         """
         Set parameters used during runtime
 
@@ -703,10 +754,13 @@ class WorkflowBase(WorkflowBaseLoader):
         :type num_bootstraps: int
         :param random_seed: The random number seed to use. Defaults to 42.
         :type random_seed: int
+        :param use_mkl: A flag to indicate if the intel MKL library should be used for matrix multiplication
+        :type use_mkl: bool
         """
 
         self._set_without_warning("num_bootstraps", num_bootstraps)
         self._set_without_warning("random_seed", random_seed)
+        self._set_without_warning("use_mkl", use_mkl)
 
     def initialize_multiprocessing(self):
         """
@@ -727,8 +781,12 @@ class WorkflowBase(WorkflowBaseLoader):
         """
         Startup by preprocessing all data into a ready format for regression.
         """
+
+        DotProduct.set_mkl(self.use_mkl)
+
         if self.initialize_mp and not MPControl.is_initialized:
             self.initialize_multiprocessing()
+
         self.startup_run()
         self.startup_finish()
 
@@ -789,10 +847,6 @@ class WorkflowBase(WorkflowBaseLoader):
         Filter the priors and expression matrix to just genes in gene_metadata
         """
 
-        # Most operations will be column-wise; change sparse type if needed here
-        Debug.vprint("Preparing to trim expression matrix", level=2)
-        self.data.to_csc()
-
         Debug.vprint("Trimming expression matrix", level=1)
         self.data.trim_genes(trim_gene_list=self.gene_names)
         self.priors_data = self.prior_manager.filter_priors_to_genes(self.priors_data, self.data.gene_names)
@@ -846,7 +900,7 @@ class WorkflowBase(WorkflowBaseLoader):
         raise NotImplementedError("This workflow does not support multiple tasks")
 
 
-def _factory_build_inferelator(regression=RegressionWorkflow, workflow=WorkflowBase):
+def _factory_build_inferelator(regression=_RegressionWorkflowMixin, workflow=WorkflowBase):
     """
     This is the factory method to create workflow classes that combine preprocessing and postprocessing (from workflow)
     with a regression method (from regression)
@@ -861,9 +915,12 @@ def _factory_build_inferelator(regression=RegressionWorkflow, workflow=WorkflowB
         the preprocessing/postprocessing workflow
     """
 
+    use_mtl_regression = False
+
     # Decide which preprocessing/postprocessing workflow to use
     # String arguments are parsed for convenience in the run script
     if is_string(workflow):
+        workflow = workflow.lower()
         if workflow == "base":
             workflow_class = WorkflowBase
         elif workflow == "tfa":
@@ -872,9 +929,13 @@ def _factory_build_inferelator(regression=RegressionWorkflow, workflow=WorkflowB
         elif workflow == "amusr" or workflow == "multitask":
             from inferelator.amusr_workflow import MultitaskLearningWorkflow
             workflow_class = MultitaskLearningWorkflow
+            use_mtl_regression = True
         elif workflow == "single-cell":
             from inferelator.single_cell_workflow import SingleCellWorkflow
             workflow_class = SingleCellWorkflow
+        elif workflow == "velocity":
+            from inferelator.velocity_workflow import VelocityWorkflow
+            workflow_class = VelocityWorkflow
         else:
             raise ValueError("{val} is not a string that can be mapped to a workflow class".format(val=workflow))
     # Or just use a workflow class directly
@@ -889,27 +950,40 @@ def _factory_build_inferelator(regression=RegressionWorkflow, workflow=WorkflowB
         return workflow_class
     # String arguments are parsed for convenience in the run script
     elif is_string(regression):
+        regression = regression.lower()
         if regression == "base":
-            regression_class = RegressionWorkflow
-        elif regression == "bbsr":
-            from inferelator.regression.bbsr_python import BBSRRegressionWorkflow
-            regression_class = BBSRRegressionWorkflow
-        elif regression == "elasticnet":
-            from inferelator.regression.elasticnet_python import ElasticNetWorkflow
-            regression_class = ElasticNetWorkflow
+            regression_class = _RegressionWorkflowMixin
+        elif regression == "bbsr" and not use_mtl_regression:
+            from inferelator.regression.bbsr_python import BBSRRegressionWorkflowMixin
+            regression_class = BBSRRegressionWorkflowMixin
+        elif regression == "elasticnet" and not use_mtl_regression:
+            from inferelator.regression.elasticnet_python import ElasticNetWorkflowMixin
+            regression_class = ElasticNetWorkflowMixin
         elif regression == "amusr":
-            from inferelator.regression.amusr_regression import AMUSRRegressionWorkflow
-            regression_class = AMUSRRegressionWorkflow
-        elif regression == "bbsr-by-task":
-            from inferelator.regression.bbsr_multitask import BBSRByTaskRegressionWorkflow
-            regression_class = BBSRByTaskRegressionWorkflow
-        elif regression == "elasticnet-by-task":
-            from inferelator.regression.elasticnet_multitask import ElasticNetByTaskRegressionWorkflow
-            regression_class = ElasticNetByTaskRegressionWorkflow
+            from inferelator.regression.amusr_regression import AMUSRRegressionWorkflowMixin
+            regression_class = AMUSRRegressionWorkflowMixin
+        elif regression == "bbsr-by-task" or (regression == "bbsr" and use_mtl_regression):
+            from inferelator.regression.bbsr_multitask import BBSRByTaskRegressionWorkflowMixin
+            regression_class = BBSRByTaskRegressionWorkflowMixin
+        elif regression == "elasticnet-by-task" or (regression == "elasticnet" and use_mtl_regression):
+            from inferelator.regression.elasticnet_python import ElasticNetByTaskRegressionWorkflowMixin
+            regression_class = ElasticNetByTaskRegressionWorkflowMixin
+        elif regression == "stars-by-task" or (regression == "stars" and use_mtl_regression):
+            from inferelator.regression.stability_selection import StARSWorkflowByTaskMixin
+            regression_class = StARSWorkflowByTaskMixin
+        elif regression == "stars":
+            from inferelator.regression.stability_selection import StARSWorkflowMixin
+            regression_class = StARSWorkflowMixin
+        elif regression == "sklearn" and not use_mtl_regression:
+            from inferelator.regression.sklearn_regression import SKLearnWorkflowMixin
+            regression_class = SKLearnWorkflowMixin
+        elif regression == "sklearn" and use_mtl_regression:
+            from inferelator.regression.sklearn_regression import SKLearnByTaskMixin
+            regression_class = SKLearnByTaskMixin
         else:
             raise ValueError("{val} is not a string that can be mapped to a regression class".format(val=regression))
     # Or just use a regression class directly
-    elif inspect.isclass(regression) and issubclass(regression, RegressionWorkflow):
+    elif inspect.isclass(regression) and issubclass(regression, _RegressionWorkflowMixin):
         regression_class = regression
     else:
         raise ValueError("Regression must be a string that maps to a regression class or an actual regression class")
@@ -920,7 +994,7 @@ def _factory_build_inferelator(regression=RegressionWorkflow, workflow=WorkflowB
     return RegressWorkflow
 
 
-def inferelator_workflow(regression=RegressionWorkflow, workflow=WorkflowBase):
+def inferelator_workflow(regression=_RegressionWorkflowMixin, workflow=WorkflowBase):
     """
     Create and instantiate an Inferelator workflow.
 
@@ -932,6 +1006,10 @@ def inferelator_workflow(regression=RegressionWorkflow, workflow=WorkflowBase):
         "bbsr" loads Bayesian Best Subset Regression.
 
         "elasticnet" loads Elastic Net Regression.
+
+        "sklearn" loads scikit-learn Regression.
+
+        "stars" loads the StARS stability Regression.
 
         "amusr" loads AMuSR Regression. This requires multitask workflow.
 
@@ -955,9 +1033,9 @@ def inferelator_workflow(regression=RegressionWorkflow, workflow=WorkflowBase):
 
         Defaults to "base".
     :type workflow: str, WorkflowBase subclass
-    :return: This returns an initialized object which is the multi-inheritance result of both the regression workflow
-        and the preprocessing/postprocessing workflow. This object can then have settings assigned to it, and can
-        be run with `.run()`
+    :return: This returns an initialized object which has both the regression workflow and the
+        preprocessing/postprocessing workflow. This object can then have settings assigned to it, and can be run
+        with `.run()`
     :rtype: Workflow instance
     """
     return _factory_build_inferelator(regression=regression, workflow=workflow)()

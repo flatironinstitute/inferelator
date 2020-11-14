@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 from copy import deepcopy
 from scipy.special import comb
-from scipy.optimize import minimize
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
 
@@ -16,6 +15,8 @@ try:
     from itertools import izip as zip
 except ImportError:
     pass
+
+DEFAULT_prior_weight = 1
 
 
 class AMuSR_OneGene:
@@ -472,23 +473,26 @@ def weight_prior(prior, prior_weight):
     return prior
 
 
-class _MultitaskRegressionWorkflow(base_regression.RegressionWorkflow):
+class AMUSRRegressionWorkflowMixin(base_regression._MultitaskRegressionWorkflowMixin):
+    """
+    Multi-Task AMuSR regression
 
-    def run_regression(self):
+    https://doi.org/10.1371/journal.pcbi.1006591
+    """
 
-        betas = [[] for _ in range(self._n_tasks)]
-        rescaled_betas = [[] for _ in range(self._n_tasks)]
+    prior_weight = default.DEFAULT_prior_weight
 
-        for idx in range(self.num_bootstraps):
-            utils.Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps), level=0)
-            current_betas, current_rescaled_betas = self.run_bootstrap(idx)
+    def set_regression_parameters(self, prior_weight=None):
+        """
+        Set regression parameters for AmUSR
 
-            if self.is_master():
-                for k in range(self._n_tasks):
-                    betas[k].append(current_betas[k])
-                    rescaled_betas[k].append(current_rescaled_betas[k])
+        :param prior_weight: Weight for edges that are present in the prior network.
+            Non-prior edges have a weight of 1. Set this to 1 to weight prior and non-prior edges equally.
+            Defaults to 1.
+        :type prior_weight: numeric
+        """
 
-        return betas, rescaled_betas
+        self._set_with_warning("prior_weight", prior_weight)
 
     def run_bootstrap(self, bootstrap_idx):
         x, y = [], []
@@ -502,22 +506,6 @@ class _MultitaskRegressionWorkflow(base_regression.RegressionWorkflow):
         regress = AMuSR_regression(x, y, tfs=self._regulators, genes=self._targets, priors=self._task_priors,
                                    prior_weight=self.prior_weight)
         return regress.run()
-
-
-class AMUSRRegressionWorkflow(_MultitaskRegressionWorkflow):
-    """
-    Add AMuSR regression into a workflow object
-    """
-
-    prior_weight = default.DEFAULT_prior_weight
-
-    def set_regression_parameters(self, prior_weight=None):
-        """
-        Set regression parameters for AmUSR
-        :param prior_weight:
-        """
-
-        self._set_with_warning("prior_weight", prior_weight)
 
 
 def filter_genes_on_tasks(list_of_indexes, task_expression_filter):

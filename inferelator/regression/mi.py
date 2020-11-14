@@ -160,21 +160,21 @@ def calc_mixed_clr(mi, mi_bg):
 
     with np.errstate(invalid='ignore'):
 
-        # Calculate the zscore for columns
-        z_col = np.round(mi, 10)  # Rounding so that float precision differences don't turn into huge CLR differences
-        z_col = np.subtract(z_col, np.mean(mi_bg, axis=0))
-        z_col = np.divide(z_col, np.std(mi_bg, axis=0, ddof=CLR_DDOF))
+        # Calculate the zscore for the dynamic CLR
+        z_dyn = np.round(mi, 10)  # Rounding so that float precision differences don't turn into huge CLR differences
+        z_dyn = np.subtract(z_dyn, np.mean(mi, axis=0))
+        z_dyn = np.divide(z_dyn, np.std(mi, axis=0, ddof=CLR_DDOF))
 
-        # Calculate the zscore for rows
-        z_row = np.round(mi, 10)  # Rounding so that float precision differences don't turn into huge CLR differences
-        z_row = np.subtract(z_row, np.mean(mi_bg, axis=1))
-        z_row = np.divide(z_row, np.std(mi_bg, axis=1, ddof=CLR_DDOF))
+        # Calculate the zscore for the static CLR
+        z_stat = np.round(mi, 10)  # Rounding so that float precision differences don't turn into huge CLR differences
+        z_stat = np.subtract(z_stat, np.mean(mi_bg, axis=0))
+        z_stat = np.divide(z_stat, np.std(mi_bg, axis=0, ddof=CLR_DDOF))
 
-        z_col[z_col < 0] = 0
-        z_row[z_row < 0] = 0
+        z_dyn[z_dyn < 0] = 0
+        z_stat[z_stat < 0] = 0
 
     # Calculate CLR
-    return np.sqrt(np.square(z_col) + np.square(z_row))
+    return np.sqrt(np.square(z_dyn) + np.square(z_stat))
 
 
 def _make_array_discrete(array, num_bins, axis=0):

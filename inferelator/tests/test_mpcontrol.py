@@ -231,7 +231,7 @@ class TestDaskHPCMPController(TestMPControl):
     tempdir = None
 
     @classmethod
-    @unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
+    @unittest.skipIf(not TEST_DASK_CLUSTER, "Dask not installed")
     def setUpClass(cls):
         cls.tempdir = tempfile.mkdtemp()
         MPControl.shutdown()
@@ -257,16 +257,13 @@ class TestDaskHPCMPController(TestMPControl):
             clust._count_active_workers = types.MethodType(_count_active_workers, clust)
             return clust
 
-        MPControl.client.cluster_controller_class = types.MethodType(fake_cluster, MPControl.client)
-        MPControl.client.worker_memory_limit = '1gb'
-        MPControl.client.minimum_cores = 0
-        MPControl.client.maximum_cores = 0
-        MPControl.client.hack_cluster_controller_for_NYU = False
-        MPControl.client.local_directory = cls.tempdir
+        MPControl.client._cluster_controller_class = types.MethodType(fake_cluster, MPControl.client)
+        MPControl.client.set_job_size_params(n_jobs=1, n_cores_per_job=1, mem_per_job="1gb")
+        MPControl.client._local_directory = cls.tempdir
         MPControl.connect()
 
     @classmethod
-    @unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
+    @unittest.skipIf(not TEST_DASK_CLUSTER, "Dask not installed")
     def tearDownClass(cls):
         super(TestDaskHPCMPController, cls).tearDownClass()
         if cls.tempdir is not None:
@@ -292,13 +289,3 @@ class TestDaskHPCMPController(TestMPControl):
         old_command_2 = "dask-worker tcp://scheduler:port --nthreads 1 --nprocs 20 --memory-limit=4e9"
         new_command_2 = "dask-worker tcp://scheduler:port --nthreads 1 --nprocs 20 --memory-limit 0 "
         self.assertEqual(new_command_2, dask_cluster_controller.memory_limit_0(old_command_2))
-
-    def test_nyu_hack(self):
-        old_header = "\n".join(['export MKL_NUM_THREADS=1', 'export OPENBLAS_NUM_THREADS=1',
-                                'export NUMEXPR_NUM_THREADS=1', '#SBATCH --cpus-per-task=20'])
-        new_header = "\n".join(['export MKL_NUM_THREADS=1', 'export OPENBLAS_NUM_THREADS=1',
-                                'export NUMEXPR_NUM_THREADS=1', '#SBATCH --nodes=1', '#SBATCH --ntasks-per-node=1',
-                                '#SBATCH --cpus-per-task=20'])
-        self.assertEqual(new_header,
-                         dask_cluster_controller.fix_header_for_nyu(old_header,
-                                                                    dask_cluster_controller.DEFAULT_NYU_HEADER))

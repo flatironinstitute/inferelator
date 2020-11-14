@@ -1,18 +1,8 @@
-import os
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["NUMEXPR_NUM_THREADS"] = "1"
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["OPENBLAS_NUM_THREADS"] = "1"
-
 # Load modules
-from inferelator import utils
-from inferelator.distributed.inferelator_mp import MPControl
-
-from inferelator import workflow
-from inferelator.crossvalidation_workflow import CrossValidationManager
+from inferelator import inferelator_workflow, inferelator_verbose_level, MPControl, CrossValidationManager
 
 # Set verbosity level to "Talky"
-utils.Debug.set_verbose_level(1)
+inferelator_verbose_level(1)
 
 # Set the location of the input data and the desired location of the output files
 
@@ -67,7 +57,7 @@ def set_up_workflow(wkf):
 # Each run is seeded differently (and therefore has different holdouts)
 
 # Create a worker
-worker = workflow.inferelator_workflow(regression="bbsr", workflow="tfa")
+worker = inferelator_workflow(regression="bbsr", workflow="tfa")
 worker = set_up_workflow(worker)
 worker.append_to_path("output_dir", "bbsr")
 
@@ -86,7 +76,7 @@ cv_wrap.run()
 # Each run is seeded differently (and therefore has different holdouts)
 
 # Create a worker
-worker = workflow.inferelator_workflow(regression="elasticnet", workflow="tfa")
+worker = inferelator_workflow(regression="elasticnet", workflow="tfa")
 worker = set_up_workflow(worker)
 worker.append_to_path("output_dir", "elastic_net")
 
@@ -104,7 +94,7 @@ cv_wrap.add_gridsearch_parameter('random_seed', CV_SEEDS)
 cv_wrap.run()
 
 # Final network
-worker = workflow.inferelator_workflow(regression="bbsr", workflow="tfa")
+worker = inferelator_workflow(regression="bbsr", workflow="tfa")
 worker = set_up_workflow(worker)
 worker.append_to_path('output_dir', 'final')
 worker.set_crossvalidation_parameters(split_gold_standard_for_crossvalidation=False, cv_split_ratio=None)

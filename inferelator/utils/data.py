@@ -3,7 +3,6 @@ from __future__ import print_function, unicode_literals, division
 import copy as cp
 import gc
 import math
-import warnings
 import pandas as pd
 import numpy as np
 import scipy.sparse as sparse
@@ -13,25 +12,62 @@ import scipy.io
 from anndata import AnnData
 from inferelator.utils import Debug, Validator
 
-# Try loading dot_product_mkl for matrix multiplication
-try:
-    from sparse_dot_mkl import dot_product_mkl as dot_product
-    Debug.vprint("Loaded sparse_dot_mkl for matrix multiplication", level=1)
 
-# If it isn't available, use the scipy/numpy functions instead
-except ImportError as err:
-    Debug.vprint("Unable to load MKL with sparse_dot_mkl:", level=1)
-    Debug.vprint(str(err), level=2)
-    Debug.vprint("Using numpy matrix operations; this greatly increases memory usage with sparse data", level=1)
+def dot_product(a, b, dense=True, cast=True):
+    """
+    Dot product two matrices together. Allow either matrix (or both or neither) to be sparse.
 
-    def dot_product(a, b, dense=True, cast=True):
+    :param a:
+    :param b:
+    :param dense:
+    :param cast:
+    :return:
+    """
+    if sparse.isspmatrix(a) and sparse.isspmatrix(b):
+        return a.dot(b).A if dense else a.dot(b)
+    elif sparse.isspmatrix(a):
+        return a.dot(sparse.csr_matrix(b)).A if dense else a.dot(sparse.csr_matrix(b))
+    elif sparse.isspmatrix(b):
+        return np.dot(a, b.A)
+    else:
+        return np.dot(a, b)
 
-        if sparse.isspmatrix(a) and sparse.isspmatrix(b):
-            return a.dot(b).A if dense else a.dot(b)
+
+class DotProduct:
+
+    _dot_func = dot_product
+
+    @classmethod
+    def set_mkl(cls, mkl=True):
+
+        # If the MKL flag is None, don't change anything
+        if mkl is None:
+            pass
+
+        # If the MKL flag is True, use the dot_product_mkl function when .dot() is called
+        if mkl:
+            try:
+                from sparse_dot_mkl import get_version_string, dot_product_mkl as dp
+                msg = "Matrix multiplication will use sparse_dot_mkl package with MKL: {m}"
+                vstring = get_version_string()
+                Debug.vprint(msg.format(m=vstring if vstring is not None else "Install mkl-service for details"),
+                             level=2)
+
+                cls._dot_func = dp
+
+            # If it isn't available, use the scipy/numpy functions instead
+            except ImportError as err:
+                Debug.vprint("Unable to load MKL with sparse_dot_mkl:\n" + str(err), level=0)
+                cls._dot_func = dot_product
+
+        # If the MKL flag is True, use the python (numpy/scipy) functions when .dot() is called
         else:
-            a = a.A if sparse.isspmatrix(a) else a
-            b = b.A if sparse.isspmatrix(b) else b
-            return np.dot(a, b)
+            Debug.vprint("Matrix multiplication will use Numpy; this is not advised for sparse data", level=2)
+            cls._dot_func = dot_product
+
+    @classmethod
+    def dot(cls, *args, **kwargs):
+        return cls._dot_func(*args, **kwargs)
 
 
 def df_from_tsv(file_like, has_index=True):
@@ -184,8 +220,13 @@ def apply_window_vector(vec, window, func):
 class InferelatorData(object):
     """ Store inferelator data in an AnnData object. This will always be Samples by Genes """
 
+    name = None
+
     _adata = None
-    _is_integer = False
+
+    @property
+    def _is_integer(self):
+        return pat.is_integer_dtype(self._adata.X.dtype)
 
     @property
     def expression_data(self):
@@ -238,26 +279,18 @@ class InferelatorData(object):
         if new_meta_data.index.nunique() != new_meta_data.shape[0]:
             new_meta_data = new_meta_data.loc[~new_meta_data.duplicated(), :]
 
+        # If the new one is the right size, force it in one way or the other
+        # Reindex the metadata to match the sample names
         try:
-            Validator.indexes_align((self.sample_names, new_meta_data.index), check_order=True)
+            new_meta_data = new_meta_data.reindex(self.sample_names)
         except ValueError:
-            msg = "Metadata update for {n} is misaligned".format(n=str(self))
-
-            name_overlap = len(set(new_meta_data.index).intersection(set(self.sample_names)))
-            # If the new metadata has no overlapping index names and is the same length, just assume it's right order
-            if (name_overlap == 0) and (new_meta_data.shape[0] == self.num_obs):
-                msg += " (Metadata dimensions are correct; ignoring misalignment)"
-                warnings.warn(msg)
-            elif name_overlap == 0:
-                msg = "Incorrectly sized metadata with no overlapping names was provided to {s}".format(s=str(self))
+            # If the metadata is the wrong size, angrily die
+            if new_meta_data.shape[0] != self.num_obs:
+                msg = "Metadata size {sh1} does not match data ({sh2})".format(sh1=new_meta_data.shape,
+                                                                                          sh2=self.num_obs)
                 raise ValueError(msg)
-            else:
-                msg += " ({m} records are in both)".format(m=name_overlap)
-                warnings.warn(msg)
-                new_meta_data = new_meta_data.reindex(self.sample_names)
+            new_meta_data.index = self.sample_names
 
-        # Join any new columns to any existing columns
-        # Update (overwrite) any columns in the existing meta data if they are in the new meta data
         if len(self._adata.obs.columns) > 0:
             keep_columns = self._adata.obs.columns.difference(new_meta_data.columns)
             self._adata.obs = pd.concat((new_meta_data, self._adata.obs.loc[:, keep_columns]), axis=1)
@@ -350,14 +383,39 @@ class InferelatorData(object):
                           mem=(self._data_mem_usage / 1e6))
 
     def __init__(self, expression_data=None, transpose_expression=False, meta_data=None, gene_data=None,
-                 gene_data_idx_column=None, gene_names=None, sample_names=None, dtype=None):
+                 gene_data_idx_column=None, gene_names=None, sample_names=None, dtype=None, name=None):
+        """
+        Create a new InferelatorData object
+
+        :param expression_data: A tabular observations x variables matrix
+        :type expression_data: np.array, scipy.sparse.spmatrix, anndata.AnnData, pd.DataFrame
+        :param transpose_expression: Should the table be transposed. Defaults to False
+        :type transpose_expression: bool
+        :param meta_data: Meta data for observations. Needs to align to the expression data
+        :type meta_data: pd.DataFrame
+        :param gene_data: Meta data for variables.
+        :type gene_data: pd.DataFrame
+        :param gene_data_idx_column: The gene_data column which should be used to align to expression_data
+        :type gene_data_idx_column: bool
+        :param gene_names: Names to be used for variables.
+            Will be inferred from a dataframe or anndata object if not set.
+        :type gene_names: list, pd.Index
+        :param sample_names: Names to be used for observations
+            Will be inferred from a dataframe or anndata object if not set.
+        :type sample_names: list, pd.Index
+        :param dtype: Explicitly convert the data to this dtype if set.
+            Only applies to data loaded from a pandas dataframe. Numpy arrays and scipy matrices will use existing type.
+        :type dtype: np.dtype
+        :param name: Name of this data structure.
+        :type name: None, str
+        """
 
         if expression_data is not None and isinstance(expression_data, pd.DataFrame):
             object_cols = expression_data.dtypes == object
 
             if sum(object_cols) > 0:
                 object_data = expression_data.loc[:, object_cols]
-                meta_data = object_data if meta_data is None else pd.concat((meta_data, object_data))
+                meta_data = object_data if meta_data is None else pd.concat((meta_data, object_data), axis=1)
                 expression_data.drop(expression_data.columns[object_cols], inplace=True, axis=1)
 
             if dtype is None and all(map(lambda x: pat.is_integer_dtype(x), expression_data.dtypes)):
@@ -365,7 +423,6 @@ class InferelatorData(object):
             elif dtype is None:
                 dtype = 'float64'
 
-            self._is_integer = pat.is_integer_dtype(dtype)
             self._make_idx_str(expression_data)
 
             if transpose_expression:
@@ -375,15 +432,11 @@ class InferelatorData(object):
 
         elif expression_data is not None and isinstance(expression_data, AnnData):
             self._adata = expression_data
-            self._is_integer = True if pat.is_integer_dtype(expression_data.X.dtype) else False
 
         elif expression_data is not None:
-            if transpose_expression:
-                self._adata = AnnData(X=expression_data.T, dtype=expression_data.dtype)
-            else:
-                self._adata = AnnData(X=expression_data, dtype=expression_data.dtype)
+            self._adata = AnnData(X=expression_data.T if transpose_expression else expression_data,
+                                  dtype=expression_data.dtype)
 
-            self._is_integer = True if pat.is_integer_dtype(expression_data.dtype) else False
         else:
             self._adata = AnnData()
 
@@ -407,8 +460,13 @@ class InferelatorData(object):
             self.gene_data = gene_data
 
         self._cached = {}
+        self.name = name
 
     def convert_to_float(self):
+        """
+        Convert the data in-place to a float dtype
+        """
+
         if pat.is_float_dtype(self._data.dtype):
             return None
         elif self._data.dtype == np.int32:
@@ -418,11 +476,14 @@ class InferelatorData(object):
         else:
             raise ValueError("Data is not float, int32, or int64")
 
+        # Create a new memoryview with a specific dtype
         float_view = self._data.view(dtype)
-        float_view[:] = self._data
-        self._data = float_view
 
-        self._is_integer = False
+        # Assign the old data through the memoryview
+        float_view[:] = self._data
+
+        # Replace the old data with the newly converted data
+        self._data = float_view
 
     def trim_genes(self, remove_constant_genes=True, trim_gene_list=None):
         """
@@ -442,10 +503,10 @@ class InferelatorData(object):
             keep_column_bool &= self._adata.var_names.isin(self._adata.uns["trim_gene_list"])
 
         list_trim = len(self._adata.var_names) - np.sum(keep_column_bool)
-        comp = 0 if self._is_integer else np.finfo(self.expression_data.dtype).eps * 10
+        comp = 0 if self._is_integer else np.finfo(self.values.dtype).eps * 10
 
         if remove_constant_genes:
-            nz_var = (self.expression_data.max(axis=0) - self.expression_data.min(axis=0))
+            nz_var = (self.values.max(axis=0) - self.values.min(axis=0))
             nz_var = comp < (nz_var.A.flatten() if self.is_sparse else nz_var)
 
             keep_column_bool &= nz_var
@@ -457,13 +518,13 @@ class InferelatorData(object):
             err_msg = "No genes remain after trimming. ({lst} removed to match list, {v} removed for var=0)"
             raise ValueError(err_msg.format(lst=list_trim, v=var_zero_trim))
 
-        Debug.vprint("Trimming expression matrix {sh} to {n} columns".format(sh=self._adata.X.shape,
-                                                                             n=np.sum(keep_column_bool)),
-                     level=1)
-
         if np.sum(keep_column_bool) == self._adata.shape[1]:
             pass
         else:
+            Debug.vprint("Trimming {name} matrix {sh} to {n} columns".format(name=self.name, sh=self._adata.X.shape,
+                                                                             n=np.sum(keep_column_bool)),
+                         level=1)
+
             # This explicit copy allows the original to be deallocated
             # Otherwise the GC leaves the original because the view reference keeps it alive
             # At some point it will need to copy so why not now
@@ -538,16 +599,20 @@ class InferelatorData(object):
         """
 
         if other_is_right_side:
-            return dot_product(self._adata.X, other, cast=True, dense=force_dense)
+            return DotProduct.dot(self._adata.X, other, cast=True, dense=force_dense)
         else:
-            return dot_product(other, self._adata.X, cast=True, dense=force_dense)
+            return DotProduct.dot(other, self._adata.X, cast=True, dense=force_dense)
 
     def to_csv(self, file_name, sep="\t"):
 
         if self.is_sparse:
-            scipy.io.mmwrite(file_name, self.expression_data)
+            scipy.io.mmwrite(file_name, self.values)
         else:
             self._adata.to_df().to_csv(file_name, sep=sep)
+
+    def to_h5ad(self, file_name, compression="gzip"):
+
+        self._adata.write(file_name, compression=compression)
 
     def transform(self, func, add_pseudocount=False, memory_efficient=True, chunksize=1000):
 
@@ -570,12 +635,29 @@ class InferelatorData(object):
             self._adata.X = func(self._adata.X)
 
     def add(self, val):
+        """
+        Add a value to the matrix in-place
+        :param val: Value to add
+        :type val: numeric
+        """
         self._data[...] = self._data + val
 
     def subtract(self, val):
+        """
+        Subtract a value from the matrix in-place
+        :param val: Value to subtract
+        :type val: numeric
+        """
         self._data[...] = self._data - val
 
     def divide(self, div_val, axis=None):
+        """
+        Divide a value from the matrix in-place
+        :param div_val: Value to divide
+        :type div_val: numeric
+        :param axis: Which axis to divide from (0, 1, or None)
+        :type axis: int, None
+        """
 
         if self._is_integer:
             self.convert_to_float()
@@ -599,6 +681,13 @@ class InferelatorData(object):
             raise ValueError("axis must be 0, 1 or None")
 
     def multiply(self, mult_val, axis=None):
+        """
+        Multiply the matrix by a value in-place
+        :param mult_val: Value to multiply
+        :type mult_val: numeric
+        :param axis: Which axis to divide from (0, 1, or None)
+        :type axis: int, None
+        """
 
         if self._is_integer:
             self.convert_to_float()
@@ -633,9 +722,11 @@ class InferelatorData(object):
             for i in range(self.shape[0]):
                 self._data[i, :] = scale_vector(self._data[i, :], ddof=ddof)
 
+        return self
+
     def copy(self):
 
-        new_data = InferelatorData(self.expression_data.copy(),
+        new_data = InferelatorData(self.values.copy(),
                                    meta_data=self.meta_data.copy(),
                                    gene_data=self.gene_data.copy())
 
@@ -659,6 +750,15 @@ class InferelatorData(object):
 
         if self.is_sparse:
             self._adata.X = self._adata.X.A
+
+    def to_sparse(self, mode="csr"):
+
+        if not self.is_sparse and mode.lower() == "csr":
+            self._adata.X = sparse.csr_matrix(self._adata.X)
+        elif not self.is_sparse and mode.lower() == "csc":
+            self._adata.X = sparse.csc_matrix(self._adata.X)
+        elif not self.is_sparse:
+            raise ValueError("Mode must be csc or csr")
 
     @staticmethod
     def _make_idx_str(df):

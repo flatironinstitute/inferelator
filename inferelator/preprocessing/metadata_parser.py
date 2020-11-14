@@ -19,6 +19,7 @@ DEFAULT_STRICT_CHECKING_FOR_DUPLICATES = True
 class MetadataParser(object):
 
     cond_col = COND_COLUMN_NAME
+    req_cols = tuple(COND_COLUMN_NAME)
 
     @classmethod
     @abstractmethod
@@ -49,6 +50,22 @@ class MetadataParser(object):
             meta_data.index.name = None
         return meta_data
 
+    @classmethod
+    def validate_metadata_columns(cls, meta_data):
+        """
+        Make sure metadata columns that are required for 'process_groups' exist
+        :param meta_data: pd.DataFrame
+        :return: True if the metadata is valid, False otherwise
+        """
+        invalid_cols = pd.Index(cls.req_cols).difference(meta_data.columns)
+        if len(invalid_cols) > 0:
+            _msg = "Skipping metadata because parsing requires missing columns: {c}".format(c=invalid_cols)
+            utils.Debug.vprint(_msg, level=0)
+            return False
+        else:
+            return True
+
+
     @staticmethod
     def fix_NAs(data_frame):
         """
@@ -68,6 +85,7 @@ class MetadataParserBranching(MetadataParser):
     cond_col = COND_COLUMN_NAME  # Column of sample names (matching expression data column names)
     prev_col = PREV_COLUMN_NAME  # Column that identifies the previous timepoint sample name
     delt_col = DELT_COLUMN_NAME  # Column that identifies the delta time between this sample and the previous
+    req_cols = (ISTS_COLUMN_NAME, COND_COLUMN_NAME, PREV_COLUMN_NAME, DELT_COLUMN_NAME)
 
     @classmethod
     def process_groups(cls, meta_data):
@@ -213,6 +231,7 @@ class MetadataParserNonbranching(MetadataParserBranching):
     group_col = GROUP_COLUMN_NAME
     time_col = TIME_COLUMN_NAME
     cond_col = COND_COLUMN_NAME
+    req_cols = (GROUP_COLUMN_NAME, TIME_COLUMN_NAME, COND_COLUMN_NAME)
 
     @classmethod
     def process_groups(cls, meta_data):

@@ -4,4 +4,3 @@ scipy >=0.9
 scikit-learn
 pandas >=0.24.0
 anndata
-sparse_dot_mkl
