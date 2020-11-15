@@ -1,8 +1,8 @@
 # inferelator 
 
 [![PyPI version](https://badge.fury.io/py/inferelator.svg)](https://badge.fury.io/py/inferelator)
-[![Travis](https://travis-ci.org/flatironinstitute/inferelator.svg?branch=master)](https://travis-ci.org/flatironinstitute/inferelator)
-[![codecov](https://codecov.io/gh/flatironinstitute/inferelator/branch/master/graph/badge.svg)](https://codecov.io/gh/flatironinstitute/inferelator)
+[![Travis](https://travis-ci.org/flatironinstitute/inferelator.svg?branch=release)](https://travis-ci.org/flatironinstitute/inferelator)
+[![codecov](https://codecov.io/gh/flatironinstitute/inferelator/branch/release/graph/badge.svg)](https://codecov.io/gh/flatironinstitute/inferelator)
 [![Documentation Status](https://readthedocs.org/projects/inferelator/badge/?version=latest)](https://inferelator.readthedocs.io/en/latest/?badge=latest)
 
 The [inferelator](https://doi.org/10.1186/gb-2006-7-5-r36) is a package for gene regulatory network inference that is based on regularized regression. 
