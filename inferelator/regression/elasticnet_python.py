@@ -22,7 +22,7 @@ ELASTICNET_PARAMETERS = dict(l1_ratio=[0.5, 0.7, 0.9],
 
 class ElasticNetWorkflowMixin(sklearn_regression.SKLearnWorkflowMixin):
     """
-    Use the scikit-learn ElasticNetCV regression module
+    Set default parameters to run scikit-learn ElasticNetCV
     """
 
     _sklearn_model = ElasticNetCV

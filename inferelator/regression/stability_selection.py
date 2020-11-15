@@ -162,7 +162,7 @@ class StARS(base_regression.BaseRegression):
 
     def regress(self):
         """
-        Execute Elastic Net
+        Execute StARS
 
         :return: list
             Returns a list of regression results that base_regression's pileup_data can process
@@ -192,7 +192,10 @@ class StARS(base_regression.BaseRegression):
 
 class StARSWorkflowMixin(base_regression._RegressionWorkflowMixin):
     """
-    Add elasticnet regression into a workflow object
+    Stability Approach to Regularization Selection (StARS)-LASSO. StARS-Ridge is implemented on an experimental basis.
+
+    https://arxiv.org/abs/1006.3316
+    https://doi.org/10.1016/j.immuni.2019.06.001
     """
 
     sklearn_params = _DEFAULT_PARAMS
