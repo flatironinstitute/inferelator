@@ -8,8 +8,8 @@ class InferelatorResults(object):
     """
     For network analysis, the results produced in the output_dir are sufficient.
     Model development and comparisons may require to values that are not written to files.
-    An InferelatorResults object is returned by the workflow.run() methods
-    (A list of InferelatorResults objects is returned by the CrossValidationManager.run() method).
+    An InferelatorResults object is returned by the ``workflow.run()`` methods
+    (A list of InferelatorResults objects is returned by the ``CrossValidationManager.run()`` method).
 
     This object allows access to most of the internal values created by the inferelator.
     """
