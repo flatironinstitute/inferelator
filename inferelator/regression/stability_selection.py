@@ -243,7 +243,10 @@ class StARSWorkflowMixin(base_regression._RegressionWorkflowMixin):
 
 class StARSWorkflowByTaskMixin(base_regression._MultitaskRegressionWorkflowMixin, StARSWorkflowMixin):
     """
-    Add elasticnet regression into a workflow object
+    Stability Approach to Regularization Selection (StARS)-LASSO. StARS-Ridge is implemented on an experimental basis.
+
+    https://arxiv.org/abs/1006.3316
+    https://doi.org/10.1016/j.immuni.2019.06.001
     """
 
     def run_bootstrap(self, bootstrap_idx):
