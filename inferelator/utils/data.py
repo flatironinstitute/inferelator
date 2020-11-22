@@ -232,6 +232,10 @@ class InferelatorData(object):
     def expression_data(self):
         return self._adata.X
 
+    @expression_data.setter
+    def expression_data(self, new_data):
+        self._adata.X = new_data
+
     @property
     def values(self):
         return self._adata.X
@@ -329,6 +333,10 @@ class InferelatorData(object):
     @property
     def gene_counts(self):
         return self._adata.X.sum(axis=0).A.flatten() if self.is_sparse else self._adata.X.sum(axis=0)
+
+    @property
+    def gene_stdev(self):
+        return self._adata.X.std(axis=0, ddof=1).A.flatten() if self.is_sparse else self._adata.X.std(axis=0, ddof=1)
 
     @property
     def sample_names(self):
