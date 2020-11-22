@@ -37,6 +37,25 @@ class TestResults(unittest.TestCase):
 
         self.gold_standard = pd.DataFrame([[0, 1], [1, 0]], ['gene1', 'gene2'], ['tf1', 'tf2'])
         self.gold_standard_unaligned = pd.DataFrame([[0, 1], [0, 0]], ['gene1', 'gene3'], ['tf1', 'tf2'])
+        self.metric = MetricHandler.get_metric("combined")
+
+    def test_output_files(self):
+
+        with tempfile.TemporaryDirectory() as td:
+            rp = results_processor.ResultsProcessor([self.beta], [self.beta_resc], metric=self.metric)
+            result = rp.summarize_network(td, self.gold_standard, self.prior)
+
+            if result.curve_data_file_name is not None:
+                self.assertTrue(os.path.exists(os.path.join(td, result.curve_data_file_name)))
+            if result.curve_file_name is not None:
+                self.assertTrue(os.path.exists(os.path.join(td, result.curve_file_name)))
+            if result.network_file_name is not None:
+                self.assertTrue(os.path.exists(os.path.join(td, result.network_file_name)))
+            if result.confidence_file_name is not None:
+                self.assertTrue(os.path.exists(os.path.join(td, result.confidence_file_name)))
+            if result.threshold_file_name is not None:
+                self.assertTrue(os.path.exists(os.path.join(td, result.threshold_file_name)))
+
 
     @staticmethod
     def make_PR_data(gs, confidences):
@@ -181,6 +200,9 @@ class TestRankSummary(TestResults):
         filter_data = self.metric.filter_to_left_size(GOLD_STANDARD_COLUMN, CONFIDENCE_COLUMN, data)
         self.assertEqual(data.shape, filter_data.shape)
 
+    def test_output_files(self):
+        pass
+    
 
 class TestPrecisionRecallMetric(TestResults):
 
