@@ -12,6 +12,7 @@ from dask_jobqueue.slurm import SLURMJob
 from inferelator import utils
 from inferelator.utils import Validator as check
 from inferelator.distributed import AbstractController
+from inferelator.distributed.dask_functions import dask_map
 
 _DEFAULT_CONDA_ACTIVATE = "source ~/.local/anaconda3/bin/activate"
 _DEFAULT_NUM_JOBS = 1
@@ -153,7 +154,7 @@ class DaskHPCClusterController(AbstractController):
 
     @classmethod
     def map(cls, func, *args, **kwargs):
-        raise NotImplementedError
+        return dask_map(func, *args, **kwargs)
 
     @classmethod
     def use_default_configuration(cls, known_config, n_jobs=1):
@@ -339,7 +340,7 @@ class DaskHPCClusterController(AbstractController):
         if cls._runaway_protection is not None and new_jobs > cls._runaway_protection * cls._job_n:
             raise RuntimeError("Aborting excessive worker startups / Protecting against runaway job queueing")
         elif new_jobs > len(cls._local_cluster.worker_spec):
-            cls._local_cluster.scale(jobs=new_jobs)
+            cls._local_cluster.scale(new_jobs)
 
     @classmethod
     def _add_local_node_workers(cls, num_workers):

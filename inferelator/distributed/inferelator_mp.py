@@ -116,13 +116,13 @@ class MPControl(AbstractController):
         return connect_return
 
     @classmethod
-    def map(cls, *args, **kwargs):
+    def map(cls, func, *args, **kwargs):
         """
         Map using the `.map()` implementation in the multiprocessing engine
         """
         if not cls.is_initialized:
             raise RuntimeError("Connect before calling map()")
-        return cls.client.map(*args, **kwargs)
+        return cls.client.map(func, *args, **kwargs)
 
     @classmethod
     def set_processes(cls, process_count):

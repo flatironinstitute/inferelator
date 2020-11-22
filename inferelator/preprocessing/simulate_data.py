@@ -1,11 +1,13 @@
 import numpy as np
 import math
+import itertools
 from scipy import sparse as _sparse
 
 from inferelator.utils import Debug, InferelatorData
+from inferelator import MPControl
 
 
-def make_data_noise(data, random_seed=42):
+def make_data_noisy(data, random_seed=42):
     """
     Generate a new data object of random data which matches the provided data
 
@@ -21,18 +23,21 @@ def make_data_noise(data, random_seed=42):
     sample_counts = data.sample_counts
 
     # Normalize to mean counts per sample and sum counts per gene by matrix multiplication
-    p_vec = (1 / sample_counts.mean(axis=1)).reshape(1, -1) @ data.expression_data
+    p_vec = (np.mean(sample_counts) / sample_counts).reshape(1, -1) @ data.expression_data
 
     if data._is_integer:
+
+        Debug.vprint("Simulating integer count data", level=0)
 
         # Flatten and convert counts to a probability vector
         p_vec = p_vec.flatten()
         p_vec = p_vec / p_vec.sum()
 
-        data.expression_data = _sim_ints(p_vec, data.num_obs, sample_counts, sparse=data.is_sparse,
-                                         random_seed=random_seed)
+        data.expression_data = _sim_ints(p_vec, sample_counts, sparse=data.is_sparse, random_seed=random_seed)
 
     else:
+
+        Debug.vprint("Simulating float data", level=0)
 
         # Flatten and convert counts to a mean vector
         p_vec = p_vec.flatten()
@@ -41,43 +46,28 @@ def make_data_noise(data, random_seed=42):
         data.expression_data = _sim_float(p_vec, data.gene_stdev, data.num_obs, random_seed=random_seed)
 
 
-def _sim_ints(prob_dist, nrows, n_per_row, sparse=False, random_seed=42, sparse_chunk=25000):
+def _sim_ints(prob_dist, n_per_row, sparse=False, random_seed=42):
 
     if not np.isclose(np.sum(prob_dist), 1.):
         raise ValueError("Probability distribution does not sum to 1")
 
     ncols = len(prob_dist)
-    rng = np.random.default_rng(seed=random_seed)
 
-    col_ids = np.arange(ncols)
+    def _sim_rows(n_vec, seed):
+        row_data = np.zeros((len(n_vec), ncols), dtype=np.int32)
 
-    # Simulate data in a big block
-    if not sparse or 2 * sparse_chunk <= nrows:
-        synthetic_data = np.zeros((nrows, ncols), dtype=np.uint32)
-        for i, u in enumerate(n_per_row):
-            synthetic_data[i, :] = np.bincount(rng.choice(col_ids, size=u, p=prob_dist), minlength=ncols)
+        rng = np.random.default_rng(seed=seed)
+        col_ids = np.arange(ncols)
 
-        synthetic_data = _sparse.csr_matrix(synthetic_data) if sparse else synthetic_data
+        for i, n in enumerate(n_vec):
+            row_data[i, :] = np.bincount(rng.choice(col_ids, size=n, p=prob_dist))
 
-    # Simulate data in a chunks, make them sparse, and then hstack them
-    else:
-        synthetic_data = []
+        return _sparse.csr_matrix(row_data) if sparse else row_data
 
-        # Make
-        for i in range(math.ceil(nrows / sparse_chunk)):
-            _nrow_chunk = min(sparse_chunk, nrows - i * sparse_chunk)
+    ss = np.random.SeedSequence(random_seed)
+    sim_data = MPControl.map(_sim_rows, _row_gen(n_per_row), _ss_gen(ss))
 
-            synthetic_chunk = np.zeros((_nrow_chunk, ncols), dtype=np.uint32)
-            for j in range(_nrow_chunk):
-                _n = n_per_row[i * sparse_chunk + j]
-                synthetic_chunk[j, :] = np.bincount(rng.choice(col_ids, size=_n,  p=prob_dist), minlength=ncols)
-
-            synthetic_data.append(_sparse.csr_matrix(synthetic_chunk))
-            del synthetic_chunk
-
-        synthetic_data = _sparse.hstack(synthetic_data)
-
-    return synthetic_data
+    return _sparse.hstack(sim_data) if sparse else np.hstack(sim_data)
 
 
 def _sim_float(gene_centers, gene_sds, nrows, random_seed=42):
@@ -85,12 +75,29 @@ def _sim_float(gene_centers, gene_sds, nrows, random_seed=42):
     ncols = len(gene_centers)
     assert ncols == len(gene_sds)
 
-    rng = np.random.default_rng(seed=random_seed)
+    def _sim_cols(cents, sds, seed):
+        rng = np.random.default_rng(seed=seed)
+        return rng.normal(loc=cents, scale=sds, size=(nrows, len(cents)))
 
-    synthetic_data = np.zeros((nrows, ncols), dtype=float)
-    for i, (cen, sd) in enumerate(zip(gene_centers, gene_sds)):
-        synthetic_data[:, i] = rng.normal(loc=cen, scale=sd, size=nrows)
+    ss = np.random.SeedSequence(random_seed)
 
-        synthetic_data = _sparse.csr_matrix(synthetic_data) if sparse else synthetic_data
+    return np.vstack(MPControl.map(_sim_cols, _col_gen(gene_centers), _col_gen(gene_sds), _ss_gen(ss)))
 
-    return synthetic_data
+
+def _row_gen(n_vec, chunksize=2000):
+    _chunks = math.ceil(len(n_vec) / chunksize)
+    for i in range(_chunks):
+        yield n_vec[i * chunksize: min(len(n_vec), (i + 1) * chunksize)]
+
+
+def _col_gen(vals, chunksize=200):
+    _chunks = math.ceil(len(vals) / chunksize)
+    for i in range(_chunks):
+        _start, _stop = i * chunksize, min(len(vals), (i + 1) * chunksize)
+        yield vals[_start: _stop]
+
+
+def _ss_gen(ss):
+    while True:
+        yield ss.generate_state(1)[0]
+

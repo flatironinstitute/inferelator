@@ -1,4 +1,4 @@
-from inferelator import default
+from inferelator.distributed.dask_functions import dask_map
 import os
 
 # Maintain python 2 compatibility
@@ -65,7 +65,7 @@ class DaskController(AbstractController):
 
     @classmethod
     def map(cls, func, *args, **kwargs):
-        raise NotImplementedError
+        return dask_map(func, *args, **kwargs)
 
     @classmethod
     def set_processes(cls, process_count):

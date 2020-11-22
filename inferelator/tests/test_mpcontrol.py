@@ -201,7 +201,7 @@ class TestDaskLocalMPController(TestMPControl):
         cls.tempdir = tempfile.mkdtemp()
         MPControl.shutdown()
         MPControl.set_multiprocess_engine(cls.name)
-        MPControl.connect(local_dir=cls.tempdir, n_workers=0)
+        MPControl.connect(local_dir=cls.tempdir, n_workers=1)
 
     @classmethod
     @unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
@@ -217,8 +217,8 @@ class TestDaskLocalMPController(TestMPControl):
         self.assertEqual(MPControl.name(), self.client_name)
 
     def test_dask_local_map(self):
-        with self.assertRaises(NotImplementedError):
-            MPControl.map(math_function, *self.map_test_data)
+        test_result = MPControl.map(math_function, *self.map_test_data)
+        self.assertListEqual(test_result, self.map_test_expect)
 
     def test_dask_local_sync(self):
         self.assertTrue(MPControl.sync_processes())
@@ -241,7 +241,7 @@ class TestDaskHPCMPController(TestMPControl):
         # And then bind it so that it works in py27 right
         def fake_cluster(*args, **kwargs):
             replace_args = dict()
-            replace_args["n_workers"] = kwargs.pop("n_workers", 0)
+            replace_args["n_workers"] = kwargs.pop("n_workers", 1)
             replace_args["threads_per_worker"] = kwargs.pop("threads_per_worker", 1)
             replace_args["processes"] = kwargs.pop("processes", True)
             replace_args["local_dir"] = kwargs.pop("local_directory", None)
@@ -276,8 +276,8 @@ class TestDaskHPCMPController(TestMPControl):
         self.assertEqual(MPControl.name(), self.client_name)
 
     def test_dask_cluster_map(self):
-        with self.assertRaises(NotImplementedError):
-            MPControl.map(math_function, *self.map_test_data)
+        test_result = MPControl.map(math_function, *self.map_test_data)
+        self.assertListEqual(test_result, self.map_test_expect)
 
     def test_dask_cluster_sync(self):
         self.assertTrue(MPControl.sync_processes())

@@ -252,6 +252,28 @@ def build_mi_array_dask(X, Y, bins, logtype):
     return mi
 
 
+def dask_map(func, *args, **kwargs):
+    """
+    Dask map
+
+    :param func: function to map
+    :type func: callable
+    :param args: positional arguments for func
+    :type args: iterable
+    :param kwargs: keyword (non-iterable) arguments for func. Keywords will be passed to dask client.map.
+    :return: List of mapped results
+    :rtype: list
+    """
+
+    assert MPControl.is_dask()
+
+    def _func_caller(f, i, *a, **k):
+        return i, f(*a, **k)
+
+    return process_futures_into_list([MPControl.client.client.submit(_func_caller, func, i, *za, **kwargs)
+                                      for i, za in enumerate(zip(*args))])
+
+
 def process_futures_into_list(future_list, raise_on_error=True, check_results=True):
     """
     Take a list of futures and turn them into a list of results
