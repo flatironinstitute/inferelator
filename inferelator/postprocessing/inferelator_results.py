@@ -118,7 +118,7 @@ class InferelatorResults(object):
         self.write_to_tsv(self.curve, output_dir, self.curve_data_file_name, index=False)
 
         # Write Metric Curve PDF
-        self.metric.output_curve_pdf(output_dir, self.curve_file_name) if self.curve_file_name is None else None
+        self.metric.output_curve_pdf(output_dir, self.curve_file_name) if self.curve_file_name is not None else None
 
     def clear_output_file_names(self):
         """

@@ -1,6 +1,13 @@
 Change Log
 ==========
 
+Inferelator v0.5.1 `November 22, 2020`
+--------------------------------------
+
+Bug Fixes:
+
+- Fixed bug that prevented PDF summary figure generation
+
 Inferelator v0.5.0 `November 14, 2020`
 --------------------------------------
 
