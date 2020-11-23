@@ -1,7 +1,8 @@
 import unittest
 from inferelator.tests.artifacts.test_stubs import TEST_DATA
 from inferelator.preprocessing import simulate_data
-from inferelator import MPControl
+from inferelator import MPControl, workflow, tfa_workflow
+from inferelator.tests.artifacts.test_stubs import FakeResultProcessor, FakeRegressionMixin, FakeDRD
 import os
 import numpy.testing as npt
 
@@ -16,7 +17,7 @@ except ImportError:
 my_dir = os.path.dirname(__file__)
 
 
-class NoiseIntData(unittest.TestCase):
+class NoiseData(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
@@ -48,7 +49,46 @@ class NoiseIntData(unittest.TestCase):
             npt.assert_array_almost_equal(self.data.expression_data, noise_data.expression_data)
 
 
-class NoiseIntDataMultiprocessing(NoiseIntData):
+class NoiseWorkflowData(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        wkf = workflow._factory_build_inferelator(regression=FakeRegressionMixin,
+                                                  workflow=tfa_workflow.TFAWorkFlow)()
+
+        wkf.set_file_paths(input_dir=os.path.join(my_dir, "../../data/dream4"),
+                           expression_matrix_file="expression.tsv",
+                           meta_data_file="meta_data.tsv",
+                           priors_file="gold_standard.tsv",
+                           gold_standard_file="gold_standard.tsv")
+        wkf.set_file_properties(expression_matrix_columns_are_genes=False)
+        wkf.get_data()
+
+        cls.normal_data = wkf.data
+
+    def test_noise_tfa(self):
+        self.workflow = workflow._factory_build_inferelator(regression=FakeRegressionMixin,
+                                                            workflow=tfa_workflow.TFAWorkFlow)()
+
+        self.workflow.set_file_paths(input_dir=os.path.join(my_dir, "../../data/dream4"),
+                                     expression_matrix_file="expression.tsv",
+                                     meta_data_file="meta_data.tsv",
+                                     priors_file="gold_standard.tsv",
+                                     gold_standard_file="gold_standard.tsv")
+        self.workflow.set_file_properties(expression_matrix_columns_are_genes=False)
+        self.workflow.get_data()
+        self.workflow.align_priors_and_expression()
+
+        npt.assert_array_almost_equal(self.workflow.data.expression_data, self.normal_data.expression_data)
+
+        self.workflow.set_shuffle_parameters(make_data_noise=True)
+        self.workflow.align_priors_and_expression()
+
+        with self.assertRaises(AssertionError):
+            npt.assert_array_almost_equal(self.workflow.data.expression_data, self.normal_data.expression_data)
+
+
+class NoiseDataMultiprocessing(NoiseData):
 
     @classmethod
     def setUpClass(cls):
@@ -69,7 +109,7 @@ class NoiseIntDataMultiprocessing(NoiseIntData):
 
 
 @unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
-class NoiseIntDataDask(NoiseIntData):
+class NoiseDataDask(NoiseData):
 
     @classmethod
     def setUpClass(cls):

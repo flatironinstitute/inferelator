@@ -1,10 +1,9 @@
 import numpy as np
 import math
-import itertools
 from scipy import sparse as _sparse
 
-from inferelator.utils import Debug, InferelatorData
-from inferelator import MPControl
+from inferelator.utils import Debug
+from inferelator.distributed.inferelator_mp import MPControl
 
 
 def make_data_noisy(data, random_seed=42):
@@ -13,6 +12,8 @@ def make_data_noisy(data, random_seed=42):
 
     :param data: Raw read data
     :type data: InferelatorData
+    :param random_seed: Random seed for data generation
+    :type random_seed: int
     :return: Simulated data
     :rtype: InferelatorData
     """
@@ -27,7 +28,7 @@ def make_data_noisy(data, random_seed=42):
 
     if data._is_integer:
 
-        Debug.vprint("Simulating integer count data", level=0)
+        Debug.vprint("Simulating integer count data for {n} samples".format(n=data.num_obs), level=0)
 
         # Flatten and convert counts to a probability vector
         p_vec = p_vec.flatten()
@@ -37,7 +38,7 @@ def make_data_noisy(data, random_seed=42):
 
     else:
 
-        Debug.vprint("Simulating float data", level=0)
+        Debug.vprint("Simulating float data for {n} samples".format(n=data.num_obs), level=0)
 
         # Flatten and convert counts to a mean vector
         p_vec = p_vec.flatten()

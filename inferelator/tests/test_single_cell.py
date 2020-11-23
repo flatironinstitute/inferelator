@@ -122,13 +122,12 @@ class TestSingleCellWorkflow(unittest.TestCase):
 
     def setUp(self):
         self.workflow = SingleCellWorkflow()
-        self.workflow.expression_matrix_columns_are_genes = True
-        self.workflow.input_dir = os.path.join(my_dir, "../../data/dream4")
-        self.workflow.expression_matrix_file = default.DEFAULT_EXPRESSION_FILE
-        self.workflow.tf_names_file = default.DEFAULT_TFNAMES_FILE
-        self.workflow.meta_data_file = default.DEFAULT_METADATA_FILE
-        self.workflow.priors_file = default.DEFAULT_PRIORS_FILE
-        self.workflow.gold_standard_file = default.DEFAULT_GOLDSTANDARD_FILE
+        self.workflow.set_file_paths(input_dir=os.path.join(my_dir, "../../data/dream4"),
+                                     expression_matrix_file="expression.tsv",
+                                     meta_data_file="meta_data.tsv",
+                                     priors_file="gold_standard.tsv",
+                                     gold_standard_file="gold_standard.tsv")
+        self.workflow.set_file_properties(expression_matrix_columns_are_genes=False)
 
     def tearDown(self):
         del self.workflow
@@ -161,7 +160,7 @@ class TestSingleCellWorkflow(unittest.TestCase):
 
     def test_preprocessing_nan_post(self):
         self.workflow.data = TEST_DATA.copy()
-        self.workflow.data._adata.X -= 1
+        self.workflow.data._adata.X -= 3
         self.workflow.add_preprocess_step(single_cell.log2_data)
         with np.warnings.catch_warnings():
             np.warnings.filterwarnings('ignore')

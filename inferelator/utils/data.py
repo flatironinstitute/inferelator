@@ -514,8 +514,13 @@ class InferelatorData(object):
         comp = 0 if self._is_integer else np.finfo(self.values.dtype).eps * 10
 
         if remove_constant_genes:
-            nz_var = (self.values.max(axis=0) - self.values.min(axis=0))
-            nz_var = comp < (nz_var.A.flatten() if self.is_sparse else nz_var)
+            nz_var = self.values.max(axis=0) - self.values.min(axis=0)
+            nz_var = nz_var.A.flatten() if self.is_sparse else nz_var
+
+            if np.any(np.isnan(nz_var)):
+                raise ValueError("NaN values are present in the expression matrix; unable to remove var=0 genes")
+
+            nz_var = comp < nz_var
 
             keep_column_bool &= nz_var
             var_zero_trim = np.sum(nz_var)
