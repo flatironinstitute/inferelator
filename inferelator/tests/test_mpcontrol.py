@@ -275,6 +275,7 @@ class TestDaskHPCMPController(TestMPControl):
     def test_dask_cluster_name(self):
         self.assertEqual(MPControl.name(), self.client_name)
 
+    @unittest.skip
     def test_dask_cluster_map(self):
         test_result = MPControl.map(math_function, *self.map_test_data)
         self.assertListEqual(test_result, self.map_test_expect)
