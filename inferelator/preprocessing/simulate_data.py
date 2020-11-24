@@ -61,7 +61,7 @@ def _sim_ints(prob_dist, n_per_row, sparse=False, random_seed=42):
         col_ids = np.arange(ncols)
 
         for i, n in enumerate(n_vec):
-            row_data[i, :] = np.bincount(rng.choice(col_ids, size=n, p=prob_dist))
+            row_data[i, :] = np.bincount(rng.choice(col_ids, size=n, p=prob_dist), minlength=ncols)
 
         return _sparse.csr_matrix(row_data) if sparse else row_data
 
