@@ -68,7 +68,7 @@ def _sim_ints(prob_dist, n_per_row, sparse=False, random_seed=42):
     ss = np.random.SeedSequence(random_seed)
     sim_data = MPControl.map(_sim_rows, _row_gen(n_per_row), _ss_gen(ss))
 
-    return _sparse.hstack(sim_data) if sparse else np.hstack(sim_data)
+    return _sparse.vstack(sim_data) if sparse else np.vstack(sim_data)
 
 
 def _sim_float(gene_centers, gene_sds, nrows, random_seed=42):
@@ -82,7 +82,7 @@ def _sim_float(gene_centers, gene_sds, nrows, random_seed=42):
 
     ss = np.random.SeedSequence(random_seed)
 
-    return np.vstack(MPControl.map(_sim_cols, _col_gen(gene_centers), _col_gen(gene_sds), _ss_gen(ss)))
+    return np.hstack(MPControl.map(_sim_cols, _col_gen(gene_centers), _col_gen(gene_sds), _ss_gen(ss)))
 
 
 def _row_gen(n_vec, chunksize=2000):
