@@ -11,7 +11,7 @@ from inferelator import single_cell_workflow
 from inferelator.regression import amusr_regression
 from inferelator.postprocessing.results_processor_mtl import ResultsProcessorMultiTask
 
-TRANSFER_ATTRIBUTES = ['count_minimum', 'preprocessing_workflow', 'input_dir']
+TRANSFER_ATTRIBUTES = ['count_minimum', 'preprocessing_workflow', 'input_dir', 'make_data_noise']
 NON_TASK_ATTRIBUTES = ["gold_standard_file", "random_seed", "num_bootstraps"]
 
 

@@ -57,6 +57,8 @@ class MetadataParser(object):
         :param meta_data: pd.DataFrame
         :return: True if the metadata is valid, False otherwise
         """
+        cls.create_sample_name_column(meta_data)
+
         invalid_cols = pd.Index(cls.req_cols).difference(meta_data.columns)
         if len(invalid_cols) > 0:
             _msg = "Skipping metadata because parsing requires missing columns: {c}".format(c=invalid_cols)
@@ -65,6 +67,15 @@ class MetadataParser(object):
         else:
             return True
 
+    @classmethod
+    def create_sample_name_column(cls, meta_data):
+        """
+        Create a meta_data sample_name column from the index if necessary
+        """
+        if cls.cond_col not in meta_data:
+            meta_data[cls.cond_col] = meta_data.index.astype(str)
+        elif (meta_data[cls.cond_col] != meta_data.index.astype(str)).any():
+            utils.Debug.vprint("Meta data sample name column and meta_data index are not equal", level=2)
 
     @staticmethod
     def fix_NAs(data_frame):

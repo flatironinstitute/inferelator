@@ -232,6 +232,10 @@ class InferelatorData(object):
     def expression_data(self):
         return self._adata.X
 
+    @expression_data.setter
+    def expression_data(self, new_data):
+        self._adata.X = new_data
+
     @property
     def values(self):
         return self._adata.X
@@ -329,6 +333,10 @@ class InferelatorData(object):
     @property
     def gene_counts(self):
         return self._adata.X.sum(axis=0).A.flatten() if self.is_sparse else self._adata.X.sum(axis=0)
+
+    @property
+    def gene_stdev(self):
+        return self._adata.X.std(axis=0, ddof=1).A.flatten() if self.is_sparse else self._adata.X.std(axis=0, ddof=1)
 
     @property
     def sample_names(self):
@@ -506,8 +514,13 @@ class InferelatorData(object):
         comp = 0 if self._is_integer else np.finfo(self.values.dtype).eps * 10
 
         if remove_constant_genes:
-            nz_var = (self.values.max(axis=0) - self.values.min(axis=0))
-            nz_var = comp < (nz_var.A.flatten() if self.is_sparse else nz_var)
+            nz_var = self.values.max(axis=0) - self.values.min(axis=0)
+            nz_var = nz_var.A.flatten() if self.is_sparse else nz_var
+
+            if np.any(np.isnan(nz_var)):
+                raise ValueError("NaN values are present in the expression matrix; unable to remove var=0 genes")
+
+            nz_var = comp < nz_var
 
             keep_column_bool &= nz_var
             var_zero_trim = np.sum(nz_var)
