@@ -2,6 +2,7 @@ import pandas as pd
 import os
 
 from inferelator.utils import Validator as check
+_SERIALIZE_ATTRS = ["network", "betas", "betas_stack", "betas_sign", "combined_confidences", "tasks"]
 
 
 class InferelatorResults(object):
@@ -18,14 +19,14 @@ class InferelatorResults(object):
     #: Defaults to None.
     name = None
 
-    #: Network dataframe, usually written to network.tsv
+    #: Network dataframe, usually written to network.tsv.gz
     network = None
 
     #: Fit model coefficients for each model bootstrap.
     #: This is a list of dataframes which are Genes x TFs.
     betas = None
 
-    #: Count of non-zero betas, usually written to betas_stack.tsv
+    #: Count of non-zero betas.
     #: This is a dataframe which is Genes x TFs
     betas_stack = None
 
@@ -42,8 +43,8 @@ class InferelatorResults(object):
     tasks = None
 
     # File names
-    network_file_name = "network.tsv"
-    confidence_file_name = "combined_confidences.tsv"
+    network_file_name = "network.tsv.gz"
+    confidence_file_name = "combined_confidences.tsv.gz"
     threshold_file_name = None
     curve_file_name = "combined_metrics.pdf"
     curve_data_file_name = None
@@ -128,10 +129,39 @@ class InferelatorResults(object):
         self.network_file_name, self.confidence_file_name, self.threshold_file_name = None, None, None
         self.curve_file_name, self.curve_data_file_name = None, None
 
+    def save(self, output_dir, output_file_name):
+        """
+        Save the InferelatorResults to an HDF5 file
+
+        :param output_dir:
+        :param output_file_name:
+        """
+
+        if output_dir is None or output_file_name is None:
+            return None
+
+        with pd.HDFStore(os.path.join(output_dir, output_file_name)) as hdf5_store:
+
+            # Save object dataframes
+            for k in _SERIALIZE_ATTRS:
+                if getattr(self, k) is not None:
+                    hdf5_store.put(k, getattr(self, k))
+
+            # If tasks exist, save task dataframes
+            if self.tasks is not None:
+                tasks = pd.Series(self.tasks.keys())
+                hdf5_store.put("tasks", tasks)
+
+                for t in tasks:
+                    for k in _SERIALIZE_ATTRS:
+                        if getattr(self.tasks[t], k) is not None:
+                            hdf5_store.put(str(t) + "_" + str(k), getattr(self.tasks[t], k))
+
     @staticmethod
     def write_to_tsv(data_frame, output_dir, output_file_name, index=False, float_format='%.6f'):
         """
         Save a DataFrame to a TSV file
+
         :param data_frame: pd.DataFrame
             Data to write
         :param output_dir: str

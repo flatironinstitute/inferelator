@@ -12,6 +12,7 @@ from dask_jobqueue.slurm import SLURMJob
 from inferelator import utils
 from inferelator.utils import Validator as check
 from inferelator.distributed import AbstractController
+from inferelator.distributed.dask_functions import dask_map
 
 _DEFAULT_CONDA_ACTIVATE = "source ~/.local/anaconda3/bin/activate"
 _DEFAULT_NUM_JOBS = 1
@@ -153,7 +154,7 @@ class DaskHPCClusterController(AbstractController):
 
     @classmethod
     def map(cls, func, *args, **kwargs):
-        raise NotImplementedError
+        return dask_map(func, *args, **kwargs)
 
     @classmethod
     def use_default_configuration(cls, known_config, n_jobs=1):

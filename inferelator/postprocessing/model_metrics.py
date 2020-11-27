@@ -111,7 +111,7 @@ class CombinedMetric(RankSummaryF1, RankSummaryPR, RankSummaryMCC):
         # If there's a file name set, make the output file
         if file_name is not None and output_dir is not None:
             # Save the plot and close
-            fig.savefig(os.path.join(output_dir, file_name), dpi=dpi)
+            self.save_figure(os.path.join(output_dir, file_name), fig, dpi=dpi)
 
         plt.close(fig)
 

@@ -15,7 +15,7 @@ import pandas as pd
 from inferelator.utils import (Debug, InferelatorDataLoader, DEFAULT_PANDAS_TSV_SETTINGS, slurm_envs, is_string,
                                DotProduct)
 from inferelator.distributed.inferelator_mp import MPControl
-from inferelator.preprocessing.priors import ManagePriors
+from inferelator.preprocessing import ManagePriors, make_data_noisy
 from inferelator.regression.base_regression import _RegressionWorkflowMixin
 from inferelator.postprocessing import ResultsProcessor, InferelatorResults
 
@@ -627,7 +627,11 @@ class WorkflowBase(WorkflowBaseLoader):
     split_gold_standard_for_crossvalidation = False
     cv_split_ratio = None
     cv_split_axis = 0
+
+    # Flags to control shuffle and noise baselines
     shuffle_prior_axis = None
+    make_data_noise = None
+    _data_is_noise = False
 
     # The random seed for sampling, etc
     random_seed = 42
@@ -686,15 +690,19 @@ class WorkflowBase(WorkflowBaseLoader):
         if not split_gold_standard_for_crossvalidation and (cv_split_axis is not None or cv_split_ratio is not None):
             warnings.warn("The split_gold_standard_for_crossvalidation flag is not set. Other options may be ignored")
 
-    def set_shuffle_parameters(self, shuffle_prior_axis=None):
+    def set_shuffle_parameters(self, shuffle_prior_axis=None, make_data_noise=None):
         """
         Set parameters for shuffling labels on a prior axis. This is useful to establish a baseline.
 
         :param shuffle_prior_axis: The axis for shuffling prior labels. 0 shuffles gene labels. 1 shuffles regulator
             labels. None means labels will not be shuffled. Defaults to None.
         :type shuffle_prior_axis: int, None
+        :param make_data_noise: Replace loaded data with simulated data that is entirely random. This retains type;
+            integer data remains integer, float remains float. Gene distributions should be centered around the
+            mean of gene expression in the original data, but is otherwise random.
         """
         self._set_with_warning("shuffle_prior_axis", shuffle_prior_axis)
+        self._set_with_warning("make_data_noise", make_data_noise)
 
     def set_postprocessing_parameters(self, gold_standard_filter_method=None, metric=None):
         """
@@ -717,7 +725,7 @@ class WorkflowBase(WorkflowBaseLoader):
     def set_output_file_names(network_file_name="", confidence_file_name="", nonzero_coefficient_file_name="",
                               pdf_curve_file_name="", curve_data_file_name=""):
         """
-        Set output file names
+        Set output file names. File names that end in '.gz' will be gzipped.
 
         :param network_file_name: Long-format network TSV file with TF->Gene edge information.
             Default is "network.tsv".
@@ -856,6 +864,16 @@ class WorkflowBase(WorkflowBaseLoader):
         Align prior to the expression matrix
         """
         self.priors_data = self.prior_manager.align_priors_to_expression(self.priors_data, self.data.gene_names)
+        self.data_white_noise()
+
+    def data_white_noise(self):
+        """
+        Replace data with white noise data
+        """
+
+        if self.make_data_noise and not self._data_is_noise:
+            make_data_noisy(self.data, random_seed=self.random_seed)
+            self._data_is_noise = True
 
     def get_bootstraps(self):
         """

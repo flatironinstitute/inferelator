@@ -20,7 +20,7 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
     SingleCellWorkflow has some additional preprocessing prior to calculating TFA and running regression
     """
     # Single-cell expression data manipulations
-    count_minimum = 0  # float
+    count_minimum = None  # float
 
     # Preprocessing workflow holder
     preprocessing_workflow = None
@@ -34,11 +34,11 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
 
         :param count_minimum: The mean expression value which is required to retain a gene for modeling. Data that
             has already been normalized should probably be filtered during normalization, not now.
-            Defaults to 0
+            Defaults to None (disabled).
         :type count_minimum: float
         """
 
-        self._set_without_warning("count_minimum", count_minimum)
+        self.count_minimum = count_minimum
 
     def add_preprocess_step(self, fun, **kwargs):
         """
@@ -69,6 +69,7 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
 
     def startup_finish(self):
         # Preprocess the single-cell data based on the preprocessing steps added to the workflow
+        self.data_white_noise()
         self.single_cell_normalize()
 
         super(SingleCellWorkflow, self).startup_finish()
@@ -80,8 +81,7 @@ class SingleCellWorkflow(tfa_workflow.TFAWorkFlow):
         add_preprocess_step() class function
         """
 
-        if self.count_minimum is not None:
-            single_cell.filter_genes_for_count(self.data, count_minimum=self.count_minimum)
+        single_cell.filter_genes_for_count(self.data, count_minimum=self.count_minimum)
 
         if self.preprocessing_workflow is not None:
             for sc_func, sc_kwargs in self.preprocessing_workflow:
