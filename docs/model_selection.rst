@@ -31,6 +31,6 @@ Elastic-Net
 StARS-Lasso
 -----------
 
-.. autoclass:: inferelator.regression.stability_selection.StARSWorkflowByTaskMixin
+.. autoclass:: inferelator.regression.stability_selection.StARSWorkflowMixin
    :members: set_regression_parameters
    :no-undoc-members:

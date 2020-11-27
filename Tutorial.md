@@ -64,6 +64,10 @@ Note that the TF and Gene names must match between files, and these files can be
 Select parallelization options:
 ```
 from inferelator.distributed.inferelator_mp import MPControl
+
+# The if __name__ == '__main__' pragma prevents runaway spawning
+# when os.fork is not available. 
+
 if __name__ == '__main__':
     MPControl.set_multiprocess_engine("multiprocessing")
     MPControl.client.processes = 4

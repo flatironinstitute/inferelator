@@ -15,13 +15,15 @@ elements of [InfereCLaDR](https://github.com/simonsfoundation/inferelator_ng/tre
 [(Tchourine et al 2018)](https://doi.org/10.1016/j.celrep.2018.03.048), 
 and single-cell workflows [(Jackson et al 2020)](https://elifesciences.org/articles/51254).
 
-To install the python packages needed for the inferelator, run `pip install -r requirements.txt`.
-To install the python packages needed for the inferelator multiprocessing functionality, run `pip install -r requirements-multiprocessing.txt`.
-To install this package, clone the [inferelator GitHub](https://github.com/flatironinstitute/inferelator) repository and run `python setup.py install`, or run `pip install inferelator`.
+We recommend installing this package from PyPi using `python -m pip install inferelator`. 
+If running locally, also install `pathos` by `python -m pip install pathos` for parallelization.
+If running on a cluster, also install `dask` by `python -m pip install dask[complete] dask_jobqueue` for dask-based parallelization.
 
-Documentation is available on [readthedocs.io]([inferelator GitHub](https://github.com/flatironinstitute/inferelator).
+This package can also be installed from the github repository. 
+Clone the [inferelator GitHub](https://github.com/flatironinstitute/inferelator) repository and run `python setup.py install`.
 
-Basic workflows for ***Bacillus subtilis*** and ***Saccharomyces cerevisiae*** are included with a tutorial. 
+Documentation is available at [https://inferelator.readthedocs.io](https://inferelator.readthedocs.io/en/latest/), and
+basic workflows for ***Bacillus subtilis*** and ***Saccharomyces cerevisiae*** are included with a tutorial. 
 
 All current example data and scripts are available from Zenodo 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3355524.svg)](https://doi.org/10.5281/zenodo.3355524)
