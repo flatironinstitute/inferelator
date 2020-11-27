@@ -2,6 +2,7 @@ import unittest
 import tempfile
 import shutil
 import types
+import os
 from inferelator.distributed.inferelator_mp import MPControl
 
 # Run tests only when the associated packages are installed
@@ -26,7 +27,8 @@ try:
     import dask_jobqueue
     from inferelator.distributed import dask_cluster_controller
 
-    TEST_DASK_CLUSTER = True
+    TEST_DASK_CLUSTER = False if "TRAVIS_PYTHON_VERSION" in os.environ else True
+
 except ImportError:
     TEST_DASK_CLUSTER = False
 
