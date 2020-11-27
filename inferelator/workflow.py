@@ -725,7 +725,7 @@ class WorkflowBase(WorkflowBaseLoader):
     def set_output_file_names(network_file_name="", confidence_file_name="", nonzero_coefficient_file_name="",
                               pdf_curve_file_name="", curve_data_file_name=""):
         """
-        Set output file names
+        Set output file names. File names that end in '.gz' will be gzipped.
 
         :param network_file_name: Long-format network TSV file with TF->Gene edge information.
             Default is "network.tsv".

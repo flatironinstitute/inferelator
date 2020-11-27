@@ -140,7 +140,7 @@ class TestNetworkCreator(TestResults):
         result = results_processor.InferelatorResults(net, self.beta_threshold, self.pr_calc.all_confidences,
                                                       self.pr_calc)
         result.write_result_files(temp_dir)
-        processed_data = pd.read_csv(os.path.join(temp_dir, "network.tsv"), sep="\t", index_col=None, header=0)
+        processed_data = pd.read_csv(os.path.join(temp_dir, "network.tsv.gz"), sep="\t", index_col=None, header=0)
         self.assertEqual(processed_data.shape[0], 3)
         self.assertListEqual(processed_data['regulator'].tolist(), ['tf5', 'tf4', 'tf1'])
         self.assertListEqual(processed_data['target'].tolist(), ['gene1'] * 3)

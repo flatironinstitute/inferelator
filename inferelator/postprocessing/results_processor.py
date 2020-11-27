@@ -26,12 +26,6 @@ class ResultsProcessor(object):
     # Cutoffs
     threshold = DEFAULT_BOOTSTRAP_THRESHOLD
 
-    # File names
-    network_file_name = "network.tsv"
-    confidence_file_name = "combined_confidences.tsv"
-    threshold_file_name = "betas_stack.tsv"
-    pr_curve_file_name = "result_curve.pdf"
-
     # Flag to write results
     write_results = True
 

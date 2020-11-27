@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import numpy as np
+import gzip
 from inferelator import utils
 from inferelator.utils import Validator as check
 from inferelator.postprocessing import (GOLD_STANDARD_COLUMN, CONFIDENCE_COLUMN, TARGET_COLUMN, REGULATOR_COLUMN,
@@ -104,12 +105,32 @@ class RankSummingMetric(object):
         # If there's a file name set, make the output file
         if file_name is not None and output_dir is not None:
             # Save the plot and close
-            fig.savefig(os.path.join(output_dir, file_name), dpi=dpi)
+            self.save_figure(os.path.join(output_dir, file_name), fig, dpi=dpi)
 
         return ax
 
     def output_curve(self, ax=None, figsize=(6, 4)):
         raise NotImplementedError
+
+    @staticmethod
+    def save_figure(file_name, fig, dpi=300):
+        """
+        Save figure. Gzip if the file name ends with .gz
+
+        :param file_name: File name
+        :type file_name: str
+        :param fig: Figure object
+        :type fig: matplotlib.Figure
+        :param dpi: DPI of output
+        :type dpi: int
+        """
+        if file_name is None:
+            return
+        elif file_name.lower().endswith(".gz"):
+            with gzip.open(file_name, mode='w') as fh:
+                fig.savefig(fh, dpi=dpi)
+        else:
+            fig.savefig(file_name, dpi=dpi)
 
     @staticmethod
     def attach_gs_to_confidences(confidence_data, gold_standard):
