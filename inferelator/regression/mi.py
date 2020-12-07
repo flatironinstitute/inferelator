@@ -199,13 +199,15 @@ def _make_discrete(arr_vec, num_bins):
     assert check.argument_type(arr_vec, np.ndarray)
     assert len(arr_vec.shape) == 1 or arr_vec.shape[1] == 1
 
-    # Create a function to convert continuous values to discrete bins
-    arr_min = np.min(arr_vec)
-    arr_max = np.max(arr_vec)
+    # Get array min and max
+    arr_min, arr_max = np.min(arr_vec), np.max(arr_vec)
 
+    # Short circuit if the variance is 0
     if arr_min == arr_max:
         return np.zeros(shape=arr_vec.shape, dtype=np.dtype(int))
 
+    # Continuous values to discrete bins [0, num_bins)
+    # Write directly into a np.int16 array with the standard unsafe conversion
     return np.floor((arr_vec - arr_min) / (arr_max - arr_min + np.spacing(arr_max - arr_min)) * num_bins,
                     out=np.zeros(shape=arr_vec.shape, dtype=np.int16), casting='unsafe')
 
