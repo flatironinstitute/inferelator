@@ -206,16 +206,8 @@ def _make_discrete(arr_vec, num_bins):
     if arr_min == arr_max:
         return np.zeros(shape=arr_vec.shape, dtype=np.dtype(int))
 
-    try:
-        eps = np.finfo(arr_vec.dtype).eps
-    except ValueError:
-        eps = np.finfo(float).eps
-
-    eps_mod = max(eps, eps * (arr_max - arr_min))
-
-    # Apply the function to every value in the vector
-    return np.digitize(arr_vec, np.linspace(0, 1, num_bins) * (arr_max - arr_min + eps * num_bins) + arr_min,
-                       right=True)
+    return np.floor((arr_vec - arr_min) / (arr_max - arr_min + np.spacing(arr_max - arr_min)) * num_bins,
+                    out=np.zeros(shape=arr_vec.shape, dtype=np.int16), casting='unsafe')
 
 
 def _make_table(x, y, num_bins):
