@@ -335,6 +335,10 @@ class InferelatorData(object):
         return self._adata.X.sum(axis=0).A.flatten() if self.is_sparse else self._adata.X.sum(axis=0)
 
     @property
+    def gene_means(self):
+        return self._adata.X.mean(axis=0).A.flatten() if self.is_sparse else self._adata.X.mean(axis=0)
+
+    @property
     def gene_stdev(self):
         return self._adata.X.std(axis=0, ddof=1).A.flatten() if self.is_sparse else self._adata.X.std(axis=0, ddof=1)
 
