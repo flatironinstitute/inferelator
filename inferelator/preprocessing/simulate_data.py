@@ -25,7 +25,7 @@ def make_data_noisy(data, random_seed=42):
 
     # Data is centered already
     if np.any(sample_counts <= 0.):
-        p_vec = np.ones(data.num_obs, dtype=float)
+        p_vec = np.ones(data.num_obs, dtype=float) / data.num_obs
 
     # Normalize to mean counts per sample and sum counts per gene by matrix multiplication
     else:
