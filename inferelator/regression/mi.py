@@ -213,11 +213,9 @@ def _make_discrete(arr_vec, num_bins):
 
     eps_mod = max(eps, eps * (arr_max - arr_min))
 
-    def _disc_func(x):
-        return np.floor((x - arr_min) / (arr_max - arr_min + eps_mod) * num_bins)
-
     # Apply the function to every value in the vector
-    return _disc_func(arr_vec).astype(np.dtype(int))
+    return np.digitize(arr_vec, np.linspace(0, 1, num_bins) * (arr_max - arr_min + eps * num_bins) + arr_min,
+                       right=True)
 
 
 def _make_table(x, y, num_bins):
