@@ -386,8 +386,9 @@ class InferelatorData(object):
     def num_genes(self):
         return self._adata.shape[1]
 
-    def __getattr__(self, item):
-        return getattr(self._adata, item)
+    @property
+    def uns(self):
+        return self._adata.uns
 
     def __str__(self):
         msg = "InferelatorData [{dt} {sh}, Metadata {me}] Memory: {mem:.2f} MB"
@@ -776,6 +777,9 @@ class InferelatorData(object):
             self._adata.X = sparse.csc_matrix(self._adata.X)
         elif not self.is_sparse:
             raise ValueError("Mode must be csc or csr")
+
+    def to_df(self):
+        return self._adata.to_df()
 
     @staticmethod
     def _make_idx_str(df):

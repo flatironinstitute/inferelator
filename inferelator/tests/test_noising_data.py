@@ -46,7 +46,7 @@ class NoiseData(unittest.TestCase):
         simulate_data.make_data_noisy(noise_data, random_seed=100)
 
         with self.assertRaises(AssertionError):
-            npt.assert_array_almost_equal(self.data.expression_data, noise_data.expression_data)
+            npt.assert_array_almost_equal(float_data.expression_data, noise_data.expression_data)
 
 
 class NoiseWorkflowData(unittest.TestCase):
