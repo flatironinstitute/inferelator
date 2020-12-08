@@ -8,6 +8,7 @@ import numpy as np
 import scipy.sparse as sparse
 import scipy.stats
 import pandas.api.types as pat
+from sklearn.preprocessing import StandardScaler
 import scipy.io
 from anndata import AnnData
 from inferelator.utils import Debug, Validator
@@ -340,7 +341,10 @@ class InferelatorData(object):
 
     @property
     def gene_stdev(self):
-        return self._adata.X.std(axis=0, ddof=1).A.flatten() if self.is_sparse else self._adata.X.std(axis=0, ddof=1)
+        if self.is_sparse:
+            return np.sqrt(StandardScaler(copy=False, with_mean=False).fit(self._adata.X).var_)
+        else:
+            return self._adata.X.std(axis=0, ddof=1)
 
     @property
     def sample_names(self):
@@ -356,7 +360,10 @@ class InferelatorData(object):
 
     @property
     def sample_stdev(self):
-        return self._adata.X.std(axis=1, ddof=1).A.flatten() if self.is_sparse else self._adata.X.std(axis=1, ddof=1)
+        if self.is_sparse:
+            return np.sqrt(StandardScaler(copy=False, with_mean=False).fit(self._adata.X.T).var_)
+        else:
+            return self._adata.X.std(axis=1, ddof=1)
 
     @property
     def non_finite(self):

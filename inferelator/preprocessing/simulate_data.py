@@ -21,16 +21,15 @@ def make_data_noisy(data, random_seed=42):
     # Calculate probability vector for gene expression
     # Discrete sampling for count data
 
+    sample_counts = data.sample_counts
 
     if data._is_integer:
 
         Debug.vprint("Simulating integer count data for {n} samples".format(n=data.num_obs), level=0)
 
-        sample_counts = data.sample_counts
-
         # Data is centered already
         if np.any(sample_counts <= 0.):
-            p_vec = np.zeros(data.num_obs, dtype=float)
+            p_vec = np.ones(data.num_genes, dtype=float)
 
         # Normalize to mean counts per sample and sum counts per gene by matrix multiplication
         else:
@@ -44,8 +43,17 @@ def make_data_noisy(data, random_seed=42):
 
     else:
 
+        # Data is centered already
+        if np.any(sample_counts <= 0.):
+            p_vec = np.zeros(data.num_genes, dtype=float)
+
+        # Normalize to mean total measured values per sample and sum counts per gene by matrix multiplication
+        else:
+            p_vec = (np.mean(sample_counts) / sample_counts).reshape(1, -1) @ data.expression_data
+            p_vec /= data.num_obs
+
         Debug.vprint("Simulating float data for {n} samples".format(n=data.num_obs), level=0)
-        data.expression_data = _sim_float(data.gene_means, data.gene_stdev, data.num_obs, random_seed=random_seed)
+        data.expression_data = _sim_float(p_vec.flatten(), data.gene_stdev, data.num_obs, random_seed=random_seed)
 
 
 def _sim_ints(prob_dist, n_per_row, sparse=False, random_seed=42):
