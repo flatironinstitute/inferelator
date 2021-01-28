@@ -25,7 +25,9 @@ TOL = 1e-2
 MIN_WEIGHT_VAL = 0.1
 MIN_RSS = 1e-10
 
-def run_regression_EBIC(X, Y, TFs, tasks, gene, prior, Cs=None, Ss=None, lambda_Bs=None, lambda_Ss=None):
+
+def run_regression_EBIC(X, Y, TFs, tasks, gene, prior, Cs=None, Ss=None, lambda_Bs=None,
+                        lambda_Ss=None, scale_data=False):
     """
     Run multitask regression. Search the regularization coefficient space and select the model with the
     lowest eBIC.
@@ -68,8 +70,8 @@ def run_regression_EBIC(X, Y, TFs, tasks, gene, prior, Cs=None, Ss=None, lambda_
     model_output = None
 
     # Calculate covariances
-    X = scale_list_of_arrays(X)
-    Y = scale_list_of_arrays(Y)
+    X = scale_list_of_arrays(X) if scale_data else X
+    Y = scale_list_of_arrays(Y) if scale_data else Y
     cov_C, cov_D = _covariance_by_task(X, Y)
 
     # Calculate lambda_B defaults if not provided
@@ -158,8 +160,8 @@ class AMuSR_regression(base_regression.BaseRegression):
         assert len(X) == len(Y)
 
         # Set the data into the regression object
-        self.X = X
-        self.Y = Y
+        self.X = scale_list_of_data(X)
+        self.Y = scale_list_of_data(Y)
         self.n_tasks = len(X)
 
         # Set the priors and weight into the regression object

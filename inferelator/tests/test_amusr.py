@@ -255,14 +255,20 @@ class TestAMuSRrunner(unittest.TestCase):
                np.array([[1, 1, 3], [0, 0, 2], [0, 0, 1]]).astype(float)]
         res = [np.array([1, 2, 3]).reshape(-1, 1).astype(float),
                np.array([1, 2, 3]).reshape(-1, 1).astype(float)]
+
         tfs = ['tf1', 'tf2', 'tf3']
         targets = ['gene1', 'gene2']
+        
         priors = [pd.DataFrame([[0, 1, 1], [1, 0, 1]], index=targets, columns=tfs),
                   pd.DataFrame([[0, 0, 1], [1, 0, 1]], index=targets, columns=tfs)]
-        gene1_prior = amusr_regression.format_prior(priors, 'gene1', [0, 1], 1.)
-        gene2_prior = amusr_regression.format_prior(priors, 'gene2', [0, 1], 1.)
-        output = [amusr_regression.run_regression_EBIC(des, res, ['tf1', 'tf2', 'tf3'], [0, 1], 'gene1', gene1_prior),
-                  amusr_regression.run_regression_EBIC(des, res, ['tf1', 'tf2', 'tf3'], [0, 1], 'gene2', gene2_prior)]
+        gene1_prior = amusr_regression.format_prior(
+            priors, 'gene1', [0, 1], 1.)
+        gene2_prior = amusr_regression.format_prior(
+            priors, 'gene2', [0, 1], 1.)
+        output = [amusr_regression.run_regression_EBIC(des, res, ['tf1', 'tf2', 'tf3'], [0, 1], 'gene1', gene1_prior,
+                                                       scale_data=True),
+                  amusr_regression.run_regression_EBIC(des, res, ['tf1', 'tf2', 'tf3'], [0, 1], 'gene2', gene2_prior,
+                                                       scale_data=True)]
         out0 = pd.DataFrame([['tf3', 'gene1', -1, 1],
                              ['tf3', 'gene1', -1, 1]],
                             index=pd.MultiIndex(levels=[[0, 1], [0]],
