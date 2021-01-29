@@ -14,6 +14,7 @@ New Functionality:
 Bug Fixes:
 
 - Fixed bug(s) with dask cluster scaling
+- Fixed float precision bug in mutual information
 
 Code Refactoring:
 
