@@ -18,7 +18,7 @@ try:
     from dask import distributed
     from inferelator.distributed import dask_local_controller
 
-    TEST_DASK_LOCAL = True
+    TEST_DASK_LOCAL = False if "TRAVIS_PYTHON_VERSION" in os.environ else True
 except ImportError:
     TEST_DASK_LOCAL = False
 
