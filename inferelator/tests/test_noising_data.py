@@ -171,7 +171,7 @@ class NoiseDataMultiprocessing(NoiseData):
         MPControl.connect()
 
 
-@unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
+@unittest.skip
 class NoiseDataDask(NoiseData):
 
     @classmethod
