@@ -1,7 +1,7 @@
 Change Log
 ==========
 
-Inferelator v0.5.2 `November 27, 2020`
+Inferelator v0.5.2 `January 29, 2021`
 --------------------------------------
 
 New Functionality:
@@ -9,10 +9,16 @@ New Functionality:
 - Added flag ``.set_shuffle_parameters(make_data_noise=True)`` to model on randomly generated noise
 - Output TSV files are gzipped by default
 - Added ``.set_output_file_names()`` as interface to change output file names
+- Added ``.set_regression_parameters(lambda_Bs=None, lambda_Ss=None, heuristic_Cs=None)`` for AMuSR regression
 
 Bug Fixes:
 
-- Fixed bug with dask cluster scaling
+- Fixed bug(s) with dask cluster scaling
+
+Code Refactoring:
+
+- Added additional tests
+- Refactored AMuSR code
 
 Inferelator v0.5.1 `November 22, 2020`
 --------------------------------------
