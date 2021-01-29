@@ -103,6 +103,7 @@ def run_regression_EBIC(X, Y, TFs, tasks, gene, prior, Cs=None, Ss=None, lambda_
             if ebic_score < min_ebic:
                 min_ebic = ebic_score
                 model_output = combined_weights
+                opt_b, opt_s = b, s
 
     ###### RESCALE WEIGHTS ######
     output = {}
@@ -114,7 +115,7 @@ def run_regression_EBIC(X, Y, TFs, tasks, gene, prior, Cs=None, Ss=None, lambda_
                 cTFs = np.asarray(TFs)[model_output[:,kx] != 0]
                 output[k] = _final_weights(X[kx][:, nonzero], Y[kx], cTFs, gene)
 
-    return output
+    return output, opt_b, opt_s
 
 
 class AMuSR_regression(base_regression.BaseRegression):
@@ -135,6 +136,8 @@ class AMuSR_regression(base_regression.BaseRegression):
     lambda_Ss = None
     Cs = None
     Ss = None
+
+    regression_function = staticmethod(run_regression_EBIC)
 
     def __init__(self, X, Y, tfs=None, genes=None, priors=None, prior_weight=1, remove_autoregulation=True,
                  lambda_Bs=None, lambda_Ss=None, Cs=None, Ss=None):
@@ -170,14 +173,14 @@ class AMuSR_regression(base_regression.BaseRegression):
 
         # Construct a list of regulators if they are not passed in from the union of the task regulators
         if tfs is None:
-            tfs = [design.columns for design in X]
+            tfs = [design.gene_names for design in X]
             self.tfs = filter_genes_on_tasks(tfs, "union")
         else:
             self.tfs = tfs
 
         # Construct a list of genes if they are not passed in from the union of the task genes
         if genes is None:
-            genes = [resp.columns for resp in Y]
+            genes = [resp.gene_names for resp in Y]
             self.genes = filter_genes_on_tasks(genes, "union")
         else:
             self.genes = genes
@@ -199,13 +202,13 @@ class AMuSR_regression(base_regression.BaseRegression):
             Returns a list of regression results that the amusr_regression pileup_data can process
         """
 
-        regression_function = run_regression_EBIC if regression_function is None else regression_function
+        regression_function = self.regression_function if regression_function is None else regression_function
 
         if MPControl.is_dask():
             from inferelator.distributed.dask_functions import amusr_regress_dask
             return amusr_regress_dask(self.X, self.Y, self.priors, self.prior_weight, self.n_tasks, self.genes,
                                       self.tfs, self.G, remove_autoregulation=self.remove_autoregulation,
-                                      regression_function=regression_function)
+                                      regression_function=regression_function)[0]
 
         def regression_maker(j):
             level = 0 if j % 100 == 0 else 2
@@ -228,7 +231,7 @@ class AMuSR_regression(base_regression.BaseRegression):
 
             prior = format_prior(self.priors, gene, tasks, self.prior_weight)
             return regression_function(x, y, tfs, tasks, gene, prior, Cs=self.Cs, Ss=self.Ss,
-                                       lambda_Bs=self.lambda_Bs, lambda_Ss=self.lambda_Ss)
+                                       lambda_Bs=self.lambda_Bs, lambda_Ss=self.lambda_Ss)[0]
 
         return MPControl.map(regression_maker, range(self.G))
 
@@ -291,8 +294,8 @@ def amusr_fit(cov_C, cov_D, lambda_B=0., lambda_S=0., sparse_matrix=None, block_
         Matrix of model coefficients for each predictor by each task that are shared between each task
     """
 
-    assert check.argument_type(lambda_B, (float, int))
-    assert check.argument_type(lambda_S, (float, int))
+    assert check.argument_type(lambda_B, (float, int, np.int64, np.float32))
+    assert check.argument_type(lambda_S, (float, int, np.int64, np.float32))
     assert check.argument_type(max_iter, int)
     assert check.argument_type(tol, float)
     assert check.argument_type(min_weight, float)
