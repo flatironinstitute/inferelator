@@ -658,9 +658,7 @@ def format_prior(priors, gene, tasks, prior_weight):
 
     # If the priors are a list, get the gene-specific prior from each task
     if isinstance(priors, list) and len(priors) > 1:
-
-        assert len(priors) == len(tasks), "{n} priors for {m} tasks".format(n=len(priors), m=len(tasks))
-        
+               
         for k in tasks:
             prior = priors[k].reindex([gene]).replace(np.nan, 0)
             priors_out.append(_weight_prior(prior.loc[gene, :], prior_weight))
