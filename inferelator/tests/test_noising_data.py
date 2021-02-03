@@ -5,6 +5,7 @@ from inferelator import MPControl, inferelator_workflow
 from inferelator.tests.artifacts.test_stubs import FakeRegressionMixin
 import os
 import numpy.testing as npt
+from scipy import sparse as _sparse
 
 try:
     from dask import distributed
@@ -46,7 +47,30 @@ class NoiseData(unittest.TestCase):
         simulate_data.make_data_noisy(noise_data, random_seed=100)
 
         with self.assertRaises(AssertionError):
-            npt.assert_array_almost_equal(self.data.expression_data, noise_data.expression_data)
+            npt.assert_array_almost_equal(float_data.expression_data, noise_data.expression_data)
+
+    def test_noise_int_data_sparse(self):
+        noise_data = self.data.copy()
+        noise_data._adata.X = _sparse.csr_matrix(noise_data._adata.X)
+        simulate_data.make_data_noisy(noise_data, random_seed=100)
+
+        with self.assertRaises(AssertionError):
+            npt.assert_array_almost_equal(self.data.expression_data, noise_data.expression_data.A)
+
+        self.assertTrue(noise_data.is_sparse)
+
+        npt.assert_array_equal(self.data.sample_counts, noise_data.sample_counts)
+
+    def test_noise_float_data_sparse(self):
+        float_data = self.data.copy()
+        float_data.expression_data = _sparse.csr_matrix(float_data.expression_data.astype(float))
+        noise_data = float_data.copy()
+        simulate_data.make_data_noisy(noise_data, random_seed=100)
+
+        self.assertFalse(noise_data.is_sparse)
+
+        with self.assertRaises(AssertionError):
+            npt.assert_array_almost_equal(float_data.expression_data.A, noise_data.expression_data)
 
 
 class NoiseWorkflowData(unittest.TestCase):
@@ -147,7 +171,7 @@ class NoiseDataMultiprocessing(NoiseData):
         MPControl.connect()
 
 
-@unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
+@unittest.skip
 class NoiseDataDask(NoiseData):
 
     @classmethod

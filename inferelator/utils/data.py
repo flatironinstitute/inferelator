@@ -8,6 +8,7 @@ import numpy as np
 import scipy.sparse as sparse
 import scipy.stats
 import pandas.api.types as pat
+from sklearn.preprocessing import StandardScaler
 import scipy.io
 from anndata import AnnData
 from inferelator.utils import Debug, Validator
@@ -335,8 +336,15 @@ class InferelatorData(object):
         return self._adata.X.sum(axis=0).A.flatten() if self.is_sparse else self._adata.X.sum(axis=0)
 
     @property
+    def gene_means(self):
+        return self._adata.X.mean(axis=0).A.flatten() if self.is_sparse else self._adata.X.mean(axis=0)
+
+    @property
     def gene_stdev(self):
-        return self._adata.X.std(axis=0, ddof=1).A.flatten() if self.is_sparse else self._adata.X.std(axis=0, ddof=1)
+        if self.is_sparse:
+            return np.sqrt(StandardScaler(copy=False, with_mean=False).fit(self._adata.X).var_)
+        else:
+            return self._adata.X.std(axis=0, ddof=1)
 
     @property
     def sample_names(self):
@@ -352,7 +360,10 @@ class InferelatorData(object):
 
     @property
     def sample_stdev(self):
-        return self._adata.X.std(axis=1, ddof=1).A.flatten() if self.is_sparse else self._adata.X.std(axis=1, ddof=1)
+        if self.is_sparse:
+            return np.sqrt(StandardScaler(copy=False, with_mean=False).fit(self._adata.X.T).var_)
+        else:
+            return self._adata.X.std(axis=1, ddof=1)
 
     @property
     def non_finite(self):
@@ -382,8 +393,9 @@ class InferelatorData(object):
     def num_genes(self):
         return self._adata.shape[1]
 
-    def __getattr__(self, item):
-        return getattr(self._adata, item)
+    @property
+    def uns(self):
+        return self._adata.uns
 
     def __str__(self):
         msg = "InferelatorData [{dt} {sh}, Metadata {me}] Memory: {mem:.2f} MB"
@@ -772,6 +784,9 @@ class InferelatorData(object):
             self._adata.X = sparse.csc_matrix(self._adata.X)
         elif not self.is_sparse:
             raise ValueError("Mode must be csc or csr")
+
+    def to_df(self):
+        return self._adata.to_df()
 
     @staticmethod
     def _make_idx_str(df):

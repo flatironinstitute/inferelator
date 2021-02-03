@@ -15,7 +15,8 @@ more advanced memory and task tools of dask to be used)
 DASK_SCATTER_TIMEOUT = 120
 
 
-def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remove_autoregulation=True):
+def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remove_autoregulation=True,
+                       lambda_Bs=None, lambda_Ss=None, Cs=None, Ss=None, regression_function=None):
     """
     Execute multitask (AMUSR)
 
@@ -27,6 +28,9 @@ def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remov
 
     from inferelator.regression.amusr_regression import format_prior, run_regression_EBIC
     DaskController = MPControl.client
+
+    # Allows injecting a regression function for testing
+    regression_function = run_regression_EBIC if regression_function is None else regression_function
 
     # Gets genes, n_tasks, prior_weight, and remove_autoregulation from regress_dask()
     # Other arguments are passed in
@@ -49,7 +53,8 @@ def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remov
             tasks.append(k)  # [T,]
 
         prior = format_prior(prior, gene, tasks, prior_weight)
-        return j, run_regression_EBIC(x, y, tf, tasks, gene, prior)
+        return j, regression_function(x, y, tf, tasks, gene, prior,
+                                      lambda_Bs=lambda_Bs, lambda_Ss=lambda_Ss, Cs=Cs, Ss=Ss)
 
     def response_maker(y_df, i):
         y = []

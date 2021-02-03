@@ -23,12 +23,17 @@ def make_data_noisy(data, random_seed=42):
 
     sample_counts = data.sample_counts
 
-    # Normalize to mean counts per sample and sum counts per gene by matrix multiplication
-    p_vec = (np.mean(sample_counts) / sample_counts).reshape(1, -1) @ data.expression_data
-
     if data._is_integer:
 
         Debug.vprint("Simulating integer count data for {n} samples".format(n=data.num_obs), level=0)
+
+        # Data is centered already
+        if np.any(sample_counts <= 0.):
+            p_vec = np.ones(data.num_genes, dtype=float)
+
+        # Normalize to mean counts per sample and sum counts per gene by matrix multiplication
+        else:
+            p_vec = (np.mean(sample_counts) / sample_counts).reshape(1, -1) @ data.expression_data
 
         # Flatten and convert counts to a probability vector
         p_vec = p_vec.flatten()
@@ -38,13 +43,17 @@ def make_data_noisy(data, random_seed=42):
 
     else:
 
+        # Data is centered already
+        if np.any(sample_counts <= 0.):
+            p_vec = np.zeros(data.num_genes, dtype=float)
+
+        # Normalize to mean total measured values per sample and sum counts per gene by matrix multiplication
+        else:
+            p_vec = (np.mean(sample_counts) / sample_counts).reshape(1, -1) @ data.expression_data
+            p_vec /= data.num_obs
+
         Debug.vprint("Simulating float data for {n} samples".format(n=data.num_obs), level=0)
-
-        # Flatten and convert counts to a mean vector
-        p_vec = p_vec.flatten()
-        p_vec /= data.num_obs
-
-        data.expression_data = _sim_float(p_vec, data.gene_stdev, data.num_obs, random_seed=random_seed)
+        data.expression_data = _sim_float(p_vec.flatten(), data.gene_stdev, data.num_obs, random_seed=random_seed)
 
 
 def _sim_ints(prob_dist, n_per_row, sparse=False, random_seed=42):
