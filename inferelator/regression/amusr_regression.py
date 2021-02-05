@@ -240,12 +240,14 @@ class AMuSR_regression(base_regression.BaseRegression):
         weights = []
         rescaled_weights = []
 
+        print(run_data)
+
         for k in range(self.n_tasks):
             results_k = []
             for res in run_data:
                 try:
                     results_k.append(res[k])
-                except KeyError:
+                except KeyError, IndexError:
                     pass
 
             results_k = pd.concat(results_k)
@@ -316,14 +318,14 @@ def amusr_fit(cov_C, cov_D, lambda_B=0., lambda_S=0., sparse_matrix=None, block_
 
     # Initialize weights
     combined_weights = sparse_matrix + block_matrix
-    for _ in range(max_iter):
+    for i in range(max_iter):
 
         # Keep a reference to the old combined_weights
         _combined_weights_old = combined_weights
 
         # Update sparse and block-sparse coefficients
-        sparse_matrix = _update_sparse(cov_C, cov_D, block_matrix, sparse_matrix, lambda_S, prior)
-        block_matrix = _update_block(cov_C, cov_D, block_matrix, sparse_matrix, lambda_S)
+        sparse_matrix = updateS(cov_C, cov_D, block_matrix, sparse_matrix, lambda_S, prior, n_tasks, n_features)
+        block_matrix = updateB(cov_C, cov_D, block_matrix, sparse_matrix, lambda_B, prior, n_tasks, n_features)
 
         # Weights matrix (W) is the sum of a sparse (S) and a block-sparse (B) matrix
         combined_weights = sparse_matrix + block_matrix
@@ -338,137 +340,88 @@ def amusr_fit(cov_C, cov_D, lambda_B=0., lambda_S=0., sparse_matrix=None, block_
 
     return combined_weights, sparse_matrix, block_matrix
 
-def _update_sparse(cov_C, cov_D, block_matrix, sparse_matrix, lambda_S, prior):
+def updateS(C, D, B, S, lamS, prior, n_tasks, n_features):
     """
     returns updated coefficients for S (predictors x tasks)
     lasso regularized -- using cyclical coordinate descent and
     soft-thresholding
-    :param cov_C: np.ndarray [T x K]
-        Covariance of the predictors K to the response gene by task
-    :param cov_D: np.ndarray [T x K x K]
-        Covariance of the predictors K to K by task
-    :param sparse_matrix: np.ndarray [K x T]
-        Matrix of model coefficients for each predictor by each task that are unique to each task
-    :param block_matrix: np.ndarray [K x T]
-        Matrix of model coefficients for each predictor by each task that are shared between each task
-    :param lambda_S: float
-        Penalty coefficient for the sparse matrix
-    :param prior: np.ndarray [T x K]
-        Matrix of known prior information
-    :return sparse_matrix: np.ndarray [K x T]
-        Updated matrix of model coefficients unique to each task
     """
-
-    n_features = cov_C.shape[1]
-    n_tasks = cov_C.shape[0]
-
-    # Update each task independently (shared penalty only)
-    for task_id in range(n_tasks):
-        # Task covariance update terms
-        task_c = cov_C[task_id]
-        task_d = cov_D[task_id]
-
-        # Previous task block-sparse and sparse coefficients
-        task_b = block_matrix[:, task_id]
-        task_s = sparse_matrix[:, task_id]
-        task_prior = prior[:, task_id]
-
-        # Cycle through predictors
+    # update each task independently (shared penalty only)
+    for k in range(n_tasks):
+        c = C[k]; d = D[k]
+        b = B[:,k]; s = S[:,k]
+        p = prior[:,k]
+        # cycle through predictors
         for j in range(n_features):
-            # Set sparse coefficient for predictor j to zero
-            sparse_tmp = np.copy(task_s)
-            sparse_tmp[j] = 0.
-
-            # Calculate next coefficient based on fit only
-            alpha = (task_c[j] - np.sum((task_b + sparse_tmp) * task_d[j])) / task_d[j, j] if task_d[j, j] != 0 else 0.
-
-            # Lasso regularization
-            if abs(alpha) > task_prior[j]:
-                task_s[j] = alpha - (np.sign(alpha) * task_prior[j] * lambda_S)
+            # set sparse coefficient for predictor j to zero
+            s_tmp = deepcopy(s)
+            s_tmp[j] = 0.
+            # calculate next coefficient based on fit only
+            if d[j,j] == 0:
+                alpha = 0
             else:
-                task_s[j] = 0
-
+                alpha = (c[j]-np.sum((b+s_tmp)*d[j]))/d[j,j]
+            # lasso regularization
+            if abs(alpha) <= p[j]*lamS:
+                s[j] = 0.
+            else:
+                s[j] = alpha-(np.sign(alpha)*p[j]*lamS)
         # update current task
-        sparse_matrix[:, task_id] = task_s
+        S[:,k] = s
 
-    return sparse_matrix
+    return(S)
 
-def _update_block(cov_C, cov_D, block_matrix, sparse_matrix, lambda_B):
+def updateB(C, D, B, S, lamB, prior, n_tasks, n_features):
     """
     returns updated coefficients for B (predictors x tasks)
     block regularized (l_1/l_inf) -- using cyclical coordinate descent and
     soft-thresholding on the l_1 norm across tasks
     reference: Liu et al, ICML 2009. Blockwise coordinate descent procedures
     for the multi-task lasso, with applications to neural semantic basis discovery.
-    :param cov_C: np.ndarray [T x K]
-        Covariance of the predictors K to the response gene by task
-    :param cov_D: np.ndarray [T x K x K]
-        Covariance of the predictors K to K by task
-    :param sparse_matrix: np.ndarray [K x T]
-        Matrix of model coefficients for each predictor by each task that are unique to each task
-    :param block_matrix: np.ndarray [K x T]
-        Matrix of model coefficients for each predictor by each task that are shared between each task
-    :param lambda_B: float
-        Penalty coefficient for the block matrix
-    :return block_matrix: np.ndarray [K x T]
-        Updated matrix of model coefficients that are shared between all tasks
     """
-
-    n_features = cov_C.shape[1]
-    n_tasks = cov_C.shape[0]
-
-    # Cycle through predictors
+    #p = prior.min(axis=1)
+    # cycles through predictors
     for j in range(n_features):
-
-        # Initialize next coefficients
+        # initialize next coefficients
         alphas = np.zeros(n_tasks)
-        # Update tasks for each predictor together
-
-        for task_id in range(n_tasks):
-            # Task covariance update terms
-            task_c = cov_C[task_id]
-            task_d = cov_D[task_id]
-
-            # Previous task block-sparse and sparse coefficients
-            task_b = block_matrix[:, task_id]
-            task_s = sparse_matrix[:, task_id]
-
-            # Set block-sparse coefficient for feature j to zero
-            block_tmp = np.copy(task_b)
-            block_tmp[j] = 0.
-
-            # Calculate next coefficient based on fit only
-            if task_d[j, j] != 0:
-                alphas[task_id] = (task_c[j] - np.sum((block_tmp + task_s) * task_d[:, j])) / task_d[j, j]
+        # update tasks for each predictor together
+        for k in range(n_tasks):
+            # get task covariance update terms
+            c = C[k]; d = D[k]
+            # get previous block-sparse and sparse coefficients
+            b = B[:,k]; s = S[:,k]
+            # set block-sparse coefficient for feature j to zero
+            b_tmp = deepcopy(b)
+            b_tmp[j] = 0.
+            # calculate next coefficient based on fit only
+            if d[j,j] == 0:
+                alphas[k] = 0
             else:
-                alphas[task_id] = 0.
-
-        # Set all tasks to zero if l1-norm less than lamB
-        if np.linalg.norm(alphas, 1) <= lambda_B:
-            block_matrix[j, :] = np.zeros(n_tasks)
-
-        # Regularized update for predictors with larger l1-norm
+                alphas[k] = (c[j]-np.sum((b_tmp+s)*d[:,j]))/d[j,j]
+        # set all tasks to zero if l1-norm less than lamB
+        if np.linalg.norm(alphas, 1) <= lamB:
+            B[j,:] = np.zeros(n_tasks)
+        # regularized update for predictors with larger l1-norm
         else:
-            # Find number of coefficients that would make l1-norm greater than penalty
+            # find number of coefficients that would make l1-norm greater than penalty
             indices = np.abs(alphas).argsort()[::-1]
             sorted_alphas = alphas[indices]
-            m_star = np.argmax((np.abs(sorted_alphas).cumsum() - lambda_B) / (np.arange(n_tasks) + 1))
-
-            # Initialize new weights
+            m_star = np.argmax((np.abs(sorted_alphas).cumsum()-lamB)/(np.arange(n_tasks)+1))
+            # initialize new weights
             new_weights = np.zeros(n_tasks)
-
-            # Keep small coefficients and regularize large ones (in above group)
-            for k, idx in enumerate(indices):
+            # keep small coefficients and regularize large ones (in above group)
+            for k in range(n_tasks):
+                idx = indices[k]
                 if k > m_star:
                     new_weights[idx] = sorted_alphas[k]
                 else:
                     sign = np.sign(sorted_alphas[k])
-                    update_term = np.sum(np.abs(sorted_alphas)[:m_star + 1]) - lambda_B
-                    new_weights[idx] = (sign / (m_star + 1)) * update_term
+                    update_term = np.sum(np.abs(sorted_alphas)[:m_star+1])-lamB
+                    new_weights[idx] = (sign/(m_star+1))*update_term
             # update current predictor
-            block_matrix[j, :] = new_weights
+            B[j,:] = new_weights
 
-    return block_matrix
+    return(B)
 
 def _covariance_by_task(X, Y):
     """
