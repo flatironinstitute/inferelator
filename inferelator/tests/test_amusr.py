@@ -265,9 +265,9 @@ class TestAMuSRrunner(unittest.TestCase):
         gene1_prior = amusr_regression.format_prior(priors, 'gene1', [0, 1], 1.)
         gene2_prior = amusr_regression.format_prior(priors, 'gene2', [0, 1], 1.)
         output = [amusr_regression.run_regression_EBIC(des, res, ['tf1', 'tf2', 'tf3'], [0, 1], 'gene1', gene1_prior,
-                                                       scale_data=True)[0],
+                                                       scale_data=True),
                   amusr_regression.run_regression_EBIC(des, res, ['tf1', 'tf2', 'tf3'], [0, 1], 'gene2', gene2_prior,
-                                                       scale_data=True)[0]]
+                                                       scale_data=True)]
 
         out0 = pd.DataFrame([['tf3', 'gene1', -1, 1],
                              ['tf3', 'gene1', -1, 1]],
@@ -312,6 +312,8 @@ class TestAMuSRrunner(unittest.TestCase):
         regress_data = r.regress()
         for i in range(len(targets)):
             pdt.assert_frame_equal(pd.concat(regress_data[i]), out[i], check_dtype=False)
+
+        weights, resc_weights = r.pileup_data(regress_data)
 
 
 class TestAMuSRParams(unittest.TestCase):
