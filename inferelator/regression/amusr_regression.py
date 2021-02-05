@@ -27,7 +27,7 @@ MIN_RSS = 1e-10
 
 
 def run_regression_EBIC(X, Y, TFs, tasks, gene, prior, Cs=None, Ss=None, lambda_Bs=None,
-                        lambda_Ss=None, scale_data=False):
+                        lambda_Ss=None, scale_data=False, return_lambdas=False):
     """
     Run multitask regression. Search the regularization coefficient space and select the model with the
     lowest eBIC.
@@ -115,8 +115,7 @@ def run_regression_EBIC(X, Y, TFs, tasks, gene, prior, Cs=None, Ss=None, lambda_
                 cTFs = np.asarray(TFs)[model_output[:,kx] != 0]
                 output[k] = _final_weights(X[kx][:, nonzero], Y[kx], cTFs, gene)
 
-    return output, opt_b, opt_s
-
+    return (output, opt_b, opt_s) if return_lambdas else output
 
 class AMuSR_regression(base_regression.BaseRegression):
 
@@ -208,7 +207,7 @@ class AMuSR_regression(base_regression.BaseRegression):
             from inferelator.distributed.dask_functions import amusr_regress_dask
             return amusr_regress_dask(self.X, self.Y, self.priors, self.prior_weight, self.n_tasks, self.genes,
                                       self.tfs, self.G, remove_autoregulation=self.remove_autoregulation,
-                                      regression_function=regression_function)[0]
+                                      regression_function=regression_function)
 
         def regression_maker(j):
             level = 0 if j % 100 == 0 else 2
@@ -231,7 +230,7 @@ class AMuSR_regression(base_regression.BaseRegression):
 
             prior = format_prior(self.priors, gene, tasks, self.prior_weight)
             return regression_function(x, y, tfs, tasks, gene, prior, Cs=self.Cs, Ss=self.Ss,
-                                       lambda_Bs=self.lambda_Bs, lambda_Ss=self.lambda_Ss)[0]
+                                       lambda_Bs=self.lambda_Bs, lambda_Ss=self.lambda_Ss)
 
         return MPControl.map(regression_maker, range(self.G))
 
@@ -239,8 +238,6 @@ class AMuSR_regression(base_regression.BaseRegression):
 
         weights = []
         rescaled_weights = []
-
-        print(run_data)
 
         for k in range(self.n_tasks):
             results_k = []
