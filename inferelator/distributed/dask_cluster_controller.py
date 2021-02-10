@@ -16,15 +16,17 @@ from inferelator.distributed.dask_functions import dask_map
 
 _DEFAULT_CONDA_ACTIVATE = "source ~/.local/anaconda3/bin/activate"
 _DEFAULT_NUM_JOBS = 1
+_DEFAULT_THREADS_PER_WORKER = 1
 _DEFAULT_WORKERS_PER_JOB = 20
 _DEFAULT_MEM_PER_JOB = '62GB'
 _DEFAULT_INTERFACE = 'ib0'
 _DEFAULT_WALLTIME = '1:00:00'
 
-_DEFAULT_ENV_EXTRA = ['module purge',
-                      'export MKL_NUM_THREADS=1',
-                      'export OPENBLAS_NUM_THREADS=1',
-                      'export NUMEXPR_NUM_THREADS=1']
+_DEFAULT_ENV_EXTRA = ['module purge']
+
+_THREAD_CONTROL_ENV = ['export MKL_NUM_THREADS={t}',
+                       'export OPENBLAS_NUM_THREADS={t}',
+                       'export NUMEXPR_NUM_THREADS={t}']
 
 _DEFAULT_CONTROLLER_EXTRA = ['--nodes 1', '--ntasks-per-node 1']
 
@@ -50,11 +52,21 @@ _KNOWN_CONFIG = {"prince": {"_job_n_workers": 20,
                                    "_interface": "ib0",
                                    "_queue": "preempt",
                                    "_job_extra_env_commands": copy.copy(_DEFAULT_ENV_EXTRA),
-                                   "_job_slurm_commands": copy.copy(_DEFAULT_ENV_EXTRA) + ["--qos=preempt",
-                                                                                           "--constraint=info"]}
+                                   "_job_slurm_commands": copy.copy(_DEFAULT_CONTROLLER_EXTRA) + ["--qos=preempt",
+                                                                                                  "--constraint=info"]},
+                 "rusty_rome": {"_job_n_workers": 64,
+                                "_job_n_threads": 2,
+                                "_num_local_workers": 60,
+                                "_job_mem": "990GB",
+                                "_job_time": "24:00:00",
+                                "_interface": "ib0",
+                                "_queue": "ccb",
+                                "_job_extra_env_commands": copy.copy(_DEFAULT_ENV_EXTRA),
+                                "_job_slurm_commands": copy.copy(_DEFAULT_CONTROLLER_EXTRA) + ["--constraint=rome"]},
                  }
 
-_DEFAULT_LOCAL_WORKER_COMMAND = "dask-worker {a} --nprocs {p} --nthreads 1 --memory-limit 0 --local-directory {d}"
+
+_DEFAULT_LOCAL_WORKER_COMMAND = "dask-worker {a} --nprocs {p} --nthreads {t} --memory-limit 0 --local-directory {d}"
 
 try:
     _DEFAULT_LOCAL_DIR = os.environ['TMPDIR']
@@ -114,10 +126,12 @@ class DaskHPCClusterController(AbstractController):
     # Job variables
     _job_n = _DEFAULT_NUM_JOBS
     _job_n_workers = _DEFAULT_WORKERS_PER_JOB
+    _worker_n_threads = _DEFAULT_THREADS_PER_WORKER
     _job_mem = _DEFAULT_MEM_PER_JOB
     _job_time = _DEFAULT_WALLTIME
     _job_slurm_commands = copy.copy(_DEFAULT_CONTROLLER_EXTRA)
     _job_extra_env_commands = copy.copy(_DEFAULT_ENV_EXTRA)
+    _job_threading_commands = copy.copy(_THREAD_CONTROL_ENV)
 
     @classmethod
     def connect(cls, *args, **kwargs):
@@ -130,11 +144,12 @@ class DaskHPCClusterController(AbstractController):
                                                            project=cls._project,
                                                            interface=cls._interface,
                                                            walltime=cls._job_time,
-                                                           job_cpu=cls._job_n_workers,
-                                                           cores=cls._job_n_workers,
+                                                           job_cpu=cls._job_n_workers * cls._worker_n_threads,
+                                                           cores=cls._job_n_workers * cls._worker_n_threads,
                                                            processes=cls._job_n_workers,
+                                                           threads = cls._worker_n_threads,
                                                            job_mem=cls._job_mem,
-                                                           env_extra=cls._job_extra_env_commands,
+                                                           env_extra=cls._config_env,
                                                            local_directory=cls._local_directory,
                                                            memory=cls._job_mem,
                                                            job_extra=cls._job_slurm_commands,
@@ -180,7 +195,8 @@ class DaskHPCClusterController(AbstractController):
         utils.Debug.vprint(cls._config_str(), level=1)
 
     @classmethod
-    def set_job_size_params(cls, n_jobs=None, n_cores_per_job=None, mem_per_job=None, walltime=None):
+    def set_job_size_params(cls, n_jobs=None, n_cores_per_job=None, mem_per_job=None, walltime=None,
+                            n_workers_per_job=None, n_threads_per_worker=None):
         """
         Set the job size parameters
 
@@ -197,15 +213,24 @@ class DaskHPCClusterController(AbstractController):
         :param walltime: The time limit per worker job.
         For SLURM, this is setting #SBATCH --time
         :type walltime: str
+        :param n_workers_per_job: The number of worker jobs to start
+        SLURM will allocate n_workers_per_job * n_threads_per_worker cores per job.
+        :type n_workers_per_job: int
+        :param n_threads_per_worker: The number of threads to give each worker job.
+        SLURM will allocate n_workers_per_job * n_threads_per_worker cores per job.
+
         """
 
         check.argument_integer(n_jobs, allow_none=True)
         check.argument_integer(n_cores_per_job, allow_none=True)
+        check.argument_integer(n_threads_per_worker, allow_none=True)
 
         cls._job_n = n_jobs if n_jobs is not None else cls._job_n
         cls._job_n_workers = n_cores_per_job if n_cores_per_job is not None else cls._job_n_workers
         cls._job_mem = mem_per_job if mem_per_job is not None else cls._job_mem
         cls._job_time = walltime if walltime is not None else cls._job_time
+        cls._worker_n_threads = n_threads_per_worker if n_threads_per_worker is not None else cls._worker_n_threads
+        cls._job_n_workers = n_workers_per_job if n_workers_per_job is not None else cls._job_n_workers
 
     @classmethod
     def set_cluster_params(cls, queue=None, project=None, interface=None, local_workers=None):
@@ -329,6 +354,10 @@ class DaskHPCClusterController(AbstractController):
         return status.format(n=cls._job_n, w=cls._job_n_workers, m=cls._job_mem, q=cls._queue, p=cls._project)
 
     @classmethod
+    def _config_env(cls):
+        return [s.format(t=cls._worker_n_threads) for s in cls._job_threading_commands] + cls._job_extra_env_commands
+
+    @classmethod
     def _scale_jobs(cls):
         """
         Update the worker tracker. If an entire slurm job is dead, start a new one to replace it.
@@ -354,6 +383,7 @@ class DaskHPCClusterController(AbstractController):
 
         if num_workers is not None and num_workers > 0:
             cmd = _DEFAULT_LOCAL_WORKER_COMMAND.format(p=num_workers,
+                                                       t=cls._worker_n_threads,
                                                        a=cls._local_cluster.scheduler_address,
                                                        d=cls._local_directory)
             out_handle = open("slurm-{i}.out".format(i=_DEFAULT_SLURM_ID), mode="w")
