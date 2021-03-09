@@ -38,13 +38,16 @@ _KNOWN_CONFIG = {"prince": {"_job_n_workers": 20,
                             "_interface": "ib0",
                             "_job_extra_env_commands": copy.copy(_DEFAULT_ENV_EXTRA)
                             },
+
                  "rusty_ccb": {"_job_n_workers": 28,
                                "_num_local_workers": 25,
                                "_job_mem": "498GB",
                                "_job_time": "48:00:00",
                                "_interface": "ib0",
                                "_queue": "ccb",
-                               "_job_extra_env_commands": copy.copy(_DEFAULT_ENV_EXTRA)},
+                               "_job_extra_env_commands": copy.copy(_DEFAULT_ENV_EXTRA)
+                               },
+
                  "rusty_preempt": {"_job_n_workers": 40,
                                    "_num_local_workers": 35,
                                    "_job_mem": "766GB",
@@ -53,16 +56,19 @@ _KNOWN_CONFIG = {"prince": {"_job_n_workers": 20,
                                    "_queue": "preempt",
                                    "_job_extra_env_commands": copy.copy(_DEFAULT_ENV_EXTRA),
                                    "_job_slurm_commands": copy.copy(_DEFAULT_CONTROLLER_EXTRA) + ["--qos=preempt",
-                                                                                                  "--constraint=info"]},
-                 "rusty_rome": {"_job_n_workers": 64,
-                                "_job_n_threads": 2,
-                                "_num_local_workers": 60,
+                                                                                                  "--constraint=info"]
+                                   },
+
+                 "rusty_rome": {"_job_n_workers": 32,
+                                "_job_n_threads": 4,
+                                "_num_local_workers": 30,
                                 "_job_mem": "990GB",
                                 "_job_time": "24:00:00",
                                 "_interface": "ib0",
                                 "_queue": "ccb",
                                 "_job_extra_env_commands": copy.copy(_DEFAULT_ENV_EXTRA),
-                                "_job_slurm_commands": copy.copy(_DEFAULT_CONTROLLER_EXTRA) + ["--constraint=rome"]},
+                                "_job_slurm_commands": copy.copy(_DEFAULT_CONTROLLER_EXTRA) + ["--constraint=rome"]
+                                },
                  }
 
 
