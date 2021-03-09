@@ -155,7 +155,7 @@ class DaskHPCClusterController(AbstractController):
                                                            processes=cls._job_n_workers,
                                                            threads = cls._worker_n_threads,
                                                            job_mem=cls._job_mem,
-                                                           env_extra=cls._config_env,
+                                                           env_extra=cls._config_env(),
                                                            local_directory=cls._local_directory,
                                                            memory=cls._job_mem,
                                                            job_extra=cls._job_slurm_commands,
