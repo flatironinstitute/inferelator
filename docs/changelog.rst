@@ -1,8 +1,19 @@
 Change Log
 ==========
 
-Inferelator v0.5.2 `January 29, 2021`
+Inferelator v0.5.3 `March 22, 2021`
 --------------------------------------
+
+New Functionality:
+
+- Added the ability to control threads-per-process when using dask
+
+Bug Fixes:
+
+- Fixed bug in result dataframe that failed to create columns in older versions of pandas
+
+Inferelator v0.5.2 `January 29, 2021`
+-------------------------------------
 
 New Functionality:
 

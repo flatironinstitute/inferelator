@@ -59,9 +59,9 @@ _KNOWN_CONFIG = {"prince": {"_job_n_workers": 20,
                                                                                                   "--constraint=info"]
                                    },
 
-                 "rusty_rome": {"_job_n_workers": 32,
-                                "_job_n_threads": 4,
-                                "_num_local_workers": 30,
+                 "rusty_rome": {"_job_n_workers": 64,
+                                "_job_n_threads": 2,
+                                "_num_local_workers": 60,
                                 "_job_mem": "990GB",
                                 "_job_time": "24:00:00",
                                 "_interface": "ib0",
