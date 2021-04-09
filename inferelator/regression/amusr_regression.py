@@ -308,6 +308,9 @@ def amusr_fit(cov_C, cov_D, lambda_B=0., lambda_S=0., sparse_matrix=None, block_
     n_tasks = cov_C.shape[0]
     n_features = cov_C.shape[1]
 
+    assert check.argument_numeric(n_tasks, low=1)
+    assert check.argument_numeric(n_features, low=1)
+
     # if S and B are provided -- warm starts -- will run faster
     if sparse_matrix is None or block_matrix is None:
         sparse_matrix = np.zeros((n_features, n_tasks))
