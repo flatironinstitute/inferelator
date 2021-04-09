@@ -49,6 +49,8 @@ def run_regression_EBIC(X, Y, TFs, tasks, gene, prior, Cs=None, Ss=None, lambda_
 
     assert len(X) == len(Y)
     assert len(X) == len(tasks)
+    assert prior.ndim == 2 if prior is not None else True
+    assert prior.shape[1] == len(tasks) if prior is not None else True
 
     # The number of tasks
     n_tasks = len(X)
@@ -301,6 +303,7 @@ def amusr_fit(cov_C, cov_D, lambda_B=0., lambda_S=0., sparse_matrix=None, block_
     assert cov_C.shape[0] == cov_D.shape[0]
     assert cov_C.shape[1] == cov_D.shape[1]
     assert cov_D.shape[1] == cov_D.shape[2]
+    assert prior.ndim == 2 if prior is not None else True
 
     n_tasks = cov_C.shape[0]
     n_features = cov_C.shape[1]
@@ -623,6 +626,10 @@ def format_prior(priors, gene, tasks, prior_weight):
 
     # Return a [K x T]
     priors_out = np.transpose(np.asarray(priors_out))
+
+    if priors_out.ndim == 1:
+        priors_out = priors_out.reshape(-1, 1)
+
     return priors_out
 
 
