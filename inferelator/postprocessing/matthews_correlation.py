@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 
 from inferelator.postprocessing.model_performance import RankSummingMetric
 from inferelator.postprocessing import (TARGET_COLUMN, REGULATOR_COLUMN, CONFIDENCE_COLUMN, GOLD_STANDARD_COLUMN,
@@ -91,7 +92,9 @@ class RankSummaryMCC(RankSummingMetric):
     @staticmethod
     def calculate_opt_mcc(data):
 
-        return np.nanmax(data[MCC_COLUMN])
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            return np.nanmax(data[MCC_COLUMN])
 
     @staticmethod
     def calculate_opt_conf_mcc(data):
