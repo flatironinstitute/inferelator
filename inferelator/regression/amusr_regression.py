@@ -617,7 +617,9 @@ def format_prior(priors, gene, tasks, prior_weight):
                
         for k in tasks:
             prior = priors[k].reindex([gene]).replace(np.nan, 0)
-            priors_out.append(_weight_prior(prior.loc[gene, :], prior_weight))
+            priors_out.append(_weight_prior(prior.loc[gene, :].values, prior_weight))
+
+        priors_out = np.transpose(np.asarray(priors_out))
 
     # Otherwise just use the same prior for each task
     else:
@@ -625,10 +627,8 @@ def format_prior(priors, gene, tasks, prior_weight):
         priors = priors[0] if isinstance(priors, list) else priors
         
         prior = priors.reindex([gene]).replace(np.nan, 0)
-        priors_out = [_weight_prior(prior.loc[gene, :], prior_weight)] * len(tasks)
-
-    # Return a [K x T]
-    priors_out = np.transpose(np.asarray(priors_out))
+        priors_out = np.tile(_weight_prior(prior.loc[gene, :].values, prior_weight).reshape(-1, 1),
+                             (1, len(tasks)))
 
     if priors_out.ndim == 1:
         priors_out = priors_out.reshape(-1, 1)
