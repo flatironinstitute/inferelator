@@ -610,8 +610,6 @@ def format_prior(priors, gene, tasks, prior_weight, tfs=None):
     if priors is None:
         return None
 
-    priors_out = []
-
     def _reindex_to_gene(p):
             p = p.reindex([gene])
             p = p.reindex(tfs, axis=1) if tfs is not None else p
@@ -621,18 +619,14 @@ def format_prior(priors, gene, tasks, prior_weight, tfs=None):
     # If the priors are a list, get the gene-specific prior from each task
     if isinstance(priors, list) and len(priors) > 1:
                
-        for k in tasks:
-            priors_out.append(_weight_prior(_reindex_to_gene(priors[k]).loc[gene, :].values, prior_weight))
-
+        priors_out = [_weight_prior(_reindex_to_gene(priors[k]).loc[gene, :].values, prior_weight) for k in tasks]
         priors_out = np.transpose(np.vstack(priors_out))
 
     # Otherwise just use the same prior for each task
     else:
 
         priors = priors[0] if isinstance(priors, list) else priors
-        
-        prior = _reindex_to_gene(priors)
-        priors_out = np.tile(_weight_prior(prior.loc[gene, :].values, prior_weight).reshape(-1, 1),
+        priors_out = np.tile(_weight_prior(_reindex_to_gene(priors).loc[gene, :].values, prior_weight).reshape(-1, 1),
                              (1, len(tasks)))
 
     return priors_out
