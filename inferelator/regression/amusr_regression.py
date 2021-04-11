@@ -230,7 +230,7 @@ class AMuSR_regression(base_regression.BaseRegression):
                     y.append(self.Y[k].get_gene_data(gene, force_dense=True).reshape(-1, 1))  # list([N, 1])
                     tasks.append(k)  # [T,]
 
-            prior = format_prior(self.priors, gene, tasks, self.prior_weight)
+            prior = format_prior(self.priors, gene, tasks, self.prior_weight, tfs=tfs)
             return regression_function(x, y, tfs, tasks, gene, prior, Cs=self.Cs, Ss=self.Ss,
                                        lambda_Bs=self.lambda_Bs, lambda_Ss=self.lambda_Ss)
 
@@ -587,7 +587,7 @@ def _final_weights(X, y, TFs, gene):
     return out_weights
 
 
-def format_prior(priors, gene, tasks, prior_weight):
+def format_prior(priors, gene, tasks, prior_weight, tfs=None):
     """
     Returns weighted priors for one gene
     :param priors: list(pd.DataFrame [G x K]) or pd.DataFrame [G x K]
@@ -612,26 +612,28 @@ def format_prior(priors, gene, tasks, prior_weight):
 
     priors_out = []
 
+    def _reindex_to_gene(p):
+            p = p.reindex([gene])
+            p = p.reindex(tfs, axis=1) if tfs is not None else p
+            p = p.fillna(0.0)
+            return p
+
     # If the priors are a list, get the gene-specific prior from each task
     if isinstance(priors, list) and len(priors) > 1:
                
         for k in tasks:
-            prior = priors[k].reindex([gene]).replace(np.nan, 0)
-            priors_out.append(_weight_prior(prior.loc[gene, :].values, prior_weight))
+            priors_out.append(_weight_prior(_reindex_to_gene(priors[k]).loc[gene, :].values, prior_weight))
 
-        priors_out = np.transpose(np.asarray(priors_out))
+        priors_out = np.transpose(np.vstack(priors_out))
 
     # Otherwise just use the same prior for each task
     else:
 
         priors = priors[0] if isinstance(priors, list) else priors
         
-        prior = priors.reindex([gene]).replace(np.nan, 0)
+        prior = _reindex_to_gene(priors)
         priors_out = np.tile(_weight_prior(prior.loc[gene, :].values, prior_weight).reshape(-1, 1),
                              (1, len(tasks)))
-
-    if priors_out.ndim == 1:
-        priors_out = priors_out.reshape(-1, 1)
 
     return priors_out
 
