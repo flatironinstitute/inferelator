@@ -49,6 +49,8 @@ def run_regression_EBIC(X, Y, TFs, tasks, gene, prior, Cs=None, Ss=None, lambda_
 
     assert len(X) == len(Y)
     assert len(X) == len(tasks)
+    assert prior.ndim == 2 if prior is not None else True
+    assert prior.shape[1] == len(tasks) if prior is not None else True
 
     # The number of tasks
     n_tasks = len(X)
@@ -228,7 +230,7 @@ class AMuSR_regression(base_regression.BaseRegression):
                     y.append(self.Y[k].get_gene_data(gene, force_dense=True).reshape(-1, 1))  # list([N, 1])
                     tasks.append(k)  # [T,]
 
-            prior = format_prior(self.priors, gene, tasks, self.prior_weight)
+            prior = format_prior(self.priors, gene, tasks, self.prior_weight, tfs=tfs)
             return regression_function(x, y, tfs, tasks, gene, prior, Cs=self.Cs, Ss=self.Ss,
                                        lambda_Bs=self.lambda_Bs, lambda_Ss=self.lambda_Ss)
 
@@ -301,9 +303,13 @@ def amusr_fit(cov_C, cov_D, lambda_B=0., lambda_S=0., sparse_matrix=None, block_
     assert cov_C.shape[0] == cov_D.shape[0]
     assert cov_C.shape[1] == cov_D.shape[1]
     assert cov_D.shape[1] == cov_D.shape[2]
+    assert prior.ndim == 2 if prior is not None else True
 
     n_tasks = cov_C.shape[0]
     n_features = cov_C.shape[1]
+
+    assert check.argument_numeric(n_tasks, low=1)
+    assert check.argument_numeric(n_features, low=1)
 
     # if S and B are provided -- warm starts -- will run faster
     if sparse_matrix is None or block_matrix is None:
@@ -581,7 +587,7 @@ def _final_weights(X, y, TFs, gene):
     return out_weights
 
 
-def format_prior(priors, gene, tasks, prior_weight):
+def format_prior(priors, gene, tasks, prior_weight, tfs=None):
     """
     Returns weighted priors for one gene
     :param priors: list(pd.DataFrame [G x K]) or pd.DataFrame [G x K]
@@ -604,25 +610,25 @@ def format_prior(priors, gene, tasks, prior_weight):
     if priors is None:
         return None
 
-    priors_out = []
+    def _reindex_to_gene(p):
+            p = p.reindex([gene])
+            p = p.reindex(tfs, axis=1) if tfs is not None else p
+            p = p.fillna(0.0)
+            return p
 
     # If the priors are a list, get the gene-specific prior from each task
     if isinstance(priors, list) and len(priors) > 1:
                
-        for k in tasks:
-            prior = priors[k].reindex([gene]).replace(np.nan, 0)
-            priors_out.append(_weight_prior(prior.loc[gene, :], prior_weight))
+        priors_out = [_weight_prior(_reindex_to_gene(priors[k]).loc[gene, :].values, prior_weight) for k in tasks]
+        priors_out = np.transpose(np.vstack(priors_out))
 
     # Otherwise just use the same prior for each task
     else:
 
         priors = priors[0] if isinstance(priors, list) else priors
-        
-        prior = priors.reindex([gene]).replace(np.nan, 0)
-        priors_out = [_weight_prior(prior.loc[gene, :], prior_weight)] * len(tasks)
+        priors_out = np.tile(_weight_prior(_reindex_to_gene(priors).loc[gene, :].values, prior_weight).reshape(-1, 1),
+                             (1, len(tasks)))
 
-    # Return a [K x T]
-    priors_out = np.transpose(np.asarray(priors_out))
     return priors_out
 
 

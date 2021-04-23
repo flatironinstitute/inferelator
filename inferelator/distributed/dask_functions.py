@@ -52,7 +52,7 @@ def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remov
             y.append(y_data)
             tasks.append(k)  # [T,]
 
-        prior = format_prior(prior, gene, tasks, prior_weight)
+        prior = format_prior(prior, gene, tasks, prior_weight, tfs=tf)
         return j, regression_function(x, y, tf, tasks, gene, prior,
                                       lambda_Bs=lambda_Bs, lambda_Ss=lambda_Ss, Cs=Cs, Ss=Ss)
 
