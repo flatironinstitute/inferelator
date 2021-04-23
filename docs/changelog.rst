@@ -1,6 +1,15 @@
 Change Log
 ==========
 
+Inferelator v0.5.4 `April 23, 2021`
+-----------------------------------
+
+Bug Fixes:
+
+- Fixed bug in multitask prior processing
+- Fixed bug in dask cluster setup
+- Suppressed stdout warning when output network MCC is not finite
+
 Inferelator v0.5.3 `March 22, 2021`
 --------------------------------------
 
