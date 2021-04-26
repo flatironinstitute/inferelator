@@ -58,6 +58,7 @@ class CrossValidationManager(object):
     size_sample_stratified_column = None
     size_sample_with_replacement = False
     size_sample_seed = None
+    size_sample_only = False
 
     # Workflow storage
     _baseline_workflow = None
@@ -180,7 +181,8 @@ class CrossValidationManager(object):
         self.dropin_max_size = group_size
         self.dropin_seed = seed
 
-    def add_size_subsampling(self, size_vector, stratified_column_name=None, with_replacement=False, seed=42):
+    def add_size_subsampling(self, size_vector, stratified_column_name=None, with_replacement=False, seed=42,
+                             size_sample_only=None):
         """
         Resample expression data to a ratio of the original data.
 
@@ -206,6 +208,7 @@ class CrossValidationManager(object):
         self.size_sample_stratified_column = stratified_column_name
         self.size_sample_with_replacement = with_replacement
         self.size_sample_seed = seed
+        self.size_sample_only = size_sample_only if size_sample_only is not None else self.size_sample_only
 
     def run(self):
         """
@@ -222,7 +225,10 @@ class CrossValidationManager(object):
         self._check_grid_search_params_exist()
 
         # Run base grid search
-        results = self._grid_search()
+        if self.size_sample_only:
+            results = []
+        else:
+            results = self._grid_search()
 
         # Run size sampling
         if self.size_sample_vector is not None:
