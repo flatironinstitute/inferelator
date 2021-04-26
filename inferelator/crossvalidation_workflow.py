@@ -454,7 +454,7 @@ class CrossValidationManager(object):
         :param col_name: str
         """
 
-        if col_name in self.workflow.meta_data.columns:
+        if col_name in self.workflow.data.meta_data.columns:
             return True
         else:
             raise ValueError("Column {col} is not present in the loaded metadata".format(col=col_name))
@@ -464,7 +464,7 @@ class CrossValidationManager(object):
         Run grid search on all data minus one group at a time
         """
 
-        meta_data = self.workflow.meta_data.copy()
+        meta_data = self.workflow.data.meta_data.copy()
         col = self.dropout_column
         max_size = self.dropout_max_size
 
@@ -517,7 +517,7 @@ class CrossValidationManager(object):
         Run grid search on one group from the data at a time
         """
 
-        meta_data = self.workflow.meta_data.copy()
+        meta_data = self.workflow.data.meta_data.copy()
         col = self.dropin_column
         max_size = self.dropin_max_size
 
@@ -557,7 +557,7 @@ class CrossValidationManager(object):
 
         for i, size_ratio in enumerate(self.size_sample_vector):
             rgen = np.random.RandomState(self.size_sample_seed + i)
-            meta_data = self.workflow.meta_data.copy()
+            meta_data = self.workflow.data.meta_data.copy()
 
             if self.size_sample_stratified_column is not None:
                 strat_col = self.size_sample_stratified_column
