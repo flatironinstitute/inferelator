@@ -388,8 +388,7 @@ class CrossValidationManager(object):
             # Drop any observations which are False in the mask (if set)
             if mask_function is not None:
                 mask = mask_function()
-                cv_workflow.expression_matrix.drop(cv_workflow.expression_matrix.columns[~mask], axis=1, inplace=True)
-                cv_workflow.meta_data.drop(cv_workflow.meta_data.index[~mask], axis=0, inplace=True)
+                cv_workflow.data = cv_workflow.data.get_sample_data(mask.index[mask])
                 n_obs = mask.sum()
             else:
                 n_obs = cv_workflow._num_obs
