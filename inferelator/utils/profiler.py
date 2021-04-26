@@ -23,6 +23,7 @@ def main():
 
         while psutil.pid_exists(pid):
             csv_handler.writerow(['%.3f' % (time.time() - time_start), int(get_current_memory(pid) / 1e6)])
+            out_fh.flush()
             time.sleep(t_step)
 
 
