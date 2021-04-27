@@ -22,11 +22,12 @@ TEST_DATA = InferelatorData(TestDataSingleCellLike.expression_matrix,
                             transpose_expression=True,
                             meta_data=TestDataSingleCellLike.meta_data,
                             gene_data=TestDataSingleCellLike.gene_metadata,
-                            gene_data_idx_column=TestDataSingleCellLike.gene_list_index)
+                            gene_data_idx_column=TestDataSingleCellLike.gene_list_index,
+                            sample_names=list(map(str, range(10))))
 
 TEST_DATA_SPARSE = InferelatorData(sps.csr_matrix(TestDataSingleCellLike.expression_matrix.T.values),
                                    gene_names=TestDataSingleCellLike.expression_matrix.index,
-                                   sample_names=TestDataSingleCellLike.expression_matrix.columns,
+                                   sample_names=list(map(str, range(10))),
                                    meta_data=TestDataSingleCellLike.meta_data,
                                    gene_data=TestDataSingleCellLike.gene_metadata,
                                    gene_data_idx_column=TestDataSingleCellLike.gene_list_index)

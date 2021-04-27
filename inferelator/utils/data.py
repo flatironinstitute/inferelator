@@ -11,7 +11,8 @@ import pandas.api.types as pat
 from sklearn.preprocessing import StandardScaler
 import scipy.io
 from anndata import AnnData
-from inferelator.utils import Debug, Validator
+from inferelator.utils import Debug
+from inferelator.utils import Validator as check
 
 
 def dot_product(a, b, dense=True, cast=True):
@@ -598,8 +599,60 @@ class InferelatorData(object):
         return pd.DataFrame(x, columns=self.gene_names, index=labels) if to_df else x
 
     def get_bootstrap(self, sample_bootstrap_index):
-        return InferelatorData(expression_data=self._adata[sample_bootstrap_index, :].X.copy(),
+        return InferelatorData(expression_data=self._adata.X[sample_bootstrap_index, :].copy(),
                                gene_names=self.gene_names)
+
+    def get_random_samples(self, num_obs, with_replacement=False, random_seed=None, random_gen=None, inplace=False,
+                           fix_names=True):
+        """
+        Randomly sample to a specific number of observatons from the entire data set
+
+        :param num_obs: Number of observations to return
+        :type num_obs: int
+        :param with_replacement: Sample with replacement, defaults to False
+        :type with_replacement: bool, optional
+        :param random_seed: Seed for numpy random generator, defaults to None. Will be ignored if a generator itself is
+            passed to random_gen.
+        :type random_seed: int, optional
+        :param random_gen: Numpy random generator to use, defaults to None. 
+        :type random_gen: np.random.Generator, optional
+        :param inplace: Change this instance of the data structure inplace and return a reference to itself
+        :type inplace: bool, optional
+        """
+
+        check.argument_integer(num_obs, low=1)
+        check.argument_integer(random_seed, allow_none=True)
+
+        if (num_obs > self.num_obs) and not with_replacement:
+            _msg = "Unable to sample {x} from {y} observations without replacement".format(x=num_obs, y=self.num_obs)
+            raise ValueError(_msg)
+
+        # Make a new random generator if not provided
+        if random_gen is None:
+            random_gen = np.random.default_rng() if random_seed is None else np.random.default_rng(random_seed)
+
+        # Sample with replacement using randint
+        if with_replacement:
+            keeper_ilocs = random_gen.integers(self.num_obs, size=(num_obs,))
+        
+        # Sample without replacement using choice
+        else:
+            keeper_ilocs = random_gen.choice(np.arange(self.num_obs), size=(num_obs,), replace=False)
+
+        # Change this instance's _adata (explicit copy allows the old data to be dereferenced instead of held as view)
+        if inplace:
+            self._adata = self._adata[keeper_ilocs, :].copy()
+            return_obj = self
+        
+        # Create a new InferelatorData instance with the _adata slice
+        else:
+            return_obj = InferelatorData(self._adata[keeper_ilocs, :].copy())
+
+        # Fix names
+        return_obj._adata.obs_names_make_unique() if with_replacement and fix_names else None
+
+        return return_obj
+
 
     def subset_copy(self, row_index=None, column_index=None):
 

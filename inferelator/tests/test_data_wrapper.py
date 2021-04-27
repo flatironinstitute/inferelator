@@ -361,5 +361,60 @@ class TestFunctions(TestWrapperSetup):
         self.assertTrue(sparse.isspmatrix_csr(self.adata_sparse.expression_data))
 
 
+class TestSampling(TestWrapperSetup):
+
+    def setUp(self):
+        super(TestSampling, self).setUp()
+
+        self.adata.trim_genes()
+        self.adata_sparse.trim_genes()
+
+    def test_without_replacement(self):
+
+        new_adata = self.adata.get_random_samples(10, with_replacement=False)
+        
+        new_sample_names = new_adata.sample_names.tolist()
+        new_sample_names.sort()
+
+        old_sample_names = self.adata.sample_names.tolist()
+        old_sample_names.sort()
+
+        self.assertListEqual(new_sample_names, old_sample_names)
+        with self.assertRaises(AssertionError):
+            self.assertListEqual(new_adata.sample_names.tolist(), self.adata.sample_names.tolist())
+
+        with self.assertRaises(ValueError):
+            self.adata.get_random_samples(100, with_replacement=False)
+
+        with self.assertRaises(ValueError):
+            self.adata.get_random_samples(0, with_replacement=False)
+
+        self.assertEqual(self.adata.get_random_samples(2, with_replacement=False).num_obs, 2)
+
+    def test_with_replacement(self):
+
+        new_adata = self.adata.get_random_samples(11, with_replacement=True, fix_names=True)
+        self.assertEqual(new_adata.num_obs, 11)
+
+        new_sample_names = new_adata.sample_names.tolist()
+        new_sample_names.sort()
+
+        old_sample_names = self.adata.sample_names.tolist()
+        old_sample_names.sort()
+
+        with self.assertRaises(AssertionError):
+            self.assertListEqual(new_sample_names, old_sample_names)
+
+        with self.assertRaises(ValueError):
+            self.adata.get_random_samples(0, with_replacement=True)
+
+        self.assertEqual(self.adata.get_random_samples(200, with_replacement=True).num_obs, 200)
+
+    def test_inplace(self):
+
+        new_adata = self.adata.get_random_samples(11, with_replacement=True, fix_names=False, inplace=True)
+        self.assertEqual(id(new_adata), id(self.adata))
+
+
 if __name__ == '__main__':
     unittest.main()
