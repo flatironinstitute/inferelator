@@ -382,28 +382,43 @@ def updateB(C, D, B, S, lamB, prior, n_tasks, n_features):
     reference: Liu et al, ICML 2009. Blockwise coordinate descent procedures
     for the multi-task lasso, with applications to neural semantic basis discovery.
     """
-    #p = prior.min(axis=1)
+    
+    S = np.asarray(S, order="F")
+
     # cycles through predictors
     for j in range(n_features):
+        
         # initialize next coefficients
         alphas = np.zeros(n_tasks)
+        
         # update tasks for each predictor together
+        d = D[:, :, j]
+
         for k in range(n_tasks):
-            # get task covariance update terms
-            c = C[k]; d = D[k]
-            # get previous block-sparse and sparse coefficients
-            b = B[:,k]; s = S[:,k]
-            # set block-sparse coefficient for feature j to zero
-            b_tmp = deepcopy(b)
-            b_tmp[j] = 0.
-            # calculate next coefficient based on fit only
-            if d[j,j] == 0:
+
+            d_kjj = d[k, j]
+
+            if d_kjj == 0:
+
                 alphas[k] = 0
+
             else:
-                alphas[k] = (c[j]-np.sum((b_tmp+s)*d[:,j]))/d[j,j]
+
+                # get previous block-sparse
+                # copies because B is C-ordered
+                b = B[:, k]
+
+                # set block-sparse coefficient for feature j to zero
+                b[j] = 0.
+
+                # calculate next coefficient based on fit only
+                alphas[k] = (C[k, j] - np.sum((b + S[:, k]) * d[k, :])) / d_kjj
+
+
         # set all tasks to zero if l1-norm less than lamB
         if np.linalg.norm(alphas, 1) <= lamB:
             B[j,:] = np.zeros(n_tasks)
+
         # regularized update for predictors with larger l1-norm
         else:
             # find number of coefficients that would make l1-norm greater than penalty
