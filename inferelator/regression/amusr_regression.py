@@ -22,6 +22,7 @@ DEFAULT_Cs = np.logspace(np.log10(0.01), np.log10(10), 20)[::-1]
 
 MAX_ITER = 1000
 TOL = 1e-2
+REL_TOL = 1e-4
 MIN_WEIGHT_VAL = 0.1
 MIN_RSS = 1e-10
 
@@ -260,7 +261,7 @@ class AMuSR_regression(base_regression.BaseRegression):
         return weights, rescaled_weights
 
 def amusr_fit(cov_C, cov_D, lambda_B=0., lambda_S=0., sparse_matrix=None, block_matrix=None, prior=None,
-              max_iter=MAX_ITER, tol=TOL, min_weight=MIN_WEIGHT_VAL):
+              max_iter=MAX_ITER, tol=TOL, rel_tol=REL_TOL, rel_tol_min_iter=10, min_weight=MIN_WEIGHT_VAL):
     """
     Fits regression model in which the weights matrix W (predictors x tasks)
     is decomposed in two components: B that captures block structure across tasks
@@ -321,6 +322,8 @@ def amusr_fit(cov_C, cov_D, lambda_B=0., lambda_S=0., sparse_matrix=None, block_
 
     # Initialize weights
     combined_weights = sparse_matrix + block_matrix
+
+    iter_tols = np.zeros(max_iter)
     for i in range(max_iter):
 
         # Keep a reference to the old combined_weights
@@ -334,8 +337,17 @@ def amusr_fit(cov_C, cov_D, lambda_B=0., lambda_S=0., sparse_matrix=None, block_
         combined_weights = sparse_matrix + block_matrix
 
         # If convergence tolerance reached, break loop and move on
-        if np.max(np.abs(combined_weights - _combined_weights_old)) < tol:
+        iter_tols[i] = np.max(np.abs(combined_weights - _combined_weights_old))
+
+        if iter_tols[i] < tol:
             break
+
+        # If the maximum over the last few iterations is less than the relative tolerance, break loop and move on
+        if i > rel_tol_min_iter:
+            lb_start, lb_stop = i - rel_tol_min_iter, i
+            iter_rel_max = iter_tols[lb_start: lb_stop] - iter_tols[lb_start - 1: lb_stop - 1]
+            if np.max(iter_rel_max) < rel_tol:
+                break
 
     # Set small values of W to zero
     # Since we don't run the algorithm until update equals zero
@@ -439,7 +451,7 @@ def updateB(C, D, B, S, lamB, prior, n_tasks, n_features):
             # update current predictor
             B[j,:] = new_weights
 
-    return(B)
+    return B
 
 def _covariance_by_task(X, Y):
     """
