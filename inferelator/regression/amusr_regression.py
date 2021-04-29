@@ -380,8 +380,8 @@ def updateS(C, D, B, S, lamS, prior, n_tasks, n_features):
         c = C[k]
         d = D[k]
 
-        b = B[:,k]
-        s = S[:,k]
+        b = B[:, k]
+        s = S[:, k]
         p = prior[:, k] * lamS
 
         # cycle through predictors
