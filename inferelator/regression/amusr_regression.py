@@ -376,28 +376,34 @@ def updateS(C, D, B, S, lamS, prior, n_tasks, n_features):
     """
     # update each task independently (shared penalty only)
     for k in range(n_tasks):
+
         c = C[k]; d = D[k]
         b = B[:,k]; s = S[:,k]
-        p = prior[:,k]
+        p = prior[:, k]
+        p *= lamS
         # cycle through predictors
+
         for j in range(n_features):
             # set sparse coefficient for predictor j to zero
-            s_tmp = deepcopy(s)
-            s_tmp[j] = 0.
+            s[j] = 0.
+
             # calculate next coefficient based on fit only
             if d[j,j] == 0:
                 alpha = 0
+                continue
             else:
-                alpha = (c[j]-np.sum((b+s_tmp)*d[j]))/d[j,j]
+                alpha = (c[j]-np.sum((b+s)*d[j]))/d[j,j]
+
             # lasso regularization
-            if abs(alpha) <= p[j]*lamS:
+            if abs(alpha) <= p[j]:
                 s[j] = 0.
             else:
-                s[j] = alpha-(np.sign(alpha)*p[j]*lamS)
-        # update current task
-        S[:,k] = s
+                s[j] = alpha - (np.sign(alpha) * p[j])
 
-    return(S)
+        # update current task
+        S[:, k] = s
+
+    return S
 
 def updateB(C, D, B, S, lamB, prior, n_tasks, n_features):
     """
