@@ -45,6 +45,8 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
     def _num_obs(self):
         if self._task_objects is not None:
             return sum([t if t is not None else 0 for t in map(lambda x: x._num_obs, self._task_objects)])
+        elif self._task_design is not None:
+            return sum([t.num_obs for t in self._task_design])
         else:
             return None
 
