@@ -377,10 +377,13 @@ def updateS(C, D, B, S, lamS, prior, n_tasks, n_features):
     # update each task independently (shared penalty only)
     for k in range(n_tasks):
 
-        c = C[k]; d = D[k]
-        b = B[:,k]; s = S[:,k]
-        p = prior[:, k]
-        p *= lamS
+        c = C[k]
+        d = D[k]
+
+        b = B[:,k]
+        s = S[:,k]
+        p = prior[:, k] * lamS
+
         # cycle through predictors
 
         for j in range(n_features):
@@ -389,10 +392,9 @@ def updateS(C, D, B, S, lamS, prior, n_tasks, n_features):
 
             # calculate next coefficient based on fit only
             if d[j,j] == 0:
-                alpha = 0
-                continue
+                alpha = 0.
             else:
-                alpha = (c[j]-np.sum((b+s)*d[j]))/d[j,j]
+                alpha = (c[j]- np.sum((b + s) * d[j])) / d[j,j]
 
             # lasso regularization
             if abs(alpha) <= p[j]:
