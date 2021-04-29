@@ -58,6 +58,7 @@ class CrossValidationManager(object):
     size_sample_stratified_column = None
     size_sample_with_replacement = False
     size_sample_seed = None
+    size_sample_only = False
 
     # Workflow storage
     _baseline_workflow = None
@@ -180,7 +181,8 @@ class CrossValidationManager(object):
         self.dropin_max_size = group_size
         self.dropin_seed = seed
 
-    def add_size_subsampling(self, size_vector, stratified_column_name=None, with_replacement=False, seed=42):
+    def add_size_subsampling(self, size_vector, stratified_column_name=None, with_replacement=False, seed=42,
+                             size_sample_only=None):
         """
         Resample expression data to a ratio of the original data.
 
@@ -206,6 +208,7 @@ class CrossValidationManager(object):
         self.size_sample_stratified_column = stratified_column_name
         self.size_sample_with_replacement = with_replacement
         self.size_sample_seed = seed
+        self.size_sample_only = size_sample_only if size_sample_only is not None else self.size_sample_only
 
     def run(self):
         """
@@ -222,7 +225,10 @@ class CrossValidationManager(object):
         self._check_grid_search_params_exist()
 
         # Run base grid search
-        results = self._grid_search()
+        if self.size_sample_only:
+            results = []
+        else:
+            results = self._grid_search()
 
         # Run size sampling
         if self.size_sample_vector is not None:
@@ -382,8 +388,7 @@ class CrossValidationManager(object):
             # Drop any observations which are False in the mask (if set)
             if mask_function is not None:
                 mask = mask_function()
-                cv_workflow.expression_matrix.drop(cv_workflow.expression_matrix.columns[~mask], axis=1, inplace=True)
-                cv_workflow.meta_data.drop(cv_workflow.meta_data.index[~mask], axis=0, inplace=True)
+                cv_workflow.data = cv_workflow.data.get_sample_data(mask.index[mask])
                 n_obs = mask.sum()
             else:
                 n_obs = cv_workflow._num_obs
@@ -448,7 +453,7 @@ class CrossValidationManager(object):
         :param col_name: str
         """
 
-        if col_name in self.workflow.meta_data.columns:
+        if col_name in self.workflow.data.meta_data.columns:
             return True
         else:
             raise ValueError("Column {col} is not present in the loaded metadata".format(col=col_name))
@@ -458,7 +463,7 @@ class CrossValidationManager(object):
         Run grid search on all data minus one group at a time
         """
 
-        meta_data = self.workflow.meta_data.copy()
+        meta_data = self.workflow.data.meta_data.copy()
         col = self.dropout_column
         max_size = self.dropout_max_size
 
@@ -511,7 +516,7 @@ class CrossValidationManager(object):
         Run grid search on one group from the data at a time
         """
 
-        meta_data = self.workflow.meta_data.copy()
+        meta_data = self.workflow.data.meta_data.copy()
         col = self.dropin_column
         max_size = self.dropin_max_size
 
@@ -551,7 +556,7 @@ class CrossValidationManager(object):
 
         for i, size_ratio in enumerate(self.size_sample_vector):
             rgen = np.random.RandomState(self.size_sample_seed + i)
-            meta_data = self.workflow.meta_data.copy()
+            meta_data = self.workflow.data.meta_data.copy()
 
             if self.size_sample_stratified_column is not None:
                 strat_col = self.size_sample_stratified_column

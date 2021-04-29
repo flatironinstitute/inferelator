@@ -1,6 +1,17 @@
 Change Log
 ==========
 
+Inferelator v0.5.5 `April 29, 2021`
+-----------------------------------
+
+New Functionality:
+
+- Added ``.set_regression_parameters(tol=None)`` to parameterize tolerances in AMuSR regression
+
+Code Refactoring:
+
+- Profiled and optimized AMuSR code
+
 Inferelator v0.5.4 `April 23, 2021`
 -----------------------------------
 

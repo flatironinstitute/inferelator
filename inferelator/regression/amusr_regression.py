@@ -22,12 +22,13 @@ DEFAULT_Cs = np.logspace(np.log10(0.01), np.log10(10), 20)[::-1]
 
 MAX_ITER = 1000
 TOL = 1e-2
+REL_TOL = None
 MIN_WEIGHT_VAL = 0.1
 MIN_RSS = 1e-10
 
 
 def run_regression_EBIC(X, Y, TFs, tasks, gene, prior, Cs=None, Ss=None, lambda_Bs=None,
-                        lambda_Ss=None, scale_data=False, return_lambdas=False):
+                        lambda_Ss=None, scale_data=False, return_lambdas=False, tol=TOL, rel_tol=REL_TOL):
     """
     Run multitask regression. Search the regularization coefficient space and select the model with the
     lowest eBIC.
@@ -96,7 +97,8 @@ def run_regression_EBIC(X, Y, TFs, tasks, gene, prior, Cs=None, Ss=None, lambda_
 
             # Fit model
             combined_weights, sparse_matrix, block_matrix = amusr_fit(cov_C, cov_D, b, s,
-                                                                      sparse_matrix, block_matrix, prior)
+                                                                      sparse_matrix, block_matrix, prior,
+                                                                      tol=tol, rel_tol=rel_tol)
 
             # Score model
             ebic_score = ebic(X, Y, combined_weights, n_tasks, n_samples, n_preds)
@@ -138,10 +140,13 @@ class AMuSR_regression(base_regression.BaseRegression):
     Cs = None
     Ss = None
 
+    tol = None
+    rel_tol = None
+
     regression_function = staticmethod(run_regression_EBIC)
 
     def __init__(self, X, Y, tfs=None, genes=None, priors=None, prior_weight=1, remove_autoregulation=True,
-                 lambda_Bs=None, lambda_Ss=None, Cs=None, Ss=None):
+                 lambda_Bs=None, lambda_Ss=None, Cs=None, Ss=None, tol=TOL, rel_tol=REL_TOL):
         """
         Set up a regression object for multitask regression
         :param X: list(InferelatorData)
@@ -161,6 +166,8 @@ class AMuSR_regression(base_regression.BaseRegression):
         assert check.argument_type(tfs, (list, pd.Series, pd.Index), allow_none=True)
         assert check.argument_type(genes, (list, pd.Series, pd.Index), allow_none=True)
         assert check.argument_numeric(prior_weight)
+        assert check.argument_numeric(tol)
+        assert check.argument_numeric(rel_tol, allow_none=True)
         assert len(X) == len(Y)
 
         # Set the data into the regression object
@@ -196,6 +203,10 @@ class AMuSR_regression(base_regression.BaseRegression):
         self.Cs = Cs
         self.Ss = Ss
 
+        # Set the tolerances into the regression object
+        self.tol = tol
+        self.rel_tol = rel_tol
+
     def regress(self, regression_function=None):
         """
         Execute multitask (AMUSR)
@@ -209,7 +220,8 @@ class AMuSR_regression(base_regression.BaseRegression):
             from inferelator.distributed.dask_functions import amusr_regress_dask
             return amusr_regress_dask(self.X, self.Y, self.priors, self.prior_weight, self.n_tasks, self.genes,
                                       self.tfs, self.G, remove_autoregulation=self.remove_autoregulation,
-                                      regression_function=regression_function)
+                                      regression_function=regression_function,
+                                      tol=self.tol, rel_tol=self.rel_tol)
 
         def regression_maker(j):
             level = 0 if j % 100 == 0 else 2
@@ -232,7 +244,8 @@ class AMuSR_regression(base_regression.BaseRegression):
 
             prior = format_prior(self.priors, gene, tasks, self.prior_weight, tfs=tfs)
             return regression_function(x, y, tfs, tasks, gene, prior, Cs=self.Cs, Ss=self.Ss,
-                                       lambda_Bs=self.lambda_Bs, lambda_Ss=self.lambda_Ss)
+                                       lambda_Bs=self.lambda_Bs, lambda_Ss=self.lambda_Ss, 
+                                       tol=self.tol, rel_tol=self.rel_tol)
 
         return MPControl.map(regression_maker, range(self.G))
 
@@ -260,7 +273,7 @@ class AMuSR_regression(base_regression.BaseRegression):
         return weights, rescaled_weights
 
 def amusr_fit(cov_C, cov_D, lambda_B=0., lambda_S=0., sparse_matrix=None, block_matrix=None, prior=None,
-              max_iter=MAX_ITER, tol=TOL, min_weight=MIN_WEIGHT_VAL):
+              max_iter=MAX_ITER, tol=TOL, rel_tol=REL_TOL, rel_tol_min_iter=10, min_weight=MIN_WEIGHT_VAL):
     """
     Fits regression model in which the weights matrix W (predictors x tasks)
     is decomposed in two components: B that captures block structure across tasks
@@ -300,6 +313,7 @@ def amusr_fit(cov_C, cov_D, lambda_B=0., lambda_S=0., sparse_matrix=None, block_
     assert check.argument_type(max_iter, int)
     assert check.argument_type(tol, float)
     assert check.argument_type(min_weight, float)
+    assert check.argument_numeric(rel_tol, allow_none=True)
     assert cov_C.shape[0] == cov_D.shape[0]
     assert cov_C.shape[1] == cov_D.shape[1]
     assert cov_D.shape[1] == cov_D.shape[2]
@@ -321,6 +335,8 @@ def amusr_fit(cov_C, cov_D, lambda_B=0., lambda_S=0., sparse_matrix=None, block_
 
     # Initialize weights
     combined_weights = sparse_matrix + block_matrix
+
+    iter_tols = np.zeros(max_iter)
     for i in range(max_iter):
 
         # Keep a reference to the old combined_weights
@@ -334,8 +350,17 @@ def amusr_fit(cov_C, cov_D, lambda_B=0., lambda_S=0., sparse_matrix=None, block_
         combined_weights = sparse_matrix + block_matrix
 
         # If convergence tolerance reached, break loop and move on
-        if np.max(np.abs(combined_weights - _combined_weights_old)) < tol:
+        iter_tols[i] = np.max(np.abs(combined_weights - _combined_weights_old))
+
+        if iter_tols[i] < tol:
             break
+
+        # If the maximum over the last few iterations is less than the relative tolerance, break loop and move on
+        if rel_tol is not None and (i > rel_tol_min_iter):
+            lb_start, lb_stop = i - rel_tol_min_iter, i
+            iter_rel_max = iter_tols[lb_start: lb_stop] - iter_tols[lb_start - 1: lb_stop - 1]
+            if np.max(iter_rel_max) < rel_tol:
+                break
 
     # Set small values of W to zero
     # Since we don't run the algorithm until update equals zero
@@ -351,28 +376,36 @@ def updateS(C, D, B, S, lamS, prior, n_tasks, n_features):
     """
     # update each task independently (shared penalty only)
     for k in range(n_tasks):
-        c = C[k]; d = D[k]
-        b = B[:,k]; s = S[:,k]
-        p = prior[:,k]
+
+        c = C[k]
+        d = D[k]
+
+        b = B[:, k]
+        s = S[:, k]
+        p = prior[:, k] * lamS
+
         # cycle through predictors
+
         for j in range(n_features):
             # set sparse coefficient for predictor j to zero
-            s_tmp = deepcopy(s)
-            s_tmp[j] = 0.
+            s[j] = 0.
+
             # calculate next coefficient based on fit only
             if d[j,j] == 0:
-                alpha = 0
+                alpha = 0.
             else:
-                alpha = (c[j]-np.sum((b+s_tmp)*d[j]))/d[j,j]
+                alpha = (c[j]- np.sum((b + s) * d[j])) / d[j,j]
+
             # lasso regularization
-            if abs(alpha) <= p[j]*lamS:
+            if abs(alpha) <= p[j]:
                 s[j] = 0.
             else:
-                s[j] = alpha-(np.sign(alpha)*p[j]*lamS)
-        # update current task
-        S[:,k] = s
+                s[j] = alpha - (np.sign(alpha) * p[j])
 
-    return(S)
+        # update current task
+        S[:, k] = s
+
+    return S
 
 def updateB(C, D, B, S, lamB, prior, n_tasks, n_features):
     """
@@ -382,28 +415,43 @@ def updateB(C, D, B, S, lamB, prior, n_tasks, n_features):
     reference: Liu et al, ICML 2009. Blockwise coordinate descent procedures
     for the multi-task lasso, with applications to neural semantic basis discovery.
     """
-    #p = prior.min(axis=1)
+    
+    S = np.asarray(S, order="F")
+
     # cycles through predictors
     for j in range(n_features):
+        
         # initialize next coefficients
         alphas = np.zeros(n_tasks)
+        
         # update tasks for each predictor together
+        d = D[:, :, j]
+
         for k in range(n_tasks):
-            # get task covariance update terms
-            c = C[k]; d = D[k]
-            # get previous block-sparse and sparse coefficients
-            b = B[:,k]; s = S[:,k]
-            # set block-sparse coefficient for feature j to zero
-            b_tmp = deepcopy(b)
-            b_tmp[j] = 0.
-            # calculate next coefficient based on fit only
-            if d[j,j] == 0:
+
+            d_kjj = d[k, j]
+
+            if d_kjj == 0:
+
                 alphas[k] = 0
+
             else:
-                alphas[k] = (c[j]-np.sum((b_tmp+s)*d[:,j]))/d[j,j]
+
+                # get previous block-sparse
+                # copies because B is C-ordered
+                b = B[:, k]
+
+                # set block-sparse coefficient for feature j to zero
+                b[j] = 0.
+
+                # calculate next coefficient based on fit only
+                alphas[k] = (C[k, j] - np.sum((b + S[:, k]) * d[k, :])) / d_kjj
+
+
         # set all tasks to zero if l1-norm less than lamB
         if np.linalg.norm(alphas, 1) <= lamB:
             B[j,:] = np.zeros(n_tasks)
+
         # regularized update for predictors with larger l1-norm
         else:
             # find number of coefficients that would make l1-norm greater than penalty
@@ -424,7 +472,7 @@ def updateB(C, D, B, S, lamB, prior, n_tasks, n_features):
             # update current predictor
             B[j,:] = new_weights
 
-    return(B)
+    return B
 
 def _covariance_by_task(X, Y):
     """
@@ -723,7 +771,11 @@ class AMUSRRegressionWorkflowMixin(base_regression._MultitaskRegressionWorkflowM
     lambda_Ss = None
     heuristic_Cs = None
 
-    def set_regression_parameters(self, prior_weight=None, lambda_Bs=None, lambda_Ss=None, heuristic_Cs=None):
+    tol = TOL
+    relative_tol = REL_TOL
+    
+    def set_regression_parameters(self, prior_weight=None, lambda_Bs=None, lambda_Ss=None, heuristic_Cs=None, 
+    tol=None, relative_tol=None):
         """
         Set regression parameters for AmUSR.
 
@@ -744,12 +796,18 @@ class AMUSRRegressionWorkflowMixin(base_regression._MultitaskRegressionWorkflowM
             Defaults to np.logspace(np.log10(0.01), np.log10(10), 20)[::-1].
             Does not have an effect if lambda_B is provided.
         :type heuristic_Cs: list(floats) or np.ndarray(floats)
+        :param tol: Convergence tolerance for amusr regression
+        :type tol: float
+        :param relative_tol: Relative convergence tolerance for amusr regression
+        :type relative_tol: float
         """
 
         self._set_with_warning("prior_weight", prior_weight)
         self._set_with_warning("lambda_Bs", lambda_Bs)
         self._set_with_warning("lambda_Ss", lambda_Ss)
         self._set_with_warning("heuristic_Cs", heuristic_Cs)
+        self._set_without_warning("tol", tol)
+        self._set_without_warning("relative_tol", relative_tol)
 
 
     def run_bootstrap(self, bootstrap_idx):
@@ -763,7 +821,7 @@ class AMUSRRegressionWorkflowMixin(base_regression._MultitaskRegressionWorkflowM
         MPControl.sync_processes(pref="amusr_pre")
         regress = AMuSR_regression(x, y, tfs=self._regulators, genes=self._targets, priors=self._task_priors,
                                    prior_weight=self.prior_weight, lambda_Bs=self.lambda_Bs, lambda_Ss=self.lambda_Ss, 
-                                   Cs=self.heuristic_Cs)
+                                   Cs=self.heuristic_Cs, tol=self.tol, rel_tol=self.relative_tol)
         return regress.run()
 
 
