@@ -82,6 +82,7 @@ def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remov
 
     DaskController.client.cancel(scatter_x)
     DaskController.client.cancel(scatter_priors)
+    DaskController.client.restart()
 
     return result_list
 
