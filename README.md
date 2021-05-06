@@ -1,11 +1,12 @@
-# inferelator 
+# Inferelator 3.0
 
 [![PyPI version](https://badge.fury.io/py/inferelator.svg)](https://badge.fury.io/py/inferelator)
 [![Travis](https://travis-ci.org/flatironinstitute/inferelator.svg?branch=release)](https://travis-ci.org/flatironinstitute/inferelator)
 [![codecov](https://codecov.io/gh/flatironinstitute/inferelator/branch/release/graph/badge.svg)](https://codecov.io/gh/flatironinstitute/inferelator)
 [![Documentation Status](https://readthedocs.org/projects/inferelator/badge/?version=latest)](https://inferelator.readthedocs.io/en/latest/?badge=latest)
 
-The [inferelator](https://doi.org/10.1186/gb-2006-7-5-r36) is a package for gene regulatory network inference that is based on regularized regression. 
+The [Inferelator 3.0](https://www.biorxiv.org/content/10.1101/2021.05.03.442499v2) is a package for gene regulatory network inference that is based on regularized regression. 
+It is an update of the [Inferelator 2.0](https://ieeexplore.ieee.org/document/5334018), which is an update of the original [Inferelator](https://doi.org/10.1186/gb-2006-7-5-r36)
 It is maintained by the Bonneau lab in the [Systems Biology group of the Flatiron Institute](https://www.simonsfoundation.org/flatiron/center-for-computational-biology/systems-biology/).
 
 This repository is the actively developed inferelator package for python. It works for both single-cell and bulk transcriptome experiments.
