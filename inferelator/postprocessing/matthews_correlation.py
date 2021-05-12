@@ -5,8 +5,6 @@ from inferelator.postprocessing.model_performance import RankSummingMetric
 from inferelator.postprocessing import (TARGET_COLUMN, REGULATOR_COLUMN, CONFIDENCE_COLUMN, GOLD_STANDARD_COLUMN,
                                         MCC_COLUMN, TP, FP, TN, FN)
 
-import matplotlib
-matplotlib.use('pdf')
 import matplotlib.pyplot as plt
 
 
