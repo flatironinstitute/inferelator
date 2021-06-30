@@ -2,7 +2,7 @@ import os
 from setuptools import setup, find_packages
 
 # Current Inferelator Version Number
-version = "0.5.5"
+version = "0.5.6"
 
 
 # Description from README.md
@@ -37,8 +37,7 @@ setup(
     zip_safe=False,
     install_requires=requires,
     python_requires=">=3.5",
-    tests_require=["coverage", "nose", "bio-test-artifacts", "tables"],
-    test_suite="nose.collector",
+    tests_require=["coverage", "pytest", "bio-test-artifacts", "tables"],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: BSD License",
