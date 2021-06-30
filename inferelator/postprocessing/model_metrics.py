@@ -8,8 +8,6 @@ from inferelator.postprocessing.column_names import (PRECISION_COLUMN, CONFIDENC
 from inferelator.utils import is_string
 import os
 
-import matplotlib
-matplotlib.use('pdf')
 import matplotlib.pyplot as plt
 
 
@@ -84,36 +82,39 @@ class CombinedMetric(RankSummaryF1, RankSummaryPR, RankSummaryMCC):
     def curve_dataframe(self):
         return self.filtered_data.loc[:, [CONFIDENCE_COLUMN, PRECISION_COLUMN, RECALL_COLUMN, MCC_COLUMN, F1_COLUMN]]
 
-    def output_curve_pdf(self, output_dir, file_name=None, dpi=300, figsize=(8, 10)):
+    def output_curve_pdf(self, output_dir, file_name=None, dpi=300, figsize=(8, 10), style_label='default'):
 
         file_name = self.curve_file_name if file_name is None else file_name
 
         # Create a figure
-        fig, axes = plt.subplots(nrows=2, ncols=2, figsize=figsize, constrained_layout=True)
+        with plt.style.context(style_label):
+            fig, axes = plt.subplots(nrows=2, ncols=2, figsize=figsize, constrained_layout=True)
 
-        # Draw the PR curve
-        RankSummaryPR.output_curve(self, ax=axes[0, 0])
+            # Draw the PR curve
+            RankSummaryPR.output_curve(self, ax=axes[0, 0])
 
-        # Add the cutoff at optimal MCC to the curve
-        _ocr = self.filtered_data.loc[self.filtered_data[CONFIDENCE_COLUMN] >= self.optconfmcc, RECALL_COLUMN].max()
-        _ocp = self.filtered_data.loc[self.filtered_data[CONFIDENCE_COLUMN] >= self.optconfmcc, PRECISION_COLUMN].min()
-        axes[0, 0].vlines(_ocr, 0, _ocp, colors='r', linestyles='dashed')
+            # Add the cutoff at optimal MCC to the curve
+            _ocr = self.filtered_data.loc[self.filtered_data[CONFIDENCE_COLUMN] >= self.optconfmcc, RECALL_COLUMN].max()
+            _ocp = self.filtered_data.loc[self.filtered_data[CONFIDENCE_COLUMN] >= self.optconfmcc, PRECISION_COLUMN].min()
+            axes[0, 0].vlines(_ocr, 0, _ocp, colors='r', linestyles='dashed')
 
-        # Draw the MCC curve
-        RankSummaryMCC.output_curve(self, ax=axes[0, 1])
+            # Draw the MCC curve
+            RankSummaryMCC.output_curve(self, ax=axes[0, 1])
 
-        # Draw the F1 curve
-        RankSummaryF1.output_curve(self, ax=axes[1, 0])
+            # Draw the F1 curve
+            RankSummaryF1.output_curve(self, ax=axes[1, 0])
 
-        # Draw the histogram
-        self.output_histogram_edges_conf(self.filtered_data[CONFIDENCE_COLUMN].values, ax=axes[1, 1])
+            # Draw the histogram
+            self.output_histogram_edges_conf(self.filtered_data[CONFIDENCE_COLUMN].values, ax=axes[1, 1])
 
         # If there's a file name set, make the output file
         if file_name is not None and output_dir is not None:
             # Save the plot and close
             self.save_figure(os.path.join(output_dir, file_name), fig, dpi=dpi)
+            plt.close(fig)
+            return None, None
 
-        plt.close(fig)
+        return fig, axes
 
     @staticmethod
     def output_histogram_edges_conf(conf, ax):
