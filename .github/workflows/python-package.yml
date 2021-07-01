@@ -8,21 +8,18 @@ on: [push, pull_request]
 jobs:
   build:
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         python-version: [3.7, 3.8, 3.9]
-        os: [macos-latest, ubuntu-latest]
 
     steps:
     - uses: actions/checkout@v2
-    - name: Install conda python & MKL
-      run: |
-        sudo chown -R $(whoami) $CONDA
-        echo $CONDA/bin >> $GITHUB_PATH
-        $CONDA/bin/conda install hdf5 python=${{ matrix.python-version }} 
-
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip wheel
