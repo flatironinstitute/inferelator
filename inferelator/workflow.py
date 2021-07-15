@@ -489,14 +489,14 @@ class WorkflowBaseLoader(object):
 
     def read_genes(self, file=None):
         """
-        Read tf names file into tf_names
+        Read gene names file into gene_names
         """
 
         # Load the class variable if no file is passed
         file = self.gene_names_file if file is None else file
 
         if file is not None:
-            Debug.vprint("Loading TF feature names from file {file}".format(file=file), level=1)
+            Debug.vprint("Loading Gene feature names from file {file}".format(file=file), level=1)
             # Read in a dataframe with no header or index
             loader = InferelatorDataLoader(input_dir=self.input_dir, file_format_settings=self._file_format_settings)
             genes = loader.input_dataframe(file, header=None, index_col=None)
@@ -505,23 +505,37 @@ class WorkflowBaseLoader(object):
             assert genes.shape[1] == 1
             self.gene_names = genes.values.flatten().tolist()
 
+        # Use the gene names in the data file if no restrictive list is provided
+        if self.gene_names is None and self.data is not None:
+            self.gene_names = self.data.gene_names.copy()
+
     def read_priors(self, priors_file=None, gold_standard_file=None):
         """
         Read in the priors and gold standard files
         """
+
         priors_file = priors_file if priors_file is not None else self.priors_file
         gold_standard_file = gold_standard_file if gold_standard_file is not None else self.gold_standard_file
+
         loader = InferelatorDataLoader(input_dir=self.input_dir, file_format_settings=self._file_format_settings)
 
         if priors_file is not None:
+
             Debug.vprint("Loading prior data from file {file}".format(file=priors_file), level=1)
             self.priors_data = loader.input_dataframe(priors_file)
+
+            # Print debug info & check prior for duplicate indices (which will raise errors later)
             self.loaded_file_info("Priors data", self.priors_data)
+            self._check_network_labels_unique("Priors_data", priors_file, self.priors_data)
 
         if gold_standard_file is not None:
+
             Debug.vprint("Loading gold_standard data from file {file}".format(file=gold_standard_file), level=1)
             self.gold_standard = loader.input_dataframe(gold_standard_file)
+
+            # Print debug info & check gold standard for duplicate indices (which will raise errors later)
             self.loaded_file_info("Gold standard", self.gold_standard)
+            self._check_network_labels_unique("Gold standard", gold_standard_file, self.gold_standard)
 
     def validate_data(self):
         """
@@ -541,6 +555,10 @@ class WorkflowBaseLoader(object):
         elif self.use_no_gold_standard:
             Debug.vprint("A null gold standard has been created", level=0)
             self.gold_standard = self._create_null_prior(self.data.gene_names, self.tf_names)
+        elif self.gold_standard is None:
+            _msg = "No gold standard found. Model scoring will be invalid. "
+            _msg += "Set worker.set_network_data_flags(use_no_gold_standard=True) to explicitly continue."
+            raise ValueError(_msg)
 
         # Validate that some network information exists and has been loaded
         if self.priors_data is None and self.gold_standard is None:
@@ -617,6 +635,24 @@ class WorkflowBaseLoader(object):
         Debug.vprint(df_name + " loaded {sh}".format(sh=df.shape), level=2)
         Debug.vprint(df_name + " index: " + str(df.index[0]) + " ...", level=2)
         Debug.vprint(df_name + " columns: " + str(df.columns[0]) + " ...", level=2)
+
+    @staticmethod
+    def _check_network_labels_unique(df_name, file_name, df, raise_on_duplicate=False):
+
+        _msg = None
+
+        if not df.columns.is_unique:
+            _repeated = df.columns[df.columns.duplicated()]
+            _msg = "{name} {f}: {n} TFs are duplicated ({g})"
+            Debug.vprint(_msg.format(name=df_name, f=file_name, n=len(_repeated), g=" ".join(_repeated)), level=0)
+
+        if not df.index.is_unique:
+            _repeated = df.index[df.index.duplicated()]
+            _msg = "{name} {f}: {n} Genes are duplicated ({g})"
+            Debug.vprint(_msg.format(name=df_name, f=file_name, n=len(_repeated), g=" ".join(_repeated)), level=0)
+
+        if _msg is not None and raise_on_duplicate:
+            raise ValueError(_msg)
 
 
 class WorkflowBase(WorkflowBaseLoader):

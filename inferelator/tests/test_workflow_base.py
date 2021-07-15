@@ -243,21 +243,28 @@ class TestWorkflowLoadData(unittest.TestCase):
         self.assertIsNone(self.workflow.priors_data)
         self.assertIsNone(self.workflow.gold_standard)
 
+        with self.assertRaises(ValueError):
+            self.workflow.validate_data()
+
+        self.workflow.use_no_gold_standard = True
         self.workflow.use_no_prior = True
         self.workflow.validate_data()
 
         self.assertIsNotNone(self.workflow.priors_data)
         self.assertListEqual(self.workflow.priors_data.columns.tolist(), self.workflow.tf_names)
         self.assertTrue(all(self.workflow.data.gene_names == self.workflow.priors_data.index))
-        self.assertIsNone(self.workflow.gold_standard)
+
+        self.assertIsNotNone(self.workflow.gold_standard)
+        self.assertIsNotNone(self.workflow.gold_standard)
+        self.assertListEqual(self.workflow.gold_standard.columns.tolist(), self.workflow.tf_names)
+        self.assertTrue(all(self.workflow.data.gene_names == self.workflow.gold_standard.index))
+
+        self.workflow.gold_standard = None
 
         with self.assertWarns(Warning):
             self.workflow.use_no_gold_standard = True
             self.workflow.validate_data()
 
-        self.assertIsNotNone(self.workflow.gold_standard)
-        self.assertListEqual(self.workflow.gold_standard.columns.tolist(), self.workflow.tf_names)
-        self.assertTrue(all(self.workflow.data.gene_names == self.workflow.gold_standard.index))
 
     def test_load_to_h5ad(self):
 
