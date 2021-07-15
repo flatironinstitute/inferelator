@@ -275,7 +275,13 @@ class WorkflowBaseLoader(object):
         :type use_no_gold_standard: bool
         """
 
-        warnings.warn("Omitting prior network data is not recommended. Use at your own risk.")
+        if use_no_prior:
+            _msg = "Omitting prior network data is not recommended. Performance will be poor. Use at your own risk."
+            warnings.warn(_msg, UserWarning)
+
+        if use_no_gold_standard:
+            _msg = "Omitting gold standard is not recommended. Output performance metrics will be meaningless."
+            warnings.warn(_msg, UserWarning)
 
         self._set_without_warning("use_no_prior", use_no_prior)
         self._set_without_warning("use_no_gold_standard", use_no_gold_standard)
