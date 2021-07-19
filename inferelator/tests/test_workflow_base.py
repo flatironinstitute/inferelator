@@ -83,9 +83,15 @@ class TestWorkflowSetParameters(unittest.TestCase):
         self.assertFalse(self.workflow.use_no_prior)
         self.assertFalse(self.workflow.use_no_gold_standard)
 
-        with self.assertWarns(Warning):
-            self.workflow.set_network_data_flags(use_no_prior=True,
-                                                 use_no_gold_standard=True)
+        with self.assertRaises(AssertionError):
+            with self.assertWarns(UserWarning):
+                self.workflow.set_network_data_flags()
+
+        with self.assertWarns(UserWarning):
+            self.workflow.set_network_data_flags(use_no_gold_standard=True)
+
+        with self.assertWarns(UserWarning):
+            self.workflow.set_network_data_flags(use_no_prior=True)
 
         self.assertTrue(self.workflow.use_no_prior)
         self.assertTrue(self.workflow.use_no_gold_standard)
