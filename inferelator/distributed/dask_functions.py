@@ -117,7 +117,7 @@ def bbsr_regress_dask(X, Y, pp_mat, weights_mat, G, genes, nS):
     distributed.wait(scatter_weights, timeout=DASK_SCATTER_TIMEOUT)
 
     future_list = [DaskController.client.submit(regression_maker, i, scatter_x,
-                                                Y.get_gene_data(i, force_dense=True).flatten(),
+                                                Y.get_gene_data(i, force_dense=True, flatten=True),
                                                 scatter_pp, scatter_weights)
                    for i in range(G)]
 
@@ -157,7 +157,7 @@ def sklearn_regress_dask(X, Y, model, G, genes, min_coef):
     distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
 
     future_list = [DaskController.client.submit(regression_maker, i, scatter_x,
-                                                Y.get_gene_data(i, force_dense=True).flatten())
+                                                Y.get_gene_data(i, force_dense=True, flatten=True))
                    for i in range(G)]
 
     # Collect results as they finish instead of waiting for all workers to be done
@@ -195,7 +195,7 @@ def lasso_stars_regress_dask(X, Y, alphas, num_subsamples, random_seed, method, 
     distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
 
     future_list = [DaskController.client.submit(regression_maker, i, scatter_x,
-                                                Y.get_gene_data(i, force_dense=True).flatten())
+                                                Y.get_gene_data(i, force_dense=True, flatten=True))
                    for i in range(G)]
 
     # Collect results as they finish instead of waiting for all workers to be done
