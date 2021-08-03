@@ -51,6 +51,7 @@ class CellOracleWorkflow(SingleCellWorkflow):
 
         sc.tl.louvain(adata, resolution=0.8)
         sc.tl.paga(adata, groups='louvain')
+        sc.pl.paga(adata)
         sc.tl.draw_graph(adata, init_pos='paga', random_state=123)
 
         utils.Debug.vprint("Creating Oracle Object")
