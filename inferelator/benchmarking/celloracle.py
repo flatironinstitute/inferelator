@@ -66,15 +66,19 @@ class CellOracleWorkflow(SingleCellWorkflow):
                                            cluster_column_name="louvain",
                                            embedding_name="X_pca")
 
+        # Apparently PCA is not transferred from the adata object
+        oracle.perform_PCA(100)
+
         # Add prior
         oracle.addTFinfo_dictionary(self.reprocess_prior_to_base_GRN(self.priors_data))
 
         utils.Debug.vprint("Imputation Preprocessing")
 
         if self.oracle_imputation:
+
+            # Heuristics from Celloracle documentation
             n_comps = np.where(np.diff(np.diff(np.cumsum(oracle.pca.explained_variance_ratio_))>0.002))[0][0]
-            n_cell = oracle.adata.shape[0]
-            k = int(0.025*n_cell)
+            k = int(0.025 * oracle.adata.shape[0])
 
             oracle.knn_imputation(n_pca_dims=n_comps, k=k, balanced=True, b_sight=k*8,
                                 b_maxl=k*4, n_jobs=4)
@@ -100,7 +104,7 @@ class CellOracleWorkflow(SingleCellWorkflow):
     @staticmethod
     def reprocess_co_output_to_inferelator_results(co_out):
 
-        betas = [r.pivot(index='target', columns='source', values='-coef_mean').fillna(0) for k, r in co_out.items()]
+        betas = [r.pivot(index='target', columns='source', values='coef_mean').fillna(0) for k, r in co_out.items()]
         rankers = [r.pivot(index='target', columns='source', values='-logp').fillna(0) for k, r in co_out.items()]
 
         return betas, rankers
