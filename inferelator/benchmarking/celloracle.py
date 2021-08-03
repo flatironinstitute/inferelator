@@ -1,6 +1,6 @@
 from os import stat
 from inferelator.single_cell_workflow import SingleCellWorkflow
-from inferelator.regression.base_regression import BaseRegression
+from inferelator.regression.base_regression import _RegressionWorkflowMixin
 import scanpy as sc
 import numpy as np
 import celloracle as co
@@ -71,7 +71,7 @@ class CellOracleWorkflow(SingleCellWorkflow):
         return betas, rankers
 
 
-class CellOracleRegression(BaseRegression):
+class CellOracleRegression(_RegressionWorkflowMixin):
 
     def run_regression(self):
         
