@@ -50,6 +50,7 @@ class CellOracleWorkflow(SingleCellWorkflow):
         utils.Debug.vprint("Clustering Preprocessing")
 
         sc.tl.louvain(adata, resolution=0.8)
+        sc.pl.draw_graph(adata, color='louvain', legend_loc='on data')
 
         utils.Debug.vprint("Creating Oracle Object")
 
