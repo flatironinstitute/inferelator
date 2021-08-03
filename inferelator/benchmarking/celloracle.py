@@ -69,6 +69,8 @@ class CellOracleWorkflow(SingleCellWorkflow):
         # Add prior
         oracle.addTFinfo_dictionary(self.reprocess_prior_to_base_GRN(self.priors_data))
 
+        utils.Debug.vprint("Imputation Preprocessing")
+
         if self.oracle_imputation:
             n_comps = np.where(np.diff(np.diff(np.cumsum(oracle.pca.explained_variance_ratio_))>0.002))[0][0]
             n_cell = oracle.adata.shape[0]
