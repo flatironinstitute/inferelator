@@ -19,6 +19,8 @@ class CellOracleWorkflow(SingleCellWorkflow):
 
         self.align_priors_and_expression()
 
+        self.data.convert_to_float()
+
         adata = self.data._adata
 
         sc.pp.filter_genes(adata, min_counts=1)
