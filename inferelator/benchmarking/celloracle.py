@@ -1,5 +1,6 @@
 from os import stat
 from inferelator.single_cell_workflow import SingleCellWorkflow
+from inferelator.regression.base_regression import BaseRegression
 import scanpy as sc
 import numpy as np
 import celloracle as co
@@ -12,6 +13,8 @@ class CellOracleWorkflow(SingleCellWorkflow):
     def startup_finish(self):
         """
         Skip inferelator preprocessing and do celloracle preprocessing
+
+        As per https://github.com/morris-lab/CellOracle/issues/58
         """
 
         self.align_priors_and_expression()
@@ -48,14 +51,6 @@ class CellOracleWorkflow(SingleCellWorkflow):
         self.oracle = oracle
 
 
-    def run_regression(self):
-        
-        links = self.oracle.get_links(cluster_name_for_GRN_unit="louvain", alpha=10,
-                                      verbose_level=0, test_mode=False)
-
-        return self.reprocess_co_output_to_inferelator_results(links.links_dict)
-
-
     @staticmethod
     def reprocess_prior_to_base_GRN(priors_data):
 
@@ -74,3 +69,13 @@ class CellOracleWorkflow(SingleCellWorkflow):
         rankers = [r.pivot(index='target', columns='source', values='-logp').fillna(0) for k, r in co_out.items()]
 
         return betas, rankers
+
+
+class CellOracleRegression(BaseRegression):
+
+    def run_regression(self):
+        
+        links = self.oracle.get_links(cluster_name_for_GRN_unit="louvain", alpha=10,
+                                      verbose_level=0, test_mode=False)
+
+        return self.reprocess_co_output_to_inferelator_results(links.links_dict)
