@@ -1,3 +1,4 @@
+from inferelator import utils
 from os import stat
 from inferelator.single_cell_workflow import SingleCellWorkflow
 from inferelator.regression.base_regression import _RegressionWorkflowMixin
@@ -23,20 +24,37 @@ class CellOracleWorkflow(SingleCellWorkflow):
 
         adata = self.data._adata
 
+        utils.Debug.vprint("Normalizing data {sh}".format(sh=adata.shape))
+
         sc.pp.filter_genes(adata, min_counts=1)
         sc.pp.normalize_per_cell(adata, key_n_counts='n_counts_all')
 
         adata.raw = adata
         adata.layers["raw_count"] = adata.raw.X.copy()
 
+        utils.Debug.vprint("Scaling data")
+
         sc.pp.log1p(adata)
         sc.pp.scale(adata)
 
+        utils.Debug.vprint("PCA Preprocessing")
+
         sc.tl.pca(adata, svd_solver='arpack')
+
+        utils.Debug.vprint("Diffmap Preprocessing")
+
         sc.pp.neighbors(adata, n_neighbors=4, n_pcs=20)
         sc.tl.diffmap(adata)
         sc.pp.neighbors(adata, n_neighbors=10, use_rep='X_diffmap')
+
+        utils.Debug.vprint("Clustering Preprocessing")
+
         sc.tl.louvain(adata, resolution=0.8)
+
+        utils.Debug.vprint("Creating Oracle Object")
+
+        # Restore counts
+        adata.X = adata.layers["raw_count"].copy()
 
         # Set up oracle object
         oracle = co.Oracle()
