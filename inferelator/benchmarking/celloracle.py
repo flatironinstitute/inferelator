@@ -10,6 +10,7 @@ import celloracle as co
 class CellOracleWorkflow(SingleCellWorkflow):
 
     oracle = None
+    oracle_imputation = True
 
     def startup_finish(self):
         """
@@ -68,8 +69,17 @@ class CellOracleWorkflow(SingleCellWorkflow):
         # Add prior
         oracle.addTFinfo_dictionary(self.reprocess_prior_to_base_GRN(self.priors_data))
 
+        if self.oracle_imputation:
+            n_comps = np.where(np.diff(np.diff(np.cumsum(oracle.pca.explained_variance_ratio_))>0.002))[0][0]
+            n_cell = oracle.adata.shape[0]
+            k = int(0.025*n_cell)
+
+            oracle.knn_imputation(n_pca_dims=n_comps, k=k, balanced=True, b_sight=k*8,
+                                b_maxl=k*4, n_jobs=4)
+
         # Pretend to do imputation
-        oracle.adata.layers["imputed_count"] = oracle.adata.layers["normalized_count"].copy()
+        else:
+            oracle.adata.layers["imputed_count"] = oracle.adata.layers["normalized_count"].copy()
 
         self.oracle = oracle
 
