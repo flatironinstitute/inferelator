@@ -14,7 +14,6 @@ from inferelator.utils import Validator as check
 from inferelator.distributed import AbstractController
 from inferelator.distributed.dask_functions import dask_map
 
-_DEFAULT_CONDA_ACTIVATE = "source ~/.local/anaconda3/bin/activate"
 _DEFAULT_NUM_JOBS = 1
 _DEFAULT_THREADS_PER_WORKER = 1
 _DEFAULT_WORKERS_PER_JOB = 20
@@ -30,9 +29,14 @@ _THREAD_CONTROL_ENV = ['export MKL_NUM_THREADS={t}',
 
 _DEFAULT_CONTROLLER_EXTRA = ['--nodes 1', '--ntasks-per-node 1']
 
-_DEFAULT_ADAPTIVE_INTERVAL = "1s"
-
 _KNOWN_CONFIG = {"prince": {"_job_n_workers": 20,
+                            "_job_mem": "62GB",
+                            "_job_time": "48:00:00",
+                            "_interface": "ib0",
+                            "_job_extra_env_commands": copy.copy(_DEFAULT_ENV_EXTRA)
+                            },
+
+                "greene": {"_job_n_workers": 24,
                             "_job_mem": "62GB",
                             "_job_time": "48:00:00",
                             "_interface": "ib0",
