@@ -154,13 +154,13 @@ class SCENICRegression(_RegressionWorkflowMixin):
         mat = [pd.DataFrame(data).set_index(0).rename({1: tf}, axis=1) for tf, data in scenic_df['TargetGenes'].iteritems()]
         mat = pd.concat(mat, axis=0).fillna(0)
 
-        return mat, mat.copy()
+        return [mat], [mat.copy()]
 
     @staticmethod
     def reprocess_adj_to_inferelator_results(adj):
         mat = adj.pivot(index='target', columns='TF', values='importance').fillna(0.)
 
-        return mat, mat.copy()
+        return [mat], [mat.copy()]
 
 # This code is lifted from https://github.com/aertslab/create_cisTarget_databases/cistarget_db.py
 # It is not reimplemented in order to ensure that the methodology for ranking is identical
