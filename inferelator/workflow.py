@@ -619,6 +619,10 @@ class WorkflowBaseLoader(object):
         :param tf_names: list
         :return priors: pd.DataFrame
         """
+
+        if tf_names is None:
+            raise ValueError("Unable to generate a null prior without a TF list")
+
         return pd.DataFrame(0, index=gene_names, columns=tf_names)
 
     @staticmethod
@@ -672,7 +676,8 @@ class WorkflowBase(WorkflowBaseLoader):
 
     # Flags to control shuffle and noise baselines
     shuffle_prior_axis = None
-    make_data_noise = None
+    make_data_noise = False
+    add_prior_noise = None
     _data_is_noise = False
 
     # The random seed for sampling, etc
@@ -732,7 +737,7 @@ class WorkflowBase(WorkflowBaseLoader):
         if not split_gold_standard_for_crossvalidation and (cv_split_axis is not None or cv_split_ratio is not None):
             warnings.warn("The split_gold_standard_for_crossvalidation flag is not set. Other options may be ignored")
 
-    def set_shuffle_parameters(self, shuffle_prior_axis=None, make_data_noise=None):
+    def set_shuffle_parameters(self, shuffle_prior_axis=None, make_data_noise=None, add_prior_noise=None):
         """
         Set parameters for shuffling labels on a prior axis. This is useful to establish a baseline.
 
@@ -742,9 +747,15 @@ class WorkflowBase(WorkflowBaseLoader):
         :param make_data_noise: Replace loaded data with simulated data that is entirely random. This retains type;
             integer data remains integer, float remains float. Gene distributions should be centered around the
             mean of gene expression in the original data, but is otherwise random.
+        :type make_data_noise: bool, None
+        :param add_prior_noise: Add random edges to the prior data. This is a numeric value between 0 and 1 such that 0
+            adds no edges, 1 sets every edge in the prior to True, 0.1 sets 10% of the edges in the prior to True, and
+            so on. Note that this will binarize the prior if it is not already binary.
+        :type add_prior_noise: numeric, None
         """
         self._set_with_warning("shuffle_prior_axis", shuffle_prior_axis)
         self._set_with_warning("make_data_noise", make_data_noise)
+        self._set_with_warning("add_prior_noise", add_prior_noise)
 
     def set_postprocessing_parameters(self, gold_standard_filter_method=None, metric=None):
         """
@@ -891,6 +902,10 @@ class WorkflowBase(WorkflowBaseLoader):
         # Check for duplicates or whatever
         self.priors_data, self.gold_standard = self.prior_manager.validate_priors_gold_standard(self.priors_data,
                                                                                                 self.gold_standard)
+
+        if self.add_prior_noise is not None:
+            self.priors_data = self.prior_manager.add_prior_noise(self.priors_data, self.add_prior_noise,
+                                                                  self.random_seed)
 
     def filter_to_gene_list(self):
         """

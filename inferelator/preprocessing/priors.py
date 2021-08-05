@@ -92,8 +92,10 @@ class ManagePriors(object):
                 utils.Debug.vprint("Existing prior is being replaced with a downsampled gold standard")
             priors_data = gs_to_prior
 
-        utils.Debug.vprint("CV prior {pr} and gold standard {gs}".format(pr=priors_data.shape,
-                                                                         gs=gold_standard.shape), level=0)
+        _msg = "CV prior {pr} [{pr_x}] and gold standard {gs} [{gs_x}]"
+        utils.Debug.vprint(_msg.format(pr=priors_data.shape, gs=gold_standard.shape,
+                                       pr_x=(priors_data != 0).sum().sum(),
+                                       gs_x=(gold_standard != 0).sum().sum()), level=0)
 
         return priors_data, gold_standard
 
@@ -196,18 +198,48 @@ class ManagePriors(object):
             return priors_data
         elif shuffle_prior_axis == 0:
             # Shuffle index (genes) in the priors_data
-            utils.Debug.vprint("Randomly shuffling prior [{sh}] gene data".format(sh=priors_data.shape))
+            utils.Debug.vprint("Randomly shuffling prior [{sh}] gene data".format(sh=priors_data.shape), level=0)
             prior_index = priors_data.index.tolist()
             priors_data = priors_data.sample(frac=1, axis=0, random_state=random_seed)
             priors_data.index = prior_index
         elif shuffle_prior_axis == 1:
             # Shuffle columns (TFs) in the priors_data
-            utils.Debug.vprint("Randomly shuffling prior [{sh}] TF data".format(sh=priors_data.shape))
+            utils.Debug.vprint("Randomly shuffling prior [{sh}] TF data".format(sh=priors_data.shape), level=0)
             prior_index = priors_data.columns.tolist()
             priors_data = priors_data.sample(frac=1, axis=1, random_state=random_seed)
             priors_data.columns = prior_index
 
         return priors_data
+
+    @staticmethod
+    def add_prior_noise(priors_data, noise_ratio, random_seed):
+        """
+        Add random edges to the prior. Note that this will binarize the prior if it was not already binary.
+
+        :param priors_data: Prior data
+        :type priors_data: pd.DataFrame [G x K]
+        :param noise_ratio: Ratio of edges to add to the prior
+        :type noise_ratio: float
+        :param random_seed: Random seed for generator
+        :type random_seed: int
+        :return: Prior data
+        :rtype: pd.DataFrame [G x K]
+        """
+
+        assert check.argument_numeric(noise_ratio, low=0, high=1)
+        assert check.argument_integer(random_seed)
+
+        rgen = np.random.default_rng(random_seed)
+
+        new_prior = rgen.random(priors_data.shape)
+        cutoff = np.quantile(new_prior, noise_ratio, axis=None)
+
+        priors_data = priors_data != 0 
+        priors_data += new_prior <= cutoff
+        priors_data = (priors_data != 0).astype(int)
+
+        return priors_data
+
 
     @staticmethod
     def _split_for_cv(all_data, split_ratio, split_axis=DEFAULT_CV_AXIS, seed=DEFAULT_SEED):
