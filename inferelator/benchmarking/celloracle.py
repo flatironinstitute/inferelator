@@ -28,40 +28,46 @@ class CellOracleWorkflow(SingleCellWorkflow):
 
         adata = self.data._adata
 
-        utils.Debug.vprint("Normalizing data {sh}".format(sh=adata.shape))
+        if "paga" not in adata.uns:
+            utils.Debug.vprint("Normalizing data {sh}".format(sh=adata.shape))
 
-        sc.pp.filter_genes(adata, min_counts=1)
-        sc.pp.normalize_per_cell(adata, key_n_counts='n_counts_all')
+            sc.pp.filter_genes(adata, min_counts=1)
+            sc.pp.normalize_per_cell(adata, key_n_counts='n_counts_all')
 
-        adata.raw = adata
-        adata.layers["raw_count"] = adata.raw.X.copy()
+            adata.raw = adata
+            adata.layers["raw_count"] = adata.raw.X.copy()
 
-        utils.Debug.vprint("Scaling data")
+            utils.Debug.vprint("Scaling data")
 
-        sc.pp.log1p(adata)
-        sc.pp.scale(adata)
+            sc.pp.log1p(adata)
+            sc.pp.scale(adata)
 
-        utils.Debug.vprint("PCA Preprocessing")
+            utils.Debug.vprint("PCA Preprocessing")
 
-        sc.tl.pca(adata, svd_solver='arpack')
+            sc.tl.pca(adata, svd_solver='arpack')
 
-        utils.Debug.vprint("Diffmap Preprocessing")
+            utils.Debug.vprint("Diffmap Preprocessing")
 
-        sc.pp.neighbors(adata, n_neighbors=4, n_pcs=20)
-        sc.tl.diffmap(adata)
-        sc.pp.neighbors(adata, n_neighbors=10, use_rep='X_diffmap')
+            sc.pp.neighbors(adata, n_neighbors=4, n_pcs=20)
+            sc.tl.diffmap(adata)
+            sc.pp.neighbors(adata, n_neighbors=10, use_rep='X_diffmap')
 
-        utils.Debug.vprint("Clustering Preprocessing")
+            utils.Debug.vprint("Clustering Preprocessing")
 
-        sc.tl.louvain(adata, resolution=0.8)
-        sc.tl.paga(adata, groups='louvain')
-        sc.pl.paga(adata)
-        sc.tl.draw_graph(adata, init_pos='paga', random_state=123)
+            sc.tl.louvain(adata, resolution=0.8)
+            sc.tl.paga(adata, groups='louvain')
+            sc.pl.paga(adata)
+            sc.tl.draw_graph(adata, init_pos='paga', random_state=123)
+
+            # Restore counts
+            adata.X = adata.layers["raw_count"].copy()
+
+        else:
+            # Assume all the preprocessing is done and just move along
+
+            utils.Debug.vprint("Using saved preprocessing for CellOracle")
 
         utils.Debug.vprint("Creating Oracle Object")
-
-        # Restore counts
-        adata.X = adata.layers["raw_count"].copy()
 
         # Set up oracle object
         oracle = co.Oracle()
@@ -116,6 +122,8 @@ class CellOracleWorkflow(SingleCellWorkflow):
 class CellOracleRegression(_RegressionWorkflowMixin):
 
     def run_regression(self):
+
+        utils.Debug.vprint("CellOracle GRN inference")
         
         links = self.oracle.get_links(cluster_name_for_GRN_unit="louvain", alpha=10,
                                       verbose_level=0, test_mode=False)
