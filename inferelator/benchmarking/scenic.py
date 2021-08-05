@@ -72,6 +72,8 @@ class SCENICWorkflow(SingleCellWorkflow):
 
     def startup_finish(self):
 
+        self.align_priors_and_expression()
+
         tf_names = self.tf_names if self.tf_names is not None else self.priors_data.columns
         self.tf_names = [t for t in tf_names if t in self.data.gene_names]
 
