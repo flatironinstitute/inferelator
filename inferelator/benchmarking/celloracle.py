@@ -1,9 +1,12 @@
 from inferelator import utils
-from os import stat
 from inferelator.single_cell_workflow import SingleCellWorkflow
 from inferelator.regression.base_regression import _RegressionWorkflowMixin
-import scanpy as sc
+
 import numpy as np
+
+# These are required to run this module but nothing else
+# They are therefore not package dependencies
+import scanpy as sc
 import celloracle as co
 
 
