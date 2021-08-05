@@ -676,7 +676,7 @@ class WorkflowBase(WorkflowBaseLoader):
 
     # Flags to control shuffle and noise baselines
     shuffle_prior_axis = None
-    make_data_noise = False
+    make_data_noise = None
     add_prior_noise = None
     _data_is_noise = False
 
