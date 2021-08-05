@@ -124,7 +124,12 @@ class SCENICRegression(_RegressionWorkflowMixin):
 
         # Get adjacencies
         adj_method = ADJ_METHODS[self.adjacency_method]
-        client_or_address = MPControl.client.client if MPControl.is_dask else 'local'
+
+        if MPControl.is_dask:
+            client_or_address = MPControl.client.client
+            MPControl.client.check_cluster_state()
+        else:
+            client_or_address = 'local'
 
         adjacencies = adj_method(data_df, tf_names=self.tf_names, verbose=True, client_or_address=client_or_address,
                                  seed=self.random_seed)
