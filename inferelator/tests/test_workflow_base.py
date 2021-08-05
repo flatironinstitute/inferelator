@@ -463,6 +463,17 @@ class TestWorkflowFunctions(unittest.TestCase):
             np.testing.assert_array_almost_equal_nulp(self.workflow.priors_data.values,
                                                       self.workflow.gold_standard.values)
 
+    def test_add_prior_noise(self):
+        self.workflow.set_shuffle_parameters(add_prior_noise=0.1)
+        np.testing.assert_array_almost_equal_nulp(self.workflow.priors_data.values, self.workflow.gold_standard.values)
+        self.workflow.process_priors_and_gold_standard()
+
+        self.assertTrue(all(self.workflow.priors_data.columns == self.workflow.gold_standard.columns))
+        self.assertTrue(all(self.workflow.priors_data.index == self.workflow.gold_standard.index))
+        self.assertTrue(self.workflow.priors_data.sum().sum() > self.workflow.gold_standard.sum().sum())
+        with self.assertRaises(AssertionError):
+            np.testing.assert_array_almost_equal_nulp(self.workflow.priors_data.values,
+                                                      self.workflow.gold_standard.values)
 
 class TestWorkflowFactory(unittest.TestCase):
 
