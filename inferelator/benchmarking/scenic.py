@@ -11,13 +11,11 @@ import os
 
 # These are required to run this module but nothing else
 # They are therefore not package dependencies
-from arboreto.utils import load_tf_names
 from arboreto.algo import grnboost2, genie3
 
 from ctxcore.rnkdb import FeatherRankingDatabase as RankingDatabase
-from pyscenic.utils import modules_from_adjacencies, load_motifs
-from pyscenic.prune import prune2df, df2regulons
-from pyscenic.aucell import aucell
+from pyscenic.utils import modules_from_adjacencies
+from pyscenic.prune import prune2df
 from pyarrow.feather import write_feather
 
 ADJ_METHODS = {"grnboost2": grnboost2, "genie3": genie3}
@@ -77,6 +75,8 @@ class SCENICWorkflow(SingleCellWorkflow):
         tf_names = self.tf_names if self.tf_names is not None else self.priors_data.columns
         self.tf_names = [t for t in tf_names if t in self.data.gene_names]
 
+        utils.Debug.vprint("Generating SCENIC prior files", level=0)
+
         self._feather_rank_file = self.create_feather_file_from_prior()
         self._motif_link_table_file = self.create_motif_table_from_prior()
 
@@ -120,6 +120,8 @@ class SCENICRegression(_RegressionWorkflowMixin):
         
         data_df = self.data.to_df()
 
+        utils.Debug.vprint("Calculating {m} adjacencies".format(m=self.adjacency_method), level=0)
+
         # Get adjacencies
         adj_method = ADJ_METHODS[self.adjacency_method]
         client_or_address = MPControl.client.client if MPControl.is_dask else 'local'
@@ -134,6 +136,8 @@ class SCENICRegression(_RegressionWorkflowMixin):
 
             # Load feather (rank) databases
             dbs = [RankingDatabase(fname = self._feather_rank_file, name = "RANKING_PRIOR")]
+
+            utils.Debug.vprint("Pruning adjacencies with SCENIC", level=0)
 
             # Prune to df
             df = prune2df(dbs, modules, self._motif_link_table_file, client_or_address=client_or_address)
