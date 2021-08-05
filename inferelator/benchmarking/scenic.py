@@ -147,7 +147,7 @@ class SCENICRegression(_RegressionWorkflowMixin):
             # Prune to df
             df = prune2df(dbs, modules, self._motif_link_table_file, client_or_address=client_or_address)
 
-            return self.reprocess_scenic_output_to_inferelator_results(df)
+            return self.reprocess_scenic_output_to_inferelator_results(df, self.priors_data)
 
         else:
 
