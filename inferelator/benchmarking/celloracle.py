@@ -93,6 +93,9 @@ class CellOracleWorkflow(SingleCellWorkflow):
             # It likes to go to 0 for noise controls
             n_comps = max(min(n_comps, 50), 10)
 
+            # Make sure k is at least 25 too I guess
+            k = max(k, 25)
+
             oracle.knn_imputation(n_pca_dims=n_comps, k=k, balanced=True, b_sight=k*8,
                                 b_maxl=k*4, n_jobs=4)
 

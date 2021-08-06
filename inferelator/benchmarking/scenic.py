@@ -18,6 +18,8 @@ from pyscenic.utils import modules_from_adjacencies
 from pyscenic.prune import prune2df
 from pyarrow.feather import write_feather
 
+import scanpy as sc
+
 ADJ_METHODS = {"grnboost2": grnboost2, "genie3": genie3}
 
 FEATHER_FILE_NAME = "RANKED.gene_based.max.feather"
@@ -81,6 +83,17 @@ class SCENICWorkflow(SingleCellWorkflow):
 
         self._feather_rank_file = self.create_feather_file_from_prior()
         self._motif_link_table_file = self.create_motif_table_from_prior()
+
+        utils.Debug.vprint("Preprocessing data")
+
+        sc.pp.filter_cells(self.data._adata, min_genes=200)
+        sc.pp.filter_genes(self.data._adata, min_cells=3)
+
+        sc.pp.normalize_per_cell(self.data._adata, counts_per_cell_after=1e4)
+        sc.pp.log1p(self.data._adata)
+
+        sc.pp.scale(self.data._adata, max_value=10)
+
 
     def create_feather_file_from_prior(self):
 
