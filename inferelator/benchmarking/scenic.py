@@ -89,9 +89,10 @@ class SCENICWorkflow(SingleCellWorkflow):
         sc.pp.filter_cells(self.data._adata, min_genes=200)
         sc.pp.filter_genes(self.data._adata, min_cells=3)
 
+        self.data.convert_to_float()
+
         sc.pp.normalize_per_cell(self.data._adata, counts_per_cell_after=1e4)
         sc.pp.log1p(self.data._adata)
-
         sc.pp.scale(self.data._adata, max_value=10)
 
 
