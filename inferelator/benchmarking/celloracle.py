@@ -89,6 +89,10 @@ class CellOracleWorkflow(SingleCellWorkflow):
             n_comps = np.where(np.diff(np.diff(np.cumsum(oracle.pca.explained_variance_ratio_))>0.002))[0][0]
             k = int(0.025 * oracle.adata.shape[0])
 
+            # Make sure n_comps is between 10 and 50
+            # It likes to go to 0 for noise controls
+            n_comps = max(min(n_comps, 50), 10)
+
             oracle.knn_imputation(n_pca_dims=n_comps, k=k, balanced=True, b_sight=k*8,
                                 b_maxl=k*4, n_jobs=4)
 
