@@ -1,3 +1,6 @@
+import gc
+import copy
+
 from inferelator import utils
 from inferelator.single_cell_workflow import SingleCellWorkflow
 from inferelator.regression.base_regression import _RegressionWorkflowMixin
@@ -13,7 +16,6 @@ import celloracle as co
 class CellOracleWorkflow(SingleCellWorkflow):
 
     oracle = None
-    oracle_imputation = True
 
     def startup_finish(self):
         """
@@ -67,11 +69,38 @@ class CellOracleWorkflow(SingleCellWorkflow):
 
             utils.Debug.vprint("Using saved preprocessing for CellOracle")
 
+
+    @staticmethod
+    def reprocess_prior_to_base_GRN(priors_data):
+
+        base_GRN = priors_data.copy()
+        base_GRN.index.name = "Target"
+        base_GRN = base_GRN.melt(ignore_index=False, var_name="Regulator").reset_index()
+        base_GRN = base_GRN.loc[base_GRN['value'] != 0, :].copy()
+        base_GRN.drop("value", axis=1, inplace=True)
+        return {k: v["Regulator"].tolist() for k, v in base_GRN.groupby("Target")}
+
+
+    @staticmethod
+    def reprocess_co_output_to_inferelator_results(co_out):
+
+        betas = [r.pivot(index='target', columns='source', values='coef_mean').fillna(0) for k, r in co_out.items()]
+        rankers = [r.pivot(index='target', columns='source', values='-logp').fillna(0) for k, r in co_out.items()]
+
+        return betas, rankers
+
+
+class CellOracleRegression(_RegressionWorkflowMixin):
+
+    oracle_imputation = True
+
+    def run_regression(self):
+
         utils.Debug.vprint("Creating Oracle Object")
 
         # Set up oracle object
         oracle = co.Oracle()
-        oracle.import_anndata_as_raw_count(adata=adata,
+        oracle.import_anndata_as_raw_count(adata=self.data._adata,
                                            cluster_column_name="louvain",
                                            embedding_name="X_pca")
 
@@ -103,36 +132,22 @@ class CellOracleWorkflow(SingleCellWorkflow):
         else:
             oracle.adata.layers["imputed_count"] = oracle.adata.layers["normalized_count"].copy()
 
-        self.oracle = oracle
-
-
-    @staticmethod
-    def reprocess_prior_to_base_GRN(priors_data):
-
-        base_GRN = priors_data.copy()
-        base_GRN.index.name = "Target"
-        base_GRN = base_GRN.melt(ignore_index=False, var_name="Regulator").reset_index()
-        base_GRN = base_GRN.loc[base_GRN['value'] != 0, :].copy()
-        base_GRN.drop("value", axis=1, inplace=True)
-        return {k: v["Regulator"].tolist() for k, v in base_GRN.groupby("Target")}
-
-
-    @staticmethod
-    def reprocess_co_output_to_inferelator_results(co_out):
-
-        betas = [r.pivot(index='target', columns='source', values='coef_mean').fillna(0) for k, r in co_out.items()]
-        rankers = [r.pivot(index='target', columns='source', values='-logp').fillna(0) for k, r in co_out.items()]
-
-        return betas, rankers
-
-
-class CellOracleRegression(_RegressionWorkflowMixin):
-
-    def run_regression(self):
-
         utils.Debug.vprint("CellOracle GRN inference")
         
-        links = self.oracle.get_links(cluster_name_for_GRN_unit="louvain", alpha=10,
-                                      verbose_level=0, test_mode=False)
+        # Call GRN inference
+        links = oracle.get_links(cluster_name_for_GRN_unit="louvain", alpha=10,
+                                 verbose_level=0, test_mode=False)
 
-        return self.reprocess_co_output_to_inferelator_results(links.links_dict)
+        # Deepcopy the result dict that we want
+        result = copy.deepcopy(links.links_dict)
+
+        # Try to clean up some of these circular references
+        del links
+        del oracle
+        del self.data._adata
+        del self.data
+
+        # Call an explicit GC cycle
+        gc.collect()
+
+        return self.reprocess_co_output_to_inferelator_results(result)
