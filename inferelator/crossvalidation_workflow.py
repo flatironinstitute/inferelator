@@ -326,7 +326,7 @@ class CrossValidationManager(object):
         Open and return a file handle to the CSV output file
         """
         csv_file_name = os.path.join(self.output_dir, self.output_file_name)
-        self._csv_file_handle = open(csv_file_name, mode="w+" if self._csv_append else "w", buffering=1)
+        self._csv_file_handle = open(csv_file_name, mode="a" if self._csv_append else "w", buffering=1)
 
     def _create_output_path(self):
         """
