@@ -169,6 +169,8 @@ class DaskHPCClusterController(AbstractController):
         cls._add_local_node_workers(cls._num_local_workers)
         cls._tracker = WorkerTracker()
 
+        utils.Debug.vprint("Dask dashboard: {cl}".format(cl = cls.client.dashboard_link), level=0)
+
         return True
 
     @classmethod
