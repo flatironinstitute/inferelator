@@ -89,6 +89,11 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         """
 
         self.get_data()
+
+        # Set the random seed in the task to the same as the parent
+        for tobj in self._task_objects:
+            tobj.random_seed = self.random_seed
+
         self.validate_data()
 
     def get_data(self):
@@ -196,9 +201,6 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
                 except AttributeError:
                     pass
 
-            # Set the random seed in the task to the same as the parent
-            tobj.random_seed = self.random_seed
-
             # Set the num_bootstraps in the task to the same as the parent
             tobj.num_bootstraps = self.num_bootstraps
 
@@ -218,8 +220,8 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
 
         :raises ValueError: Raises a ValueError if any tasks have invalid priors or gold standard structures
         """
-        if self.gold_standard is None:
-            raise ValueError("A gold standard must be provided to `gold_standard_file` in MultiTaskLearningWorkflow")
+
+        super().validate_data(check_prior=False)
 
         # Check to see if there are any tasks which don't have priors
         no_priors = sum(map(lambda x: x.priors_data is None, self._task_objects))
@@ -278,7 +280,8 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
             task_obj.process_priors_and_gold_standard(gold_standard=self.gold_standard,
                                                       cv_flag=self.split_gold_standard_for_crossvalidation,
                                                       cv_axis=self.cv_split_axis,
-                                                      shuffle_priors=self.shuffle_prior_axis)
+                                                      shuffle_priors=self.shuffle_prior_axis,
+                                                      add_prior_noise=self.add_prior_noise)
 
     def _process_task_data(self):
         """
@@ -437,15 +440,19 @@ def create_task_data_class(workflow_class="single-cell"):
 
             warnings.warn("Task-specific `num_bootstraps` and `random_seed` is not supported. Set on parent workflow.")
 
-        def process_priors_and_gold_standard(self, gold_standard=None, cv_flag=None, cv_axis=None, shuffle_priors=None):
+        def process_priors_and_gold_standard(self, gold_standard=None, cv_flag=None, cv_axis=None, shuffle_priors=None,
+                                             add_prior_noise=None):
             """
             Make sure that the priors for this task are correct
+
+            This will remove circularity from the task priors based on the parent gold standard
             """
 
             gold_standard = self.gold_standard if gold_standard is None else gold_standard
             cv_flag = self.split_gold_standard_for_crossvalidation if cv_flag is None else cv_flag
             cv_axis = self.cv_split_axis if cv_axis is None else cv_axis
             shuffle_priors = self.shuffle_prior_axis if shuffle_priors is None else shuffle_priors
+            add_prior_noise = self.add_prior_noise if add_prior_noise is None else add_prior_noise
 
             # Remove circularity from the gold standard
             if cv_flag:
@@ -461,6 +468,10 @@ def create_task_data_class(workflow_class="single-cell"):
             # Shuffle prior labels
             if shuffle_priors is not None:
                 self.priors_data = self.prior_manager.shuffle_priors(self.priors_data, shuffle_priors, self.random_seed)
+
+            if add_prior_noise is not None:
+                self.priors_data = self.prior_manager.add_prior_noise(self.priors_data, add_prior_noise,
+                                                                      self.random_seed)
 
             if min(self.priors_data.shape) == 0:
                 raise ValueError("Priors for task {n} have an axis of length 0".format(n=self.task_name))

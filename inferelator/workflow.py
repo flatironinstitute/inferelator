@@ -543,32 +543,35 @@ class WorkflowBaseLoader(object):
             self.loaded_file_info("Gold standard", self.gold_standard)
             self._check_network_labels_unique("Gold standard", gold_standard_file, self.gold_standard)
 
-    def validate_data(self):
+    def validate_data(self, check_prior=True, check_gold_standard=True):
         """
         Make sure that the data that's loaded is acceptable
         """
 
-        # Create a null prior if the flag is set
-        if self.use_no_prior and self.priors_data is not None:
-            warnings.warn("The use_no_prior flag will be ignored because prior data exists")
-        elif self.use_no_prior:
-            Debug.vprint("A null prior is has been created", level=0)
-            self.priors_data = self._create_null_prior(self.data.gene_names, self.tf_names)
+        if check_prior:
+            # Create a null prior if the flag is set
+            if self.use_no_prior and self.priors_data is not None:
+                warnings.warn("The use_no_prior flag will be ignored because prior data exists")
+            elif self.use_no_prior:
+                Debug.vprint("A null prior is has been created", level=0)
+                self.priors_data = self._create_null_prior(self.data.gene_names, self.tf_names)
 
-        # Create a null gold standard if the flag is set
-        if self.use_no_gold_standard and self.gold_standard is not None:
-            warnings.warn("The use_no_gold_standard flag will be ignored because gold standard data exists")
-        elif self.use_no_gold_standard:
-            Debug.vprint("A null gold standard has been created", level=0)
-            self.gold_standard = self._create_null_prior(self.data.gene_names, self.tf_names)
-        elif self.gold_standard is None:
-            _msg = "No gold standard found. Model scoring will be invalid. "
-            _msg += "Set worker.set_network_data_flags(use_no_gold_standard=True) to explicitly continue."
-            raise ValueError(_msg)
+        if check_gold_standard:
+            # Create a null gold standard if the flag is set
+            if self.use_no_gold_standard and self.gold_standard is not None:
+                warnings.warn("The use_no_gold_standard flag will be ignored because gold standard data exists")
+            elif self.use_no_gold_standard:
+                Debug.vprint("A null gold standard has been created", level=0)
+                self.gold_standard = self._create_null_prior(self.data.gene_names, self.tf_names)
+            elif self.gold_standard is None:
+                _msg = "No gold standard found. Model scoring will be invalid. "
+                _msg += "Set worker.set_network_data_flags(use_no_gold_standard=True) to explicitly continue."
+                raise ValueError(_msg)
 
-        # Validate that some network information exists and has been loaded
-        if self.priors_data is None and self.gold_standard is None:
-            raise ValueError("No gold standard or priors have been provided")
+        if check_prior and check_gold_standard:
+            # Validate that some network information exists and has been loaded
+            if self.priors_data is None and self.gold_standard is None:
+                raise ValueError("No gold standard or priors have been provided")
 
     def input_path(self, filename):
         """
