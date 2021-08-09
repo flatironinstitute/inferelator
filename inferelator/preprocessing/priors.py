@@ -192,22 +192,33 @@ class ManagePriors(object):
             Returns priors_data the data has been shuffled on a specific axis
         """
 
-        assert check.argument_enum(shuffle_prior_axis, [0, 1], allow_none=True)
+        assert check.argument_enum(shuffle_prior_axis, [-1, 0, 1], allow_none=True)
+
+        def _shuffle_genes(pd):
+            # Shuffle index (genes) in the priors_data
+            utils.Debug.vprint("Randomly shuffling prior [{sh}] gene data".format(sh=pd.shape), level=0)
+            prior_index = pd.index.tolist()
+            pd = pd.sample(frac=1, axis=0, random_state=random_seed)
+            pd.index = prior_index
+            return pd
+
+        def _shuffle_tfs(pd):
+            # Shuffle columns (TFs) in the priors_data
+            utils.Debug.vprint("Randomly shuffling prior [{sh}] TF data".format(sh=pd.shape), level=0)
+            prior_index = pd.columns.tolist()
+            pd = pd.sample(frac=1, axis=1, random_state=random_seed)
+            pd.columns = prior_index
+            return pd
 
         if shuffle_prior_axis is None:
             return priors_data
         elif shuffle_prior_axis == 0:
-            # Shuffle index (genes) in the priors_data
-            utils.Debug.vprint("Randomly shuffling prior [{sh}] gene data".format(sh=priors_data.shape), level=0)
-            prior_index = priors_data.index.tolist()
-            priors_data = priors_data.sample(frac=1, axis=0, random_state=random_seed)
-            priors_data.index = prior_index
+            priors_data = _shuffle_genes(priors_data)
         elif shuffle_prior_axis == 1:
-            # Shuffle columns (TFs) in the priors_data
-            utils.Debug.vprint("Randomly shuffling prior [{sh}] TF data".format(sh=priors_data.shape), level=0)
-            prior_index = priors_data.columns.tolist()
-            priors_data = priors_data.sample(frac=1, axis=1, random_state=random_seed)
-            priors_data.columns = prior_index
+            priors_data = _shuffle_tfs(priors_data)
+        elif shuffle_prior_axis == -1:
+            priors_data = _shuffle_genes(priors_data)
+            priors_data = _shuffle_tfs(priors_data)
 
         return priors_data
 
