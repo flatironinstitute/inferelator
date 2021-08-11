@@ -185,7 +185,7 @@ class ManagePriors(object):
         :param priors_data: pd.DataFrame [G x K]
             Prior data
         :param shuffle_prior_axis: int
-            Axis to shuffle. 0 is genes, 1 is regulators, None is skip shuffling.
+            Axis to shuffle. 0 is genes, 1 is regulators, -1 is to shuffle both axes. None is skip shuffling.
         :param random_seed: int
             Random seed
         :return priors_data:
@@ -246,8 +246,15 @@ class ManagePriors(object):
         cutoff = np.quantile(new_prior, noise_ratio, axis=None)
 
         priors_data = priors_data != 0 
+        old_prior_sum = priors_data.sum().sum()
+
         priors_data += new_prior <= cutoff
         priors_data = (priors_data != 0).astype(int)
+        new_prior_sum = priors_data.sum().sum()
+
+        _msg = "Prior {sh} [{ol}] modified to {n} noise [{ne}]".format(sh=priors_data.shape, ol=old_prior_sum,
+                                                                       ne=new_prior_sum, n=noise_ratio)
+        utils.Debug.vprint(_msg, level=0)
 
         return priors_data
 
