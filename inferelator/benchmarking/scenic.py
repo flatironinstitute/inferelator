@@ -98,7 +98,11 @@ class SCENICWorkflow(SingleCellWorkflow):
 
     def create_feather_file_from_prior(self):
 
-        new_prior = self.priors_data.loc[:, (self.priors_data != 0).sum(axis=0) > 0].T.copy().astype(int)
+        # Get rid of TFs which have no edges
+        new_prior = self.priors_data.loc[:, (self.priors_data != 0).sum(axis=0) > 0]
+
+        # Make sure to include all genes
+        new_prior = new_prior.reindex(self.data.gene_names, axis=0).fillna(0).T.astype(int)
         new_prior.index.name = 'features'
 
         for i in range(new_prior.shape[0]):
