@@ -107,7 +107,7 @@ class RankSummingMetric(object):
             # Save the plot and close
             self.save_figure(os.path.join(output_dir, file_name), fig, dpi=dpi)
 
-        return ax
+        return fig, ax
 
     def output_curve(self, ax=None, figsize=(6, 4)):
         raise NotImplementedError
