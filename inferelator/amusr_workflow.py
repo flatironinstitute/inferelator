@@ -4,6 +4,8 @@ Run Multitask Network Inference with TFA-AMuSR.
 import copy
 import gc
 import warnings
+import pandas as pd
+from inferelator import utils
 
 from inferelator.utils import Debug
 from inferelator import workflow
@@ -41,6 +43,9 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
     # Multi-task result processor
     _result_processor_driver = ResultsProcessorMultiTask
 
+    # Prior noise taskwise flag
+    add_prior_noise_to_task_priors = True
+
     @property
     def _num_obs(self):
         if self._task_objects is not None:
@@ -61,6 +66,13 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
     def _num_tfs(self):
         if self._task_objects is not None:
             return max([t if t is not None else 0 for t in map(lambda x: x._num_tfs, self._task_objects)])
+        else:
+            return None
+
+    @property
+    def _gene_names(self):
+        if self._task_objects is not None:
+            return set().union([t if t is not None else [] for t in map(lambda x: x.data.gene_names, self._task_objects)])
         else:
             return None
 
@@ -233,7 +245,21 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         Process the default priors in the parent workflow for crossvalidation or shuffling
         """
 
-        priors = self.priors_data if self.priors_data is not None else self.gold_standard.copy()
+        # Use priors if given to the MTL workflow
+        if self.priors_data is not None:
+            priors = self.priors_data
+
+        # If they all have priors don't worry about it - use a 0 prior here for crossvalidation selection if needed
+        elif self.priors_data is None and self.gold_standard is not None:
+            priors = pd.DataFrame(0, index=self.gold_standard.index, columns=self.gold_standard.columns)
+
+        elif self.priors_data is None and self.tf_names is not None:
+            priors = pd.DataFrame(0, index=self._gene_names, columns=self.tf_names)
+
+        # If there's no gold standard or use_no_prior isn't set, raise a RuntimeError
+        else:
+            _msg = "No base prior or gold standard or TF list has been provided."
+            raise RuntimeError(_msg)
 
         # Crossvalidation
         if self.split_gold_standard_for_crossvalidation:
@@ -253,6 +279,19 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         if self.shuffle_prior_axis is not None:
             priors = self.prior_manager.shuffle_priors(priors, self.shuffle_prior_axis, self.random_seed)
 
+        # Add prior noise now (to the base prior) if add_prior_noise_to_task_priors is False
+        # Otherwise add later to the task priors (will be different for each task)
+        if self.add_prior_noise is not None and not self.add_prior_noise_to_task_priors:
+            priors = self.prior_manager.add_prior_noise(priors, self.add_prior_noise, self.random_seed)
+
+            _has_prior = [t.priors_data is not None for t in self._task_objects]
+            if any(_has_prior):
+                _msg = "Overriding task priors in {tn} because add_prior_noise_to_task_priors is False"
+                utils.Debug.vprint(_msg.format(tn=_has_prior), level=0)
+
+                for t in self._task_objects:
+                    t.priors_data = priors.copy()
+
         # Reset the priors_data in the parent workflow if it exists
         self.priors_data = priors if self.priors_data is not None else None
 
@@ -265,23 +304,25 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
             # Set priors if task-specific priors are not present
             if task_obj.priors_data is None and self.priors_data is None:
                 raise ValueError("No priors exist in the main workflow or in tasks")
+
             elif task_obj.priors_data is None:
                 task_obj.priors_data = self.priors_data.copy()
 
             # Set gene names if task-specific gene names is not present
             if task_obj.gene_names is None:
-                task_obj.gene_names = copy.copy(self.gene_names)
+                task_obj.gene_names = copy.deepcopy(self.gene_names)
 
             # Set tf_names if task-specific tf names are not present
             if task_obj.tf_names is None:
-                task_obj.tf_names = copy.copy(self.tf_names)
+                task_obj.tf_names = copy.deepcopy(self.tf_names)
 
+            _add_prior_noise = self.add_prior_noise if self.add_prior_noise_to_task_priors is True else None
             # Process priors in the task data
             task_obj.process_priors_and_gold_standard(gold_standard=self.gold_standard,
                                                       cv_flag=self.split_gold_standard_for_crossvalidation,
                                                       cv_axis=self.cv_split_axis,
                                                       shuffle_priors=self.shuffle_prior_axis,
-                                                      add_prior_noise=self.add_prior_noise)
+                                                      add_prior_noise=_add_prior_noise)
 
     def _process_task_data(self):
         """

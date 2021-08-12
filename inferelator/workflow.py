@@ -124,6 +124,13 @@ class WorkflowBaseLoader(object):
         else:
             return None
 
+    @property
+    def _gene_names(self):
+        if self.data is not None:
+            return self.data.gene_names
+        else:
+            return None
+
     def __init__(self):
         if self._file_format_settings is None:
             self._file_format_settings = dict()
@@ -554,7 +561,7 @@ class WorkflowBaseLoader(object):
                 warnings.warn("The use_no_prior flag will be ignored because prior data exists")
             elif self.use_no_prior:
                 Debug.vprint("A null prior is has been created", level=0)
-                self.priors_data = self._create_null_prior(self.data.gene_names, self.tf_names)
+                self.priors_data = self._create_null_prior(self._gene_names, self.tf_names)
 
         if check_gold_standard:
             # Create a null gold standard if the flag is set
@@ -562,7 +569,7 @@ class WorkflowBaseLoader(object):
                 warnings.warn("The use_no_gold_standard flag will be ignored because gold standard data exists")
             elif self.use_no_gold_standard:
                 Debug.vprint("A null gold standard has been created", level=0)
-                self.gold_standard = self._create_null_prior(self.data.gene_names, self.tf_names)
+                self.gold_standard = self._create_null_prior(self._gene_names, self.tf_names)
             elif self.gold_standard is None:
                 _msg = "No gold standard found. Model scoring will be invalid. "
                 _msg += "Set worker.set_network_data_flags(use_no_gold_standard=True) to explicitly continue."
@@ -890,8 +897,10 @@ class WorkflowBase(WorkflowBaseLoader):
         # Filter priors to a list of regulators
         if self.tf_names is not None:
             self.priors_data = self.prior_manager.filter_to_tf_names_list(self.priors_data, self.tf_names)
-        else:
+        elif self.tf_names is None and self.priors_data is not None:
             self.tf_names = self.priors_data.columns.tolist()
+        elif self.tf_names is None:
+            raise ValueError("Either a priors_data or a tf_names file must be provided to identify regulators.")
 
         # Filter priors and expression to a list of genes
         self.filter_to_gene_list()
