@@ -15,6 +15,7 @@ import shutil
 
 import logging
 logging.getLogger('matplotlib').setLevel(logging.ERROR)
+import matplotlib.pyplot as plt
 
 
 class TestResults(unittest.TestCase):
@@ -325,28 +326,33 @@ class TestPrecisionRecallMetric(TestResults):
         temp_dir = tempfile.mkdtemp()
         file_name = os.path.join(temp_dir, "pr_curve.pdf")
         self.metric = self.metric([confidences, confidences], gs)
-        self.metric.output_curve_pdf(temp_dir, "pr_curve.pdf")
+        fig, ax = self.metric.output_curve_pdf(temp_dir, "pr_curve.pdf")
         self.assertTrue(os.path.exists(file_name))
-
+        plt.close(fig)
+        
         os.remove(file_name)
         self.assertFalse(os.path.exists(file_name))
-        self.metric.output_curve_pdf(output_dir=temp_dir, file_name="pr_curve.pdf")
+        fig, ax = self.metric.output_curve_pdf(output_dir=temp_dir, file_name="pr_curve.pdf")
         self.assertTrue(os.path.exists(file_name))
+        plt.close(fig)
 
         os.remove(file_name)
         self.assertFalse(os.path.exists(file_name))
         self.metric.curve_file_name = "pr_curve.pdf"
-        self.metric.output_curve_pdf(output_dir=temp_dir, file_name=None)
+        fig, ax = self.metric.output_curve_pdf(output_dir=temp_dir, file_name=None)
         self.assertTrue(os.path.exists(file_name))
+        plt.close(fig)
 
         os.remove(file_name)
         self.metric.curve_file_name = None
         self.assertFalse(os.path.exists(file_name))
-        self.metric.output_curve_pdf(output_dir=temp_dir, file_name=None)
+        fig, ax = self.metric.output_curve_pdf(output_dir=temp_dir, file_name=None)
         self.assertFalse(os.path.exists(file_name))
+        plt.close(fig)
 
-        self.metric.output_curve_pdf(output_dir=None, file_name="pr_curve.pdf")
+        fig, ax = self.metric.output_curve_pdf(output_dir=None, file_name="pr_curve.pdf")
         self.assertFalse(os.path.exists(file_name))
+        plt.close(fig)
 
         shutil.rmtree(temp_dir)
 

@@ -293,6 +293,30 @@ class TestWorkflowFunctions(unittest.TestCase):
         np.testing.assert_array_almost_equal_nulp(self.workflow._task_objects[0].priors_data.values,
                                                   self.workflow._task_objects[1].priors_data.values)
 
+    def test_noise_prior_different(self):
+        self.workflow.add_prior_noise = 0.5
+
+        for tobj in self.workflow._task_objects:
+            np.testing.assert_array_almost_equal_nulp(tobj.priors_data.values, self.workflow.gold_standard.values)
+
+        self.workflow._task_objects[0].random_seed = 1000
+
+        self.workflow._process_default_priors()
+        self.workflow._process_task_priors()
+
+        for tobj in self.workflow._task_objects:
+
+            self.assertTrue(all(tobj.priors_data.columns == self.workflow.gold_standard.columns))
+            self.assertTrue(all(tobj.priors_data.index == self.workflow.gold_standard.index))
+
+            with self.assertRaises(AssertionError):
+                np.testing.assert_array_almost_equal_nulp(tobj.priors_data.values, self.workflow.gold_standard.values)
+
+                
+        with self.assertRaises(AssertionError):
+            np.testing.assert_array_almost_equal_nulp(self.workflow._task_objects[0].priors_data.values,
+                                                     self.workflow._task_objects[1].priors_data.values)
+
     def test_noise_prior_base(self):
         self.workflow.add_prior_noise = 0.5
         self.workflow.add_prior_noise_to_task_priors = False
