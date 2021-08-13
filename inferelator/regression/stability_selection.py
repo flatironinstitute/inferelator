@@ -178,7 +178,7 @@ class StARS(base_regression.BaseRegression):
             utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G), level=level)
 
             data = stars_model_select(self.X.values,
-                                      utils.scale_vector(self.Y.get_gene_data(j, force_dense=True).flatten()),
+                                      utils.scale_vector(self.Y.get_gene_data(j, force_dense=True, flatten=True)),
                                       self.alphas,
                                       method=self.method,
                                       num_subsamples=self.num_subsamples,

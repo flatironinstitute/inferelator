@@ -83,9 +83,15 @@ class TestWorkflowSetParameters(unittest.TestCase):
         self.assertFalse(self.workflow.use_no_prior)
         self.assertFalse(self.workflow.use_no_gold_standard)
 
-        with self.assertWarns(Warning):
-            self.workflow.set_network_data_flags(use_no_prior=True,
-                                                 use_no_gold_standard=True)
+        with self.assertRaises(AssertionError):
+            with self.assertWarns(UserWarning):
+                self.workflow.set_network_data_flags()
+
+        with self.assertWarns(UserWarning):
+            self.workflow.set_network_data_flags(use_no_gold_standard=True)
+
+        with self.assertWarns(UserWarning):
+            self.workflow.set_network_data_flags(use_no_prior=True)
 
         self.assertTrue(self.workflow.use_no_prior)
         self.assertTrue(self.workflow.use_no_gold_standard)
@@ -243,21 +249,28 @@ class TestWorkflowLoadData(unittest.TestCase):
         self.assertIsNone(self.workflow.priors_data)
         self.assertIsNone(self.workflow.gold_standard)
 
+        with self.assertRaises(ValueError):
+            self.workflow.validate_data()
+
+        self.workflow.use_no_gold_standard = True
         self.workflow.use_no_prior = True
         self.workflow.validate_data()
 
         self.assertIsNotNone(self.workflow.priors_data)
         self.assertListEqual(self.workflow.priors_data.columns.tolist(), self.workflow.tf_names)
         self.assertTrue(all(self.workflow.data.gene_names == self.workflow.priors_data.index))
-        self.assertIsNone(self.workflow.gold_standard)
+
+        self.assertIsNotNone(self.workflow.gold_standard)
+        self.assertIsNotNone(self.workflow.gold_standard)
+        self.assertListEqual(self.workflow.gold_standard.columns.tolist(), self.workflow.tf_names)
+        self.assertTrue(all(self.workflow.data.gene_names == self.workflow.gold_standard.index))
+
+        self.workflow.gold_standard = None
 
         with self.assertWarns(Warning):
             self.workflow.use_no_gold_standard = True
             self.workflow.validate_data()
 
-        self.assertIsNotNone(self.workflow.gold_standard)
-        self.assertListEqual(self.workflow.gold_standard.columns.tolist(), self.workflow.tf_names)
-        self.assertTrue(all(self.workflow.data.gene_names == self.workflow.gold_standard.index))
 
     def test_load_to_h5ad(self):
 
@@ -450,6 +463,17 @@ class TestWorkflowFunctions(unittest.TestCase):
             np.testing.assert_array_almost_equal_nulp(self.workflow.priors_data.values,
                                                       self.workflow.gold_standard.values)
 
+    def test_add_prior_noise(self):
+        self.workflow.set_shuffle_parameters(add_prior_noise=0.1)
+        np.testing.assert_array_almost_equal_nulp(self.workflow.priors_data.values, self.workflow.gold_standard.values)
+        self.workflow.process_priors_and_gold_standard()
+
+        self.assertTrue(all(self.workflow.priors_data.columns == self.workflow.gold_standard.columns))
+        self.assertTrue(all(self.workflow.priors_data.index == self.workflow.gold_standard.index))
+        self.assertTrue(self.workflow.priors_data.sum().sum() > self.workflow.gold_standard.sum().sum())
+        with self.assertRaises(AssertionError):
+            np.testing.assert_array_almost_equal_nulp(self.workflow.priors_data.values,
+                                                      self.workflow.gold_standard.values)
 
 class TestWorkflowFactory(unittest.TestCase):
 

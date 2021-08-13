@@ -236,6 +236,10 @@ class InferelatorDataLoader(object):
         if nnf > 0:
             msg += "\t{n} genes with non-finite expression ({g})\n".format(n=nnf, g=" ".join(non_finite_genes))
 
+        if not data.gene_names.is_unique:
+            _repeated = data.gene_names[data.gene_names.duplicated()]
+            msg += "\t{n} genes are duplicated ({g})\n".format(n=len(_repeated), g=" ".join(_repeated))
+
         msg += "Data loaded: {dt}".format(dt=str(data))
         Debug.vprint(msg, level=0)
 

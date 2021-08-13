@@ -4,6 +4,8 @@ Run Multitask Network Inference with TFA-AMuSR.
 import copy
 import gc
 import warnings
+import pandas as pd
+from inferelator import utils
 
 from inferelator.utils import Debug
 from inferelator import workflow
@@ -41,6 +43,9 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
     # Multi-task result processor
     _result_processor_driver = ResultsProcessorMultiTask
 
+    # Prior noise taskwise flag
+    add_prior_noise_to_task_priors = True
+
     @property
     def _num_obs(self):
         if self._task_objects is not None:
@@ -61,6 +66,13 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
     def _num_tfs(self):
         if self._task_objects is not None:
             return max([t if t is not None else 0 for t in map(lambda x: x._num_tfs, self._task_objects)])
+        else:
+            return None
+
+    @property
+    def _gene_names(self):
+        if self._task_objects is not None:
+            return set().union([t if t is not None else [] for t in map(lambda x: x.data.gene_names, self._task_objects)])
         else:
             return None
 
@@ -89,6 +101,11 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         """
 
         self.get_data()
+
+        # Set the random seed in the task to the same as the parent
+        for tobj in self._task_objects:
+            tobj.random_seed = self.random_seed
+
         self.validate_data()
 
     def get_data(self):
@@ -196,9 +213,6 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
                 except AttributeError:
                     pass
 
-            # Set the random seed in the task to the same as the parent
-            tobj.random_seed = self.random_seed
-
             # Set the num_bootstraps in the task to the same as the parent
             tobj.num_bootstraps = self.num_bootstraps
 
@@ -218,8 +232,8 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
 
         :raises ValueError: Raises a ValueError if any tasks have invalid priors or gold standard structures
         """
-        if self.gold_standard is None:
-            raise ValueError("A gold standard must be provided to `gold_standard_file` in MultiTaskLearningWorkflow")
+
+        super().validate_data(check_prior=False)
 
         # Check to see if there are any tasks which don't have priors
         no_priors = sum(map(lambda x: x.priors_data is None, self._task_objects))
@@ -231,7 +245,21 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         Process the default priors in the parent workflow for crossvalidation or shuffling
         """
 
-        priors = self.priors_data if self.priors_data is not None else self.gold_standard.copy()
+        # Use priors if given to the MTL workflow
+        if self.priors_data is not None:
+            priors = self.priors_data
+
+        # If they all have priors don't worry about it - use a 0 prior here for crossvalidation selection if needed
+        elif self.priors_data is None and self.gold_standard is not None:
+            priors = pd.DataFrame(0, index=self.gold_standard.index, columns=self.gold_standard.columns)
+
+        elif self.priors_data is None and self.tf_names is not None:
+            priors = pd.DataFrame(0, index=self._gene_names, columns=self.tf_names)
+
+        # If there's no gold standard or use_no_prior isn't set, raise a RuntimeError
+        else:
+            _msg = "No base prior or gold standard or TF list has been provided."
+            raise RuntimeError(_msg)
 
         # Crossvalidation
         if self.split_gold_standard_for_crossvalidation:
@@ -251,6 +279,19 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         if self.shuffle_prior_axis is not None:
             priors = self.prior_manager.shuffle_priors(priors, self.shuffle_prior_axis, self.random_seed)
 
+        # Add prior noise now (to the base prior) if add_prior_noise_to_task_priors is False
+        # Otherwise add later to the task priors (will be different for each task)
+        if self.add_prior_noise is not None and not self.add_prior_noise_to_task_priors:
+            priors = self.prior_manager.add_prior_noise(priors, self.add_prior_noise, self.random_seed)
+
+            _has_prior = [t.priors_data is not None for t in self._task_objects]
+            if any(_has_prior):
+                _msg = "Overriding task priors in {tn} because add_prior_noise_to_task_priors is False"
+                utils.Debug.vprint(_msg.format(tn=_has_prior), level=0)
+
+                for t in self._task_objects:
+                    t.priors_data = priors.copy()
+
         # Reset the priors_data in the parent workflow if it exists
         self.priors_data = priors if self.priors_data is not None else None
 
@@ -263,22 +304,25 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
             # Set priors if task-specific priors are not present
             if task_obj.priors_data is None and self.priors_data is None:
                 raise ValueError("No priors exist in the main workflow or in tasks")
+
             elif task_obj.priors_data is None:
                 task_obj.priors_data = self.priors_data.copy()
 
             # Set gene names if task-specific gene names is not present
             if task_obj.gene_names is None:
-                task_obj.gene_names = copy.copy(self.gene_names)
+                task_obj.gene_names = copy.deepcopy(self.gene_names)
 
             # Set tf_names if task-specific tf names are not present
             if task_obj.tf_names is None:
-                task_obj.tf_names = copy.copy(self.tf_names)
+                task_obj.tf_names = copy.deepcopy(self.tf_names)
 
+            _add_prior_noise = self.add_prior_noise if self.add_prior_noise_to_task_priors is True else None
             # Process priors in the task data
             task_obj.process_priors_and_gold_standard(gold_standard=self.gold_standard,
                                                       cv_flag=self.split_gold_standard_for_crossvalidation,
                                                       cv_axis=self.cv_split_axis,
-                                                      shuffle_priors=self.shuffle_prior_axis)
+                                                      shuffle_priors=self.shuffle_prior_axis,
+                                                      add_prior_noise=_add_prior_noise)
 
     def _process_task_data(self):
         """
@@ -437,15 +481,19 @@ def create_task_data_class(workflow_class="single-cell"):
 
             warnings.warn("Task-specific `num_bootstraps` and `random_seed` is not supported. Set on parent workflow.")
 
-        def process_priors_and_gold_standard(self, gold_standard=None, cv_flag=None, cv_axis=None, shuffle_priors=None):
+        def process_priors_and_gold_standard(self, gold_standard=None, cv_flag=None, cv_axis=None, shuffle_priors=None,
+                                             add_prior_noise=None):
             """
             Make sure that the priors for this task are correct
+
+            This will remove circularity from the task priors based on the parent gold standard
             """
 
             gold_standard = self.gold_standard if gold_standard is None else gold_standard
             cv_flag = self.split_gold_standard_for_crossvalidation if cv_flag is None else cv_flag
             cv_axis = self.cv_split_axis if cv_axis is None else cv_axis
             shuffle_priors = self.shuffle_prior_axis if shuffle_priors is None else shuffle_priors
+            add_prior_noise = self.add_prior_noise if add_prior_noise is None else add_prior_noise
 
             # Remove circularity from the gold standard
             if cv_flag:
@@ -461,6 +509,10 @@ def create_task_data_class(workflow_class="single-cell"):
             # Shuffle prior labels
             if shuffle_priors is not None:
                 self.priors_data = self.prior_manager.shuffle_priors(self.priors_data, shuffle_priors, self.random_seed)
+
+            if add_prior_noise is not None:
+                self.priors_data = self.prior_manager.add_prior_noise(self.priors_data, add_prior_noise,
+                                                                      self.random_seed)
 
             if min(self.priors_data.shape) == 0:
                 raise ValueError("Priors for task {n} have an axis of length 0".format(n=self.task_name))

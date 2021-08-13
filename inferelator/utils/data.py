@@ -562,23 +562,37 @@ class InferelatorData(object):
             # Make sure that there's no hanging reference to the original object
             gc.collect()
 
-    def get_gene_data(self, gene_list, copy=False, force_dense=False, to_df=False, zscore=False):
+    def get_gene_data(self, gene_list, copy=False, force_dense=False, to_df=False, zscore=False, flatten=False):
 
         x = self._adata[:, gene_list]
         labels = x.var_names
 
         if (force_dense or to_df or zscore) and self.is_sparse:
             x = x.X.A
+            copy = False # Don't need to force a copy now
         else:
             x = x.X
 
         if zscore:
-            x = np.subtract(x, self.obs_means.reshape(-1, 1))
-            x = np.divide(x, self.obs_stdev.reshape(-1, 1))
-        elif copy:
-            x = x.copy()
+            
+            # Z-score the values
+            z_x = np.subtract(x, self.obs_means.reshape(-1, 1))
+            z_x = np.divide(z_x, self.obs_stdev.reshape(-1, 1))
 
-        return pd.DataFrame(x, columns=labels, index=self.sample_names) if to_df else x
+            # Replace the x reference with the new values
+            del x
+            x = z_x
+
+            copy = False # Don't need to force a copy now
+
+        if flatten and x.ndim == 2:
+            new_x = x.flatten() # Implicit copy
+        elif (flatten and x.ndim == 1) or copy:
+            new_x = x.copy() # Explicit copy
+        else:
+            new_x = x
+
+        return pd.DataFrame(new_x, columns=labels, index=self.sample_names) if to_df else new_x
 
     def get_sample_data(self, sample_index, copy=False, force_dense=False, to_df=False, zscore=False):
 

@@ -14,7 +14,6 @@ from inferelator.utils import Validator as check
 from inferelator.distributed import AbstractController
 from inferelator.distributed.dask_functions import dask_map
 
-_DEFAULT_CONDA_ACTIVATE = "source ~/.local/anaconda3/bin/activate"
 _DEFAULT_NUM_JOBS = 1
 _DEFAULT_THREADS_PER_WORKER = 1
 _DEFAULT_WORKERS_PER_JOB = 20
@@ -30,9 +29,14 @@ _THREAD_CONTROL_ENV = ['export MKL_NUM_THREADS={t}',
 
 _DEFAULT_CONTROLLER_EXTRA = ['--nodes 1', '--ntasks-per-node 1']
 
-_DEFAULT_ADAPTIVE_INTERVAL = "1s"
-
 _KNOWN_CONFIG = {"prince": {"_job_n_workers": 20,
+                            "_job_mem": "62GB",
+                            "_job_time": "48:00:00",
+                            "_interface": "ib0",
+                            "_job_extra_env_commands": copy.copy(_DEFAULT_ENV_EXTRA)
+                            },
+
+                "greene": {"_job_n_workers": 24,
                             "_job_mem": "62GB",
                             "_job_time": "48:00:00",
                             "_interface": "ib0",
@@ -71,8 +75,7 @@ _KNOWN_CONFIG = {"prince": {"_job_n_workers": 20,
                                 },
                  }
 
-
-_DEFAULT_LOCAL_WORKER_COMMAND = "dask-worker {a} --nprocs {p} --nthreads {t} --memory-limit 0 --local-directory {d}"
+_DEFAULT_LOCAL_WORKER_CMD = "dask-worker"
 
 try:
     _DEFAULT_LOCAL_DIR = os.environ['TMPDIR']
@@ -122,6 +125,7 @@ class DaskHPCClusterController(AbstractController):
     # Should any local workers be started on this node
     _num_local_workers = 0
     _runaway_protection = 3
+    _local_worker_command = _DEFAULT_LOCAL_WORKER_CMD
 
     # SLURM specific variables
     _queue = None
@@ -164,6 +168,8 @@ class DaskHPCClusterController(AbstractController):
 
         cls._add_local_node_workers(cls._num_local_workers)
         cls._tracker = WorkerTracker()
+
+        utils.Debug.vprint("Dask dashboard: {cl}".format(cl = cls.client.dashboard_link), level=0)
 
         return True
 
@@ -387,12 +393,17 @@ class DaskHPCClusterController(AbstractController):
         check.argument_integer(num_workers, low=0, allow_none=True)
 
         if num_workers is not None and num_workers > 0:
-            cmd = _DEFAULT_LOCAL_WORKER_COMMAND.format(p=num_workers,
-                                                       t=cls._worker_n_threads,
-                                                       a=cls._local_cluster.scheduler_address,
-                                                       d=cls._local_directory)
+
+            # Build a dask-worker command
+            cmd = [cls._local_worker_command, str(cls._local_cluster.scheduler_address),
+                   "--nprocs", str(num_workers),
+                   "--nthreads", str(cls._worker_n_threads),
+                   "--memory-limit", "0",
+                   "--local-directory", str(cls._local_directory)]
+
+            # Execute it through the Popen ()
             out_handle = open("slurm-{i}.out".format(i=_DEFAULT_SLURM_ID), mode="w")
-            subprocess.Popen(cmd, shell=True, stdout=out_handle, stderr=out_handle)
+            subprocess.Popen(cmd, stdout=out_handle, stderr=out_handle)
 
 
 class WorkerTracker:

@@ -15,14 +15,10 @@ from inferelator.tests.artifacts.test_stubs import TaskDataStub, create_puppet_w
 from inferelator.utils import InferelatorData, DotProduct
 from inferelator.preprocessing.metadata_parser import MetadataHandler
 
-try:
-    from dask import distributed
-    from inferelator.distributed import dask_local_controller
-    from inferelator.distributed import dask_functions
 
-    TEST_DASK_LOCAL = True
-except ImportError:
-    TEST_DASK_LOCAL = False
+from dask import distributed
+from inferelator.distributed import dask_local_controller
+from inferelator.distributed import dask_functions
 
 """
 These are full-stack integration tests covering the post-loading regression workflows
@@ -215,12 +211,10 @@ class TestMultitaskFactorySparse(SetUpSparseDataMTL, TestMultitaskFactory):
     pass
 
 
-@unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
 class SwitchToDask(unittest.TestCase):
     tempdir = None
 
     @classmethod
-    @unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
     def setUpClass(cls):
         cls.tempdir = tempfile.mkdtemp()
         MPControl.shutdown()
@@ -228,7 +222,6 @@ class SwitchToDask(unittest.TestCase):
         MPControl.connect(local_dir=cls.tempdir, n_workers=1, processes=False)
 
     @classmethod
-    @unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
     def tearDownClass(cls):
         MPControl.shutdown()
         MPControl.set_multiprocess_engine("local")
@@ -237,8 +230,7 @@ class SwitchToDask(unittest.TestCase):
             shutil.rmtree(cls.tempdir)
 
 
-@unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
-class TestSTLDask(TestSingleTaskRegressionFactory, SwitchToDask):
+class TestSTLDask(SwitchToDask, TestSingleTaskRegressionFactory):
 
     def test_dask_function_mi(self):
         """Compute mi for identical arrays [[1, 2, 1], [2, 4, 6]]."""
@@ -251,16 +243,13 @@ class TestSTLDask(TestSingleTaskRegressionFactory, SwitchToDask):
         np.testing.assert_almost_equal(mi, expected)
 
 
-@unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
-class TestSTLDask(TestSingleTaskRegressionFactorySparse, SwitchToDask):
+class TestSTLDask(SwitchToDask, TestSingleTaskRegressionFactorySparse):
     pass
 
 
-@unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
-class TestMTLDask(TestMultitaskFactory, SwitchToDask):
+class TestMTLDask(SwitchToDask, TestMultitaskFactory):
     pass
 
 
-@unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
-class TestMTLSparseDask(TestMultitaskFactorySparse, SwitchToDask):
+class TestMTLSparseDask(SwitchToDask, TestMultitaskFactorySparse):
     pass

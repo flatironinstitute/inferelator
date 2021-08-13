@@ -27,7 +27,7 @@ try:
     import dask_jobqueue
     from inferelator.distributed import dask_cluster_controller
 
-    TEST_DASK_CLUSTER = False if "TRAVIS_PYTHON_VERSION" in os.environ else True
+    TEST_DASK_CLUSTER = True
 
 except ImportError:
     TEST_DASK_CLUSTER = False

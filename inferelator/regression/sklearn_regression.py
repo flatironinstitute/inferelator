@@ -91,7 +91,7 @@ class SKLearnRegression(base_regression.BaseRegression):
             utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G), level=level)
 
             data = sklearn_gene(self.X.values,
-                                utils.scale_vector(self.Y.get_gene_data(j, force_dense=True).flatten()),
+                                utils.scale_vector(self.Y.get_gene_data(j, force_dense=True, flatten=True)),
                                 copy.copy(self.model),
                                 min_coef=self.min_coef)
             data['ind'] = j

@@ -9,6 +9,7 @@ from inferelator import workflow
 
 import os
 import pandas.testing as pdt
+import pandas as pd
 
 my_dir = os.path.dirname(__file__)
 
@@ -169,3 +170,16 @@ class TestPriorManager(unittest.TestCase):
         pdt.assert_series_equal(self.priors_data.sum(axis=1), npr3.sum(axis=1))
         pdt.assert_index_equal(npr3.index, self.priors_data.index)
         pdt.assert_index_equal(npr3.columns, self.priors_data.columns)
+
+    def test_add_noise_to_no_priors(self):
+        priors_data = pd.DataFrame(0, index=self.priors_data.index, columns=self.priors_data.columns)
+        npr1 = ManagePriors.add_prior_noise(priors_data, 0.1, random_seed=50)
+
+        self.assertEqual((priors_data != 0).sum().sum(), 0)
+        self.assertEqual((npr1 != 0).sum().sum(), int(npr1.size * 0.1))
+
+    def test_add_noise_to_priors(self):
+        npr1 = ManagePriors.add_prior_noise(self.priors_data, 1, random_seed=50)
+
+        self.assertEqual(npr1.max().max(), 1)
+        self.assertEqual((npr1 != 0).sum().sum(), npr1.size)

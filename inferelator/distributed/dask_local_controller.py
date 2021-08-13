@@ -89,3 +89,10 @@ class DaskController(AbstractController):
         This is a thing for the non-local dask. Just return True.
         """
         return True
+
+    @classmethod
+    def is_dask(cls):
+        """
+        This is dask. Return True.
+        """
+        return True

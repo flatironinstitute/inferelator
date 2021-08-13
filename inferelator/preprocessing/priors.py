@@ -92,8 +92,10 @@ class ManagePriors(object):
                 utils.Debug.vprint("Existing prior is being replaced with a downsampled gold standard")
             priors_data = gs_to_prior
 
-        utils.Debug.vprint("CV prior {pr} and gold standard {gs}".format(pr=priors_data.shape,
-                                                                         gs=gold_standard.shape), level=0)
+        _msg = "CV prior {pr} [{pr_x}] and gold standard {gs} [{gs_x}]"
+        utils.Debug.vprint(_msg.format(pr=priors_data.shape, gs=gold_standard.shape,
+                                       pr_x=(priors_data != 0).sum().sum(),
+                                       gs_x=(gold_standard != 0).sum().sum()), level=0)
 
         return priors_data, gold_standard
 
@@ -183,31 +185,79 @@ class ManagePriors(object):
         :param priors_data: pd.DataFrame [G x K]
             Prior data
         :param shuffle_prior_axis: int
-            Axis to shuffle. 0 is genes, 1 is regulators, None is skip shuffling.
+            Axis to shuffle. 0 is genes, 1 is regulators, -1 is to shuffle both axes. None is skip shuffling.
         :param random_seed: int
             Random seed
         :return priors_data:
             Returns priors_data the data has been shuffled on a specific axis
         """
 
-        assert check.argument_enum(shuffle_prior_axis, [0, 1], allow_none=True)
+        assert check.argument_enum(shuffle_prior_axis, [-1, 0, 1], allow_none=True)
+
+        def _shuffle_genes(pd):
+            # Shuffle index (genes) in the priors_data
+            utils.Debug.vprint("Randomly shuffling prior [{sh}] gene data".format(sh=pd.shape), level=0)
+            prior_index = pd.index.tolist()
+            pd = pd.sample(frac=1, axis=0, random_state=random_seed)
+            pd.index = prior_index
+            return pd
+
+        def _shuffle_tfs(pd):
+            # Shuffle columns (TFs) in the priors_data
+            utils.Debug.vprint("Randomly shuffling prior [{sh}] TF data".format(sh=pd.shape), level=0)
+            prior_index = pd.columns.tolist()
+            pd = pd.sample(frac=1, axis=1, random_state=random_seed)
+            pd.columns = prior_index
+            return pd
 
         if shuffle_prior_axis is None:
             return priors_data
         elif shuffle_prior_axis == 0:
-            # Shuffle index (genes) in the priors_data
-            utils.Debug.vprint("Randomly shuffling prior [{sh}] gene data".format(sh=priors_data.shape))
-            prior_index = priors_data.index.tolist()
-            priors_data = priors_data.sample(frac=1, axis=0, random_state=random_seed)
-            priors_data.index = prior_index
+            priors_data = _shuffle_genes(priors_data)
         elif shuffle_prior_axis == 1:
-            # Shuffle columns (TFs) in the priors_data
-            utils.Debug.vprint("Randomly shuffling prior [{sh}] TF data".format(sh=priors_data.shape))
-            prior_index = priors_data.columns.tolist()
-            priors_data = priors_data.sample(frac=1, axis=1, random_state=random_seed)
-            priors_data.columns = prior_index
+            priors_data = _shuffle_tfs(priors_data)
+        elif shuffle_prior_axis == -1:
+            priors_data = _shuffle_genes(priors_data)
+            priors_data = _shuffle_tfs(priors_data)
 
         return priors_data
+
+    @staticmethod
+    def add_prior_noise(priors_data, noise_ratio, random_seed):
+        """
+        Add random edges to the prior. Note that this will binarize the prior if it was not already binary.
+
+        :param priors_data: Prior data
+        :type priors_data: pd.DataFrame [G x K]
+        :param noise_ratio: Ratio of edges to add to the prior
+        :type noise_ratio: float
+        :param random_seed: Random seed for generator
+        :type random_seed: int
+        :return: Prior data
+        :rtype: pd.DataFrame [G x K]
+        """
+
+        assert check.argument_numeric(noise_ratio, low=0, high=1)
+        assert check.argument_integer(random_seed)
+
+        rgen = np.random.default_rng(random_seed)
+
+        new_prior = rgen.random(priors_data.shape)
+        cutoff = np.quantile(new_prior, noise_ratio, axis=None)
+
+        priors_data = priors_data != 0 
+        old_prior_sum = priors_data.sum().sum()
+
+        priors_data += new_prior <= cutoff
+        priors_data = (priors_data != 0).astype(int)
+        new_prior_sum = priors_data.sum().sum()
+
+        _msg = "Prior {sh} [{ol}] modified to {n} noise [{ne}]".format(sh=priors_data.shape, ol=old_prior_sum,
+                                                                       ne=new_prior_sum, n=noise_ratio)
+        utils.Debug.vprint(_msg, level=0)
+
+        return priors_data
+
 
     @staticmethod
     def _split_for_cv(all_data, split_ratio, split_axis=DEFAULT_CV_AXIS, seed=DEFAULT_SEED):

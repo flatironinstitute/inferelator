@@ -1,7 +1,7 @@
 # Inferelator 3.0
 
 [![PyPI version](https://badge.fury.io/py/inferelator.svg)](https://badge.fury.io/py/inferelator)
-[![Travis](https://travis-ci.org/flatironinstitute/inferelator.svg?branch=release)](https://travis-ci.org/flatironinstitute/inferelator)
+[![CI](https://github.com/flatironinstitute/inferelator/actions/workflows/python-package.yml/badge.svg)](https://github.com/flatironinstitute/inferelator/actions/workflows/python-package.yml/)
 [![codecov](https://codecov.io/gh/flatironinstitute/inferelator/branch/release/graph/badge.svg)](https://codecov.io/gh/flatironinstitute/inferelator)
 [![Documentation Status](https://readthedocs.org/projects/inferelator/badge/?version=latest)](https://inferelator.readthedocs.io/en/latest/?badge=latest)
 
