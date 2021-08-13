@@ -3,6 +3,8 @@ References
 
 * `R. Bonneau et al., “The Inferelator: an algorithm for learning parsimonious regulatory networks from systems-biology data sets de novo,” Genome Biology, vol. 7, p. R36, May 2006. <https://doi.org/10.1186/gb-2006-7-5-r36>`_
 
+* `A. Madar, A. Greenfield, H. Ostrer, E. Vanden-Eijnden, and R. Bonneau, “The inferelator 2.0: A scalable framework for reconstruction of dynamic regulatory network models,” in 2009 Annual International Conference of the IEEE Engineering in Medicine and Biology Society, Sep. 2009. <https://ieeexplore.ieee.org/document/5334018>`_
+
 * `A. Madar, A. Greenfield, E. Vanden-Eijnden, and R. Bonneau, “DREAM3: Network Inference Using Dynamic Context Likelihood of Relatedness and the Inferelator,” PLOS ONE, vol. 5, no. 3, p. e9803, Mar. 2010. <https://doi.org/10.1371/journal.pone.0009803>`_
 
 * `A. Greenfield, A. Madar, H. Ostrer, and R. Bonneau, “DREAM4: Combining Genetic and Dynamic Information to Identify Biological Networks and Dynamical Models,” PLOS ONE, vol. 5, no. 10, p. e13397, Oct. 2010. <https://doi.org/10.1371/journal.pone.0013397>`_
@@ -21,5 +23,6 @@ References
 
 * `E. R. Miraldi et al., “Leveraging chromatin accessibility for transcriptional regulatory network inference in T Helper 17 Cells,” Genome Res., vol. 29, no. 3, pp. 449–463, Mar. 2019. <http://www.genome.org/cgi/doi/10.1101/gr.238253.118>`_
 
-* `C. A. Jackson, D. M. Castro, G.-A. Saldi, R. Bonneau, and D. Gresham, “Gene regulatory network reconstruction using single-cell RNA sequencing of barcoded genotypes in diverse environments,” bioRxiv, p. 581678, Apr. 2019. <https://doi.org/10.1101/581678>`_
+* `C. A. Jackson, D. M. Castro, G.-A. Saldi, R. Bonneau, and D. Gresham, “Gene regulatory network reconstruction using single-cell RNA sequencing of barcoded genotypes in diverse environments,” eLife, vol. 9, p. e51254, Jan. 2020. <https://doi.org/10.7554/eLife.51254>`_
 
+* `C. Skok Gibbs, C. A. Jackson, G.-A. Saldi et al. “Single-cell gene regulatory network inference at scale: The Inferelator 3.0,” bioRxiv, p. 2021.05.03.442499, May 2021. <https://www.biorxiv.org/content/10.1101/2021.05.03.442499v2>`_ 
