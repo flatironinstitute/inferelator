@@ -1,3 +1,4 @@
+from math import isfinite
 import numpy as np
 import warnings
 
@@ -72,11 +73,14 @@ class RankSummaryMCC(RankSummingMetric):
 
         num_edges = np.sum(conf >= optconf) if num_edges is None else num_edges
 
+        y_min = np.nanmin(mcc)
+        y_min = 0 if ~np.isfinite(y_min) else y_min
+
         # Generate a plot
         ax.plot(conf, mcc)
         ax.set_xlabel('Confidence')
         ax.set_xlim(1, 0)
-        ax.set_ylim(np.nanmin(mcc), 1)
+        ax.set_ylim(y_min, 1)
         ax.set_ylabel('MCC')
         ax.vlines(float(optconf), 0, 1, transform=ax.get_xaxis_transform(), colors='r', linestyles='dashed')
 
