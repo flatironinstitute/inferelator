@@ -191,7 +191,7 @@ class SCENICRegression(_RegressionWorkflowMixin):
 
         mat = pd.concat(mat, axis=0).fillna(0)
         mat = mat.groupby(mat.index).agg('max')
-        mat = mat.reindex(prior_data.columns, axis=1)
+        mat = mat.reindex(prior_data.columns, axis=1).fillna(0)
 
         return [mat], [mat.copy()]
 
