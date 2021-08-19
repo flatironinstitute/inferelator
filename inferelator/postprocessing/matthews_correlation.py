@@ -74,7 +74,7 @@ class RankSummaryMCC(RankSummingMetric):
         num_edges = np.sum(conf >= optconf) if num_edges is None else num_edges
 
         y_min = np.nanmin(mcc)
-        y_min = 0 if ~np.isfinite(y_min) else y_min
+        y_min = 0 if not (0 > y_min) else y_min
 
         # Generate a plot
         ax.plot(conf, mcc)
