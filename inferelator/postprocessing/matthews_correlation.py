@@ -76,7 +76,7 @@ class RankSummaryMCC(RankSummingMetric):
         ax.plot(conf, mcc)
         ax.set_xlabel('Confidence')
         ax.set_xlim(1, 0)
-        ax.set_ylim(0, 1)
+        ax.set_ylim(np.nanmin(mcc), 1)
         ax.set_ylabel('MCC')
         ax.vlines(float(optconf), 0, 1, transform=ax.get_xaxis_transform(), colors='r', linestyles='dashed')
 
@@ -90,9 +90,7 @@ class RankSummaryMCC(RankSummingMetric):
     @staticmethod
     def calculate_opt_mcc(data):
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=RuntimeWarning)
-            return np.nanmax(data[MCC_COLUMN])
+        return data[MCC_COLUMN].iloc[np.argmax(np.abs(data[MCC_COLUMN]))]
 
     @staticmethod
     def calculate_opt_conf_mcc(data):
@@ -113,4 +111,9 @@ class RankSummaryMCC(RankSummingMetric):
 
     @staticmethod
     def confusion_to_mcc(tp, tn, fp, fn):
-        return (tp * tn - fp * fn) / (np.sqrt(tp + fp) * np.sqrt(tp + fn) * np.sqrt(tn + fp) * np.sqrt(tn + fn))
+        denominator = np.sqrt(tp + fp) * np.sqrt(tp + fn) * np.sqrt(tn + fp) * np.sqrt(tn + fn)
+
+        # If any denominator value is 0, MCC is 0/0 and by convention will be set to 0.0
+        denominator[denominator == 0] = 1.0
+
+        return (tp * tn - fp * fn) / denominator

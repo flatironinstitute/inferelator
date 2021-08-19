@@ -377,7 +377,7 @@ class TestMCCMetric(TestResults):
 
     def test_mcc_bad_prediction(self):
         gs = pd.DataFrame(np.array([[0, 1], [0, 1]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        confidences = pd.DataFrame(np.array([[1, 0], [0, 0.5]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
+        confidences = pd.DataFrame(np.array([[0, 0], [0, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
         mcc = self.metric([confidences, confidences], gs)
         np.testing.assert_approx_equal(mcc.score()[1], 0)
 
