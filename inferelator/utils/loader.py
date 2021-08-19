@@ -43,9 +43,9 @@ class InferelatorDataLoader(object):
 
         # Build an InferelatorData object from a layer
         elif use_layer is not None:
-            data = InferelatorData(data.layers[use_layer],
-                                   gene_names=data.var_names,
-                                   sample_names=data.obs_names,
+            data = InferelatorData(data.layers[use_layer].copy(),
+                                   gene_names=data.var_names.copy(),
+                                   sample_names=data.obs_names.copy(),
                                    meta_data=pd.concat((data.obs, meta_data), axis=1),
                                    gene_data=pd.concat((data.var, gene_metadata), axis=1))
 
