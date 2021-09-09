@@ -114,8 +114,8 @@ class InferelatorResults(object):
 
         # Write TSV files
         self.write_to_tsv(self.network, output_dir, self.network_file_name, index=False)
-        self.write_to_tsv(self.combined_confidences, output_dir, self.confidence_file_name)
-        self.write_to_tsv(self.betas_stack, output_dir, self.threshold_file_name, index=False)
+        self.write_to_tsv(self.combined_confidences, output_dir, self.confidence_file_name, index=True)
+        self.write_to_tsv(self.betas_stack, output_dir, self.threshold_file_name, index=True)
         self.write_to_tsv(self.curve, output_dir, self.curve_data_file_name, index=False)
 
         # Write Metric Curve PDF
