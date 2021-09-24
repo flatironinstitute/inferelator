@@ -10,6 +10,8 @@ import scipy.linalg
 from inferelator import utils
 from inferelator.regression import base_regression
 
+import warnings
+warnings.filterwarnings(action='error', category=scipy.linalg.LinAlgWarning)
 
 def bbsr(X, y, pp, weights, max_k, ordinary_least_squares=False):
     """
@@ -88,7 +90,7 @@ def best_subset_regression(x, y, gprior, ordinary_least_squares=False):
     (n, k) = x.shape
     combos = combo_index(k)
 
-    bic_combos = calc_all_expected_BIC(x, y, gprior, combos, check_rank=False,
+    bic_combos = calc_all_expected_BIC(x, y, gprior, combos,
                                        ordinary_least_squares=ordinary_least_squares)
 
     best_betas = np.zeros(k, dtype=np.dtype(float))
@@ -132,7 +134,7 @@ def reduce_predictors(x, y, gprior, max_k, ordinary_least_squares=False):
         return predictors
 
 
-def calc_all_expected_BIC(x, y, g, combinations, check_rank=True, ordinary_least_squares=False):
+def calc_all_expected_BIC(x, y, g, combinations, ordinary_least_squares=False):
     """
     Calculate BICs for every combination of predictors given in combinations
     :param x: np.ndarray [n x k]
@@ -144,9 +146,6 @@ def calc_all_expected_BIC(x, y, g, combinations, check_rank=True, ordinary_least
     :param combinations: np.ndarray [k x c]
         Combinations of predictors to try; each combination should be booleans with a length corresponding to the
         number of predictors
-    :param check_rank: bool
-        Explicitly check to see that xTx is nonsingular for every combination. If false, will only catch singular xTx
-        that causes np.linalg.solve to throw an exception
     :return: np.ndarray [c,]
         Array of BICs corresponding to each combination
     """
@@ -177,14 +176,18 @@ def calc_all_expected_BIC(x, y, g, combinations, check_rank=True, ordinary_least
 
             # Check for a null model
             if k_included == 0:
-                bic[i] = n * np.log(np.var(y, ddof=1))
+                variance = np.var(y, ddof=1)
+                if variance == 0:
+                    bic[i] = -np.inf
+                else:
+                    bic[i] = n * math.log(variance)
                 continue
 
             # Calculate the rate parameter from this specific combination of predictors
             try:
                 xtx_slice = xtx[:, c_idx][c_idx, :]
 
-                model_beta = _solve_model(xtx_slice, xty[c_idx], check_rank=check_rank)
+                model_beta = _solve_model(xtx_slice, xty[c_idx])
                 model_ssr = ssr(x[:, c_idx], y, model_beta)
                 if ordinary_least_squares:
                     bic[i] = _calc_BIC_RSS(n, k_included, model_ssr)
@@ -194,21 +197,21 @@ def calc_all_expected_BIC(x, y, g, combinations, check_rank=True, ordinary_least
                         bic[i] = _calc_BIC_inverse_gamma(n, k_included, digamma_shape, scale_param)
                     else:
                         raise np.linalg.LinAlgError
-            except np.linalg.LinAlgError:
+            except (np.linalg.LinAlgError, scipy.linalg.LinAlgWarning):
                 bic[i] = np.inf
 
     return bic
 
 
 def _calc_BIC_inverse_gamma(n, k, shape, scale):
-    return n * (np.log(scale) - shape) + k * np.log(n)
+    return n * (math.log(scale) - shape) + k * math.log(n)
 
 
 def _calc_BIC_RSS(n, k, model_ssr):
     if model_ssr <= 0:
         model_ssr = np.finfo(float).eps
 
-    return n * (np.log(model_ssr / n)) + k * np.log(n)
+    return n * (math.log(model_ssr / n)) + k * math.log(n)
 
 
 def _calc_ig_scale(beta_hat, model_ssr, xtx, gprior):
@@ -222,13 +225,9 @@ def _calc_ig_scale(beta_hat, model_ssr, xtx, gprior):
     return (model_ssr + rate) / 2
 
 
-def _solve_model(xtx, xty, check_rank=True):
-    # Check to see if xTx is nonsingular (if necessary)
-    if check_rank and not _matrix_full_rank(xtx):
-        raise np.linalg.LinAlgError
-
+def _solve_model(xtx, xty):
     # Solve xTx against xTy
-    return scipy.linalg.solve(xtx, xty, assume_a='sym')
+    return scipy.linalg.solve(xtx, xty, assume_a='pos')
 
 
 def _best_combo_idx(x, bic, combo):

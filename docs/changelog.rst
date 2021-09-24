@@ -1,6 +1,23 @@
 Change Log
 ==========
 
+Inferelator v0.5.6 `August 16, 2021`
+-----------------------------------
+
+New Functionality:
+
+- Added code to randomly generate noise in prior with ``.set_shuffle_parameters(add_prior_noise=None)``
+- Added in-workflow benchmarks for CellOracle and pySCENIC
+- 
+
+Code Refactoring:
+
+- Minor changes to matplotlib interface
+- Improved testing for multitask workflows
+- Improved error messaging around prior and gold standard
+- Switch from Travis.ci to GitHub Actions for continuous integration
+- 
+
 Inferelator v0.5.5 `April 29, 2021`
 -----------------------------------
 

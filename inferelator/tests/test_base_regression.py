@@ -18,7 +18,7 @@ class TestBaseRegression(unittest.TestCase):
         # test that the matrix rank(A) = min(n,m)
         # dim(v) - rank(A) = null(A) = 0
         x = np.array([[2, 4, 6], [4, 8, 12]])
-        y = np.array([1, 1, 1])
+        y = np.array([1, 1])
         result = base_regression.recalculate_betas_from_selected(x, y, idx=None)
         np.testing.assert_array_almost_equal(result, np.array([0.0, 0.0, 0.0]), 2)
 
