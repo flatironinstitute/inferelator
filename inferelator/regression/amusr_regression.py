@@ -23,7 +23,8 @@ MIN_RSS = 1e-10
 
 
 def run_regression_EBIC(X, Y, TFs, tasks, gene, prior, Cs=None, Ss=None, lambda_Bs=None,
-                        lambda_Ss=None, scale_data=False, return_lambdas=False, tol=TOL, rel_tol=REL_TOL):
+                        lambda_Ss=None, scale_data=False, return_lambdas=False, tol=TOL, rel_tol=REL_TOL,
+                        use_numba=False):
     """
     Run multitask regression. Search the regularization coefficient space and select the model with the
     lowest eBIC.
@@ -40,8 +41,16 @@ def run_regression_EBIC(X, Y, TFs, tasks, gene, prior, Cs=None, Ss=None, lambda_
         The gene being modeled
     :param prior: np.ndarray [K x T]
         The priors for this gene in a TF x Task array
+    :param scale_data:
+    :param return_lambdas:
+    :param tol:
+    :param rel_tol:
+    :param use_numba: bool
     :return: dict
     """
+
+    if use_numba:
+        AMuSR_math.set_numba()
 
     assert len(X) == len(Y)
     assert len(X) == len(tasks)
@@ -137,11 +146,13 @@ class AMuSR_regression(base_regression.BaseRegression):
 
     tol = None
     rel_tol = None
+    
+    use_numba = False
 
     regression_function = staticmethod(run_regression_EBIC)
 
     def __init__(self, X, Y, tfs=None, genes=None, priors=None, prior_weight=1, remove_autoregulation=True,
-                 lambda_Bs=None, lambda_Ss=None, Cs=None, Ss=None, tol=TOL, rel_tol=REL_TOL):
+                 lambda_Bs=None, lambda_Ss=None, Cs=None, Ss=None, tol=TOL, rel_tol=REL_TOL, use_numba=False):
         """
         Set up a regression object for multitask regression
         :param X: list(InferelatorData)
@@ -153,6 +164,7 @@ class AMuSR_regression(base_regression.BaseRegression):
         :param lambda_Ss: list(float) [None]
         :param Cs: list(float) [None] 
         :param Ss: list(float) [None]
+        :param use_numba: bool [False]
         """
 
         # Check input types are correct
@@ -202,6 +214,8 @@ class AMuSR_regression(base_regression.BaseRegression):
         self.tol = tol
         self.rel_tol = rel_tol
 
+        self.use_numba = use_numba
+
     def regress(self, regression_function=None):
         """
         Execute multitask (AMUSR)
@@ -216,7 +230,7 @@ class AMuSR_regression(base_regression.BaseRegression):
             return amusr_regress_dask(self.X, self.Y, self.priors, self.prior_weight, self.n_tasks, self.genes,
                                       self.tfs, self.G, remove_autoregulation=self.remove_autoregulation,
                                       regression_function=regression_function,
-                                      tol=self.tol, rel_tol=self.rel_tol)
+                                      tol=self.tol, rel_tol=self.rel_tol, use_numba=self.use_numba)
 
         def regression_maker(j):
             level = 0 if j % 100 == 0 else 2
@@ -240,7 +254,7 @@ class AMuSR_regression(base_regression.BaseRegression):
             prior = format_prior(self.priors, gene, tasks, self.prior_weight, tfs=tfs)
             return regression_function(x, y, tfs, tasks, gene, prior, Cs=self.Cs, Ss=self.Ss,
                                        lambda_Bs=self.lambda_Bs, lambda_Ss=self.lambda_Ss, 
-                                       tol=self.tol, rel_tol=self.rel_tol)
+                                       tol=self.tol, rel_tol=self.rel_tol, use_numba=self.use_numba)
 
         return MPControl.map(regression_maker, range(self.G))
 
@@ -339,8 +353,11 @@ def amusr_fit(cov_C, cov_D, lambda_B=0., lambda_S=0., sparse_matrix=None, block_
         _combined_weights_old = combined_weights
 
         # Update sparse and block-sparse coefficients
-        sparse_matrix = updateS(cov_C, cov_D, block_matrix, sparse_matrix, lambda_S, prior, n_tasks, n_features)
-        block_matrix = updateB(cov_C, cov_D, block_matrix, np.asarray(sparse_matrix, order="F"), lambda_B, prior, n_tasks, n_features)
+        sparse_matrix = AMuSR_math.updateS(cov_C, cov_D, block_matrix, sparse_matrix,
+                                           lambda_S, prior, n_tasks, n_features)
+
+        block_matrix = AMuSR_math.updateB(cov_C, cov_D, block_matrix, sparse_matrix,
+                                          lambda_B, prior, n_tasks, n_features)
 
         # Weights matrix (W) is the sum of a sparse (S) and a block-sparse (B) matrix
         combined_weights = sparse_matrix + block_matrix
@@ -364,112 +381,6 @@ def amusr_fit(cov_C, cov_D, lambda_B=0., lambda_S=0., sparse_matrix=None, block_
 
     return combined_weights, sparse_matrix, block_matrix
 
-
-def updateS(C, D, B, S, lamS, prior, n_tasks, n_features):
-    """
-    returns updated coefficients for S (predictors x tasks)
-    lasso regularized -- using cyclical coordinate descent and
-    soft-thresholding
-    """
-    # update each task independently (shared penalty only)
-    for k in range(n_tasks):
-
-        c = C[k]
-        d = D[k]
-
-        b = B[:, k]
-        s = S[:, k]
-        p = prior[:, k] * lamS
-
-        # cycle through predictors
-
-        for j in range(n_features):
-            # set sparse coefficient for predictor j to zero
-            s[j] = 0.
-
-            # calculate next coefficient based on fit only
-            if d[j,j] == 0:
-                alpha = 0.
-            else:
-                alpha = (c[j]- np.sum((b + s) * d[j])) / d[j,j]
-
-            # lasso regularization
-            if abs(alpha) <= p[j]:
-                s[j] = 0.
-            else:
-                s[j] = alpha - (np.sign(alpha) * p[j])
-
-        # update current task
-        S[:, k] = s
-
-    return S
-
-
-def updateB(C, D, B, S, lamB, prior, n_tasks, n_features):
-    """
-    returns updated coefficients for B (predictors x tasks)
-    block regularized (l_1/l_inf) -- using cyclical coordinate descent and
-    soft-thresholding on the l_1 norm across tasks
-    reference: Liu et al, ICML 2009. Blockwise coordinate descent procedures
-    for the multi-task lasso, with applications to neural semantic basis discovery.
-    """
-
-   
-    # cycles through predictors
-    for j in range(n_features):
-        
-        # initialize next coefficients
-        alphas = np.zeros(n_tasks)
-        
-        # update tasks for each predictor together
-        d = D[:, :, j]
-
-        for k in range(n_tasks):
-
-            d_kjj = d[k, j]
-
-            if d_kjj == 0:
-
-                alphas[k] = 0
-
-            else:
-
-                # get previous block-sparse
-                # copies because B is C-ordered
-                b = B[:, k]
-
-                # set block-sparse coefficient for feature j to zero
-                b[j] = 0.
-
-                # calculate next coefficient based on fit only
-                alphas[k] = (C[k, j] - np.sum((b + S[:, k]) * d[k, :])) / d_kjj
-
-
-        # set all tasks to zero if l1-norm less than lamB
-        if np.linalg.norm(alphas, 1) <= lamB:
-            B[j,:] = np.zeros(n_tasks)
-
-        # regularized update for predictors with larger l1-norm
-        else:
-            # find number of coefficients that would make l1-norm greater than penalty
-            indices = np.abs(alphas).argsort()[::-1]
-            sorted_alphas = alphas[indices]
-            m_star = np.argmax((np.abs(sorted_alphas).cumsum()-lamB)/(np.arange(n_tasks)+1))
-            # initialize new weights
-            new_weights = np.zeros(n_tasks)
-            # keep small coefficients and regularize large ones (in above group)
-            for k in range(n_tasks):
-                idx = indices[k]
-                if k > m_star:
-                    new_weights[idx] = sorted_alphas[k]
-                else:
-                    sign = np.sign(sorted_alphas[k])
-                    update_term = np.sum(np.abs(sorted_alphas)[:m_star+1])-lamB
-                    new_weights[idx] = (sign/(m_star+1))*update_term
-            # update current predictor
-            B[j,:] = new_weights
-
-    return B
 
 def _covariance_by_task(X, Y):
     """
@@ -770,9 +681,9 @@ class AMUSRRegressionWorkflowMixin(base_regression._MultitaskRegressionWorkflowM
 
     tol = TOL
     relative_tol = REL_TOL
-    
-    def set_regression_parameters(self, prior_weight=None, lambda_Bs=None, lambda_Ss=None, heuristic_Cs=None, 
-    tol=None, relative_tol=None):
+  
+    def set_regression_parameters(self, prior_weight=None, lambda_Bs=None, lambda_Ss=None, heuristic_Cs=None,
+                                  tol=None, relative_tol=None, use_numba=None):
         """
         Set regression parameters for AmUSR.
 
@@ -818,7 +729,9 @@ class AMUSRRegressionWorkflowMixin(base_regression._MultitaskRegressionWorkflowM
         MPControl.sync_processes(pref="amusr_pre")
         regress = AMuSR_regression(x, y, tfs=self._regulators, genes=self._targets, priors=self._task_priors,
                                    prior_weight=self.prior_weight, lambda_Bs=self.lambda_Bs, lambda_Ss=self.lambda_Ss, 
-                                   Cs=self.heuristic_Cs, tol=self.tol, rel_tol=self.relative_tol)
+                                   Cs=self.heuristic_Cs, tol=self.tol, rel_tol=self.relative_tol, 
+                                   use_numba=self.use_numba)
+                                   
         return regress.run()
 
 
@@ -850,19 +763,138 @@ def filter_genes_on_tasks(list_of_indexes, task_expression_filter):
 
     return filtered_genes
 
+class AMuSR_math:
 
-# Wrapper updateB and updateS in numba for JIT compilation 
-# If INFERELATOR_USE_NUMBA is set
+    _numba = False
 
-if "INFERELATOR_USE_NUMBA" in os.environ and os.environ["INFERELATOR_USE_NUMBA"] != "FALSE":
-    try:
-        import numba
+    @staticmethod
+    def updateS(C, D, B, S, lamS, prior, n_tasks, n_features):
+        """
+        returns updated coefficients for S (predictors x tasks)
+        lasso regularized -- using cyclical coordinate descent and
+        soft-thresholding
+        """
+        # update each task independently (shared penalty only)
+        for k in range(n_tasks):
 
-        utils.Debug.vprint("Unable to import numba; using python-native functions instead", level=0)
+            c = C[k]
+            d = D[k]
 
-        updateB = numba.jit(updateB, nopython=True)
-        updateS = numba.jit(updateS, nopython=True)
+            b = B[:, k]
+            s = S[:, k]
+            p = prior[:, k] * lamS
 
-    except ImportError:
-        utils.Debug.vprint("Unable to import numba; using python-native functions instead", level=0)
-        pass
+            # cycle through predictors
+
+            for j in range(n_features):
+                # set sparse coefficient for predictor j to zero
+                s[j] = 0.
+
+                # calculate next coefficient based on fit only
+                if d[j,j] == 0:
+                    alpha = 0.
+                else:
+                    alpha = (c[j]- np.sum((b + s) * d[j])) / d[j,j]
+
+                # lasso regularization
+                if abs(alpha) <= p[j]:
+                    s[j] = 0.
+                else:
+                    s[j] = alpha - (np.sign(alpha) * p[j])
+
+            # update current task
+            S[:, k] = s
+
+        return S
+
+    @staticmethod
+    def updateB(C, D, B, S, lamB, prior, n_tasks, n_features):
+        """
+        returns updated coefficients for B (predictors x tasks)
+        block regularized (l_1/l_inf) -- using cyclical coordinate descent and
+        soft-thresholding on the l_1 norm across tasks
+        reference: Liu et al, ICML 2009. Blockwise coordinate descent procedures
+        for the multi-task lasso, with applications to neural semantic basis discovery.
+        """
+
+    
+        # cycles through predictors
+        for j in range(n_features):
+            
+            # initialize next coefficients
+            alphas = np.zeros(n_tasks)
+            
+            # update tasks for each predictor together
+            d = D[:, :, j]
+
+            for k in range(n_tasks):
+
+                d_kjj = d[k, j]
+
+                if d_kjj == 0:
+
+                    alphas[k] = 0
+
+                else:
+
+                    # get previous block-sparse
+                    # copies because B is C-ordered
+                    b = B[:, k]
+
+                    # set block-sparse coefficient for feature j to zero
+                    b[j] = 0.
+
+                    # calculate next coefficient based on fit only
+                    alphas[k] = (C[k, j] - np.sum((b + S[:, k]) * d[k, :])) / d_kjj
+
+
+            # set all tasks to zero if l1-norm less than lamB
+            if np.linalg.norm(alphas, 1) <= lamB:
+                B[j,:] = np.zeros(n_tasks)
+
+            # regularized update for predictors with larger l1-norm
+            else:
+                # find number of coefficients that would make l1-norm greater than penalty
+                indices = np.abs(alphas).argsort()[::-1]
+                sorted_alphas = alphas[indices]
+                m_star = np.argmax((np.abs(sorted_alphas).cumsum()-lamB)/(np.arange(n_tasks)+1))
+                # initialize new weights
+                new_weights = np.zeros(n_tasks)
+                # keep small coefficients and regularize large ones (in above group)
+                for k in range(n_tasks):
+                    idx = indices[k]
+                    if k > m_star:
+                        new_weights[idx] = sorted_alphas[k]
+                    else:
+                        sign = np.sign(sorted_alphas[k])
+                        update_term = np.sum(np.abs(sorted_alphas)[:m_star+1])-lamB
+                        new_weights[idx] = (sign/(m_star+1))*update_term
+                # update current predictor
+                B[j,:] = new_weights
+
+        return B
+
+    @classmethod
+    def set_numba(cls):
+
+        # If this has already been called, skip
+        if cls._numba:
+            return
+        
+        else:
+
+            # If we can't import numba, skip (and set a flag so we don't try again)
+            try:
+                import numba
+
+            except ImportError:
+                utils.Debug.vprint("Unable to import numba; using python-native functions instead", level=0)
+                cls._numba = True
+                return
+
+            utils.Debug.vprint("Using numba functions for AMuSR regression", level=0)
+
+            # Replace the existing functions with JIT functions
+            cls.updateB = numba.jit(cls.updateB, nopython=True)
+            cls.updateS = numba.jit(cls.updateS, nopython=True)
+            cls._numba = True
