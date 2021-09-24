@@ -16,7 +16,8 @@ requires = [
     "pandas >=0.24.0",
     "scikit-learn",
     "matplotlib >=1.5.1",
-    "anndata >=0.7.4"
+    "anndata >=0.7.4",
+    "numba" >=0.51.0"
 ]
 
 setup(

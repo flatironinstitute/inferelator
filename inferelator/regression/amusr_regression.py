@@ -11,6 +11,8 @@ from inferelator.utils import Validator as check
 from inferelator import default
 from inferelator.regression import base_regression
 
+import numba
+
 # Shadow built-in zip with itertools.izip if this is python2 (This puts out a memory dumpster fire)
 try:
     from itertools import izip as zip
@@ -336,6 +338,7 @@ def amusr_fit(cov_C, cov_D, lambda_B=0., lambda_S=0., sparse_matrix=None, block_
     # Initialize weights
     combined_weights = sparse_matrix + block_matrix
 
+
     iter_tols = np.zeros(max_iter)
     for i in range(max_iter):
 
@@ -344,7 +347,7 @@ def amusr_fit(cov_C, cov_D, lambda_B=0., lambda_S=0., sparse_matrix=None, block_
 
         # Update sparse and block-sparse coefficients
         sparse_matrix = updateS(cov_C, cov_D, block_matrix, sparse_matrix, lambda_S, prior, n_tasks, n_features)
-        block_matrix = updateB(cov_C, cov_D, block_matrix, sparse_matrix, lambda_B, prior, n_tasks, n_features)
+        block_matrix = updateB(cov_C, cov_D, block_matrix, np.asarray(sparse_matrix, order="F"), lambda_B, prior, n_tasks, n_features)
 
         # Weights matrix (W) is the sum of a sparse (S) and a block-sparse (B) matrix
         combined_weights = sparse_matrix + block_matrix
@@ -368,6 +371,7 @@ def amusr_fit(cov_C, cov_D, lambda_B=0., lambda_S=0., sparse_matrix=None, block_
 
     return combined_weights, sparse_matrix, block_matrix
 
+@numba.jit(nopython=True)
 def updateS(C, D, B, S, lamS, prior, n_tasks, n_features):
     """
     returns updated coefficients for S (predictors x tasks)
@@ -407,6 +411,7 @@ def updateS(C, D, B, S, lamS, prior, n_tasks, n_features):
 
     return S
 
+@numba.jit(nopython=True)
 def updateB(C, D, B, S, lamB, prior, n_tasks, n_features):
     """
     returns updated coefficients for B (predictors x tasks)
@@ -415,9 +420,8 @@ def updateB(C, D, B, S, lamB, prior, n_tasks, n_features):
     reference: Liu et al, ICML 2009. Blockwise coordinate descent procedures
     for the multi-task lasso, with applications to neural semantic basis discovery.
     """
-    
-    S = np.asarray(S, order="F")
 
+   
     # cycles through predictors
     for j in range(n_features):
         
