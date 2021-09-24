@@ -109,6 +109,7 @@ class TestAMuSRrunner(unittest.TestCase):
         weights, resc_weights = r.pileup_data(regress_data)
 
 
+
 class TestAMuSRParams(unittest.TestCase):
 
     def setUp(self):
@@ -140,7 +141,7 @@ class TestAMuSRParams(unittest.TestCase):
                                                     priors=self.workflow.priors_data, lambda_Bs=lamb_b)
 
         def is_passed(X, Y, TFs, tasks, gene, prior, Cs=None, Ss=None, lambda_Bs=None,
-                      lambda_Ss=None, scale_data=False, tol=None, rel_tol=None):
+                      lambda_Ss=None, scale_data=False, **kwargs):
 
             npt.assert_array_equal(lambda_Bs, lamb_b)
 
@@ -162,7 +163,7 @@ class TestAMuSRParams(unittest.TestCase):
                                                     priors=self.workflow.priors_data, lambda_Ss=lamb_s)
 
         def is_passed(X, Y, TFs, tasks, gene, prior, Cs=None, Ss=None, lambda_Bs=None,
-                      lambda_Ss=None, scale_data=False, tol=None, rel_tol=None):
+                      lambda_Ss=None, scale_data=False,  **kwargs):
 
             npt.assert_array_equal(lambda_Ss, lamb_s)
 
@@ -184,7 +185,7 @@ class TestAMuSRParams(unittest.TestCase):
                                                     priors=self.workflow.priors_data, Cs=set_Cs)
 
         def is_passed(X, Y, TFs, tasks, gene, prior, Cs=None, Ss=None, lambda_Bs=None,
-                      lambda_Ss=None, scale_data=False, tol=None, rel_tol=None):
+                      lambda_Ss=None, scale_data=False, **kwargs):
 
             npt.assert_array_equal(set_Cs, Cs)
 

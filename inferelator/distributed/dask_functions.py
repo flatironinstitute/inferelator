@@ -17,7 +17,7 @@ DASK_SCATTER_TIMEOUT = 120
 
 def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remove_autoregulation=True,
                        lambda_Bs=None, lambda_Ss=None, Cs=None, Ss=None, regression_function=None, 
-                       tol=None, rel_tol=None):
+                       tol=None, rel_tol=None, use_numba=False):
     """
     Execute multitask (AMUSR)
 
@@ -55,7 +55,8 @@ def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remov
 
         prior = format_prior(prior, gene, tasks, prior_weight, tfs=tf)
         return j, regression_function(x, y, tf, tasks, gene, prior,
-                                      lambda_Bs=lambda_Bs, lambda_Ss=lambda_Ss, Cs=Cs, Ss=Ss, tol=tol, rel_tol=rel_tol)
+                                      lambda_Bs=lambda_Bs, lambda_Ss=lambda_Ss, Cs=Cs, Ss=Ss, 
+                                      tol=tol, rel_tol=rel_tol, use_numba=use_numba)
 
     def response_maker(y_df, i):
         y = []
