@@ -256,9 +256,9 @@ def predict_error_reduction(x, y, betas):
             xt = x_leaveout.T
             xtx = np.dot(xt, x_leaveout)
             xty = np.dot(xt, y)
+
             beta_hat = scipy.linalg.solve(xtx, xty, assume_a='sym')
-        except (np.linalg.LinAlgError, scipy.linalg.LinAlgWarning):
-            beta_hat = np.zeros(len(leave_out), dtype=np.dtype(float))
+
 
         # Calculate the variance of the residuals for the new estimated betas
         ss_leaveout = sigma_squared(x_leaveout, y, beta_hat)
