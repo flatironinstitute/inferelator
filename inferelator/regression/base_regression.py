@@ -11,6 +11,9 @@ DEFAULT_CHUNK = 25
 PROGRESS_STR = "Regression on {gn} [{i} / {total}]"
 
 
+import warnings
+warnings.filterwarnings(action='error', category=scipy.linalg.LinAlgWarning)
+
 class BaseRegression(object):
     # These are all the things that have to be set in a new regression class
 
@@ -207,9 +210,9 @@ def recalculate_betas_from_selected(x, y, idx=None):
 
     # Solve for beta-hat with LAPACK or return a null model if xTx is singular
     xtx = np.dot(x.T, x)
-    if np.linalg.matrix_rank(xtx) == xtx.shape[1]:
-        beta_hat = np.linalg.solve(np.dot(x.T, x), np.dot(x.T, y))
-    else:
+    try:
+        beta_hat = scipy.linalg.solve(xtx, np.dot(x.T, y), assume_a='pos')
+    except (np.linalg.LinAlgError, scipy.linalg.LinAlgWarning):
         beta_hat = np.zeros(len(idx), dtype=np.dtype(float))
 
     # Use the index array to write beta-hats
@@ -253,8 +256,8 @@ def predict_error_reduction(x, y, betas):
             xt = x_leaveout.T
             xtx = np.dot(xt, x_leaveout)
             xty = np.dot(xt, y)
-            beta_hat = scipy.linalg.solve(xtx, xty, assume_a='sym')
-        except np.linalg.LinAlgError:
+            beta_hat = scipy.linalg.solve(xtx, xty, assume_a='pos')
+        except (np.linalg.LinAlgError, scipy.linalg.LinAlgWarning):
             beta_hat = np.zeros(len(leave_out), dtype=np.dtype(float))
 
         # Calculate the variance of the residuals for the new estimated betas
