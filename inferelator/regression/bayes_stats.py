@@ -227,7 +227,7 @@ def _calc_ig_scale(beta_hat, model_ssr, xtx, gprior):
 
 def _solve_model(xtx, xty):
     # Solve xTx against xTy
-    return scipy.linalg.solve(xtx, xty, assume_a='pos')
+    return scipy.linalg.solve(xtx, xty, assume_a='sym')
 
 
 def _best_combo_idx(x, bic, combo):

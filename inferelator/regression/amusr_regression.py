@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
-from copy import deepcopy
+import os
+
 from scipy.special import comb
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
@@ -10,14 +11,6 @@ from inferelator import utils
 from inferelator.utils import Validator as check
 from inferelator import default
 from inferelator.regression import base_regression
-
-import numba
-
-# Shadow built-in zip with itertools.izip if this is python2 (This puts out a memory dumpster fire)
-try:
-    from itertools import izip as zip
-except ImportError:
-    pass
 
 DEFAULT_prior_weight = 1.0
 DEFAULT_Cs = np.logspace(np.log10(0.01), np.log10(10), 20)[::-1]
@@ -371,7 +364,7 @@ def amusr_fit(cov_C, cov_D, lambda_B=0., lambda_S=0., sparse_matrix=None, block_
 
     return combined_weights, sparse_matrix, block_matrix
 
-@numba.jit(nopython=True)
+
 def updateS(C, D, B, S, lamS, prior, n_tasks, n_features):
     """
     returns updated coefficients for S (predictors x tasks)
@@ -411,7 +404,7 @@ def updateS(C, D, B, S, lamS, prior, n_tasks, n_features):
 
     return S
 
-@numba.jit(nopython=True)
+
 def updateB(C, D, B, S, lamB, prior, n_tasks, n_features):
     """
     returns updated coefficients for B (predictors x tasks)
@@ -856,3 +849,20 @@ def filter_genes_on_tasks(list_of_indexes, task_expression_filter):
         raise ValueError("{v} is not an allowed task_expression_filter value".format(v=task_expression_filter))
 
     return filtered_genes
+
+
+# Wrapper updateB and updateS in numba for JIT compilation 
+# If INFERELATOR_USE_NUMBA is set
+
+if "INFERELATOR_USE_NUMBA" in os.environ and os.environ["INFERELATOR_USE_NUMBA"] != "FALSE":
+    try:
+        import numba
+
+        utils.Debug.vprint("Unable to import numba; using python-native functions instead", level=0)
+
+        updateB = numba.jit(updateB, nopython=True)
+        updateS = numba.jit(updateS, nopython=True)
+
+    except ImportError:
+        utils.Debug.vprint("Unable to import numba; using python-native functions instead", level=0)
+        pass
