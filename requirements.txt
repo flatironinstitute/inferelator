@@ -4,3 +4,4 @@ scipy >=0.9
 scikit-learn
 pandas >=0.24.0
 anndata
+numba >=0.51.0
