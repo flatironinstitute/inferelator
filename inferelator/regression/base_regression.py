@@ -11,9 +11,6 @@ DEFAULT_CHUNK = 25
 PROGRESS_STR = "Regression on {gn} [{i} / {total}]"
 
 
-import warnings
-warnings.filterwarnings(action='error', category=scipy.linalg.LinAlgWarning)
-
 class BaseRegression(object):
     # These are all the things that have to be set in a new regression class
 
@@ -121,7 +118,7 @@ class BaseRegression(object):
         return d_len, b_avg, null_m
 
 
-class _RegressionWorkflowMixin(object):
+class RegressionWorkflow(object):
     """
     RegressionWorkflow implements run_regression and run_bootstrap
     Each regression method needs to extend this to implement run_bootstrap (and also run_regression if necessary)
@@ -148,32 +145,6 @@ class _RegressionWorkflowMixin(object):
                 rescaled_betas.append(current_rescaled_betas)
 
             MPControl.sync_processes("post_bootstrap")
-
-        return betas, rescaled_betas
-
-    def run_bootstrap(self, bootstrap):
-        raise NotImplementedError
-
-
-class _MultitaskRegressionWorkflowMixin(_RegressionWorkflowMixin):
-    """
-    MultitaskRegressionWorkflow implements run_regression and run_bootstrap for multitask workflow
-    Each regression method needs to extend this to implement run_bootstrap (and also run_regression if necessary)
-    """
-
-    def run_regression(self):
-
-        betas = [[] for _ in range(self._n_tasks)]
-        rescaled_betas = [[] for _ in range(self._n_tasks)]
-
-        for idx in range(self.num_bootstraps):
-            Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps), level=0)
-            current_betas, current_rescaled_betas = self.run_bootstrap(idx)
-
-            if self.is_master():
-                for k in range(self._n_tasks):
-                    betas[k].append(current_betas[k])
-                    rescaled_betas[k].append(current_rescaled_betas[k])
 
         return betas, rescaled_betas
 
@@ -210,9 +181,9 @@ def recalculate_betas_from_selected(x, y, idx=None):
 
     # Solve for beta-hat with LAPACK or return a null model if xTx is singular
     xtx = np.dot(x.T, x)
-    try:
-        beta_hat = scipy.linalg.solve(xtx, np.dot(x.T, y), assume_a='sym')
-    except (np.linalg.LinAlgError, scipy.linalg.LinAlgWarning):
+    if np.linalg.matrix_rank(xtx) == xtx.shape[1]:
+        beta_hat = np.linalg.solve(np.dot(x.T, x), np.dot(x.T, y))
+    else:
         beta_hat = np.zeros(len(idx), dtype=np.dtype(float))
 
     # Use the index array to write beta-hats
@@ -252,15 +223,13 @@ def predict_error_reduction(x, y, betas):
 
         # Reestimate betas for all the predictors except the one that we removed
         x_leaveout = x[:, leave_out]
-
         try:
             xt = x_leaveout.T
             xtx = np.dot(xt, x_leaveout)
             xty = np.dot(xt, y)
             beta_hat = scipy.linalg.solve(xtx, xty, assume_a='sym')
-        except (np.linalg.LinAlgError, scipy.linalg.LinAlgWarning):
+        except np.linalg.LinAlgError:
             beta_hat = np.zeros(len(leave_out), dtype=np.dtype(float))
-
 
         # Calculate the variance of the residuals for the new estimated betas
         ss_leaveout = sigma_squared(x_leaveout, y, beta_hat)
