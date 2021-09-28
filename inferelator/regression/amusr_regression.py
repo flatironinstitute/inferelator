@@ -726,7 +726,6 @@ class AMUSRRegressionWorkflowMixin(base_regression._MultitaskRegressionWorkflowM
             x.append(self._task_design[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx]))
             y.append(self._task_response[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx]))
 
-        MPControl.sync_processes(pref="amusr_pre")
         regress = AMuSR_regression(x, y, tfs=self._regulators, genes=self._targets, priors=self._task_priors,
                                    prior_weight=self.prior_weight, lambda_Bs=self.lambda_Bs, lambda_Ss=self.lambda_Ss, 
                                    Cs=self.heuristic_Cs, tol=self.tol, rel_tol=self.relative_tol, 

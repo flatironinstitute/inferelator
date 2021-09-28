@@ -965,13 +965,6 @@ class WorkflowBase(WorkflowBaseLoader):
         """
         raise NotImplementedError  # implement in subclass
 
-    @staticmethod
-    def is_master():
-        """
-        Return True if this is the master thread
-        """
-        return MPControl.is_master
-
     def create_output_dir(self):
         """
         Set a default output_dir if nothing is set. Create the path if it doesn't exist.

@@ -430,9 +430,6 @@ class TestWorkflowFunctions(unittest.TestCase):
         self.assertEqual(len(bootstraps), 5)
         self.assertListEqual(bootstraps[0], bootstrap_0)
 
-    def test_is_master(self):
-        self.assertTrue(self.workflow.is_master())
-
     def test_make_output_dir(self):
         temp_dir = tempfile.mkdtemp()
         self.workflow.input_dir = temp_dir

@@ -11,6 +11,7 @@ New Functionality:
 Code Refactoring:
 
 - Updated example scripts
+- Removed deprecated KVS multiprocessing and associated code
 
 Bug Fixes:
 

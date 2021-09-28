@@ -14,15 +14,10 @@ class LocalController(AbstractController):
     _controller_name = "local"
 
     client = None
-    is_master = True
     chunk = None
 
     @classmethod
     def connect(cls, *args, **kwargs):
-        return True
-
-    @classmethod
-    def sync_processes(cls, *args, **kwargs):
         return True
 
     @classmethod

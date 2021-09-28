@@ -9,14 +9,8 @@ Don't look at me like that.
 
 # This is a dict, keyed by the class setattr variable name, of tuples (env name, coercion function, default value)
 SBATCH_VARS = dict(output_dir=('RUNDIR', str, None),
-                   input_dir=('DATADIR', str, None),
-                   rank=('SLURM_PROCID', int, 0),
-                   cores=('SLURM_NTASKS_PER_NODE', int, 1),
-                   tasks=('SLURM_NTASKS', int, 1),
-                   node=('SLURM_NODEID', int, 0),
-                   num_nodes=('SLURM_JOB_NUM_NODES', int, 1))
+                   input_dir=('DATADIR', str, None))
 
-SBATCH_VARS_FOR_KVS = ["rank", "cores", "tasks", "node", "num_nodes"]
 SBATCH_VARS_FOR_WORKFLOW = ["output_dir", "input_dir"]
 
 """Default Data File Settings"""

@@ -13,7 +13,6 @@ from inferelator.utils import Validator as check
 class MultiprocessingController(AbstractController):
     _controller_name = "multiprocessing"
     client = None
-    is_master = True
 
     # Control variables
     chunk = 25
@@ -24,10 +23,6 @@ class MultiprocessingController(AbstractController):
     @classmethod
     def connect(cls, *args, **kwargs):
         cls.client = pathos.multiprocessing.ProcessPool(nodes=cls.processes, **kwargs)
-        return True
-
-    @classmethod
-    def sync_processes(cls, *args, **kwargs):
         return True
 
     @classmethod

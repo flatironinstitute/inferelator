@@ -7,9 +7,6 @@ class AbstractController:
     # The object which handles the multiprocessing
     client = None
 
-    # Boolean to identify master processes where needed
-    is_master = False
-
     # The chunk sizes for calls to map
     chunk = 25
 
@@ -53,15 +50,6 @@ class AbstractController:
     def set_processes(cls, process_count):
         """
         Set the number of processes to use. Return warnings if the number of processes cannot be set
-        """
-        raise NotImplementedError
-
-    @classmethod
-    @abstractmethod
-    def sync_processes(cls, *args, **kwargs):
-        """
-        This synchronizes multiple processes. Multiprocessing methods which have a defined hierarchy and no risk of
-        race conditions may simply return True
         """
         raise NotImplementedError
 

@@ -28,8 +28,6 @@ class BBSRByTaskRegressionWorkflowMixin(_MultitaskRegressionWorkflowMixin, BBSRR
                 # Create a mock prior with no information if clr_only is set
                 priors_data = pd.DataFrame(0, index=priors_data.index, columns=priors_data.columns)
 
-            MPControl.sync_processes(pref="bbsr_pre")
-
             Debug.vprint('Calculating MI, Background MI, and CLR Matrix', level=0)
             clr_matrix, _ = self.mi_driver().run(Y, X, return_mi=False)
 
