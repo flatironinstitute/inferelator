@@ -1,14 +1,30 @@
 Change Log
 ==========
 
+Inferelator v0.5.7 `September 29, 2021`
+---------------------------------------
+
+New Functionality:
+
+- Added support for numba acceleration of AMuSR with ``.set_run_parameters(use_numba=True)`` (PR #46)
+
+Code Refactoring:
+
+- Updated example scripts
+
+Bug Fixes:
+
+- Gene labels are included as the first column of the produced confidences TSV file by default
+- Matplotlib backend selection checks for non-interactive mode
+
 Inferelator v0.5.6 `August 16, 2021`
------------------------------------
+------------------------------------
 
 New Functionality:
 
 - Added code to randomly generate noise in prior with ``.set_shuffle_parameters(add_prior_noise=None)``
 - Added in-workflow benchmarks for CellOracle and pySCENIC
-- 
+  
 
 Code Refactoring:
 
@@ -16,7 +32,7 @@ Code Refactoring:
 - Improved testing for multitask workflows
 - Improved error messaging around prior and gold standard
 - Switch from Travis.ci to GitHub Actions for continuous integration
-- 
+  
 
 Inferelator v0.5.5 `April 29, 2021`
 -----------------------------------
