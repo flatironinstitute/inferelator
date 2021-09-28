@@ -4,7 +4,7 @@ This requires pathos because the default multiprocessing serializes with cPickle
 """
 
 import pathos
-import collections
+import collections.abc
 
 from inferelator.distributed import AbstractController
 from inferelator.utils import Validator as check
@@ -52,7 +52,7 @@ class MultiprocessingController(AbstractController):
             Iterator(s)
         """
         assert check.argument_callable(func)
-        assert check.argument_list_type(args, collections.Iterable)
+        assert check.argument_list_type(args, collections.abc.Iterable)
         return cls.client.map(func, *args, chunksize=cls.chunk)
 
     @classmethod

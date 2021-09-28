@@ -13,7 +13,7 @@ from inferelator import default
 
 import os
 import warnings
-import collections
+import collections.abc
 import tempfile
 
 # Use cPickle in python 2
@@ -184,7 +184,7 @@ class KVSController(AbstractController):
         tell_children = kwargs.pop("tell_children", True)
 
         assert check.argument_callable(func)
-        assert check.argument_list_type(args, collections.Iterable)
+        assert check.argument_list_type(args, collections.abc.Iterable)
 
         # Set up the multiprocessing
         owncheck = cls.own_check(chunk=cls.chunk, kvs_key=COUNT)
