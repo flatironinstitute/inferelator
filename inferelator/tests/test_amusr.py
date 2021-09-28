@@ -43,6 +43,11 @@ class TestAMuSRrunner(unittest.TestCase):
         self.assertEqual(amusr_regression.sum_squared_errors(X, Y, W, 0), 0)
         self.assertEqual(amusr_regression.sum_squared_errors(X, Y, W, 1), 27)
 
+
+class TestAMuSRRegresionEBIC:
+
+    use_numba = False
+
     def test_amusr_regression(self):
         des = [np.array([[1, 1, 3], [0, 0, 2], [0, 0, 1]]).astype(float),
                np.array([[1, 1, 3], [0, 0, 2], [0, 0, 1]]).astype(float)]
@@ -58,9 +63,9 @@ class TestAMuSRrunner(unittest.TestCase):
         gene1_prior = amusr_regression.format_prior(priors, 'gene1', [0, 1], 1.)
         gene2_prior = amusr_regression.format_prior(priors, 'gene2', [0, 1], 1.)
         output = [amusr_regression.run_regression_EBIC(des, res, ['tf1', 'tf2', 'tf3'], [0, 1], 'gene1', gene1_prior,
-                                                       scale_data=True),
+                                                       scale_data=True, use_numba=self.use_numba),
                   amusr_regression.run_regression_EBIC(des, res, ['tf1', 'tf2', 'tf3'], [0, 1], 'gene2', gene2_prior,
-                                                       scale_data=True)]
+                                                       scale_data=True, use_numba=self.use_numba)]
 
         out0 = pd.DataFrame([['tf3', 'gene1', -1, 1],
                              ['tf3', 'gene1', -1, 1]],
@@ -90,7 +95,7 @@ class TestAMuSRrunner(unittest.TestCase):
                InferelatorData(pd.DataFrame(np.array([[1, 1], [2, 2], [3, 3]]).astype(float), columns=targets2))]
         priors = pd.DataFrame([[0, 1, 1], [1, 0, 1], [1, 0, 1]], index=targets, columns=tfs)
 
-        r = amusr_regression.AMuSR_regression(des, res, tfs=tfs, genes=targets, priors=priors)
+        r = amusr_regression.AMuSR_regression(des, res, tfs=tfs, genes=targets, priors=priors, use_numba=self.use_numba)
 
         out = [pd.DataFrame([['tf3', 'gene1', -1, 1], ['tf3', 'gene1', -1, 1]],
                             index=pd.MultiIndex(levels=[[0, 1], [0]], codes=[[0, 1], [0, 0]]),
@@ -108,6 +113,9 @@ class TestAMuSRrunner(unittest.TestCase):
 
         weights, resc_weights = r.pileup_data(regress_data)
 
+class TestAMuSRREgressionEBICNumba(TestAMuSRRegresionEBIC):
+
+    use_numba = True
 
 
 class TestAMuSRParams(unittest.TestCase):
