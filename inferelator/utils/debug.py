@@ -12,9 +12,6 @@ class Debug:
     verbose_level = 0
     default_level = 1
 
-    silence_clients = True
-    is_master = True
-
     levels = dict(silent=-1,
                   normal=0,
                   verbose=1, v=1,
@@ -30,8 +27,6 @@ class Debug:
 
     @classmethod
     def vprint(cls, *args, **kwargs):
-        if cls.silence_clients and not cls.is_master:
-            return
         cls.print_level(*args, **kwargs)
 
     @classmethod

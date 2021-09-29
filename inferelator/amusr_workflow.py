@@ -386,16 +386,14 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
 
         This is called when `.startup()` is run. It is not necessary to call separately.
         """
-        if self.is_master():
-            self.create_output_dir()
-            rp = self._result_processor_driver(betas, rescaled_betas, filter_method=self.gold_standard_filter_method,
-                                               metric=self.metric)
-            rp.tasks_names = self._task_names
-            self.results = rp.summarize_network(self.output_dir, gold_standard, self._task_priors)
-            self.task_results = rp.tasks_networks
-            return self.results
-        else:
-            return None
+
+        self.create_output_dir()
+        rp = self._result_processor_driver(betas, rescaled_betas, filter_method=self.gold_standard_filter_method,
+                                            metric=self.metric)
+        rp.tasks_names = self._task_names
+        self.results = rp.summarize_network(self.output_dir, gold_standard, self._task_priors)
+        self.task_results = rp.tasks_networks
+        return self.results
 
 
 def create_task_data_object(workflow_class="single-cell"):

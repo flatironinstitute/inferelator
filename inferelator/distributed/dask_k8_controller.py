@@ -27,7 +27,6 @@ class DaskK8Controller(AbstractController):
     _controller_name = "dask-k8"
     _controller_dask = True
 
-    is_master = True
     client = None
 
     ## Dask controller variables ##
@@ -75,13 +74,6 @@ class DaskK8Controller(AbstractController):
         :return:
         """
         cls.processes = process_count
-
-    @classmethod
-    def sync_processes(self, *args, **kwargs):
-        """
-        This is a thing for KVS. Just return True.
-        """
-        return True
 
     @classmethod
     def check_cluster_state(cls, *args, **kwargs):

@@ -156,7 +156,7 @@ class TFAWorkFlow(workflow.WorkflowBase):
 
         self.half_tau_response = None
 
-        if self._tfa_output_file is not None and self.is_master():
+        if self._tfa_output_file is not None:
             self.create_output_dir()
             self.design.to_csv(self.output_path(self._tfa_output_file), sep="\t")
 
@@ -196,14 +196,12 @@ class TFAWorkFlow(workflow.WorkflowBase):
         """
         Output result report(s) for workflow run.
         """
-        if self.is_master():
-            self.create_output_dir()
-            rp = self._result_processor_driver(betas, rescaled_betas, filter_method=self.gold_standard_filter_method,
-                                               metric=self.metric)
-            self.results = rp.summarize_network(self.output_dir, gold_standard, priors)
-            return self.results
-        else:
-            return None
+
+        self.create_output_dir()
+        rp = self._result_processor_driver(betas, rescaled_betas, filter_method=self.gold_standard_filter_method,
+                                            metric=self.metric)
+        self.results = rp.summarize_network(self.output_dir, gold_standard, priors)
+        return self.results
 
     def compute_common_data(self):
         """

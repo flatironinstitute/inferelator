@@ -699,6 +699,9 @@ class WorkflowBase(WorkflowBaseLoader):
     # Use the Intel MKL libraries for matrix multiplication
     use_mkl = None
 
+    # Use numba for JIT
+    use_numba = False
+
     # Multiprocessing controller
     initialize_mp = True
     multiprocessing_controller = None
@@ -817,7 +820,7 @@ class WorkflowBase(WorkflowBaseLoader):
         if curve_data_file_name != "":
             InferelatorResults.curve_data_file_name = curve_data_file_name
 
-    def set_run_parameters(self, num_bootstraps=None, random_seed=None, use_mkl=None):
+    def set_run_parameters(self, num_bootstraps=None, random_seed=None, use_mkl=None, use_numba=None):
         """
         Set parameters used during runtime
 
@@ -827,11 +830,15 @@ class WorkflowBase(WorkflowBaseLoader):
         :type random_seed: int
         :param use_mkl: A flag to indicate if the intel MKL library should be used for matrix multiplication
         :type use_mkl: bool
+        :param use_numba: A flag to indicate if numba should be used to accelerate the calculations.
+        Requires numba to be installed if set. Currently only accelerates AMuSR regression.
+        :type use_numba: bool
         """
 
         self._set_without_warning("num_bootstraps", num_bootstraps)
         self._set_without_warning("random_seed", random_seed)
         self._set_without_warning("use_mkl", use_mkl)
+        self._set_without_warning("use_numba", use_numba)
 
     def initialize_multiprocessing(self):
         """
@@ -957,13 +964,6 @@ class WorkflowBase(WorkflowBaseLoader):
         Output result report(s) for workflow run.
         """
         raise NotImplementedError  # implement in subclass
-
-    @staticmethod
-    def is_master():
-        """
-        Return True if this is the master thread
-        """
-        return MPControl.is_master
 
     def create_output_dir(self):
         """

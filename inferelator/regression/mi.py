@@ -17,9 +17,6 @@ CLR_DDOF = 1
 # Log type for MI calculations. np.log2 gives results in bits; np.log gives results in nats
 DEFAULT_LOG_TYPE = np.log
 
-# KVS keys for multiprocessing
-SYNC_CLR_KEY = 'post_clr'
-
 
 class MIDriver:
 
@@ -70,8 +67,6 @@ def context_likelihood_mi(x, y, bins=DEFAULT_NUM_BINS, logtype=DEFAULT_LOG_TYPE,
 
     # Calculate CLR
     clr = calc_mixed_clr(mi, mi_bg)
-
-    MPControl.sync_processes(pref=SYNC_CLR_KEY)
 
     mi = pd.DataFrame(mi, index=mi_r, columns=mi_c)
     clr = pd.DataFrame(clr, index=mi_r, columns=mi_c)

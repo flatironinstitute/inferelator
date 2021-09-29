@@ -4,7 +4,7 @@ This requires pathos because the default multiprocessing serializes with cPickle
 """
 
 import pathos
-import collections
+import collections.abc
 
 from inferelator.distributed import AbstractController
 from inferelator.utils import Validator as check
@@ -13,7 +13,6 @@ from inferelator.utils import Validator as check
 class MultiprocessingController(AbstractController):
     _controller_name = "multiprocessing"
     client = None
-    is_master = True
 
     # Control variables
     chunk = 25
@@ -24,10 +23,6 @@ class MultiprocessingController(AbstractController):
     @classmethod
     def connect(cls, *args, **kwargs):
         cls.client = pathos.multiprocessing.ProcessPool(nodes=cls.processes, **kwargs)
-        return True
-
-    @classmethod
-    def sync_processes(cls, *args, **kwargs):
         return True
 
     @classmethod
@@ -52,7 +47,7 @@ class MultiprocessingController(AbstractController):
             Iterator(s)
         """
         assert check.argument_callable(func)
-        assert check.argument_list_type(args, collections.Iterable)
+        assert check.argument_list_type(args, collections.abc.Iterable)
         return cls.client.map(func, *args, chunksize=cls.chunk)
 
     @classmethod

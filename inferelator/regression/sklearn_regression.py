@@ -136,7 +136,7 @@ class SKLearnWorkflowMixin(base_regression._RegressionWorkflowMixin):
         x = self.design.get_bootstrap(bootstrap)
         y = self.response.get_bootstrap(bootstrap)
         utils.Debug.vprint('Calculating betas using SKLearn model {m}'.format(m=self._sklearn_model.__name__), level=0)
-        MPControl.sync_processes(pref="sk_pre")
+
         return SKLearnRegression(x,
                                  y,
                                  self._sklearn_model,
@@ -156,8 +156,6 @@ class SKLearnByTaskMixin(_MultitaskRegressionWorkflowMixin, SKLearnWorkflowMixin
         for k in range(self._n_tasks):
             x = self._task_design[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx])
             y = self._task_response[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx])
-
-            MPControl.sync_processes(pref="sk_pre")
 
             utils.Debug.vprint('Calculating task {k} using {n}'.format(k=k, n=self._sklearn_model.__name__), level=0)
             t_beta, t_br = SKLearnRegression(x,

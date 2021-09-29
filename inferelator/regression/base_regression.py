@@ -55,15 +55,7 @@ class BaseRegression(object):
             Returns None, None if it's a subordinate thread
         """
 
-        run_data = self.regress()
-
-        if MPControl.is_master:
-            pileup_data = self.pileup_data(run_data)
-        else:
-            pileup_data = None, None
-
-        MPControl.sync_processes("post_pileup")
-        return pileup_data
+        return self.pileup_data(self.regress())
 
     def regress(self):
         """
@@ -134,17 +126,13 @@ class _RegressionWorkflowMixin(object):
         betas = []
         rescaled_betas = []
 
-        MPControl.sync_processes("pre_regression")
-
         for idx, bootstrap in enumerate(self.get_bootstraps()):
             Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps), level=0)
             np.random.seed(self.random_seed + idx)
             current_betas, current_rescaled_betas = self.run_bootstrap(bootstrap)
-            if self.is_master():
-                betas.append(current_betas)
-                rescaled_betas.append(current_rescaled_betas)
 
-            MPControl.sync_processes("post_bootstrap")
+            betas.append(current_betas)
+            rescaled_betas.append(current_rescaled_betas)
 
         return betas, rescaled_betas
 
@@ -167,10 +155,9 @@ class _MultitaskRegressionWorkflowMixin(_RegressionWorkflowMixin):
             Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps), level=0)
             current_betas, current_rescaled_betas = self.run_bootstrap(idx)
 
-            if self.is_master():
-                for k in range(self._n_tasks):
-                    betas[k].append(current_betas[k])
-                    rescaled_betas[k].append(current_rescaled_betas[k])
+            for k in range(self._n_tasks):
+                betas[k].append(current_betas[k])
+                rescaled_betas[k].append(current_rescaled_betas[k])
 
         return betas, rescaled_betas
 

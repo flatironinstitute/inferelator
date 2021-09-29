@@ -2,7 +2,7 @@
 LocalController just runs everything in a single process
 """
 
-import collections
+import collections.abc
 
 from inferelator.distributed import AbstractController
 from inferelator import utils
@@ -14,15 +14,10 @@ class LocalController(AbstractController):
     _controller_name = "local"
 
     client = None
-    is_master = True
     chunk = None
 
     @classmethod
     def connect(cls, *args, **kwargs):
-        return True
-
-    @classmethod
-    def sync_processes(cls, *args, **kwargs):
         return True
 
     @classmethod
@@ -36,7 +31,7 @@ class LocalController(AbstractController):
             Iterator(s)
         """
         assert check.argument_callable(func)
-        assert check.argument_list_type(arg, collections.Iterable)
+        assert check.argument_list_type(arg, collections.abc.Iterable)
         return list(map(func, *arg))
 
     @classmethod

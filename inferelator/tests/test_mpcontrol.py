@@ -7,14 +7,6 @@ from inferelator.distributed.inferelator_mp import MPControl
 
 # Run tests only when the associated packages are installed
 try:
-    from kvsstcp import kvsstcp
-    from inferelator.distributed import kvs_controller
-
-    TEST_KVS = True
-except ImportError:
-    TEST_KVS = False
-
-try:
     from dask import distributed
     from inferelator.distributed import dask_local_controller
 
@@ -79,10 +71,6 @@ class TestNoController(TestMPControl):
         with self.assertRaises(RuntimeError):
             MPControl.map(math_function, *self.map_test_data)
 
-    def test_sync(self):
-        with self.assertRaises(RuntimeError):
-            MPControl.sync_processes()
-
     def test_name(self):
         with self.assertRaises(NameError):
             MPControl.name()
@@ -110,58 +98,8 @@ class TestLocalController(TestMPControl):
         test_result = MPControl.map(math_function, *self.map_test_data)
         self.assertListEqual(test_result, self.map_test_expect)
 
-    def test_local_sync(self):
-        self.assertTrue(MPControl.sync_processes())
-
     def test_local_name(self):
         self.assertEqual(MPControl.name(), self.name)
-
-
-@unittest.skipIf(not TEST_KVS, "KVS not installed")
-class TestKVSMPController(TestMPControl):
-    server = None
-    name = "kvs"
-    temp_dir = None
-
-    @classmethod
-    @unittest.skipIf(not TEST_KVS, "KVS not installed")
-    def setUpClass(cls):
-        cls.temp_dir = tempfile.mkdtemp()
-        cls.server = kvsstcp.KVSServer("", 0)
-        MPControl.shutdown()
-        MPControl.set_multiprocess_engine(cls.name)
-        MPControl.connect(host=cls.server.cinfo[0], port=cls.server.cinfo[1])
-
-    @classmethod
-    @unittest.skipIf(not TEST_KVS, "KVS not installed")
-    def tearDownClass(cls):
-        super(TestKVSMPController, cls).tearDownClass()
-        if cls.server is not None:
-            cls.server.shutdown()
-        if cls.temp_dir is not None:
-            shutil.rmtree(cls.temp_dir)
-
-    def test_kvs_connect(self):
-        self.assertTrue(MPControl.is_initialized)
-
-    def test_kvs_map(self):
-        test_result = MPControl.map(math_function, *self.map_test_data)
-        self.assertListEqual(test_result, self.map_test_expect)
-
-    def test_kvs_map_distribute(self):
-        test_result = MPControl.map(math_function, *self.map_test_data, tell_children=True)
-        self.assertListEqual(test_result, self.map_test_expect)
-
-    def test_kvs_map_by_file(self):
-        test_result = MPControl.map(math_function, *self.map_test_data, tell_children=True, tmp_file_path=self.temp_dir)
-        self.assertListEqual(test_result, self.map_test_expect)
-
-    def test_kvs_sync(self):
-        self.assertEqual(MPControl.sync_processes(), None)
-
-    def test_kvs_name(self):
-        self.assertEqual(MPControl.name(), self.name)
-
 
 @unittest.skipIf(not TEST_PATHOS, "Pathos not installed")
 class TestMultiprocessingMPController(TestMPControl):
@@ -186,9 +124,6 @@ class TestMultiprocessingMPController(TestMPControl):
     def test_mp_map(self):
         test_result = MPControl.map(math_function, *self.map_test_data)
         self.assertListEqual(test_result, self.map_test_expect)
-
-    def test_mp_sync(self):
-        self.assertTrue(MPControl.sync_processes())
 
 
 @unittest.skipIf(not TEST_DASK_LOCAL, "Dask not installed")
@@ -221,9 +156,6 @@ class TestDaskLocalMPController(TestMPControl):
     @unittest.skip
     def test_dask_local_map(self):
         pass
-
-    def test_dask_local_sync(self):
-        self.assertTrue(MPControl.sync_processes())
 
 
 @unittest.skipIf(not TEST_DASK_CLUSTER, "Dask not installed")
@@ -280,9 +212,6 @@ class TestDaskHPCMPController(TestMPControl):
     @unittest.skip
     def test_dask_cluster_map(self):
         pass
-
-    def test_dask_cluster_sync(self):
-        self.assertTrue(MPControl.sync_processes())
 
     def test_memory_0_hack(self):
         old_command = "dask-worker tcp://scheduler:port --memory-limit=4e9 --nthreads 1 --nprocs 20"

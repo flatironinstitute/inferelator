@@ -187,10 +187,12 @@ class SCENICRegression(_RegressionWorkflowMixin):
             scenic_df.columns = scenic_df.columns.droplevel(0)
 
             mat = [pd.DataFrame(data).set_index(0).rename({1: tf}, axis=1)
-                   for tf, data in scenic_df['TargetGenes'].iteritems()]
+                    for tf, data in scenic_df['TargetGenes'].iteritems()]
 
-            mat = pd.concat(mat, axis=0).reindex(prior_data.columns, axis=1).fillna(0)
-
+            mat = pd.concat(mat, axis=0).fillna(0)
+            mat = mat.groupby(mat.index).agg('max')
+            mat = mat.reindex(prior_data.columns, axis=1).reindex(prior_data.index, axis=0).fillna(0)
+    
         return [mat], [mat.copy()]
 
     @staticmethod

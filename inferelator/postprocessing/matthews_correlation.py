@@ -1,9 +1,16 @@
+from math import isfinite
 import numpy as np
 import warnings
 
 from inferelator.postprocessing.model_performance import RankSummingMetric
 from inferelator.postprocessing import (TARGET_COLUMN, REGULATOR_COLUMN, CONFIDENCE_COLUMN, GOLD_STANDARD_COLUMN,
                                         MCC_COLUMN, TP, FP, TN, FN)
+
+import matplotlib
+
+# If matplotlib is being an idiot and trying to set a tkinter backend, switch to agg
+if matplotlib.get_backend() in (i for i in matplotlib.rcsetup.interactive_bk):
+    matplotlib.use('agg')
 
 import matplotlib.pyplot as plt
 
@@ -72,11 +79,14 @@ class RankSummaryMCC(RankSummingMetric):
 
         num_edges = np.sum(conf >= optconf) if num_edges is None else num_edges
 
+        y_min = np.nanmin(mcc)
+        y_min = 0 if not (0 > y_min) else y_min
+
         # Generate a plot
         ax.plot(conf, mcc)
         ax.set_xlabel('Confidence')
         ax.set_xlim(1, 0)
-        ax.set_ylim(0, 1)
+        ax.set_ylim(y_min, 1)
         ax.set_ylabel('MCC')
         ax.vlines(float(optconf), 0, 1, transform=ax.get_xaxis_transform(), colors='r', linestyles='dashed')
 
@@ -90,9 +100,7 @@ class RankSummaryMCC(RankSummingMetric):
     @staticmethod
     def calculate_opt_mcc(data):
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=RuntimeWarning)
-            return np.nanmax(data[MCC_COLUMN])
+        return data[MCC_COLUMN].iloc[np.argmax(np.abs(data[MCC_COLUMN]))]
 
     @staticmethod
     def calculate_opt_conf_mcc(data):
@@ -113,4 +121,9 @@ class RankSummaryMCC(RankSummingMetric):
 
     @staticmethod
     def confusion_to_mcc(tp, tn, fp, fn):
-        return (tp * tn - fp * fn) / (np.sqrt(tp + fp) * np.sqrt(tp + fn) * np.sqrt(tn + fp) * np.sqrt(tn + fn))
+        denominator = np.sqrt(tp + fp) * np.sqrt(tp + fn) * np.sqrt(tn + fp) * np.sqrt(tn + fn)
+
+        # If any denominator value is 0, MCC is 0/0 and by convention will be set to 0.0
+        denominator[denominator == 0] = 1.0
+
+        return (tp * tn - fp * fn) / denominator

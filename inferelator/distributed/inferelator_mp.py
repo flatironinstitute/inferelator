@@ -15,7 +15,6 @@ class MPControl(AbstractController):
     client = None
 
     # Relevant external state booleans
-    is_master = False
     is_initialized = False
 
     @classmethod
@@ -46,7 +45,6 @@ class MPControl(AbstractController):
         dask-cluster
         dask-k8
         dask-local
-        kvs
         multiprocessing
         local
 
@@ -69,10 +67,7 @@ class MPControl(AbstractController):
                 from inferelator.distributed.dask_k8_controller import DaskK8Controller
                 cls.client = DaskK8Controller
             elif engine == "kvs":
-                warnings.warn("The KVS engine is deprecated. It has been replaced by Dask-based multiprocessing",
-                              DeprecationWarning)
-                from inferelator.distributed.kvs_controller import KVSController
-                cls.client = KVSController
+                raise DeprecationWarning("The KVS engine is deprecated. Use Dask-based multiprocessing")
             elif engine == "multiprocessing":
                 from inferelator.distributed.multiprocessing_controller import MultiprocessingController
                 cls.client = MultiprocessingController
@@ -107,11 +102,7 @@ class MPControl(AbstractController):
         connect_return = cls.client.connect(*args, **kwargs)
 
         # Set the process state
-        cls.is_master = cls.client.is_master
         cls.is_initialized = True
-
-        # Also tell Debug if we're the master process
-        utils.Debug.is_master = cls.is_master
 
         return connect_return
 
@@ -132,18 +123,6 @@ class MPControl(AbstractController):
         if cls.is_initialized:
             raise RuntimeError("Cannot set processes after the engine has started")
         return cls.client.set_processes(process_count)
-
-    @classmethod
-    def sync_processes(cls, *args, **kwargs):
-        """
-        Make sure processes are all at the same point by calling the `.sync_processes()` implementation in the
-        multiprocessing engine
-
-        This is necessary for KVS; other engines will just return True
-        """
-        if not cls.is_initialized:
-            raise RuntimeError("Connect before calling sync_processes()")
-        return cls.client.sync_processes(*args, **kwargs)
 
     @classmethod
     def shutdown(cls):

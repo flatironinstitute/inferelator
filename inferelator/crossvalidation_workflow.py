@@ -266,33 +266,32 @@ class CrossValidationManager(object):
         Create a CSVWriter and stash it in self.writer
         """
 
-        if MPControl.is_master:
-            # Create a CSV header from grid search param names
-            self._csv_header = copy.copy(self.grid_params) if self.grid_params is not None else []
+        # Create a CSV header from grid search param names
+        self._csv_header = copy.copy(self.grid_params) if self.grid_params is not None else []
 
-            # Add Test & Value columns for dropouts/etc
-            self._csv_header.extend(["Test", "Value", "Num_Obs"])
+        # Add Test & Value columns for dropouts/etc
+        self._csv_header.extend(["Test", "Value", "Num_Obs"])
 
-            # Also add the metric name
-            self._csv_header.extend(MetricHandler.get_metric(self.workflow.metric).all_names())
+        # Also add the metric name
+        self._csv_header.extend(MetricHandler.get_metric(self.workflow.metric).all_names())
 
-            # Create a CSV writer
-            self._create_output_path()
-            self._open_csv_handle()
+        # Create a CSV writer
+        self._create_output_path()
+        self._open_csv_handle()
 
-            self._csv_writer = self._csv_writer_object(self._csv_file_handle,
-                                                       delimiter="\t", lineterminator="\n", quoting=csv.QUOTE_NONE)
+        self._csv_writer = self._csv_writer_object(self._csv_file_handle,
+                                                    delimiter="\t", lineterminator="\n", quoting=csv.QUOTE_NONE)
 
-            # Write the header line
-            self._csv_writer.writerow(self._csv_header)
+        # Write the header line
+        self._csv_writer.writerow(self._csv_header)
 
     def _destroy_writer(self):
         """
         Delete the CSVWriter and close the file handle
         """
-        if MPControl.is_master:
-            self._csv_file_handle.close()
-            self._csv_writer = None
+
+        self._csv_file_handle.close()
+        self._csv_writer = None
 
     def _harmonize_paths(self):
         """
@@ -417,8 +416,7 @@ class CrossValidationManager(object):
 
             results.append(((test, value), result))
 
-            if MPControl.is_master:
-                self._csv_writer.writerow(csv_line)
+            self._csv_writer.writerow(csv_line)
 
             del cv_workflow
 

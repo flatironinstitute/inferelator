@@ -4,6 +4,12 @@ from inferelator.postprocessing.precision_recall import RankSummaryPR
 from inferelator.postprocessing import (TARGET_COLUMN, REGULATOR_COLUMN, CONFIDENCE_COLUMN,
                                         F1_COLUMN, PRECISION_COLUMN, RECALL_COLUMN)
 
+import matplotlib
+
+# If matplotlib is being an idiot and trying to set a tkinter backend, switch to agg
+if matplotlib.get_backend() in (i for i in matplotlib.rcsetup.interactive_bk):
+    matplotlib.use('agg')
+
 import matplotlib.pyplot as plt
 
 

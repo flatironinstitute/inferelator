@@ -1,5 +1,6 @@
 import pandas as pd
 import os
+import matplotlib.pyplot as plt
 
 from inferelator.utils import Validator as check
 _SERIALIZE_ATTRS = ["network", "betas", "betas_stack", "betas_sign", "combined_confidences", "tasks"]
@@ -114,12 +115,14 @@ class InferelatorResults(object):
 
         # Write TSV files
         self.write_to_tsv(self.network, output_dir, self.network_file_name, index=False)
-        self.write_to_tsv(self.combined_confidences, output_dir, self.confidence_file_name)
-        self.write_to_tsv(self.betas_stack, output_dir, self.threshold_file_name, index=False)
+        self.write_to_tsv(self.combined_confidences, output_dir, self.confidence_file_name, index=True)
+        self.write_to_tsv(self.betas_stack, output_dir, self.threshold_file_name, index=True)
         self.write_to_tsv(self.curve, output_dir, self.curve_data_file_name, index=False)
 
         # Write Metric Curve PDF
-        self.metric.output_curve_pdf(output_dir, self.curve_file_name) if self.curve_file_name is not None else None
+        if self.curve_file_name is not None:
+            fig, ax = self.metric.output_curve_pdf(output_dir, self.curve_file_name)
+            plt.close(fig)
 
     def clear_output_file_names(self):
         """

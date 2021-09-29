@@ -112,7 +112,6 @@ class DaskHPCClusterController(AbstractController):
     _controller_name = "dask-cluster"
     _controller_dask = True
 
-    is_master = True
     client = None
 
     # Cluster Controller
@@ -278,14 +277,7 @@ class DaskHPCClusterController(AbstractController):
         utils.Debug.vprint("Using `set_job_size_params` is highly preferred", level=0)
         utils.Debug.vprint("Configured {n} jobs with {w} workers per job".format(n=cls._job_n, w=cls._job_n_workers),
                            level=0)
-
-    @classmethod
-    def sync_processes(cls, *args, **kwargs):
-        """
-        This is a thing for KVS. Just return True.
-        """
-        return True
-
+                           
     @classmethod
     def add_worker_env_line(cls, line):
         """

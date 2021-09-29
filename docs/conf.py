@@ -23,7 +23,7 @@ copyright = '2019, Flatiron Institute'
 author = 'Chris Jackson'
 
 # The full version, including alpha/beta/rc tags
-release = 'v0.5.6'
+release = 'v0.5.7'
 
 
 # -- General configuration ---------------------------------------------------

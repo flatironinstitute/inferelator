@@ -229,14 +229,11 @@ class StARSWorkflowMixin(base_regression._RegressionWorkflowMixin):
         self.regress_method = method if method is not None else self.regress_method
 
     def run_regression(self):
-        MPControl.sync_processes("pre_stars")
 
         betas, resc_betas = StARS(self.design, self.response, self.random_seed, alphas=self.alphas,
                                   method=self.regress_method,
                                   num_subsamples=self.num_subsamples,
                                   parameters=self.sklearn_params).run()
-
-        MPControl.sync_processes("post_stars")
 
         return [betas], [resc_betas]
 
@@ -256,8 +253,6 @@ class StARSWorkflowByTaskMixin(base_regression._MultitaskRegressionWorkflowMixin
         for k in range(self._n_tasks):
             x = self._task_design[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx])
             y = self._task_response[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx])
-
-            MPControl.sync_processes(pref="sk_pre")
 
             utils.Debug.vprint('Calculating task {k} betas using StARS'.format(k=k), level=0)
             t_beta, t_br = StARS(x, y, self.random_seed, alphas=self.alphas,
