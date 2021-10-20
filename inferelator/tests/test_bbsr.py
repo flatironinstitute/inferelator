@@ -21,7 +21,7 @@ class TestBBSRrunnerPython(unittest.TestCase):
         self.brd = bbsr_python.BBSR
 
     def run_bbsr(self):
-        return self.brd(self.X, self.Y, self.clr, self.priors).run()
+        return self.brd(self.X, self.Y, self.priors, self.clr).run()
 
     def set_all_zero_priors(self):
         self.priors = pd.DataFrame([[0, 0], [0, 0]], index=['gene1', 'gene2'], columns=['gene1', 'gene2'])

@@ -63,7 +63,7 @@ def sklearn_gene(x, y, model, min_coef=None, **kwargs):
 
 class SKLearnRegression(base_regression.BaseRegression):
 
-    def __init__(self, x, y, model, random_state=None, **kwargs):
+    def __init__(self, x, y, prior_data, model, random_state=None, **kwargs):
         self.params = kwargs
 
         if random_state is not None:
@@ -72,7 +72,7 @@ class SKLearnRegression(base_regression.BaseRegression):
         self.min_coef = self.params.pop("min_coef", None)
         self.model = model(**self.params)
 
-        super(SKLearnRegression, self).__init__(x, y)
+        super(SKLearnRegression, self).__init__(x, y, prior_data)
 
     def regress(self):
         """
@@ -83,17 +83,17 @@ class SKLearnRegression(base_regression.BaseRegression):
         """
 
         if MPControl.is_dask():
-            from inferelator.distributed.dask_functions import sklearn_regress_dask
-            return sklearn_regress_dask(self.X, self.Y, self.model, self.G, self.genes, self.min_coef)
+            return sklearn_regress_dask(self.X, self.Y, self.prior_mat, self.model, self.G, self.genes, self.min_coef)
 
         def regression_maker(j):
             level = 0 if j % 100 == 0 else 2
             utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G), level=level)
 
-            data = sklearn_gene(self.X.values,
-                                utils.scale_vector(self.Y.get_gene_data(j, force_dense=True, flatten=True)),
-                                copy.copy(self.model),
-                                min_coef=self.min_coef)
+            X, Y = base_regression.PreprocessData.gene_preprocess(self.X.values,
+                                                                  self.Y.get_gene_data(j, force_dense=True, flatten=True),
+                                                                  self.prior_mat, self.genes[j])
+
+            data = sklearn_gene(X, Y, copy.copy(self.model), min_coef=self.min_coef)
             data['ind'] = j
             return data
 
@@ -137,8 +137,7 @@ class SKLearnWorkflowMixin(base_regression._RegressionWorkflowMixin):
         y = self.response.get_bootstrap(bootstrap)
         utils.Debug.vprint('Calculating betas using SKLearn model {m}'.format(m=self._sklearn_model.__name__), level=0)
 
-        return SKLearnRegression(x,
-                                 y,
+        return SKLearnRegression(x, y, self.priors_data,
                                  self._sklearn_model,
                                  random_state=self.random_seed if self._sklearn_add_random_state else None,
                                  **self._sklearn_model_params).run()
@@ -157,9 +156,13 @@ class SKLearnByTaskMixin(_MultitaskRegressionWorkflowMixin, SKLearnWorkflowMixin
             x = self._task_design[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx])
             y = self._task_response[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx])
 
+            # Make sure that the priors align to the expression matrix
+            priors_data = self._task_priors[k].reindex(labels=self._targets, axis=0). \
+                reindex(labels=self._regulators, axis=1). \
+                fillna(value=0)
+
             utils.Debug.vprint('Calculating task {k} using {n}'.format(k=k, n=self._sklearn_model.__name__), level=0)
-            t_beta, t_br = SKLearnRegression(x,
-                                             y,
+            t_beta, t_br = SKLearnRegression(x, y, priors_data,
                                              self._sklearn_model,
                                              random_state=self.random_seed if self._sklearn_add_random_state else None,
                                              **self._sklearn_model_params).run()
@@ -167,3 +170,48 @@ class SKLearnByTaskMixin(_MultitaskRegressionWorkflowMixin, SKLearnWorkflowMixin
             betas_resc.append(t_br)
 
         return betas, betas_resc
+
+def sklearn_regress_dask(X, Y, prior_data, model, G, genes, min_coef):
+    """
+    Execute regression (SKLearn)
+
+    :return: list
+        Returns a list of regression results that the pileup_data can process
+    """
+    assert MPControl.is_dask()
+
+    from dask import distributed 
+    from inferelator.distributed.dask_functions import DASK_SCATTER_TIMEOUT, process_futures_into_list
+
+    DaskController = MPControl.client
+
+    def regression_maker(j, x, y, priors):
+        level = 0 if j % 100 == 0 else 2
+        utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=genes[j], i=j, total=G), level=level)
+
+        x, y = base_regression.PreprocessData.gene_preprocess(x, y, priors, genes[j])
+
+        data = sklearn_gene(x, y, copy.copy(model), min_coef=min_coef)
+        data['ind'] = j
+        return j, data
+
+    # Scatter common data to workers
+    [scatter_x] = DaskController.client.scatter([X.values], broadcast=True, hash=False)
+    [scatter_priors] = DaskController.client.scatter([prior_data], broadcast=True, hash=False)
+
+    # Wait for scattering to finish before creating futures
+    distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
+    distributed.wait(scatter_priors, timeout=DASK_SCATTER_TIMEOUT)
+
+    future_list = [DaskController.client.submit(regression_maker, i, scatter_x,
+                                                Y.get_gene_data(i, force_dense=True, flatten=True),
+                                                scatter_priors)
+                   for i in range(G)]
+
+    # Collect results as they finish instead of waiting for all workers to be done
+    result_list = process_futures_into_list(future_list)
+
+    DaskController.client.cancel(scatter_x)
+    DaskController.client.cancel(scatter_priors)
+
+    return result_list

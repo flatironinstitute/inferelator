@@ -3,9 +3,11 @@ import numpy as np
 
 from inferelator import utils
 from inferelator.regression import bayes_stats
-from inferelator.regression import base_regression
+from inferelator.regression.base_regression import (BaseRegression, PreprocessData, PROGRESS_STR,
+                                                    _RegressionWorkflowMixin)
 from inferelator.regression import mi
 from inferelator.distributed.inferelator_mp import MPControl
+from inferelator.utils.data import scale_vector
 
 # Default number of predictors to include in the model
 DEFAULT_nS = 10
@@ -21,8 +23,26 @@ DEFAULT_no_prior_weight = 1
 DEFAULT_filter_priors_for_clr = False
 
 
-class BBSR(base_regression.BaseRegression):
-    # Bayseian correlation measurements
+class BBSR(BaseRegression):
+    """
+    Create a Regression object for Bayes Best Subset Regression
+
+    :param X: Expression or Activity data [N x K]
+    :type X: InferelatorData
+    :param Y: Response expression data [N x G]
+    :type Y: InferelatorData
+    :param clr_mat: Calculated CLR between features of X & Y [G x K]
+    :type clr_mat: pd.DataFrame
+    :param prior_mat: Prior data between features of X & Y [G x K]
+    :type prior_mat: pd.DataFrame
+
+    :param nS: int
+        Number of predictors to retain
+    :param prior_weight: int
+        Weight of a predictor which does have a prior
+    :param no_prior_weight: int
+        Weight of a predictor which doesn't have a prior
+    """
 
     # Priors Data
     prior_mat = None  # [G x K] # numeric
@@ -39,42 +59,19 @@ class BBSR(base_regression.BaseRegression):
 
     ols_only = False
 
-    def __init__(self, X, Y, clr_mat, prior_mat, nS=DEFAULT_nS, prior_weight=DEFAULT_prior_weight,
-                 no_prior_weight=DEFAULT_no_prior_weight, ordinary_least_squares=False):
-        """
-        Create a Regression object for Bayes Best Subset Regression
-
-        :param X: Expression or Activity data [N x K]
-        :type X: InferelatorData
-        :param Y: Response expression data [N x G]
-        :type Y: InferelatorData
-        :param clr_mat: Calculated CLR between features of X & Y [G x K]
-        :type clr_mat: pd.DataFrame
-        :param prior_mat: Prior data between features of X & Y [G x K]
-        :type prior_mat: pd.DataFrame
-
-        :param nS: int
-            Number of predictors to retain
-        :param prior_weight: int
-            Weight of a predictor which does have a prior
-        :param no_prior_weight: int
-            Weight of a predictor which doesn't have a prior
-        """
-
-        super(BBSR, self).__init__(X, Y)
-
+    def set_regression_parameters(self, clr_mat, nS=DEFAULT_nS, prior_weight=DEFAULT_prior_weight,
+                                  no_prior_weight=DEFAULT_no_prior_weight, ordinary_least_squares=False):
         self.nS = nS
         self.ols_only = ordinary_least_squares
 
         # Calculate the weight matrix
         self.prior_weight = prior_weight
         self.no_prior_weight = no_prior_weight
-        weights_mat = self._calculate_weight_matrix(prior_mat, p_weight=prior_weight, no_p_weight=no_prior_weight)
+        weights_mat = self._calculate_weight_matrix(self.prior_mat, p_weight=prior_weight, no_p_weight=no_prior_weight)
         utils.Debug.vprint("Weight matrix {} construction complete".format(weights_mat.shape))
 
         # Rebuild weights, priors, and the CLR matrix for the features that are in this bootstrap
         self.weights_mat = weights_mat.loc[self.genes, self.tfs]
-        self.prior_mat = prior_mat.loc[self.genes, self.tfs]
         self.clr_mat = clr_mat.loc[self.genes, self.tfs]
 
         # Build a boolean matrix indicating which tfs should be used as predictors for regression for each gene
@@ -90,16 +87,19 @@ class BBSR(base_regression.BaseRegression):
         """
 
         if MPControl.is_dask():
-            from inferelator.distributed.dask_functions import bbsr_regress_dask
-            return bbsr_regress_dask(self.X, self.Y, self.pp, self.weights_mat, self.G, self.genes, self.nS)
+            return bbsr_regress_dask(self.X, self.Y, self.pp, self.weights_mat, self.prior_mat, self.G, self.genes,
+                                     self.nS, self.ols_only)
 
         def regression_maker(j):
             level = 0 if j % 100 == 0 else 2
-            utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G),
+            utils.Debug.allprint(PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G),
                                  level=level)
 
-            data = bayes_stats.bbsr(self.X.values,
-                                    utils.scale_vector(self.Y.get_gene_data(j, force_dense=True, flatten=True)),
+            X, Y = PreprocessData.gene_preprocess(self.X.values,
+                                                  self.Y.get_gene_data(j, force_dense=True, flatten=True),
+                                                  self.prior_mat, self.genes[j])
+
+            data = bayes_stats.bbsr(X, Y,
                                     self.pp.iloc[j, :].values.flatten(),
                                     self.weights_mat.iloc[j, :].values.flatten(),
                                     self.nS,
@@ -107,7 +107,7 @@ class BBSR(base_regression.BaseRegression):
             data['ind'] = j
             return data
 
-        return MPControl.map(regression_maker, range(self.G), tell_children=False)
+        return MPControl.map(regression_maker, range(self.G))
 
     def _build_pp_matrix(self):
         """
@@ -161,7 +161,7 @@ class BBSR(base_regression.BaseRegression):
         return weights_mat.mask(p_matrix != 0, other=p_weight)
 
 
-class BBSRRegressionWorkflowMixin(base_regression._RegressionWorkflowMixin):
+class BBSRRegressionWorkflowMixin(_RegressionWorkflowMixin):
     """
     Bayesian Best Subset Regression (BBSR)
 
@@ -215,6 +215,59 @@ class BBSRRegressionWorkflowMixin(base_regression._RegressionWorkflowMixin):
         else:
             priors = self.priors_data
 
-        return BBSR(X, Y, clr_matrix, priors, prior_weight=self.prior_weight,
+        return BBSR(X, Y, priors, clr_matrix, prior_weight=self.prior_weight,
                     no_prior_weight=self.no_prior_weight, nS=self.bsr_feature_num,
                     ordinary_least_squares=self.ols_only).run()
+
+
+def bbsr_regress_dask(X, Y, pp_mat, weights_mat, prior_data, G, genes, nS, ordinary_least_squares):
+    """
+    Execute regression (BBSR)
+
+    :return: list
+        Returns a list of regression results that the pileup_data can process
+    """
+    assert MPControl.is_dask()
+
+    from dask import distributed 
+    from inferelator.distributed.dask_functions import DASK_SCATTER_TIMEOUT, process_futures_into_list
+
+    DaskController = MPControl.client
+
+    def regression_maker(j, x, y, pp, weights, priors, ols):
+        level = 0 if j % 100 == 0 else 2
+        utils.Debug.allprint(PROGRESS_STR.format(gn=genes[j], i=j, total=G), level=level)
+
+        x, y = PreprocessData.gene_preprocess(x, y, priors, genes[j])
+
+        data = bayes_stats.bbsr(x, y, pp[j, :].flatten(), weights[j, :].flatten(), nS,
+                                ordinary_least_squares=ols)
+        data['ind'] = j
+        return j, data
+
+    # Scatter common data to workers
+    [scatter_x] = DaskController.client.scatter([X.values], broadcast=True, hash=False)
+    [scatter_pp] = DaskController.client.scatter([pp_mat.values], broadcast=True, hash=False)
+    [scatter_weights] = DaskController.client.scatter([weights_mat.values], broadcast=True, hash=False)
+    [scatter_priors] = DaskController.client.scatter([prior_data.values], broadcast=True, hash=False)
+
+    # Wait for scattering to finish before creating futures
+    distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
+    distributed.wait(scatter_pp, timeout=DASK_SCATTER_TIMEOUT)
+    distributed.wait(scatter_weights, timeout=DASK_SCATTER_TIMEOUT)
+    distributed.wait(scatter_priors, timeout=DASK_SCATTER_TIMEOUT)
+
+    future_list = [DaskController.client.submit(regression_maker, i, scatter_x,
+                                                Y.get_gene_data(i, force_dense=True, flatten=True),
+                                                scatter_pp, scatter_weights, scatter_priors, ordinary_least_squares)
+                   for i in range(G)]
+
+    # Collect results as they finish instead of waiting for all workers to be done
+    result_list = process_futures_into_list(future_list)
+
+    DaskController.client.cancel(scatter_x)
+    DaskController.client.cancel(scatter_pp)
+    DaskController.client.cancel(scatter_weights)
+    DaskController.client.cancel(scatter_priors)
+
+    return result_list

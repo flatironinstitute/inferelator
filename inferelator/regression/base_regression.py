@@ -1,9 +1,10 @@
 import numpy as np
+from numpy.lib.arraysetops import isin
 import pandas as pd
 import scipy.stats
 import copy
 
-from inferelator.utils import Debug, InferelatorData
+from inferelator.utils import Debug, InferelatorData, scale_vector, scale_array
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.utils import Validator as check
 
@@ -17,14 +18,15 @@ class BaseRegression(object):
     chunk = DEFAULT_CHUNK  # int
 
     # Raw Data
-    X = None  # [K x N] float
-    Y = None  # [G x N] float
-    G = None  # int G
-    K = None  # int K
+    X = None         # [K x N] float
+    Y = None         # [G x N] float
+    prior_mat = None # [G x K] numeric
+    G = None         # int G
+    K = None         # int K
 
-    def __init__(self, X, Y):
+    def __init__(self, X, Y, prior_mat, *args, **kwargs):
         """
-        Create a regression object and do basic data transforms
+        Create a regression object and save references to the data
 
         :param X: Expression or Activity data [N x K]
         :type X: InferelatorData
@@ -38,21 +40,28 @@ class BaseRegression(object):
         self.G = Y.num_genes
         self.genes = Y.gene_names
 
-        # Rescale the design expression or activity data on features
-        self.X = X
-        self.X.zscore()
+        # Save a copy of the prior matrix
+        self.prior_mat = prior_mat.loc[self.genes, self.tfs]
 
-        self.Y = Y
+        # Preprocess full data arrays and save them
+        self.X, self.Y = PreprocessData.full_preprocess(X, Y)
+
+        self.set_regression_parameters(*args, **kwargs)
 
         Debug.vprint("Predictor matrix {pr} and response matrix {re} ready".format(pr=X.shape, re=Y.shape))
+
+    def set_regression_parameters(*args, **kwargs):
+        """
+        Set regression parameters that are specific to regression type
+        """
+        return None
 
     def run(self):
         """
         Execute regression separately on each response variable in the data
 
         :return: pd.DataFrame [G x K], pd.DataFrame [G x K]
-            Returns the regression betas and beta error reductions for all threads if this is the master thread (rank 0)
-            Returns None, None if it's a subordinate thread
+            Returns the regression betas and beta error reductions
         """
 
         return self.pileup_data(self.regress())
@@ -60,6 +69,7 @@ class BaseRegression(object):
     def regress(self):
         """
         Execute regression and return a list which can be provided to pileup_data
+        
         :return: list
         """
         raise NotImplementedError
@@ -165,6 +175,85 @@ class _MultitaskRegressionWorkflowMixin(_RegressionWorkflowMixin):
         raise NotImplementedError
 
 
+class PreprocessData:
+
+    remove_circularity = False
+
+    @classmethod
+    def set_preprocessing(cls, remove_circularity=False) -> None:
+        cls.remove_circularity = remove_circularity
+
+    @classmethod
+    def gene_preprocess(cls, X, Y, prior_data, gene):
+        """
+        Preprocess data for each individual regression separately
+
+        :param X: Calculated activity matrix (from full prior) [N x K]
+        :type X: np.ndarray 
+        :param Y: Gene expression vector for gene i [N, ]
+        :type Y: np.ndarray
+        :param prior_data: Prior matrix dataframe [G, K]
+        :type prior_data: pd.DataFrame
+        :param gene: Gene name
+        :type gene: str
+        :returns: Preprocessed X and Y
+        :rtype: np.ndarray, np.ndarray
+        """
+
+        if cls.remove_circularity:
+            X = remove_gene_from_activity(X, Y, prior_data.loc[gene, :].values.flatten())
+            X = cls.scale_array(X, inplace=True)
+        else:
+            X = cls.scale_array(X, inplace=False)
+
+        return X, cls.scale_Y(Y)
+
+    @classmethod
+    def full_preprocess(cls, X, Y, ddof=1, scale_y=False):
+        """
+        Preprocess data for the entire regression job together 
+
+        :param X: Calculated activity matrix (from full prior) [N x K]
+        :type X: np.ndarray, InferelatorData
+        :param Y: Gene expression vector for gene i [N, ]
+        :type Y: np.ndarray
+        :returns: Preprocessed X and Y
+        :rtype: np.ndarray, np.ndarray
+        """
+
+        # Scale Y as an array if scale_y is set
+        if scale_y and isinstance(Y, (list, tuple)):
+            Y = [PreprocessData.scale_array(yk, ddof) for yk in Y]
+        elif scale_y:
+            Y = PreprocessData.scale_array(Y, ddof=ddof)
+
+        if isinstance(X, (list, tuple)):
+            return [PreprocessData.scale_array(xk, ddof) for xk in X], Y
+        else:
+            return PreprocessData.scale_array(X, ddof=ddof), Y
+
+    @staticmethod
+    def scale_array(X, inplace=False, ddof=1):
+        """
+        Scale an InferelatorData object or a numpy array
+
+        :param X: Data array to be scaled
+        :type X: np.ndarray, InferelatorData
+        :param inplace: Change in place (has no effect if X is an InferelatorData object), defaults to False
+        :type inplace: bool, optional
+        :return: Scaled data
+        :rtype: np.ndarray, InferelatorData
+        """
+        if isinstance(X, InferelatorData):
+            return X.zscore(ddof=ddof)
+        else:
+            return scale_array(X, inplace=inplace, ddof=ddof)
+
+    @staticmethod
+    def scale_Y(Y):
+        return scale_vector(Y)
+
+
 def recalculate_betas_from_selected(x, y, idx=None):
     """
     Estimate betas from a selected subset of predictors
@@ -263,6 +352,7 @@ def sigma_squared(x, y, betas):
 def index_of_nonzeros(arr):
     """
     Returns an array that indexes all the non-zero elements of an array
+
     :param arr: np.ndarray
     :return: np.ndarray
     """
@@ -272,8 +362,44 @@ def index_of_nonzeros(arr):
 def bool_to_index(arr):
     """
     Returns an array that indexes all the True elements of a boolean array
+
     :param arr: np.ndarray
     :return: np.ndarray
     """
     assert check.argument_type(arr, np.ndarray)
     return np.where(arr)[0]
+
+
+def remove_gene_from_activity(activity_data, gene_expression_data, prior_data):
+    """
+    Rebuilds activity without the influence of a specific gene
+
+    :param activity_data: Calculated activity matrix (from full prior) [N x K]
+    :type activity_data: np.ndarray 
+    :param gene_expression_data: Gene expression vector for gene i [N, ]
+    :type gene_expression_data: np.ndarray
+    :param prior_data: Prior matrix vector for gene i [K, ]
+    :type prior_data: np.ndarray
+    """
+
+    assert activity_data.ndim == 2
+
+    n, k = activity_data.shape
+
+    if gene_expression_data.size != n:
+        _msg = "Gene expression data expected size {n}; got size {m}".format(n=n, m=gene_expression_data.size)
+        raise ValueError(_msg)
+    else:
+        gene_expression_data = gene_expression_data.reshape(n, 1)
+
+    if prior_data.size != k:
+        _msg = "Prior data expected size {n}; got size {m}".format(n=k, m=prior_data.size)
+        raise ValueError(_msg)
+    else:
+        prior_data = prior_data.reshape(1, k)
+
+    fixed_activity = gene_expression_data @ prior_data
+    fixed_activity *= -1
+    fixed_activity += activity_data
+
+    return fixed_activity

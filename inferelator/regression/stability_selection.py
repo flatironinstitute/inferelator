@@ -149,7 +149,7 @@ def _make_subsample_idx(n, b, num_subsamples, random_seed=42):
 
 class StARS(base_regression.BaseRegression):
 
-    def __init__(self, X, Y, random_seed, alphas=_DEFAULT_ALPHAS, num_subsamples=_DEFAULT_NUM_SUBSAMPLES,
+    def __init__(self, X, Y, prior_data, random_seed, alphas=_DEFAULT_ALPHAS, num_subsamples=_DEFAULT_NUM_SUBSAMPLES,
                  method=_DEFAULT_METHOD, parameters=None):
         self.random_seed = random_seed
         self.alphas = alphas
@@ -158,7 +158,7 @@ class StARS(base_regression.BaseRegression):
 
         self.params = parameters if parameters is not None else {}
 
-        super(StARS, self).__init__(X, Y)
+        super(StARS, self).__init__(X, Y, prior_data)
 
     def regress(self):
         """
@@ -169,16 +169,18 @@ class StARS(base_regression.BaseRegression):
         """
 
         if MPControl.is_dask():
-            from inferelator.distributed.dask_functions import lasso_stars_regress_dask
-            return lasso_stars_regress_dask(self.X, self.Y, self.alphas, self.num_subsamples, self.random_seed,
-                                            self.method, self.params, self.G, self.genes)
+            return lasso_stars_regress_dask(self.X, self.Y, self.prior_mat, self.alphas, self.num_subsamples,
+                                            self.random_seed, self.method, self.params, self.G, self.genes)
 
         def regression_maker(j):
             level = 0 if j % 100 == 0 else 2
             utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G), level=level)
+            
+            X, Y = base_regression.PreprocessData.gene_preprocess(self.X.values,
+                                                                  self.Y.get_gene_data(j, force_dense=True, flatten=True),
+                                                                  self.prior_mat, self.genes[j])
 
-            data = stars_model_select(self.X.values,
-                                      utils.scale_vector(self.Y.get_gene_data(j, force_dense=True, flatten=True)),
+            data = stars_model_select(X, Y,
                                       self.alphas,
                                       method=self.method,
                                       num_subsamples=self.num_subsamples,
@@ -230,7 +232,7 @@ class StARSWorkflowMixin(base_regression._RegressionWorkflowMixin):
 
     def run_regression(self):
 
-        betas, resc_betas = StARS(self.design, self.response, self.random_seed, alphas=self.alphas,
+        betas, resc_betas = StARS(self.design, self.response, self.priors_data, self.random_seed, alphas=self.alphas,
                                   method=self.regress_method,
                                   num_subsamples=self.num_subsamples,
                                   parameters=self.sklearn_params).run()
@@ -253,9 +255,14 @@ class StARSWorkflowByTaskMixin(base_regression._MultitaskRegressionWorkflowMixin
         for k in range(self._n_tasks):
             x = self._task_design[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx])
             y = self._task_response[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx])
+            
+            # Make sure that the priors align to the expression matrix
+            priors_data = self._task_priors[k].reindex(labels=self._targets, axis=0). \
+                reindex(labels=self._regulators, axis=1). \
+                fillna(value=0)
 
             utils.Debug.vprint('Calculating task {k} betas using StARS'.format(k=k), level=0)
-            t_beta, t_br = StARS(x, y, self.random_seed, alphas=self.alphas,
+            t_beta, t_br = StARS(x, y, priors_data, self.random_seed, alphas=self.alphas,
                                  method=self.regress_method,
                                  num_subsamples=self.num_subsamples,
                                  parameters=self.sklearn_params).run()
@@ -263,3 +270,50 @@ class StARSWorkflowByTaskMixin(base_regression._MultitaskRegressionWorkflowMixin
             betas_resc.append(t_br)
 
         return betas, betas_resc
+
+def lasso_stars_regress_dask(X, Y, prior_data, alphas, num_subsamples, random_seed, method, params, G, genes):
+    """
+    Execute regression (LASSO-StARS)
+
+    :return: list
+        Returns a list of regression results that the pileup_data can process
+    """
+    assert MPControl.is_dask()
+
+    from dask import distributed 
+    from inferelator.distributed.dask_functions import DASK_SCATTER_TIMEOUT, process_futures_into_list
+
+    DaskController = MPControl.client
+
+    def regression_maker(j, x, y, priors):
+        level = 0 if j % 100 == 0 else 2
+        utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=genes[j], i=j, total=G), level=level)
+
+        x, y = base_regression.PreprocessData.gene_preprocess(x, y, priors, genes[j])
+
+        data = stars_model_select(x, y, alphas, num_subsamples=num_subsamples,
+                                  method=method, random_seed=random_seed, **params)
+
+        data['ind'] = j
+        return j, data
+
+    # Scatter common data to workers
+    [scatter_x] = DaskController.client.scatter([X.values], broadcast=True, hash=False)
+    [scatter_priors] = DaskController.client.scatter([prior_data], broadcast=True, hash=False)
+
+    # Wait for scattering to finish before creating futures
+    distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
+    distributed.wait(scatter_priors, timeout=DASK_SCATTER_TIMEOUT)
+
+    future_list = [DaskController.client.submit(regression_maker, i, scatter_x,
+                                                Y.get_gene_data(i, force_dense=True, flatten=True),
+                                                scatter_priors)
+                   for i in range(G)]
+
+    # Collect results as they finish instead of waiting for all workers to be done
+    result_list = process_futures_into_list(future_list)
+
+    DaskController.client.cancel(scatter_x)
+    DaskController.client.cancel(scatter_priors)
+
+    return result_list

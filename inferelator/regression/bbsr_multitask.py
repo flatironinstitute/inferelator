@@ -32,7 +32,7 @@ class BBSRByTaskRegressionWorkflowMixin(_MultitaskRegressionWorkflowMixin, BBSRR
             clr_matrix, _ = self.mi_driver().run(Y, X, return_mi=False)
 
             Debug.vprint('Calculating task {k} betas using BBSR'.format(k=k), level=0)
-            t_beta, t_br = BBSR(X, Y, clr_matrix, priors_data,
+            t_beta, t_br = BBSR(X, Y, priors_data, clr_matrix,
                                 prior_weight=self.prior_weight, no_prior_weight=self.no_prior_weight,
                                 nS=self.bsr_feature_num).run()
             betas.append(t_beta)
