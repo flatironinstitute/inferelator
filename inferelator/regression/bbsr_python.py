@@ -95,9 +95,9 @@ class BBSR(BaseRegression):
             utils.Debug.allprint(PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G),
                                  level=level)
 
-            X, Y = PreprocessData.gene_preprocess(self.X.values,
+            X, Y = PreprocessData.gene_preprocess(self.X,
                                                   self.Y.get_gene_data(j, force_dense=True, flatten=True),
-                                                  self.prior_mat, self.genes[j])
+                                                  self.genes[j])
 
             data = bayes_stats.bbsr(X, Y,
                                     self.pp.iloc[j, :].values.flatten(),
@@ -234,11 +234,11 @@ def bbsr_regress_dask(X, Y, pp_mat, weights_mat, prior_data, G, genes, nS, ordin
 
     DaskController = MPControl.client
 
-    def regression_maker(j, x, y, pp, weights, priors, ols):
+    def regression_maker(j, x, y, pp, weights, ols):
         level = 0 if j % 100 == 0 else 2
         utils.Debug.allprint(PROGRESS_STR.format(gn=genes[j], i=j, total=G), level=level)
 
-        x, y = PreprocessData.gene_preprocess(x, y, priors, genes[j])
+        x, y = PreprocessData.gene_preprocess(x, y, genes[j])
 
         data = bayes_stats.bbsr(x, y, pp[j, :].flatten(), weights[j, :].flatten(), nS,
                                 ordinary_least_squares=ols)
@@ -246,20 +246,18 @@ def bbsr_regress_dask(X, Y, pp_mat, weights_mat, prior_data, G, genes, nS, ordin
         return j, data
 
     # Scatter common data to workers
-    [scatter_x] = DaskController.client.scatter([X.values], broadcast=True, hash=False)
+    [scatter_x] = DaskController.client.scatter([X], broadcast=True, hash=False)
     [scatter_pp] = DaskController.client.scatter([pp_mat.values], broadcast=True, hash=False)
     [scatter_weights] = DaskController.client.scatter([weights_mat.values], broadcast=True, hash=False)
-    [scatter_priors] = DaskController.client.scatter([prior_data.values], broadcast=True, hash=False)
 
     # Wait for scattering to finish before creating futures
     distributed.wait(scatter_x, timeout=DASK_SCATTER_TIMEOUT)
     distributed.wait(scatter_pp, timeout=DASK_SCATTER_TIMEOUT)
     distributed.wait(scatter_weights, timeout=DASK_SCATTER_TIMEOUT)
-    distributed.wait(scatter_priors, timeout=DASK_SCATTER_TIMEOUT)
 
     future_list = [DaskController.client.submit(regression_maker, i, scatter_x,
                                                 Y.get_gene_data(i, force_dense=True, flatten=True),
-                                                scatter_pp, scatter_weights, scatter_priors, ordinary_least_squares)
+                                                scatter_pp, scatter_weights, ordinary_least_squares)
                    for i in range(G)]
 
     # Collect results as they finish instead of waiting for all workers to be done
@@ -268,6 +266,5 @@ def bbsr_regress_dask(X, Y, pp_mat, weights_mat, prior_data, G, genes, nS, ordin
     DaskController.client.cancel(scatter_x)
     DaskController.client.cancel(scatter_pp)
     DaskController.client.cancel(scatter_weights)
-    DaskController.client.cancel(scatter_priors)
 
     return result_list

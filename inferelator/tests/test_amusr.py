@@ -199,6 +199,9 @@ class TestAMuSRParams(unittest.TestCase):
                       lambda_Ss=None, scale_data=False, **kwargs):
 
             npt.assert_array_equal(set_Cs, Cs)
+            print(X)
+            print(Y)
+            print(TFs)
 
             return amusr_regression.run_regression_EBIC(X, Y, TFs, tasks, gene, prior, Cs, Ss, lambda_Bs,
                                                         lambda_Ss, scale_data)

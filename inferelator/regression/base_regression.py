@@ -1,11 +1,10 @@
 import numpy as np
-from numpy.lib.arraysetops import isin
 import pandas as pd
 import scipy.stats
 import copy
 
+from inferelator.preprocessing.tfa import remove_gene_from_activity
 from inferelator.utils import Debug, InferelatorData, scale_vector, scale_array
-from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.utils import Validator as check
 
 DEFAULT_CHUNK = 25
@@ -184,16 +183,14 @@ class PreprocessData:
         cls.remove_circularity = remove_circularity
 
     @classmethod
-    def gene_preprocess(cls, X, Y, prior_data, gene):
+    def gene_preprocess(cls, X, Y, gene, tfs=None, scale=True):
         """
         Preprocess data for each individual regression separately
 
         :param X: Calculated activity matrix (from full prior) [N x K]
-        :type X: np.ndarray 
+        :type X: InferelatorData 
         :param Y: Gene expression vector for gene i [N, ]
         :type Y: np.ndarray
-        :param prior_data: Prior matrix dataframe [G, K]
-        :type prior_data: pd.DataFrame
         :param gene: Gene name
         :type gene: str
         :returns: Preprocessed X and Y
@@ -201,12 +198,14 @@ class PreprocessData:
         """
 
         if cls.remove_circularity:
-            X = remove_gene_from_activity(X, Y, prior_data.loc[gene, :].values.flatten())
-            X = cls.scale_array(X, inplace=True)
+            X = remove_gene_from_activity(X, Y, gene, tfs=tfs)
+            X = cls.scale_array(X, inplace=True) if scale else X
+        elif tfs is None:
+            X = cls.scale_array(X.values, inplace=False) if scale else X.values
         else:
-            X = cls.scale_array(X, inplace=False)
+            X = cls.scale_array(X.get_gene_data(tfs), inplace=False) if scale else X.get_gene_data(tfs)
 
-        return X, cls.scale_Y(Y)
+        return X, cls.scale_Y(Y) if scale else Y
 
     @classmethod
     def full_preprocess(cls, X, Y, ddof=1, scale_y=False):
@@ -368,38 +367,3 @@ def bool_to_index(arr):
     """
     assert check.argument_type(arr, np.ndarray)
     return np.where(arr)[0]
-
-
-def remove_gene_from_activity(activity_data, gene_expression_data, prior_data):
-    """
-    Rebuilds activity without the influence of a specific gene
-
-    :param activity_data: Calculated activity matrix (from full prior) [N x K]
-    :type activity_data: np.ndarray 
-    :param gene_expression_data: Gene expression vector for gene i [N, ]
-    :type gene_expression_data: np.ndarray
-    :param prior_data: Prior matrix vector for gene i [K, ]
-    :type prior_data: np.ndarray
-    """
-
-    assert activity_data.ndim == 2
-
-    n, k = activity_data.shape
-
-    if gene_expression_data.size != n:
-        _msg = "Gene expression data expected size {n}; got size {m}".format(n=n, m=gene_expression_data.size)
-        raise ValueError(_msg)
-    else:
-        gene_expression_data = gene_expression_data.reshape(n, 1)
-
-    if prior_data.size != k:
-        _msg = "Prior data expected size {n}; got size {m}".format(n=k, m=prior_data.size)
-        raise ValueError(_msg)
-    else:
-        prior_data = prior_data.reshape(1, k)
-
-    fixed_activity = gene_expression_data @ prior_data
-    fixed_activity *= -1
-    fixed_activity += activity_data
-
-    return fixed_activity

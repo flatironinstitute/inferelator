@@ -12,7 +12,6 @@ from inferelator.utils import Validator as check
 from inferelator import default
 from inferelator.regression.base_regression import (BaseRegression, _MultitaskRegressionWorkflowMixin, PreprocessData,
                                                     PROGRESS_STR)
-
 DEFAULT_prior_weight = 1.0
 DEFAULT_Cs = np.logspace(np.log10(0.01), np.log10(10), 20)[::-1]
 
@@ -29,7 +28,6 @@ def run_regression_EBIC(X, Y, TFs, tasks, gene, prior, Cs=None, Ss=None, lambda_
     """
     Run multitask regression. Search the regularization coefficient space and select the model with the
     lowest eBIC.
-
     :param X: list(np.ndarray [N x K]) [t]
         List consisting of design matrixes for each task
     :param Y: list(np.ndarray [N x 1]) [t]
@@ -158,7 +156,7 @@ class AMuSR_regression(BaseRegression):
         Set up a regression object for multitask regression
         :param X: list(InferelatorData)
         :param Y: list(InferelatorData)
-        :param priors: list(pd.DataFrame [G, K])
+        :param priors: pd.DataFrame [G, K]
         :param prior_weight: float
         :param remove_autoregulation: bool
         :param lambda_Bs: list(float) [None]
@@ -179,7 +177,8 @@ class AMuSR_regression(BaseRegression):
         assert len(X) == len(Y)
 
         # Set the data into the regression object
-        self.X, self.Y = PreprocessData.full_preprocess(X, Y, ddof=0)
+        self.X = scale_list_of_data(X)
+        self.Y = scale_list_of_data(Y)
         self.n_tasks = len(X)
 
         # Set the priors and weight into the regression object
@@ -233,7 +232,8 @@ class AMuSR_regression(BaseRegression):
 
         def regression_maker(j):
             level = 0 if j % 100 == 0 else 2
-            utils.Debug.allprint(PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G), level=level)
+            utils.Debug.allprint(PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G),
+                                 level=level)
 
             gene = self.genes[j]
             x, y, tasks = [], [], []
@@ -244,22 +244,21 @@ class AMuSR_regression(BaseRegression):
                 tfs = self.tfs
 
             for k in range(self.n_tasks):
+                if gene in self.Y[k].gene_names:
 
-                # Skip task if the gene isn't in the expression data
-                if gene not in self.Y[k].gene_names:
-                    continue
-                
-                x_pp, y_pp = PreprocessData.gene_preprocess(self.X[k].get_gene_data(tfs),
-                                                            self.Y[k].get_gene_data(gene, force_dense=True).reshape(-1, 1),
-                                                            self.priors[k], gene)
-                x.append(x_pp)  # list([N, K])
-                y.append(y_pp)
-                tasks.append(k)  # [T,]
-                    
+                    x_pp, y_pp = PreprocessData.gene_preprocess(self.X[k],
+                                                                self.Y[k].get_gene_data(gene, force_dense=True).reshape(-1, 1),
+                                                                gene, tfs=tfs)
+
+                    x.append(x_pp)  # list([N, K])
+                    y.append(y_pp)  # list([N, 1])
+                    tasks.append(k)  # [T,]
+
             prior = format_prior(self.priors, gene, tasks, self.prior_weight, tfs=tfs)
             return regression_function(x, y, tfs, tasks, gene, prior, Cs=self.Cs, Ss=self.Ss,
                                        lambda_Bs=self.lambda_Bs, lambda_Ss=self.lambda_Ss, 
                                        tol=self.tol, rel_tol=self.rel_tol, use_numba=self.use_numba)
+
 
         return MPControl.map(regression_maker, range(self.G))
 
@@ -656,24 +655,22 @@ def scale_list_of_arrays(X):
 
     assert check.argument_type(X, list)
 
-    return [PreprocessData.scale_array(xk, ddof=0, inplace=False) for xk in X]
+    return [StandardScaler().fit_transform(xk.astype(float)) for xk in X]
 
 def scale_list_of_data(X):
     """
     Scale a list of data objects so that each has mean 0 and unit variance
-
     :param X: list(InferelatorData) [T]
     :return X: list(InferelatorData) [T]
     """
 
     assert check.argument_type(X, list)
 
-    return [PreprocessData.scale_array(xk, ddof=0) for xk in X]
+    return [xk.zscore(ddof=0) for xk in X]
 
 class AMUSRRegressionWorkflowMixin(_MultitaskRegressionWorkflowMixin):
     """
     Multi-Task AMuSR regression
-
     https://doi.org/10.1371/journal.pcbi.1006591
     """
 
@@ -691,7 +688,6 @@ class AMUSRRegressionWorkflowMixin(_MultitaskRegressionWorkflowMixin):
                                   tol=None, relative_tol=None, use_numba=None):
         """
         Set regression parameters for AmUSR.
-
         :param prior_weight: Weight for edges that are present in the prior network.
             Non-prior edges have a weight of 1. Set this to 1 to weight prior and non-prior edges equally.
             Defaults to 1.
@@ -909,16 +905,14 @@ def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remov
                        tol=None, rel_tol=None, use_numba=False):
     """
     Execute multitask (AMUSR)
-
     :return: list
         Returns a list of regression results that the amusr_regression pileup_data can process
     """
 
     assert MPControl.is_dask()
 
-    from dask import distributed 
-    from inferelator.distributed.dask_functions import DASK_SCATTER_TIMEOUT, process_futures_into_list
-    
+    import distributed
+    from inferelator.distributed.dask_functions import process_futures_into_list, DASK_SCATTER_TIMEOUT
     DaskController = MPControl.client
 
     # Allows injecting a regression function for testing
@@ -943,13 +937,13 @@ def amusr_regress_dask(X, Y, priors, prior_weight, n_tasks, genes, tfs, G, remov
             if y_data is None:
                 continue
 
-            x_pp, y_pp = PreprocessData.gene_preprocess(x_df[k].get_gene_data(tf), y_data, prior[k], genes[j])
+            x_pp, y_pp = PreprocessData.gene_preprocess(x_df[k], y_data, genes[j], tfs=tf)
+
             x.append(x_pp)  # list([N, K])
             y.append(y_pp)
             tasks.append(k)  # [T,]
 
         prior = format_prior(prior, gene, tasks, prior_weight, tfs=tf)
-
         return j, regression_function(x, y, tf, tasks, gene, prior,
                                       lambda_Bs=lambda_Bs, lambda_Ss=lambda_Ss, Cs=Cs, Ss=Ss, 
                                       tol=tol, rel_tol=rel_tol, use_numba=use_numba)
