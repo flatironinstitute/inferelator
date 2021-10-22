@@ -122,20 +122,27 @@ def remove_gene_from_activity(activity_data, gene_expression_data, gene_name, tf
 
     _gene_is_tf = gene_name in activity_data.gene_names
 
+    if activity_data.tfa_prior_data is None:
+        _msg = "Prior data is missing from activity matrix {an}".format(an=activity_data.name)
+        raise RuntimeError(_msg)
+
     # If the gene didn't influence the activity calculations, just return the current activities
-    if activity_data.tfa_prior_data is None or gene_name not in activity_data.tfa_prior_data.index:
+    if gene_name not in activity_data.tfa_prior_data.index:
         return activity_data.values
 
     # Check and see if the gene is a TF; if it is, check to see if it's expression was used as a proxy for activity
-    if _gene_is_tf and gene_name not in activity_data.tfa_prior_data.columns:
+    if _gene_is_tf and (gene_name not in activity_data.tfa_prior_data.columns or
+                        all(activity_data.tfa_prior_data.loc[:, gene_name] == 0)):
         _gene_tf_idx = activity_data.gene_names.get_loc(gene_name)
         if np.allclose(activity_data.values[:, _gene_tf_idx], gene_expression_data.flatten()):
             activity_data = activity_data.values.copy()
             activity_data[:, _gene_tf_idx] = 0
             return activity_data
 
-    # Edge case check for no prior
-    if min(activity_data.tfa_prior_data.shape) == 0:
+    # Check for no prior
+    if activity_data.tfa_prior_data.size == 0:
+        return activity_data.values
+    elif all(activity_data.tfa_prior_data.loc[gene_name, :] == 0):
         return activity_data.values
 
     # Calculate the prior pseudoinverse
