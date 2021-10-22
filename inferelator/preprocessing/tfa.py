@@ -18,7 +18,6 @@ class TFA:
         :param keep_self: bool
         :return: InferelatorData [N x K]
         """
-
         trim_prior, activity_tfs, expr_tfs = self._check_prior(prior, expression_data, keep_self=keep_self)
 
         activity = np.zeros((expression_data.shape[0], trim_prior.shape[1]), dtype=np.float64)
@@ -38,7 +37,7 @@ class TFA:
                                      meta_data=expression_data.meta_data,
                                      name=data_name)
         
-        acti.prior_data = prior
+        acti.prior_data = prior.copy()
         acti.tfa_prior_data = trim_prior.loc[:, activity_tfs].copy()
 
         return acti
@@ -98,6 +97,7 @@ class NoTFA(TFA):
 
         acti.prior_data = prior
         acti.tfa_prior_data = prior.loc[:, tf_gene_overlap].copy()
+
         return acti
 
 def remove_gene_from_activity(activity_data, gene_expression_data, gene_name, tfs=None):

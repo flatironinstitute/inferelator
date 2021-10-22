@@ -1,3 +1,4 @@
+import re
 import warnings
 import unittest
 import tempfile
@@ -16,8 +17,7 @@ from inferelator.utils import InferelatorData, DotProduct
 from inferelator.preprocessing.metadata_parser import MetadataHandler
 
 
-from dask import distributed
-from inferelator.distributed import dask_local_controller
+from inferelator.regression.base_regression import PreprocessData
 from inferelator.distributed import dask_functions
 
 """

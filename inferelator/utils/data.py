@@ -257,9 +257,15 @@ def apply_window_vector(vec, window, func):
 class InferelatorData(object):
     """ Store inferelator data in an AnnData object. This will always be Samples by Genes """
 
-    name = None
-
     _adata = None
+
+    @property
+    def name(self):
+        return self._adata.uns["name"] if "name" in self._adata.uns else None
+
+    @name.setter
+    def name(self, new_name):
+        self._adata.uns["name"] = new_name
 
     @property
     def _is_integer(self):
@@ -670,8 +676,13 @@ class InferelatorData(object):
         return pd.DataFrame(x, columns=self.gene_names, index=labels) if to_df else x
 
     def get_bootstrap(self, sample_bootstrap_index):
-        return InferelatorData(expression_data=self._adata.X[sample_bootstrap_index, :].copy(),
-                               gene_names=self.gene_names)
+        _bootstrap = self._adata[sample_bootstrap_index, :]
+
+        # Make sure that this is a copy and not a view
+        if _bootstrap.is_view:
+            return InferelatorData(expression_data=_bootstrap.copy())
+        else:
+            return InferelatorData(expression_data=self._adata[sample_bootstrap_index, :])
 
     def get_random_samples(self, num_obs, with_replacement=False, random_seed=None, random_gen=None, inplace=False,
                            fix_names=True):
@@ -870,15 +881,7 @@ class InferelatorData(object):
 
     def copy(self):
 
-        new_data = InferelatorData(self.values.copy(),
-                                   meta_data=self.meta_data.copy(),
-                                   gene_data=self.gene_data.copy())
-
-        new_data._adata.var_names = cp.copy(self._adata.var_names)
-        new_data._adata.obs_names = cp.copy(self._adata.obs_names)
-        new_data._adata.uns = cp.copy(self._adata.uns)
-
-        return new_data
+        return InferelatorData(self._adata.copy())
 
     def to_csc(self):
 
