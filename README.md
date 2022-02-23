@@ -5,7 +5,7 @@
 [![codecov](https://codecov.io/gh/flatironinstitute/inferelator/branch/release/graph/badge.svg)](https://codecov.io/gh/flatironinstitute/inferelator)
 [![Documentation Status](https://readthedocs.org/projects/inferelator/badge/?version=latest)](https://inferelator.readthedocs.io/en/latest/?badge=latest)
 
-The [Inferelator 3.0](https://www.biorxiv.org/content/10.1101/2021.05.03.442499v2) is a package for gene regulatory network inference that is based on regularized regression. 
+The [Inferelator 3.0](https://doi.org/10.1093/bioinformatics/btac117) is a package for gene regulatory network inference that is based on regularized regression. 
 It is an update of the [Inferelator 2.0](https://ieeexplore.ieee.org/document/5334018), which is an update of the original [Inferelator](https://doi.org/10.1186/gb-2006-7-5-r36)
 It is maintained by the Bonneau lab in the [Systems Biology group of the Flatiron Institute](https://www.simonsfoundation.org/flatiron/center-for-computational-biology/systems-biology/).
 
@@ -27,4 +27,4 @@ Documentation is available at [https://inferelator.readthedocs.io](https://infer
 basic workflows for ***Bacillus subtilis*** and ***Saccharomyces cerevisiae*** are included with a tutorial. 
 
 All current example data and scripts are available from Zenodo 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3355524.svg)](https://doi.org/10.5281/zenodo.3355524)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3355524.svg)](https://doi.org/10.5281/zenodo.3355524).
