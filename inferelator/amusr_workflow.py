@@ -72,7 +72,7 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
     @property
     def _gene_names(self):
         if self._task_objects is not None:
-            return set().union([t if t is not None else [] for t in map(lambda x: x.data.gene_names, self._task_objects)])
+            return set(pd.concat([t if t is not None else [] for t in map(lambda x: pd.Series(x.data.gene_names), self._task_objects)]).drop_duplicates())
         else:
             return None
 
