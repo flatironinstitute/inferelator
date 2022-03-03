@@ -64,6 +64,8 @@ class SCENICWorkflow(SingleCellWorkflow):
     _feather_rank_file = None
     _motif_link_table_file = None
 
+    _do_preprocessing = True
+
     @property
     def tmp_dir(self):
 
@@ -84,15 +86,17 @@ class SCENICWorkflow(SingleCellWorkflow):
         self._feather_rank_file = self.create_feather_file_from_prior()
         self._motif_link_table_file = self.create_motif_table_from_prior()
 
-        utils.Debug.vprint("Preprocessing data")
+        if self._do_preprocessing:
+            utils.Debug.vprint("Preprocessing data")
 
-        sc.pp.filter_cells(self.data._adata, min_genes=200)
-        sc.pp.filter_genes(self.data._adata, min_cells=3)
+            sc.pp.filter_cells(self.data._adata, min_genes=200)
+            sc.pp.filter_genes(self.data._adata, min_cells=3)
 
-        self.data.convert_to_float()
+            self.data.convert_to_float()
 
-        sc.pp.normalize_per_cell(self.data._adata, counts_per_cell_after=1e4)
-        sc.pp.log1p(self.data._adata)
+            sc.pp.normalize_per_cell(self.data._adata, counts_per_cell_after=1e4)
+            sc.pp.log1p(self.data._adata)
+        
         sc.pp.scale(self.data._adata, max_value=10)
 
 
@@ -145,7 +149,7 @@ class SCENICRegression(_RegressionWorkflowMixin):
         # Get adjacencies
         adj_method = ADJ_METHODS[self.adjacency_method]
 
-        if MPControl.is_dask:
+        if MPControl.is_dask():
             client_or_address = MPControl.client.client
             MPControl.client.check_cluster_state()
         else:

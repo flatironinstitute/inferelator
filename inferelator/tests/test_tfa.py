@@ -1,13 +1,16 @@
 import unittest
 from inferelator.preprocessing import tfa
-from inferelator.utils import InferelatorData
+from inferelator.regression.base_regression import PreprocessData, remove_gene_from_activity
+from inferelator.utils import InferelatorData, scale_array
 import pandas as pd
 import numpy as np
+import numpy.testing as npt
+from scipy import linalg
 
 units_in_the_last_place_tolerance = 15
 
 
-class TestTFA(unittest.TestCase):
+class TFASetup:
 
     # Test for 5 genes, one of which is a TF, 5 condidtions, and 4 TFs.
     # where tau is equal to 1, so expression_matrix and expression_matrix_halftau are equivalent
@@ -57,6 +60,9 @@ class TestTFA(unittest.TestCase):
     def drop_prior(self):
         self.priors = self.priors.drop(self.priors.columns, axis=1)
 
+
+class TestTFA(unittest.TestCase, TFASetup):
+
     # TODO: should this raise an error?
     def test_priors_no_columns(self):
         self.setup_one_column()
@@ -69,7 +75,7 @@ class TestTFA(unittest.TestCase):
         self.setup_one_column()
         self.priors['tf1'] = [0, 0, 0]
         activities = tfa.TFA().compute_transcription_factor_activity(self.priors, self.exp)
-        np.testing.assert_equal(activities.expression_data.T, [[1, 2]])
+        npt.assert_equal(activities.expression_data.T, [[1, 2]])
 
     # add a duplicate TF column to the priors matrix
     # verifying that self interaction remains
@@ -129,3 +135,74 @@ class TestTFA(unittest.TestCase):
                                              [-1.257265, -1.611675, -1.348145, -1.196210, -1.35857],
                                              [1.706100, 1.765225, 1.739675, 1.791075, 1.70055]]),
                                    atol=1e-15)
+
+
+class TestTFARemoveCirc(unittest.TestCase, TFASetup):
+
+    def test_zero_prior(self):
+
+        self.setup_mouse_th17()
+        self.priors = pd.DataFrame(np.zeros_like(self.priors), index=self.priors.index, columns=self.priors.columns)
+
+        activities = tfa.TFA().compute_transcription_factor_activity(self.priors, self.exp)
+
+        for n in self.exp.gene_names:
+            new_activity = remove_gene_from_activity(activities,
+                                                     self.exp.get_gene_data(n),
+                                                     n)
+            npt.assert_array_almost_equal(new_activity, activities.values)
+
+            PreprocessData.set_preprocessing(remove_circularity=True)
+
+            new_preprocess_activity, _ = PreprocessData.gene_preprocess(activities,
+                                                                        self.exp.get_gene_data(n),
+                                                                        n,
+                                                                        scale=False)
+
+            npt.assert_array_almost_equal(new_preprocess_activity, activities.values)
+
+            new_preprocess_activity, _ = PreprocessData.gene_preprocess(activities,
+                                                                        self.exp.get_gene_data(n),
+                                                                        n,
+                                                                        scale=True)
+
+            npt.assert_array_almost_equal(new_preprocess_activity, scale_array(activities.values, inplace=False))
+
+            PreprocessData.set_preprocessing(remove_circularity=False)
+
+
+    def test_nonzero_prior(self):
+
+        self.setup_mouse_th17()
+        activities = tfa.TFA().compute_transcription_factor_activity(self.priors, self.exp, keep_self=True)
+        
+        for n in self.exp.gene_names:
+
+            p, k = activities.shape
+
+            no_gene_exp = self.exp.to_df()
+            no_gene_exp.loc[:, n] = 0
+            zero_gene_act = tfa.TFA().compute_transcription_factor_activity(self.priors, InferelatorData(no_gene_exp))
+
+            new_activity = remove_gene_from_activity(activities,
+                                                     self.exp.get_gene_data(n),
+                                                     n)
+            npt.assert_array_almost_equal(new_activity, zero_gene_act.values)
+
+            PreprocessData.set_preprocessing(remove_circularity=True)
+
+            new_preprocess_activity, _ = PreprocessData.gene_preprocess(activities,
+                                                                        self.exp.get_gene_data(n),
+                                                                        n,
+                                                                        scale=False)
+
+            npt.assert_array_almost_equal(new_preprocess_activity, zero_gene_act.values)
+
+            new_preprocess_activity, _ = PreprocessData.gene_preprocess(activities,
+                                                                        self.exp.get_gene_data(n),
+                                                                        n,
+                                                                        scale=True)
+
+            npt.assert_array_almost_equal(new_preprocess_activity, scale_array(zero_gene_act.values, inplace=False))
+
+            PreprocessData.set_preprocessing(remove_circularity=False)

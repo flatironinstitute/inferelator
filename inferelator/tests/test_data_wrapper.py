@@ -3,7 +3,7 @@ import pandas as pd
 import pandas.testing as pdt
 import numpy as np
 import numpy.testing as npt
-from scipy import sparse, linalg
+from scipy import sparse, linalg, stats
 from anndata import AnnData
 from inferelator.tests.artifacts.test_data import TestDataSingleCellLike, CORRECT_GENES_INTERSECT, CORRECT_GENES_NZ_VAR
 from inferelator.utils import InferelatorData
@@ -360,6 +360,21 @@ class TestFunctions(TestWrapperSetup):
         self.assertFalse(sparse.isspmatrix_csc(self.adata_sparse.expression_data))
         self.assertTrue(sparse.isspmatrix_csr(self.adata_sparse.expression_data))
 
+    def test_zscore_axis0(self):
+        correct = stats.zscore(self.adata._data, axis=0, ddof=1)
+        self.adata.zscore()
+        self.adata_sparse.zscore()
+
+        npt.assert_array_almost_equal(correct, self.adata._data)
+        npt.assert_array_almost_equal(correct, self.adata_sparse._data)
+
+    def test_zscore_axis1(self):
+        correct = stats.zscore(self.adata._data, axis=1, ddof=1)
+        self.adata.zscore(axis=1)
+        self.adata_sparse.zscore(axis=1)
+
+        npt.assert_array_almost_equal(correct, self.adata._data)
+        npt.assert_array_almost_equal(correct, self.adata_sparse._data)
 
 class TestSampling(TestWrapperSetup):
 

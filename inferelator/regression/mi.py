@@ -97,7 +97,6 @@ def mutual_information(x, y, bins, logtype=DEFAULT_LOG_TYPE):
 
     # Build the MI matrix
     if MPControl.is_dask():
-        from inferelator.distributed.dask_functions import build_mi_array_dask
         return build_mi_array_dask(x, y, bins, logtype=logtype)
     else:
         return build_mi_array(x, y, bins, logtype=logtype)
@@ -267,3 +266,57 @@ def _calc_mi(table, logtype=DEFAULT_LOG_TYPE):
 
         # Summation
         return np.sum(mi_val, axis=(0, 1))
+
+
+def build_mi_array_dask(X, Y, bins, logtype):
+    """
+    Calculate MI into an array with dask (the naive map is very inefficient)
+
+    :param X: np.ndarray (n x m1)
+        Discrete array of bins
+    :param Y: np.ndarray (n x m2)
+        Discrete array of bins
+    :param bins: int
+        The total number of bins that were used to make the arrays discrete
+    :param logtype: np.log func
+        Which log function to use (log2 gives bits, ln gives nats)
+    :return mi: np.ndarray (m1 x m2)
+        Returns the mutual information array
+    """
+
+    assert MPControl.is_dask()
+
+    from dask import distributed 
+    from inferelator.distributed.dask_functions import DASK_SCATTER_TIMEOUT, process_futures_into_list
+
+    # Get a reference to the Dask controller
+    DaskController = MPControl.client
+
+    m1, m2 = X.shape[1], Y.shape[1]
+
+    def mi_make(i, x, y):
+        x = _make_discrete(x, bins)
+        return i, [_calc_mi(_make_table(x, y[:, j], bins), logtype=logtype) for j in range(m2)]
+
+    # Scatter Y to workers and keep track as Futures
+    [scatter_y] = DaskController.client.scatter([Y], broadcast=True, hash=False)
+
+    # Wait for scattering to finish before creating futures
+    distributed.wait(scatter_y, timeout=DASK_SCATTER_TIMEOUT)
+
+    # Build an asynchronous list of Futures for each calculation of mi_make
+    future_list = [DaskController.client.submit(mi_make, i,
+                                                X[:, i].A.flatten() if sps.isspmatrix(X) else X[:, i].flatten(),
+                                                scatter_y)
+                   for i in range(m1)]
+
+    # Collect results as they finish instead of waiting for all workers to be done
+    mi_list = process_futures_into_list(future_list)
+
+    # Convert the list of lists to an array
+    mi = np.array(mi_list)
+    assert (m1, m2) == mi.shape, "Array {sh} produced [({m1}, {m2}) expected]".format(sh=mi.shape, m1=m1, m2=m2)
+
+    DaskController.client.cancel(scatter_y)
+
+    return mi

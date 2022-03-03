@@ -3,6 +3,8 @@ from __future__ import print_function, unicode_literals, division
 import copy as cp
 import gc
 import math
+from typing import Type
+import warnings
 import pandas as pd
 import numpy as np
 import scipy.sparse as sparse
@@ -202,6 +204,39 @@ def scale_vector(vec, ddof=1):
         return scipy.stats.zscore(vec, axis=None, ddof=ddof)
 
 
+def scale_array(arr, ddof=1, axis=0, inplace=True):
+    """
+    Take an array and scale it to a mean 0 and standard deviation 1
+
+    :param arr: A 2d array to be normalized
+    :type arr: np.ndarray
+    :param ddof: The delta degrees of freedom for variance calculation, defaults to 1
+    :type ddof: int, optional
+    :param axis: The array axis to normalize, defaults to 0
+    :type axis: int, optional
+    :param inplace: Scale in place, replacing existing data
+    :type inplace: bool
+    :returns arr: Returns a reference to the array changed in place or a new array
+    :rtype: np.ndarray
+    """
+
+    if inplace:
+
+        if axis == 0:
+            for i in range(arr.shape[1]):
+                arr[:, i] = scale_vector(arr[:, i], ddof=ddof)
+        elif axis == 1:
+            for i in range(arr.shape[0]):
+                arr[i, :] = scale_vector(arr[i, :], ddof=ddof)
+        else:
+            raise ValueError("axis must be 0 or 1")
+
+    else:
+
+        arr = np.apply_along_axis(scale_vector, axis, arr, ddof=ddof)
+
+    return arr
+
 def apply_window_vector(vec, window, func):
     """
     Apply a function to a 1d array by windows.
@@ -222,9 +257,15 @@ def apply_window_vector(vec, window, func):
 class InferelatorData(object):
     """ Store inferelator data in an AnnData object. This will always be Samples by Genes """
 
-    name = None
-
     _adata = None
+
+    @property
+    def name(self):
+        return self._adata.uns["name"] if "name" in self._adata.uns else None
+
+    @name.setter
+    def name(self, new_name):
+        self._adata.uns["name"] = new_name
 
     @property
     def _is_integer(self):
@@ -262,6 +303,22 @@ class InferelatorData(object):
             return self._adata.X.data.nbytes + self._adata.X.indices.nbytes + self._adata.X.indptr.nbytes
         else:
             return self._adata.X.nbytes
+
+    @property
+    def prior_data(self):
+        return self._adata.uns["prior_data"] if "prior_data" in self._adata.uns else None
+
+    @prior_data.setter
+    def prior_data(self, new_prior):
+        self._adata.uns["prior_data"] = new_prior
+
+    @property
+    def tfa_prior_data(self):
+        return self._adata.uns["tfa_prior_data"] if "tfa_prior_data" in self._adata.uns else None
+
+    @tfa_prior_data.setter
+    def tfa_prior_data(self, new_prior):
+        self._adata.uns["tfa_prior_data"] = new_prior
 
     @property
     def meta_data(self):
@@ -564,25 +621,30 @@ class InferelatorData(object):
 
     def get_gene_data(self, gene_list, copy=False, force_dense=False, to_df=False, zscore=False, flatten=False):
 
-        x = self._adata[:, gene_list]
-        labels = x.var_names
+        # Directly index the underlying data structure
+        # AnnData ArrayViews can cause problems downstream
+        if isinstance(gene_list, int):
+            idx = gene_list
+        else:
+            try:
+                idx = self._adata.var_names.get_loc(gene_list)
+            except TypeError:
+                idx = self._adata.var_names.get_indexer(gene_list)
+
+        x = self._adata.X[:, idx]
+        labels = self._adata.var_names[idx]
 
         if (force_dense or to_df or zscore) and self.is_sparse:
-            x = x.X.A
+            x = x.A
             copy = False # Don't need to force a copy now
         else:
-            x = x.X
+            pass
 
         if zscore:
             
             # Z-score the values
-            z_x = np.subtract(x, self.obs_means.reshape(-1, 1))
-            z_x = np.divide(z_x, self.obs_stdev.reshape(-1, 1))
-
-            # Replace the x reference with the new values
-            del x
-            x = z_x
-
+            x = np.subtract(x, self.obs_means.reshape(-1, 1))
+            x = np.divide(x, self.obs_stdev.reshape(-1, 1))
             copy = False # Don't need to force a copy now
 
         if flatten and x.ndim == 2:
@@ -590,7 +652,8 @@ class InferelatorData(object):
         elif (flatten and x.ndim == 1) or copy:
             new_x = x.copy() # Explicit copy
         else:
-            new_x = x
+            # Make sure that the data is an array, not an anndata weird slicey thing
+            new_x = x.toarray() if hasattr(x, "toarray") else x
 
         return pd.DataFrame(new_x, columns=labels, index=self.sample_names) if to_df else new_x
 
@@ -613,8 +676,13 @@ class InferelatorData(object):
         return pd.DataFrame(x, columns=self.gene_names, index=labels) if to_df else x
 
     def get_bootstrap(self, sample_bootstrap_index):
-        return InferelatorData(expression_data=self._adata.X[sample_bootstrap_index, :].copy(),
-                               gene_names=self.gene_names)
+        _bootstrap = self._adata[sample_bootstrap_index, :]
+
+        # Make sure that this is a copy and not a view
+        if _bootstrap.is_view:
+            return InferelatorData(expression_data=_bootstrap.copy())
+        else:
+            return InferelatorData(expression_data=self._adata[sample_bootstrap_index, :])
 
     def get_random_samples(self, num_obs, with_replacement=False, random_seed=None, random_gen=None, inplace=False,
                            fix_names=True):
@@ -807,26 +875,13 @@ class InferelatorData(object):
         self.convert_to_float()
         self.to_dense()
 
-        if axis == 0:
-            for i in range(self.shape[1]):
-                self._data[:, i] = scale_vector(self._data[:, i], ddof=ddof)
-        elif axis == 1:
-            for i in range(self.shape[0]):
-                self._data[i, :] = scale_vector(self._data[i, :], ddof=ddof)
+        scale_array(self._data, ddof=ddof, axis=axis)
 
         return self
 
     def copy(self):
 
-        new_data = InferelatorData(self.values.copy(),
-                                   meta_data=self.meta_data.copy(),
-                                   gene_data=self.gene_data.copy())
-
-        new_data._adata.var_names = cp.copy(self._adata.var_names)
-        new_data._adata.obs_names = cp.copy(self._adata.obs_names)
-        new_data._adata.uns = cp.copy(self._adata.uns)
-
-        return new_data
+        return InferelatorData(self._adata.copy())
 
     def to_csc(self):
 

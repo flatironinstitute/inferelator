@@ -824,14 +824,17 @@ class WorkflowBase(WorkflowBaseLoader):
         """
         Set parameters used during runtime
 
-        :param num_bootstraps: The number of bootstraps to run. Defaults to 2.
+        :param num_bootstraps: 
+Requires numba to be installed if set. Currently only accelerates AMuSR regression. :type use_numba: bool
+
+The number of bootstraps to run. Defaults to 2.
         :type num_bootstraps: int
         :param random_seed: The random number seed to use. Defaults to 42.
         :type random_seed: int
         :param use_mkl: A flag to indicate if the intel MKL library should be used for matrix multiplication
         :type use_mkl: bool
         :param use_numba: A flag to indicate if numba should be used to accelerate the calculations.
-        Requires numba to be installed if set. Currently only accelerates AMuSR regression.
+            Requires numba to be installed if set. Currently only accelerates AMuSR regression.
         :type use_numba: bool
         """
 

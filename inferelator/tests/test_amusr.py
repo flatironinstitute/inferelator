@@ -93,7 +93,9 @@ class TestAMuSRRegresionEBIC:
 
         res = [InferelatorData(pd.DataFrame(np.array([[1, 1], [2, 2], [3, 3]]).astype(float), columns=targets1)),
                InferelatorData(pd.DataFrame(np.array([[1, 1], [2, 2], [3, 3]]).astype(float), columns=targets2))]
-        priors = pd.DataFrame([[0, 1, 1], [1, 0, 1], [1, 0, 1]], index=targets, columns=tfs)
+
+        priors = [pd.DataFrame([[0, 1, 1], [1, 0, 1], [1, 0, 1]], index=targets, columns=tfs),
+                  pd.DataFrame([[0, 1, 1], [1, 0, 1], [1, 0, 1]], index=targets, columns=tfs)]
 
         r = amusr_regression.AMuSR_regression(des, res, tfs=tfs, genes=targets, priors=priors, use_numba=self.use_numba)
 
@@ -138,15 +140,16 @@ class TestAMuSRParams(unittest.TestCase):
             InferelatorData(pd.DataFrame(np.array([[1, 3], [2, 3], [3, 3]]).astype(float), columns=targets))
         ]
 
-        self.priors_data = pd.DataFrame([[0, 1, 1], [1, 0, 1]], index=targets, columns=tfs)
-        self.gold_standard = self.priors_data.copy()
+        self.priors_data = [pd.DataFrame([[0, 1, 1], [1, 0, 1]], index=targets, columns=tfs),
+                            pd.DataFrame([[0, 1, 1], [1, 0, 1]], index=targets, columns=tfs)]
+        self.gold_standard = self.priors_data[0].copy()
 
     def test_lamb_b(self):
 
         lamb_b = np.arange(0, 5, dtype=float)
 
         regress = amusr_regression.AMuSR_regression(self.workflow._task_design, self.workflow._task_response,
-                                                    priors=self.workflow.priors_data, lambda_Bs=lamb_b)
+                                                    priors=self.priors_data, lambda_Bs=lamb_b)
 
         def is_passed(X, Y, TFs, tasks, gene, prior, Cs=None, Ss=None, lambda_Bs=None,
                       lambda_Ss=None, scale_data=False, **kwargs):
@@ -168,7 +171,7 @@ class TestAMuSRParams(unittest.TestCase):
         lamb_s = np.arange(0, 5, dtype=float)
 
         regress = amusr_regression.AMuSR_regression(self.workflow._task_design, self.workflow._task_response,
-                                                    priors=self.workflow.priors_data, lambda_Ss=lamb_s)
+                                                    priors=self.priors_data, lambda_Ss=lamb_s)
 
         def is_passed(X, Y, TFs, tasks, gene, prior, Cs=None, Ss=None, lambda_Bs=None,
                       lambda_Ss=None, scale_data=False,  **kwargs):
@@ -190,12 +193,15 @@ class TestAMuSRParams(unittest.TestCase):
         set_Cs = np.arange(0, 5, dtype=float) / 10
 
         regress = amusr_regression.AMuSR_regression(self.workflow._task_design, self.workflow._task_response,
-                                                    priors=self.workflow.priors_data, Cs=set_Cs)
+                                                    priors=self.priors_data, Cs=set_Cs)
 
         def is_passed(X, Y, TFs, tasks, gene, prior, Cs=None, Ss=None, lambda_Bs=None,
                       lambda_Ss=None, scale_data=False, **kwargs):
 
             npt.assert_array_equal(set_Cs, Cs)
+            print(X)
+            print(Y)
+            print(TFs)
 
             return amusr_regression.run_regression_EBIC(X, Y, TFs, tasks, gene, prior, Cs, Ss, lambda_Bs,
                                                         lambda_Ss, scale_data)
