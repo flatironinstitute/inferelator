@@ -1,6 +1,13 @@
 Change Log
 ==========
 
+Inferelator v0.5.8 `February  23, 2022`
+---------------------------------------
+
+Bug Fixes:
+
+- Corrected combining multi-task gene and tf labels
+
 Inferelator v0.5.7 `September 29, 2021`
 ---------------------------------------
 

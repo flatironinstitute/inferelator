@@ -5,6 +5,8 @@ import copy
 import gc
 import warnings
 import pandas as pd
+import functools
+
 from inferelator import utils
 
 from inferelator.utils import Debug
@@ -57,24 +59,46 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
 
     @property
     def _num_genes(self):
-        if self._task_objects is not None:
-            return max([t if t is not None else 0 for t in map(lambda x: x._num_genes, self._task_objects)])
-        else:
-            return None
+        genes = self._gene_names
+        return len(genes) if genes is not None else None
+
 
     @property
     def _num_tfs(self):
-        if self._task_objects is not None:
-            return max([t if t is not None else 0 for t in map(lambda x: x._num_tfs, self._task_objects)])
+        tfs = self._tf_names
+        return len(tfs) if tfs is not None else None
+
+    @property
+    def _tf_names(self):
+        # Use column names from design data objects which have TF columns
+        if self._task_design is not None:
+            task_ref = [t.gene_names for t in self._task_design]
+
+        # Use the tf_names list if design isn't calculated yet
+        elif self._task_objects is not None:
+            task_ref = [pd.Index(t.tf_names) for t in self._task_objects if t.tf_names is not None]
+
         else:
             return None
 
+        # Intersect each task's tf indices
+        return functools.reduce(lambda x, y: x.intersection(y), task_ref) if len(task_ref) > 0 else None
+
     @property
     def _gene_names(self):
-        if self._task_objects is not None:
-            return set(pd.concat([t if t is not None else [] for t in map(lambda x: pd.Series(x.data.gene_names), self._task_objects)]).drop_duplicates())
+        # Use column names from response data objects which have gene columns
+        if self._task_response is not None:
+            task_ref = [t.gene_names for t in self._task_response]
+
+        # Use the raw gene expression data if response isn't calculated yet
+        elif self._task_objects is not None:
+            task_ref = [t.data.gene_names for t in self._task_objects if t.data is not None]
+        
         else:
             return None
+
+        # Intersect each task's gene indices
+        return functools.reduce(lambda x, y: x.intersection(y), task_ref) if len(task_ref) > 0 else None
 
     def set_task_filters(self, regulator_expression_filter=None, target_expression_filter=None):
         """

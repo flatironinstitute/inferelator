@@ -1,15 +1,9 @@
 import unittest
 import os
-import tempfile
-import shutil
 import numpy as np
 import pandas as pd
-import anndata as ad
-import scipy.sparse as sps
 import pandas.testing as pdt
-import numpy.testing as npt
 import copy
-import string
 
 from inferelator import workflow
 from inferelator.amusr_workflow import MultitaskLearningWorkflow
@@ -85,6 +79,23 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.assertEqual(self.workflow._num_genes, task_genes)
         self.assertEqual(self.workflow._num_tfs, task_tfs)
 
+    def test_name_props(self):
+        self.assertIsNone(self.workflow._gene_names)
+        self.assertIsNone(self.workflow._tf_names)
+
+        task_tfs = TaskDataStub().priors_data.columns.tolist()
+        task_genes = TaskDataStub().data.gene_names.tolist()
+
+        self.workflow._task_objects = [TaskDataStub(), TaskDataStub(), TaskDataStub()]
+
+        self.assertListEqual(self.workflow._gene_names.tolist(), task_genes)
+        self.assertListEqual(self.workflow._tf_names.tolist(), task_tfs)
+
+        self.workflow.startup()
+
+        self.assertListEqual(self.workflow._gene_names.tolist(), ["gene1", "gene2", "gene4", "gene6"])
+        self.assertListEqual(self.workflow._tf_names.tolist(), task_tfs)        
+
     def test_align_parent_priors(self):
         self.workflow._process_default_priors()
 
@@ -102,7 +113,6 @@ class TestAMuSRWorkflow(unittest.TestCase):
         self.workflow.set_crossvalidation_parameters(split_gold_standard_for_crossvalidation=True, cv_split_ratio=0.2)
         self.workflow._process_default_priors()
 
-        gs_genes = self.workflow.gold_standard.shape[0]
         self.workflow._task_objects = [copy.deepcopy(TaskDataStub()),
                                        copy.deepcopy(TaskDataStub()),
                                        copy.deepcopy(TaskDataStub())]
