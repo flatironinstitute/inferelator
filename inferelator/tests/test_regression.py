@@ -181,7 +181,10 @@ class TestMultitaskFactory(SetUpDenseDataMTL):
 
     def test_mtl_bbsr(self):
         self.workflow = workflow.inferelator_workflow(workflow="multitask", regression="bbsr")
-        self.workflow.set_regression_parameters(prior_weight=1.)
+
+        with self.assertWarns(Warning):
+            self.workflow.set_regression_parameters(prior_weight=1.)
+
         self.reset_workflow()
 
         self.workflow.run()
@@ -243,7 +246,7 @@ class TestSTLDask(SwitchToDask, TestSingleTaskRegressionFactory):
         np.testing.assert_almost_equal(mi, expected)
 
 
-class TestSTLDask(SwitchToDask, TestSingleTaskRegressionFactorySparse):
+class TestSTLSparseDask(SwitchToDask, TestSingleTaskRegressionFactorySparse):
     pass
 
 

@@ -36,14 +36,15 @@ class TestWorkflowSetParameters(unittest.TestCase):
         self.assertIsNone(self.workflow.input_dir)
         self.assertIsNone(self.workflow.output_dir)
 
-        self.workflow.set_file_paths(expression_matrix_file="A",
-                                     tf_names_file="B",
-                                     meta_data_file="C",
-                                     priors_file="D",
-                                     gold_standard_file="E",
-                                     gene_metadata_file="F",
-                                     input_dir="G",
-                                     output_dir="H")
+        with self.assertWarns(Warning):
+            self.workflow.set_file_paths(expression_matrix_file="A",
+                                         tf_names_file="B",
+                                         meta_data_file="C",
+                                         priors_file="D",
+                                         gold_standard_file="E",
+                                         gene_metadata_file="F",
+                                         input_dir="G",
+                                         output_dir="H")
 
         self.assertListEqual([self.workflow.expression_matrix_file,
                               self.workflow.tf_names_file,
@@ -499,12 +500,16 @@ class TestWorkflowFactory(unittest.TestCase):
     def test_bad_inputs(self):
         with self.assertRaises(ValueError):
             worker = workflow.inferelator_workflow(regression="restlne", workflow=workflow.WorkflowBase)
+
         with self.assertRaises(ValueError):
             worker = workflow.inferelator_workflow(regression=1, workflow=workflow.WorkflowBase)
+
         with self.assertRaises(ValueError):
             worker = workflow.inferelator_workflow(regression=_RegressionWorkflowMixin, workflow="restlne")
+
         with self.assertRaises(ValueError):
             worker = workflow.inferelator_workflow(regression=_RegressionWorkflowMixin, workflow=None)
+            
         with self.assertRaises(ValueError):
             worker = workflow.inferelator_workflow(regression=_RegressionWorkflowMixin, workflow=1)
 

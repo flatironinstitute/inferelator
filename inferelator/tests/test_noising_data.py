@@ -119,15 +119,13 @@ class NoiseWorkflowData(unittest.TestCase):
             task1 = wkf.create_task(input_dir=os.path.join(my_dir, "../../data/dream4"),
                                     expression_matrix_file="expression.tsv",
                                     meta_data_file="meta_data.tsv",
-                                    priors_file="gold_standard.tsv",
-                                    gold_standard_file="gold_standard.tsv")
+                                    priors_file="gold_standard.tsv")
             task1.set_file_properties(expression_matrix_columns_are_genes=False)
 
             task2 = wkf.create_task(input_dir=os.path.join(my_dir, "../../data/dream4"),
                                     expression_matrix_file="expression.tsv",
                                     meta_data_file="meta_data.tsv",
-                                    priors_file="gold_standard.tsv",
-                                    gold_standard_file="gold_standard.tsv")
+                                    priors_file="gold_standard.tsv")
             task2.set_file_properties(expression_matrix_columns_are_genes=False)
 
         wk = inferelator_workflow(regression=FakeRegressionMixin, workflow="multitask")

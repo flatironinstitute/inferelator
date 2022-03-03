@@ -66,8 +66,18 @@ class InferelatorDataLoader(object):
                       meta_data_handler=DEFAULT_METADATA, gene_data_file=None, gene_name_column=None):
 
         data = anndata.read_mtx(self.input_path(mtx_file))
-        row_names = self._load_list_from_file(self.input_path(mtx_obs)) if mtx_obs is not None else None
-        col_names = self._load_list_from_file(self.input_path(mtx_feature)) if mtx_feature is not None else None
+
+        # Load observation names if provided
+        if mtx_obs is not None:
+            row_names = list(map(str, self._load_list_from_file(self.input_path(mtx_obs))))
+        else:
+            row_names = None
+
+        # Load gene names if provided
+        if mtx_feature is not None:
+            col_names = list(map(str, self._load_list_from_file(self.input_path(mtx_feature))))
+        else:
+            col_names = None
 
         meta_data = self.load_metadata_tsv(meta_data_file, data.obs_names, meta_data_handler=meta_data_handler)
         gene_metadata = self.load_gene_metadata_tsv(gene_data_file, gene_name_column)

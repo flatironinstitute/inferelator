@@ -28,11 +28,11 @@ def ridge(x, y, alpha, ridge_threshold=1e-2, **kwargs):
 
 def _regress(x, y, alpha, regression, **kwargs):
     if alpha == 0:
-        return _LinearRegression(normalize=False).fit(x, y).coef_
+        return _LinearRegression().fit(x, y).coef_
     else:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            return regression(alpha=alpha, fit_intercept=False, normalize=False, **kwargs).fit(x, y).coef_
+            return regression(alpha=alpha, fit_intercept=False, **kwargs).fit(x, y).coef_
 
 
 def stars_model_select(x, y, alphas, threshold=_DEFAULT_THRESHOLD, num_subsamples=_DEFAULT_NUM_SUBSAMPLES,

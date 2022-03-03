@@ -541,6 +541,10 @@ class WorkflowBaseLoader(object):
             self.loaded_file_info("Priors data", self.priors_data)
             self._check_network_labels_unique("Priors_data", priors_file, self.priors_data)
 
+            # Add to the data object if loaded
+            if self.data is not None:
+                self.data.prior_data = self.priors_data.copy()
+
         if gold_standard_file is not None:
 
             Debug.vprint("Loading gold_standard data from file {file}".format(file=gold_standard_file), level=1)

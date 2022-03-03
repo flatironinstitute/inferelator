@@ -264,6 +264,22 @@ class InferelatorData(object):
             return self._adata.X.nbytes
 
     @property
+    def prior_data(self):
+        return self._adata.uns["prior_data"] if "prior_data" in self._adata.uns else None
+
+    @prior_data.setter
+    def prior_data(self, new_prior):
+        self._adata.uns["prior_data"] = new_prior
+
+    @property
+    def tfa_prior_data(self):
+        return self._adata.uns["tfa_prior_data"] if "tfa_prior_data" in self._adata.uns else None
+
+    @tfa_prior_data.setter
+    def tfa_prior_data(self, new_prior):
+        self._adata.uns["tfa_prior_data"] = new_prior
+
+    @property
     def meta_data(self):
         return self._adata.obs
 
