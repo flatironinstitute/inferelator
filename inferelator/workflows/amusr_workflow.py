@@ -11,7 +11,7 @@ from inferelator import utils
 
 from inferelator.utils import Debug
 from inferelator import workflow
-from inferelator import single_cell_workflow
+from inferelator.workflows import single_cell_workflow
 from inferelator.regression import amusr_regression
 from inferelator.postprocessing.results_processor_mtl import ResultsProcessorMultiTask
 

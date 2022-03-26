@@ -14,12 +14,17 @@ import pandas.testing as pdt
 import numpy.testing as npt
 
 from inferelator import workflow
-from inferelator import default
 from inferelator.regression.base_regression import _RegressionWorkflowMixin
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.preprocessing.metadata_parser import MetadataParserBranching
 
 my_dir = os.path.dirname(__file__)
+
+DEFAULT_EXPRESSION_FILE = "expression.tsv"
+DEFAULT_TFNAMES_FILE = "tf_names.tsv"
+DEFAULT_METADATA_FILE = "meta_data.tsv"
+DEFAULT_PRIORS_FILE = "gold_standard.tsv"
+DEFAULT_GOLDSTANDARD_FILE = "gold_standard.tsv"
 
 
 class TestWorkflowSetParameters(unittest.TestCase):
@@ -124,11 +129,11 @@ class TestWorkflowLoadData(unittest.TestCase):
     def setUp(self):
         self.workflow = workflow.WorkflowBase()
         self.workflow.input_dir = os.path.join(my_dir, "../../data/dream4")
-        self.workflow.expression_matrix_file = default.DEFAULT_EXPRESSION_FILE
-        self.workflow.tf_names_file = default.DEFAULT_TFNAMES_FILE
-        self.workflow.meta_data_file = default.DEFAULT_METADATA_FILE
-        self.workflow.priors_file = default.DEFAULT_PRIORS_FILE
-        self.workflow.gold_standard_file = default.DEFAULT_GOLDSTANDARD_FILE
+        self.workflow.expression_matrix_file = DEFAULT_EXPRESSION_FILE
+        self.workflow.tf_names_file = DEFAULT_TFNAMES_FILE
+        self.workflow.meta_data_file = DEFAULT_METADATA_FILE
+        self.workflow.priors_file = DEFAULT_PRIORS_FILE
+        self.workflow.gold_standard_file = DEFAULT_GOLDSTANDARD_FILE
         self.workflow.expression_matrix_columns_are_genes = False
 
     def tearDown(self):
@@ -492,7 +497,7 @@ class TestWorkflowFactory(unittest.TestCase):
 
     def test_amusr(self):
         from inferelator.regression.amusr_regression import AMUSRRegressionWorkflowMixin
-        from inferelator.amusr_workflow import MultitaskLearningWorkflow
+        from inferelator.workflows.amusr_workflow import MultitaskLearningWorkflow
         worker = workflow.inferelator_workflow(regression="amusr", workflow="amusr")
         self.assertTrue(isinstance(worker, AMUSRRegressionWorkflowMixin))
         self.assertTrue(isinstance(worker, MultitaskLearningWorkflow))
@@ -514,11 +519,11 @@ class TestWorkflowFactory(unittest.TestCase):
             worker = workflow.inferelator_workflow(regression=_RegressionWorkflowMixin, workflow=1)
 
     def test_tfa(self):
-        from inferelator.tfa_workflow import TFAWorkFlow
+        from inferelator.workflows.tfa_workflow import TFAWorkFlow
         worker = workflow.inferelator_workflow(regression=_RegressionWorkflowMixin, workflow="tfa")
         self.assertTrue(isinstance(worker, TFAWorkFlow))
 
     def test_singlecell(self):
-        from inferelator.single_cell_workflow import SingleCellWorkflow
+        from inferelator.workflows.single_cell_workflow import SingleCellWorkflow
         worker = workflow.inferelator_workflow(regression=_RegressionWorkflowMixin, workflow="single-cell")
         self.assertTrue(isinstance(worker, SingleCellWorkflow))

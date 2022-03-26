@@ -1,4 +1,3 @@
-from inferelator import default
 import os
 
 # Maintain python 2 compatibility

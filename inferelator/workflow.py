@@ -1015,17 +1015,17 @@ def _factory_build_inferelator(regression=_RegressionWorkflowMixin, workflow=Wor
         if workflow == "base":
             workflow_class = WorkflowBase
         elif workflow == "tfa":
-            from inferelator.tfa_workflow import TFAWorkFlow
+            from inferelator.workflows.tfa_workflow import TFAWorkFlow
             workflow_class = TFAWorkFlow
         elif workflow == "amusr" or workflow == "multitask":
-            from inferelator.amusr_workflow import MultitaskLearningWorkflow
+            from inferelator.workflows.amusr_workflow import MultitaskLearningWorkflow
             workflow_class = MultitaskLearningWorkflow
             use_mtl_regression = True
         elif workflow == "single-cell":
-            from inferelator.single_cell_workflow import SingleCellWorkflow
+            from inferelator.workflows.single_cell_workflow import SingleCellWorkflow
             workflow_class = SingleCellWorkflow
         elif workflow == "velocity":
-            from inferelator.velocity_workflow import VelocityWorkflow
+            from inferelator.workflows.velocity_workflow import VelocityWorkflow
             workflow_class = VelocityWorkflow
         else:
             raise ValueError("{val} is not a string that can be mapped to a workflow class".format(val=workflow))

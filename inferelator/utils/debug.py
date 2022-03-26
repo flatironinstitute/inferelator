@@ -1,7 +1,8 @@
 from __future__ import print_function, unicode_literals, division
 import os
 
-from inferelator.default import SBATCH_VARS
+SBATCH_VARS = dict(output_dir=('RUNDIR', str, None),
+                   input_dir=('DATADIR', str, None))
 
 
 class Debug:

@@ -1,18 +1,20 @@
-from __future__ import division
-
 from inferelator import utils
-from inferelator import default
 from inferelator.preprocessing.metadata_parser import MetadataHandler
 from inferelator.preprocessing.metadata_parser import ConditionDoesNotExistError, MultipleConditionsError
 import pandas as pd
 import numpy as np
 
 
+DEFAULT_DELTMIN = 0
+DEFAULT_DELTMAX = 120
+DEFAULT_TAU = 45
+
+
 class PythonDRDriver(object):
     # Parameters for response matrix
-    tau = default.DEFAULT_TAU
-    delTmin = default.DEFAULT_DELTMIN
-    delTmax = default.DEFAULT_DELTMAX
+    tau = DEFAULT_TAU
+    delTmin = DEFAULT_DELTMIN
+    delTmax = DEFAULT_DELTMAX
 
     # Strict checking will raise exception if there are potential inconsistencies
     # Strict_checking_for_metadata raises an exception if there are any missing experiments in the metadata
@@ -36,9 +38,10 @@ class PythonDRDriver(object):
     ts_group = None
 
     def __init__(self, metadata_handler=None, tau=None, deltmin=None, deltmax=None, return_half_tau=False):
-        self.tau = tau if tau is not None else default.DEFAULT_TAU
-        self.delTmin = deltmin if deltmin is not None else default.DEFAULT_DELTMIN
-        self.delTmax = deltmax if deltmax is not None else default.DEFAULT_DELTMAX
+        
+        self.tau = tau if tau is not None else self.tau
+        self.delTmin = deltmin if deltmin is not None else self.delTmin
+        self.delTmax = deltmax if deltmax is not None else self.delTmax
         self.return_half_tau = return_half_tau
         self.metadata_handler = metadata_handler if metadata_handler is not None else self.metadata_handler
 

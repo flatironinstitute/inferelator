@@ -1,9 +1,7 @@
 import unittest
-from inferelator.single_cell_workflow import SingleCellWorkflow
+from inferelator.workflows.single_cell_workflow import SingleCellWorkflow
 from inferelator.preprocessing import single_cell, metadata_parser
 from inferelator.tests.artifacts.test_stubs import TestDataSingleCellLike, create_puppet_workflow, TEST_DATA
-from inferelator import default
-from inferelator.utils import InferelatorData
 import numpy as np
 import pandas as pd
 import os

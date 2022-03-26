@@ -2,7 +2,7 @@ import gc
 import copy
 
 from inferelator import utils
-from inferelator.single_cell_workflow import SingleCellWorkflow
+from inferelator.workflows.single_cell_workflow import SingleCellWorkflow
 from inferelator.regression.base_regression import _RegressionWorkflowMixin
 
 import numpy as np

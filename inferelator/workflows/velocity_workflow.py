@@ -1,6 +1,6 @@
 from inferelator.workflow import _H5AD, _HDF5, _TSV
-from inferelator.tfa_workflow import TFAWorkFlow
-from inferelator.single_cell_workflow import SingleCellWorkflow
+from inferelator.workflows.tfa_workflow import TFAWorkFlow
+from inferelator.workflows.single_cell_workflow import SingleCellWorkflow
 from inferelator.utils import InferelatorDataLoader, InferelatorData, Debug, Validator as check
 from inferelator.preprocessing.velocity_tfa import VelocityTFA
 import numpy as np

@@ -6,7 +6,7 @@ import pandas.testing as pdt
 import copy
 
 from inferelator import workflow
-from inferelator.amusr_workflow import MultitaskLearningWorkflow
+from inferelator.workflows.amusr_workflow import MultitaskLearningWorkflow
 from inferelator.tests.artifacts.test_stubs import TaskDataStub
 
 data_path = os.path.join(os.path.dirname(__file__), "../../data/dream4")

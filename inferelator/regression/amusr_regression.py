@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import os
 
 from scipy.special import comb
 from sklearn.preprocessing import StandardScaler
@@ -9,7 +8,6 @@ from sklearn.linear_model import LinearRegression
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator import utils
 from inferelator.utils import Validator as check
-from inferelator import default
 from inferelator.regression import base_regression
 
 DEFAULT_prior_weight = 1.0
@@ -672,7 +670,7 @@ class AMUSRRegressionWorkflowMixin(base_regression._MultitaskRegressionWorkflowM
     https://doi.org/10.1371/journal.pcbi.1006591
     """
 
-    prior_weight = default.DEFAULT_prior_weight
+    prior_weight = 1
 
     # Model hyperparameters
     lambda_Bs = None

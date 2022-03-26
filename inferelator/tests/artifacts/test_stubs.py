@@ -1,4 +1,4 @@
-from inferelator import amusr_workflow
+from inferelator.workflows import amusr_workflow
 from inferelator import workflow
 from inferelator.regression.base_regression import _RegressionWorkflowMixin
 from inferelator.postprocessing.results_processor import ResultsProcessor

@@ -8,7 +8,7 @@ from sklearn.linear_model import LinearRegression
 
 from inferelator.distributed.inferelator_mp import MPControl
 
-from inferelator import tfa_workflow
+from inferelator.workflows import tfa_workflow
 from inferelator import workflow
 from inferelator.tests.artifacts.test_data import TestDataSingleCellLike, TEST_DATA, TEST_DATA_SPARSE
 from inferelator.tests.artifacts.test_stubs import TaskDataStub, create_puppet_workflow

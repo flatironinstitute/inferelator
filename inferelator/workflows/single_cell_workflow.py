@@ -5,7 +5,7 @@ Run Single Cell Network Inference. This is the same network inference with some 
 import numpy as np
 
 from inferelator.utils import Validator as check
-from inferelator import tfa_workflow
+from inferelator.workflows import tfa_workflow
 from inferelator.preprocessing import single_cell
 from inferelator import utils
 
