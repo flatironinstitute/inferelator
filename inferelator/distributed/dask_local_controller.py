@@ -67,11 +67,13 @@ class DaskAbstract(AbstractController):
         if scatter is not None:
             scatter = {
                 id(a): cls.client.scatter([a], hash=False, broadcast=True)[0]
-                for a in args if id(a) in list(map(lambda x: id(x), scatter))
+                for a in scatter
             }
 
+            print(scatter)
+
             def scatter_func(*a):
-                return [scatter[b] if id(b) in scatter.keys() else b for b in a]
+                return [scatter[id(b)] if id(b) in scatter.keys() else b for b in a]
 
             distributed.wait(scatter.values(), timeout=120)
 

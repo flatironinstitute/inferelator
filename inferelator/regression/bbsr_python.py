@@ -169,7 +169,7 @@ def _bbsr_regression_wrapper(X, y, pp, weights, nS, genes, nG, j, ols_only=False
 
     data = bayes_stats.bbsr(
         X,
-        y,
+        utils.scale_vector(y),
         pp.iloc[j, :].values.flatten(),
         weights.iloc[j, :].values.flatten(),
         nS,

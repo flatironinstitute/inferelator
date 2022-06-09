@@ -108,7 +108,7 @@ def _sklearn_regression_wrapper(X, y, model, genes, nG, j, min_coef=None):
 
         data = sklearn_gene(
             X,
-            y,
+            utils.scale_vector(y),
             copy.copy(model),
             min_coef=min_coef
         )

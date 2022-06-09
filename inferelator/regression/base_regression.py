@@ -3,7 +3,7 @@ import pandas as pd
 import scipy.stats
 import copy
 
-from inferelator.utils import Debug, scale_vector
+from inferelator.utils import Debug
 from inferelator.utils import Validator as check
 
 DEFAULT_CHUNK = 25
@@ -292,10 +292,8 @@ def gene_data_generator(Y, nG):
     """
 
     for j in range(nG):
-        yield scale_vector(
-            Y.get_gene_data(
-                j,
-                force_dense=True,
-                flatten=True
-                )
-            )
+        yield Y.get_gene_data(
+            j,
+            force_dense=True,
+            flatten=True
+        )

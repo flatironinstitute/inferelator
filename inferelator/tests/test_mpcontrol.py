@@ -2,6 +2,7 @@ import unittest
 import tempfile
 import shutil
 import os
+import numpy as np
 
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.distributed import dask_cluster_controller
@@ -120,6 +121,47 @@ class TestDaskLocalMPController(TestMPControl):
         test_result = MPControl.map(math_function, *self.map_test_data)
         self.assertListEqual(test_result, self.map_test_expect)
 
+    def test_scatter(self):
+
+        a, b, c = np.random.rand(100), np.random.rand(50), np.random.rand(10)
+
+        def _not_scattered(x, y, z):
+            print(id(a) == id(x))
+            print(id(b) == id(y))
+            print(id(c) == id(z))
+
+            return (
+                id(a) == id(x),
+                id(b) == id(y),
+                id(c) == id(z)
+            )
+
+        not_scattered = MPControl.map(_not_scattered,
+            [a], [b], [c],
+            scatter=[a, b, c]
+        )
+
+        self.assertEqual(sum(not_scattered[0]), 0)
+
+        not_scattered = MPControl.map(_not_scattered,
+            [a], [b], [c],
+            scatter=[a, c]
+        )
+
+        self.assertEqual(sum(not_scattered[0]), 1)
+
+        not_scattered = MPControl.map(_not_scattered,
+            [a], [b], [c],
+            scatter=[a]
+        )
+
+        self.assertEqual(sum(not_scattered[0]), 2)
+
+        not_scattered = MPControl.map(_not_scattered,
+            [a], [b], [c],
+        )
+
+        self.assertEqual(sum(not_scattered[0]), 3)
 
 class TestDaskHPCMPController(TestMPControl):
     name = "dask-cluster"

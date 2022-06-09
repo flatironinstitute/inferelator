@@ -197,7 +197,7 @@ def _stars_regression_wrapper(x, y, alphas, j, gene, nG, **kwargs):
 
             data = stars_model_select(
                 x,
-                y,
+                utils.scale_vector(y),
                 alphas,
                 **kwargs
             )
