@@ -32,10 +32,6 @@ class AbstractController:
         return cls._controller_name
 
     @classmethod
-    def is_dask(cls):
-        return cls._controller_dask
-
-    @classmethod
     @abstractmethod
     def connect(cls, *args, **kwargs):
         """

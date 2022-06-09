@@ -29,7 +29,7 @@ class MPControl(AbstractController):
         """
         if cls.client is None:
             return False
-        return cls.client.is_dask()
+        return cls.client._controller_dask
 
     @classmethod
     def set_multiprocess_engine(cls, engine, processes=None):

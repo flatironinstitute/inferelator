@@ -342,15 +342,6 @@ class DaskHPCClusterController(DaskAbstract):
         return True
 
     @classmethod
-    def is_dask(cls):
-        """
-        Block when something asks if this is a dask function until the workers are alive
-        """
-
-        cls.check_cluster_state()
-        return True
-
-    @classmethod
     def map(cls, func, *args, scatter=None, restart_workers=False, **kwargs):
         cls.check_cluster_state()
         return super().map(func, *args, scatter=scatter, restart_workers=restart_workers, **kwargs)

@@ -176,7 +176,6 @@ class TestDaskHPCMPController(TestMPControl):
         MPControl.client.use_default_configuration('greene', 0)
         MPControl.client.set_job_size_params(n_jobs=0, n_threads_per_worker=1)
         MPControl.client.set_cluster_params(local_workers=2)
-        MPControl.client.add_worker_conda()
         MPControl.client._interface = None
         MPControl.client._log_directory = cls.tempdir
         MPControl.connect()

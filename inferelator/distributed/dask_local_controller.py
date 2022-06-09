@@ -108,13 +108,6 @@ class DaskAbstract(AbstractController):
         return cls.client is not None
 
     @classmethod
-    def is_dask(cls):
-        """
-        This is dask. Return True.
-        """
-        return True
-
-    @classmethod
     def status(cls):
         return cls.check_cluster_state()
 
