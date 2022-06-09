@@ -15,7 +15,7 @@ Install required python libraries:
 ```
 python -m pip install -r requirements.txt
 ```
-Install required libraries for parallelization (running on a single machine requires only `python -m pip install pathos`):
+Install required libraries for parallelization (running on a single machine requires only `python -m pip install joblib`):
 ```
 python -m pip install -r requirements-multiprocessing.txt
 ```

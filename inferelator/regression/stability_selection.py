@@ -1,5 +1,6 @@
 import math
 import warnings
+import itertools
 import numpy as np
 import pandas.api.types as pat
 from sklearn.linear_model import LinearRegression as _LinearRegression, Lasso as _Lasso, Ridge as _Ridge
@@ -168,26 +169,41 @@ class StARS(base_regression.BaseRegression):
             Returns a list of regression results that base_regression's pileup_data can process
         """
 
-        if MPControl.is_dask():
-            from inferelator.distributed.dask_functions import lasso_stars_regress_dask
-            return lasso_stars_regress_dask(self.X, self.Y, self.alphas, self.num_subsamples, self.random_seed,
-                                            self.method, self.params, self.G, self.genes)
+        x = self.X.values
+        nG = self.G
 
-        def regression_maker(j):
-            level = 0 if j % 100 == 0 else 2
-            utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G), level=level)
+        return MPControl.map(
+            _stars_regression_wrapper,
+            itertools.repeat(x, nG),
+            base_regression.gene_data_generator(self.Y, nG),
+            itertools.repeat(self.alphas, nG),
+            range(nG),
+            self.genes,
+            itertools.repeat(nG, nG),
+            method=self.method,
+            num_subsamples=self.num_subsamples,
+            random_seed=self.random_seed,
+            **self.params,
+            scatter=[x]
+        )
 
-            data = stars_model_select(self.X.values,
-                                      utils.scale_vector(self.Y.get_gene_data(j, force_dense=True, flatten=True)),
-                                      self.alphas,
-                                      method=self.method,
-                                      num_subsamples=self.num_subsamples,
-                                      random_seed=self.random_seed,
-                                      **self.params)
+
+def _stars_regression_wrapper(x, y, alphas, j, gene, nG, **kwargs):
+
+            utils.Debug.vprint(
+                base_regression.PROGRESS_STR.format(gn=gene, i=j, total=nG),
+                level=0 if j % 1000 == 0 else 2
+            )
+
+            data = stars_model_select(
+                x,
+                y,
+                alphas,
+                **kwargs
+            )
+
             data['ind'] = j
             return data
-
-        return MPControl.map(regression_maker, range(self.G), tell_children=False)
 
 
 class StARSWorkflowMixin(base_regression._RegressionWorkflowMixin):

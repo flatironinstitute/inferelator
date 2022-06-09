@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import itertools
 
 from scipy.special import comb
 from sklearn.preprocessing import StandardScaler
@@ -144,7 +145,7 @@ class AMuSR_regression(base_regression.BaseRegression):
 
     tol = None
     rel_tol = None
-    
+
     use_numba = False
 
     regression_function = staticmethod(run_regression_EBIC)
@@ -160,7 +161,7 @@ class AMuSR_regression(base_regression.BaseRegression):
         :param remove_autoregulation: bool
         :param lambda_Bs: list(float) [None]
         :param lambda_Ss: list(float) [None]
-        :param Cs: list(float) [None] 
+        :param Cs: list(float) [None]
         :param Ss: list(float) [None]
         :param use_numba: bool [False]
         """
@@ -223,38 +224,25 @@ class AMuSR_regression(base_regression.BaseRegression):
 
         regression_function = self.regression_function if regression_function is None else regression_function
 
-        if MPControl.is_dask():
-            from inferelator.distributed.dask_functions import amusr_regress_dask
-            return amusr_regress_dask(self.X, self.Y, self.priors, self.prior_weight, self.n_tasks, self.genes,
-                                      self.tfs, self.G, remove_autoregulation=self.remove_autoregulation,
-                                      regression_function=regression_function,
-                                      tol=self.tol, rel_tol=self.rel_tol, use_numba=self.use_numba)
-
-        def regression_maker(j):
-            level = 0 if j % 100 == 0 else 2
-            utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G),
-                                 level=level)
-
-            gene = self.genes[j]
-            x, y, tasks = [], [], []
-
-            if self.remove_autoregulation:
-                tfs = [t for t in self.tfs if t != gene]
-            else:
-                tfs = self.tfs
-
-            for k in range(self.n_tasks):
-                if gene in self.Y[k].gene_names:
-                    x.append(self.X[k].get_gene_data(tfs))  # list([N, K])
-                    y.append(self.Y[k].get_gene_data(gene, force_dense=True).reshape(-1, 1))  # list([N, 1])
-                    tasks.append(k)  # [T,]
-
-            prior = format_prior(self.priors, gene, tasks, self.prior_weight, tfs=tfs)
-            return regression_function(x, y, tfs, tasks, gene, prior, Cs=self.Cs, Ss=self.Ss,
-                                       lambda_Bs=self.lambda_Bs, lambda_Ss=self.lambda_Ss, 
-                                       tol=self.tol, rel_tol=self.rel_tol, use_numba=self.use_numba)
-
-        return MPControl.map(regression_maker, range(self.G))
+        return MPControl.map(
+            _amusr_wrapper,
+            itertools.repeat(self.X, self.G),
+            _y_generator(self.Y, self.genes, self.G, self.n_tasks),
+            itertools.repeat(self.priors, self.G),
+            itertools.repeat(self.prior_weight, self.G),
+            range(self.G),
+            itertools.repeat(self.G, self.G),
+            self.genes,
+            itertools.repeat(self.tfs, self.G),
+            Cs=self.Cs,
+            Ss=self.Ss,
+            lambda_Bs=self.lambda_Bs,
+            lambda_Ss=self.lambda_Ss,
+            tol=self.tol,
+            rel_tol=self.rel_tol,
+            use_numba=self.use_numba,
+            scatter=[self.X, self.priors]
+        )
 
     def pileup_data(self, run_data):
 
@@ -278,6 +266,49 @@ class AMuSR_regression(base_regression.BaseRegression):
             rescaled_weights.append(rescaled_weights_k)
 
         return weights, rescaled_weights
+
+
+def _amusr_wrapper(x_data, y_data, prior, prior_weight, j, nG, gene, tfs, remove_autoregulation=True, **kwargs):
+    """ Wrapper for multiprocessing AMuSR """
+
+    utils.Debug.vprint(
+        base_regression.PROGRESS_STR.format(gn=gene, i=j, total=nG),
+        level=0 if j % 1000 == 0 else 2
+    )
+
+    x, y, tasks = [], [], []
+
+    if remove_autoregulation:
+        tf = [t for t in tfs if t != gene]
+    else:
+        pass
+
+    for k, y_task in y_data:
+        x.append(x_data[k].get_gene_data(tf))  # list([N, K])
+        y.append(y_task)
+        tasks.append(k)  # [T,]
+
+    prior = format_prior(prior, gene, tasks, prior_weight, tfs=tf)
+
+    return run_regression_EBIC(x, y, tf, tasks, gene, prior, **kwargs)
+
+
+def _y_generator(y_data, genes, nG, n_tasks):
+
+    for i in range(nG):
+        y = []
+        gene = genes[i]
+        for k in range(n_tasks):
+            if gene in y_data[k].gene_names:
+                y.append((
+                    k,
+                    y_data[k].get_gene_data(
+                        gene,
+                        force_dense=True
+                    ).reshape(-1, 1)
+                ))
+        yield y
+
 
 def amusr_fit(cov_C, cov_D, lambda_B=0., lambda_S=0., sparse_matrix=None, block_matrix=None, prior=None,
               max_iter=MAX_ITER, tol=TOL, rel_tol=REL_TOL, rel_tol_min_iter=10, min_weight=MIN_WEIGHT_VAL):
@@ -351,11 +382,27 @@ def amusr_fit(cov_C, cov_D, lambda_B=0., lambda_S=0., sparse_matrix=None, block_
         _combined_weights_old = combined_weights
 
         # Update sparse and block-sparse coefficients
-        sparse_matrix = AMuSR_math.updateS(cov_C, cov_D, block_matrix, sparse_matrix,
-                                           lambda_S, prior, n_tasks, n_features)
+        sparse_matrix = AMuSR_math.updateS(
+            cov_C,
+            cov_D,
+            block_matrix,
+            sparse_matrix,
+            lambda_S,
+            prior,
+            n_tasks,
+            n_features
+        )
 
-        block_matrix = AMuSR_math.updateB(cov_C, cov_D, block_matrix, sparse_matrix,
-                                          lambda_B, prior, n_tasks, n_features)
+        block_matrix = AMuSR_math.updateB(
+            cov_C,
+            cov_D,
+            block_matrix,
+            sparse_matrix,
+            lambda_B,
+            prior,
+            n_tasks,
+            n_features
+        )
 
         # Weights matrix (W) is the sum of a sparse (S) and a block-sparse (B) matrix
         combined_weights = sparse_matrix + block_matrix
@@ -572,7 +619,7 @@ def format_prior(priors, gene, tasks, prior_weight, tfs=None):
 
     # If the priors are a list, get the gene-specific prior from each task
     if isinstance(priors, list) and len(priors) > 1:
-               
+
         priors_out = [_weight_prior(_reindex_to_gene(priors[k]).loc[gene, :].values, prior_weight) for k in tasks]
         priors_out = np.transpose(np.vstack(priors_out))
 
@@ -679,9 +726,11 @@ class AMUSRRegressionWorkflowMixin(base_regression._MultitaskRegressionWorkflowM
 
     tol = TOL
     relative_tol = REL_TOL
+
+    _r_class = AMuSR_regression
   
     def set_regression_parameters(self, prior_weight=None, lambda_Bs=None, lambda_Ss=None, heuristic_Cs=None,
-                                  tol=None, relative_tol=None, use_numba=None):
+                                  tol=None, relative_tol=None):
         """
         Set regression parameters for AmUSR.
 
@@ -715,7 +764,6 @@ class AMUSRRegressionWorkflowMixin(base_regression._MultitaskRegressionWorkflowM
         self._set_without_warning("tol", tol)
         self._set_without_warning("relative_tol", relative_tol)
 
-
     def run_bootstrap(self, bootstrap_idx):
         x, y = [], []
 
@@ -724,10 +772,10 @@ class AMUSRRegressionWorkflowMixin(base_regression._MultitaskRegressionWorkflowM
             x.append(self._task_design[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx]))
             y.append(self._task_response[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx]))
 
-        regress = AMuSR_regression(x, y, tfs=self._regulators, genes=self._targets, priors=self._task_priors,
-                                   prior_weight=self.prior_weight, lambda_Bs=self.lambda_Bs, lambda_Ss=self.lambda_Ss, 
-                                   Cs=self.heuristic_Cs, tol=self.tol, rel_tol=self.relative_tol, 
-                                   use_numba=self.use_numba)
+        regress = self._r_class(x, y, tfs=self._regulators, genes=self._targets, priors=self._task_priors,
+                                prior_weight=self.prior_weight, lambda_Bs=self.lambda_Bs, lambda_Ss=self.lambda_Ss, 
+                                Cs=self.heuristic_Cs, tol=self.tol, rel_tol=self.relative_tol, 
+                                use_numba=self.use_numba)
                                    
         return regress.run()
 

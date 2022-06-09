@@ -13,6 +13,9 @@ class LocalController(AbstractController):
 
     _controller_name = "local"
 
+    _require_initialization = False
+    _require_shutdown = False
+
     client = None
     chunk = None
 
@@ -21,7 +24,7 @@ class LocalController(AbstractController):
         return True
 
     @classmethod
-    def map(cls, func, *arg, **kwargs):
+    def map(cls, func, *arg, scatter=None, restart_workers=False, **kwargs):
         """
         Map a function across iterable(s) and return a list of results
 
@@ -32,7 +35,7 @@ class LocalController(AbstractController):
         """
         assert check.argument_callable(func)
         assert check.argument_list_type(arg, collections.abc.Iterable)
-        return list(map(func, *arg))
+        return list(map(lambda *x: func(*x, **kwargs), *arg))
 
     @classmethod
     def set_processes(cls, process_count):

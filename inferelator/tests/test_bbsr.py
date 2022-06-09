@@ -13,9 +13,9 @@ class TestBBSRrunnerPython(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        if not MPControl.is_initialized:
-            MPControl.set_multiprocess_engine("local")
-            MPControl.connect()
+        MPControl.shutdown()
+        MPControl.set_multiprocess_engine("local")
+        MPControl.connect()
 
     def setUp(self):
         self.brd = bbsr_python.BBSR

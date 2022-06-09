@@ -3,8 +3,7 @@ import pandas as pd
 import scipy.stats
 import copy
 
-from inferelator.utils import Debug, InferelatorData
-from inferelator.distributed.inferelator_mp import MPControl
+from inferelator.utils import Debug, scale_vector
 from inferelator.utils import Validator as check
 
 DEFAULT_CHUNK = 25
@@ -277,3 +276,26 @@ def bool_to_index(arr):
     """
     assert check.argument_type(arr, np.ndarray)
     return np.where(arr)[0]
+
+
+def gene_data_generator(Y, nG):
+    """
+    Generator for slicing out individual gene records
+    And then centering and scaling them
+
+    :param Y: Gene expression data
+    :type Y: InferelatorData
+    :param nG: Total number of genes to model
+    :type nG: int
+    :yield: Sliced data
+    :rtype: np.ndarray
+    """
+
+    for j in range(nG):
+        yield scale_vector(
+            Y.get_gene_data(
+                j,
+                force_dense=True,
+                flatten=True
+                )
+            )

@@ -1,11 +1,5 @@
 import os
 
-# Maintain python 2 compatibility
-try:
-    from itertools import izip as zip
-except ImportError:
-    pass
-
 from inferelator.distributed import AbstractController
 
 from dask import distributed
@@ -25,6 +19,7 @@ class DaskK8Controller(AbstractController):
 
     _controller_name = "dask-k8"
     _controller_dask = True
+    _require_initialization = True
 
     client = None
 

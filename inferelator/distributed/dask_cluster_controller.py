@@ -1,4 +1,3 @@
-from __future__ import absolute_import, division, print_function
 import time
 import os
 import math
@@ -11,8 +10,8 @@ from dask_jobqueue.slurm import SLURMJob
 
 from inferelator import utils
 from inferelator.utils import Validator as check
-from inferelator.distributed import AbstractController
-from inferelator.distributed.dask_functions import dask_map
+from inferelator.distributed.dask_local_controller import DaskAbstract
+
 
 _DEFAULT_NUM_JOBS = 1
 _DEFAULT_THREADS_PER_WORKER = 1
@@ -99,7 +98,7 @@ class SLURMJobNoMemLimit(SLURMJob):
         self._command_template = memory_limit_0(self._command_template)
 
 
-class DaskHPCClusterController(AbstractController):
+class DaskHPCClusterController(DaskAbstract):
     """
     The DaskHPCClusterController launches a HPC cluster and connects as a client. By default it uses the SLURM workload
     manager, but other workload managers may be used.
@@ -111,6 +110,7 @@ class DaskHPCClusterController(AbstractController):
     """
     _controller_name = "dask-cluster"
     _controller_dask = True
+    _require_initialization = True
 
     client = None
 
@@ -123,7 +123,7 @@ class DaskHPCClusterController(AbstractController):
 
     # Should any local workers be started on this node
     _num_local_workers = 0
-    _runaway_protection = 3
+    _runaway_protection = 5
     _local_worker_command = _DEFAULT_LOCAL_WORKER_CMD
 
     # SLURM specific variables
@@ -161,14 +161,18 @@ class DaskHPCClusterController(AbstractController):
                                                            local_directory=cls._local_directory,
                                                            memory=cls._job_mem,
                                                            job_extra=cls._job_slurm_commands,
-                                                           job_cls=SLURMJobNoMemLimit)
+                                                           job_cls=SLURMJobNoMemLimit,
+                                                           **kwargs)
 
         cls.client = distributed.Client(cls._local_cluster, direct_to_workers=True)
 
         cls._add_local_node_workers(cls._num_local_workers)
         cls._tracker = WorkerTracker()
 
-        utils.Debug.vprint("Dask dashboard: {cl}".format(cl = cls.client.dashboard_link), level=0)
+        utils.Debug.vprint(
+            f"Dask dashboard active: {cls.client.dashboard_link}",
+            level=0
+        )
 
         return True
 
@@ -177,9 +181,8 @@ class DaskHPCClusterController(AbstractController):
         cls.client.close()
         cls._local_cluster.close()
 
-    @classmethod
-    def map(cls, func, *args, **kwargs):
-        return dask_map(func, *args, **kwargs)
+        cls.client = None
+        cls._local_cluster = None
 
     @classmethod
     def use_default_configuration(cls, known_config, n_jobs=1):
@@ -199,8 +202,9 @@ class DaskHPCClusterController(AbstractController):
                 setattr(cls, k, v)
             cls._job_n = n_jobs
         else:
-            msg = "Configuration {k} is unknown".format(k=known_config)
-            raise ValueError(msg)
+            raise ValueError(
+                f"Configuration {known_config} is unknown"
+            )
 
         utils.Debug.vprint(cls._config_str(), level=1)
 
@@ -273,11 +277,13 @@ class DaskHPCClusterController(AbstractController):
         check.argument_integer(process_count, low=1)
         cls._job_n = math.ceil(process_count / cls._job_n_workers)
 
-        utils.Debug.vprint("Using `set_processes` is not advised for the DASK CLUSTER configuration", level=0)
-        utils.Debug.vprint("Using `set_job_size_params` is highly preferred", level=0)
-        utils.Debug.vprint("Configured {n} jobs with {w} workers per job".format(n=cls._job_n, w=cls._job_n_workers),
-                           level=0)
-                           
+        utils.Debug.vprint(
+            "Using `set_processes` is not advised for the DASK CLUSTER configuration, "
+            "Using `set_job_size_params` is highly preferred. "
+            f"Configured {cls._job_n} jobs with {cls._job_n_workers} workers per job.",
+            level=0
+        )
+
     @classmethod
     def add_worker_env_line(cls, line):
         """

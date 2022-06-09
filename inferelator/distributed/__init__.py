@@ -14,6 +14,14 @@ class AbstractController:
     _controller_name = None
     _controller_dask = False
 
+    # Does this method require setup
+    # Or can it be done on the fly
+    _require_initialization=False
+
+    # Does this method require a clean shutdown
+    # Or can we just abandon it to the GC
+    _require_shutdown=False
+
     @classmethod
     def name(cls):
         """

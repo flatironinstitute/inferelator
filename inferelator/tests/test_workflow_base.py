@@ -329,7 +329,7 @@ class TestWorkflowFunctions(unittest.TestCase):
         MPControl.shutdown()
         self.workflow.multiprocessing_controller = "local"
         self.workflow.initialize_multiprocessing()
-        self.assertTrue(MPControl.is_initialized)
+        self.assertTrue(MPControl.status())
 
     def test_abstractness(self):
         with self.assertRaises(NotImplementedError):

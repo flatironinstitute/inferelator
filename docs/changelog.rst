@@ -1,6 +1,15 @@
 Change Log
 ==========
 
+Inferelator v0.6.0 `June  9, 2022`
+---------------------------------------
+
+Code Refactoring:
+
+- Refactored parallelization around joblib & dask
+- Removed pathos
+
+
 Inferelator v0.5.8 `February  23, 2022`
 ---------------------------------------
 

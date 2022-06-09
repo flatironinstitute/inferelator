@@ -850,6 +850,7 @@ class WorkflowBase(WorkflowBaseLoader):
         """
         if self.multiprocessing_controller is not None:
             MPControl.set_multiprocess_engine(self.multiprocessing_controller)
+            
         MPControl.connect()
 
     def get_environmentals(self):
@@ -866,7 +867,7 @@ class WorkflowBase(WorkflowBaseLoader):
 
         DotProduct.set_mkl(self.use_mkl)
 
-        if self.initialize_mp and not MPControl.is_initialized:
+        if self.initialize_mp:
             self.initialize_multiprocessing()
 
         self.startup_run()

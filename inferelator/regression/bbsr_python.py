@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import itertools
 
 from inferelator import utils
 from inferelator.regression import bayes_stats
@@ -89,25 +90,22 @@ class BBSR(base_regression.BaseRegression):
             Returns None, None if it's a subordinate thread
         """
 
-        if MPControl.is_dask():
-            from inferelator.distributed.dask_functions import bbsr_regress_dask
-            return bbsr_regress_dask(self.X, self.Y, self.pp, self.weights_mat, self.G, self.genes, self.nS)
+        nG = self.G
+        X = self.X.values
 
-        def regression_maker(j):
-            level = 0 if j % 100 == 0 else 2
-            utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G),
-                                 level=level)
-
-            data = bayes_stats.bbsr(self.X.values,
-                                    utils.scale_vector(self.Y.get_gene_data(j, force_dense=True, flatten=True)),
-                                    self.pp.iloc[j, :].values.flatten(),
-                                    self.weights_mat.iloc[j, :].values.flatten(),
-                                    self.nS,
-                                    ordinary_least_squares=self.ols_only)
-            data['ind'] = j
-            return data
-
-        return MPControl.map(regression_maker, range(self.G), tell_children=False)
+        return MPControl.map(
+            _bbsr_regression_wrapper,
+            itertools.repeat(X, nG),
+            base_regression.gene_data_generator(self.Y, nG),
+            itertools.repeat(self.pp, nG),
+            itertools.repeat(self.weights_mat, nG),
+            itertools.repeat(self.nS, nG),
+            itertools.repeat(self.genes, nG),
+            itertools.repeat(nG, nG),
+            range(self.G),
+            ols_only=self.ols_only,
+            scatter=[X, self.pp, self.weights_mat]
+        )
 
     def _build_pp_matrix(self):
         """
@@ -159,6 +157,27 @@ class BBSR(base_regression.BaseRegression):
         """
         weights_mat = p_matrix * 0 + no_p_weight
         return weights_mat.mask(p_matrix != 0, other=p_weight)
+
+
+def _bbsr_regression_wrapper(X, y, pp, weights, nS, genes, nG, j, ols_only=False):
+    """ Wrapper for multiprocessing BBSR """
+
+    utils.Debug.vprint(
+        base_regression.PROGRESS_STR.format(gn=genes[j], i=j, total=nG),
+        level=0 if j % 1000 == 0 else 2
+    )
+
+    data = bayes_stats.bbsr(
+        X,
+        y,
+        pp.iloc[j, :].values.flatten(),
+        weights.iloc[j, :].values.flatten(),
+        nS,
+        ordinary_least_squares=ols_only
+    )
+
+    data['ind'] = j
+    return data
 
 
 class BBSRRegressionWorkflowMixin(base_regression._RegressionWorkflowMixin):

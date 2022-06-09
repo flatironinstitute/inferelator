@@ -1,9 +1,5 @@
 import warnings
 import unittest
-import tempfile
-import pandas as pd
-import shutil
-import numpy as np
 from sklearn.linear_model import LinearRegression
 
 from inferelator.distributed.inferelator_mp import MPControl
@@ -12,18 +8,17 @@ from inferelator.workflows import tfa_workflow
 from inferelator import workflow
 from inferelator.tests.artifacts.test_data import TestDataSingleCellLike, TEST_DATA, TEST_DATA_SPARSE
 from inferelator.tests.artifacts.test_stubs import TaskDataStub, create_puppet_workflow
-from inferelator.utils import InferelatorData, DotProduct
+from inferelator.utils import DotProduct
 from inferelator.preprocessing.metadata_parser import MetadataHandler
 
-
-from dask import distributed
-from inferelator.distributed import dask_local_controller
-from inferelator.distributed import dask_functions
 
 """
 These are full-stack integration tests covering the post-loading regression workflows
 """
 
+MPControl.set_multiprocess_engine('dask-local')
+MPControl.set_processes(2)
+MPControl.connect()
 
 class SetUpDenseData(unittest.TestCase):
 
@@ -73,12 +68,6 @@ class SetUpSparseDataMTL(SetUpSparseData):
 
 class TestSingleTaskRegressionFactory(SetUpDenseData):
 
-    @classmethod
-    def setUpClass(cls):
-        if not MPControl.is_initialized:
-            MPControl.set_multiprocess_engine("local")
-            MPControl.connect()
-
     def test_base(self):
         self.workflow = create_puppet_workflow(base_class=tfa_workflow.TFAWorkFlow)
         self.workflow = self.workflow(self.data, self.prior, self.gold_standard)
@@ -105,11 +94,11 @@ class TestSingleTaskRegressionFactory(SetUpDenseData):
         self.workflow = create_puppet_workflow(base_class="tfa", regression_class="elasticnet")
         self.workflow = self.workflow(self.data, self.prior, self.gold_standard)
         self.workflow.tf_names = self.tf_names
-        
+
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             self.workflow.run()
-            
+
         self.assertEqual(self.workflow.results.score, 1)
 
     def test_sklearn(self):
@@ -145,11 +134,6 @@ class TestSingleTaskRegressionFactorySparse(SetUpSparseData, TestSingleTaskRegre
 
     @classmethod
     def setUpClass(cls):
-
-        if not MPControl.is_initialized:
-            MPControl.set_multiprocess_engine("local")
-            MPControl.connect()
-
         DotProduct.set_mkl(True)
 
     @classmethod
@@ -158,11 +142,6 @@ class TestSingleTaskRegressionFactorySparse(SetUpSparseData, TestSingleTaskRegre
 
 
 class TestMultitaskFactory(SetUpDenseDataMTL):
-
-    @classmethod
-    def setUpClass(cls):
-        if not MPControl.is_initialized:
-            MPControl.connect()
 
     def reset_workflow(self):
         self.workflow.priors_data = self.prior
@@ -211,48 +190,4 @@ class TestMultitaskFactory(SetUpDenseDataMTL):
 
 
 class TestMultitaskFactorySparse(SetUpSparseDataMTL, TestMultitaskFactory):
-    pass
-
-
-class SwitchToDask(unittest.TestCase):
-    tempdir = None
-
-    @classmethod
-    def setUpClass(cls):
-        cls.tempdir = tempfile.mkdtemp()
-        MPControl.shutdown()
-        MPControl.set_multiprocess_engine("dask-local")
-        MPControl.connect(local_dir=cls.tempdir, n_workers=1, processes=False)
-
-    @classmethod
-    def tearDownClass(cls):
-        MPControl.shutdown()
-        MPControl.set_multiprocess_engine("local")
-        MPControl.connect()
-        if cls.tempdir is not None:
-            shutil.rmtree(cls.tempdir)
-
-
-class TestSTLDask(SwitchToDask, TestSingleTaskRegressionFactory):
-
-    def test_dask_function_mi(self):
-        """Compute mi for identical arrays [[1, 2, 1], [2, 4, 6]]."""
-
-        L = [[0, 0], [9, 3], [0, 9]]
-        x_dataframe = InferelatorData(pd.DataFrame(L))
-        y_dataframe = InferelatorData(pd.DataFrame(L))
-        mi = dask_functions.build_mi_array_dask(x_dataframe.values, y_dataframe.values, 10, np.log)
-        expected = np.array([[0.63651417, 0.63651417], [0.63651417, 1.09861229]])
-        np.testing.assert_almost_equal(mi, expected)
-
-
-class TestSTLSparseDask(SwitchToDask, TestSingleTaskRegressionFactorySparse):
-    pass
-
-
-class TestMTLDask(SwitchToDask, TestMultitaskFactory):
-    pass
-
-
-class TestMTLSparseDask(SwitchToDask, TestMultitaskFactorySparse):
     pass
