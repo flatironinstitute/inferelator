@@ -401,7 +401,8 @@ class DaskHPCClusterController(DaskAbstract):
         if num_workers is not None and num_workers > 0:
 
             # Build a dask-worker command
-            cmd = [cls._local_worker_command, str(cls._local_cluster.scheduler_address),
+            cmd = [cls._local_worker_command,
+                   str(cls._local_cluster.scheduler_address),
                    "--nprocs", str(num_workers),
                    "--nthreads", str(cls._worker_n_threads),
                    "--memory-limit", "0",

@@ -132,10 +132,13 @@ class TestDaskHPCMPController(TestMPControl):
         MPControl.shutdown()
         MPControl.set_multiprocess_engine(cls.name)
         MPControl.client.use_default_configuration('greene', 0)
-        MPControl.client._num_local_workers = 2
+        MPControl.client.set_job_size_params(n_jobs=0, n_threads_per_worker=1)
+        MPControl.client.set_cluster_params(local_workers=2)
+        MPControl.client.add_worker_conda()
         MPControl.client._interface = None
         MPControl.client._log_directory = cls.tempdir
         MPControl.connect()
+        MPControl.client._scale_jobs()
 
     @classmethod
     def tearDownClass(cls):
@@ -148,6 +151,10 @@ class TestDaskHPCMPController(TestMPControl):
 
     def test_dask_cluster_name(self):
         self.assertEqual(MPControl.name(), self.client_name)
+
+    def test_bad_default_config(self):
+        with self.assertRaises(ValueError):
+            MPControl.client.use_default_configuration("no")
 
     @unittest.skipIf('CI' in os.environ, "workers are weird for this on CI")
     def test_dask_cluster_map(self):
