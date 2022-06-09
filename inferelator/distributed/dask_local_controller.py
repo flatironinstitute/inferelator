@@ -70,8 +70,6 @@ class DaskAbstract(AbstractController):
                 for a in scatter
             }
 
-            print(scatter)
-
             def scatter_func(*a):
                 return [scatter[id(b)] if id(b) in scatter.keys() else b for b in a]
 
