@@ -41,25 +41,34 @@ and click "fork"
 
 ## Install the necessary packages (once)
 
-In order to work with the forked repository you will need `git` and a number of
-other tools.
+In order to work with the forked repository you will need `git`.
 
 ```
-sudo apt-get install python-dev
-sudo apt-get install python-pip
-sudo apt-get install python-nose
 sudo apt-get install git
-python -m pip install numpy
-python -m pip install pandas
 ```
+
+Download and install [miniconda](https://docs.conda.io/en/latest/miniconda.html).
+Create a new conda environment for the inferelator.
+
+```
+conda create --name inferelator python=3.10
+```
+
+Switch to the inferelator environment and install the required dependencies
+
+```
+conda activate inferelator
+python -m pip install numpy scipy sklearn pandas joblib anndata matplotlib
+```
+
 
 ## Configuring your `git` command line interface
 
 You might want to follow these instructions in case your name and email are not set properly (you should only need to do this once):
 
 ```
-    git config --global user.name "Your Name"
-    git config --global user.email you@example.com
+git config --global user.name "Your Name"
+git config --global user.email you@example.com
 ```
 This allows git to associate your name and email with any changes you make.
 
@@ -72,6 +81,12 @@ To clone the fork onto your workstation type in the terminal:
 
 ```
 git clone $URL
+```
+
+Create package links in the inferelator environment to finish installation:
+
+```
+python setup.py develop
 ```
 
 ## Set up the "remote" repository (once)
@@ -109,35 +124,49 @@ Unit tests attempt to check that everything is working properly.
 It is a good idea to run unit tests frequently, especially before making
 changes and after making changes but before committing them.
 
-Run unit tests from the shell with the [nosetests](http://pythontesting.net/framework/nose/nose-introduction/) command
+Run unit tests from the shell with the [pytest](https://docs.pytest.org/) command
 (this runs the unit tests):
 
 ```bash
-python -m nose
+python -m pytest
 ```
 
 Output should look like this:
 
 ```
-...........................................SS.........................
-......................................................................
-......................................................................
-........................
-----------------------------------------------------------------------
-Ran 241 tests in 14.257s
+=================================== test session starts ====================================
+platform linux -- Python 3.8.3, pytest-7.1.2, pluggy-0.13.1
+rootdir: /home/chris/PycharmProjects/inferelator
+collected 347 items                                                                        
 
-OK (SKIP=2)
+inferelator/tests/test_amusr.py ..........                                           [  2%]
+inferelator/tests/test_base_regression.py ....                                       [  4%]
+inferelator/tests/test_bayes_stats.py ....................                           [  9%]
+inferelator/tests/test_bbsr.py ...........                                           [ 12%]
+inferelator/tests/test_crossvalidation_wrapper.py .......................            [ 19%]
+inferelator/tests/test_data_loader.py .......                                        [ 21%]
+inferelator/tests/test_data_wrapper.py ......................................        [ 32%]
+inferelator/tests/test_design_response.py ............ss..                           [ 37%]
+inferelator/tests/test_elasticnet_python.py ....                                     [ 38%]
+inferelator/tests/test_mi.py ...............                                         [ 42%]
+inferelator/tests/test_mpcontrol.py .................                                [ 47%]
+inferelator/tests/test_noising_data.py ..........                                    [ 50%]
+inferelator/tests/test_priors.py ..............                                      [ 54%]
+inferelator/tests/test_regression.py ....................                            [ 60%]
+inferelator/tests/test_results_processor.py ........................................ [ 71%]
+.ss....                                                                              [ 73%]
+inferelator/tests/test_single_cell.py .........                                      [ 76%]
+inferelator/tests/test_tfa.py .........                                              [ 78%]
+inferelator/tests/test_utils.py .............                                        [ 82%]
+inferelator/tests/test_workflow_base.py .....................................        [ 93%]
+inferelator/tests/test_workflow_multitask.py ...............                         [ 97%]
+inferelator/tests/test_workflow_tfa.py ........                                      [100%]
+
+====================== 343 passed, 4 skipped, 224 warnings in 35.34s =======================
 ```
 
-Each dot stands for a unit test that ran, "S" stands for "Skipped".  If there are
+Each dot stands for a unit test that ran, "s" stands for "Skipped".  If there are
 failures the output will be more extensive, describing which tests failed and how.
-
-For debugging purposes it is sometimes useful to use `print` statements and invoke
-nosetests with the `--nocapture` option in order to see the output.
-
-```bash
-python -m nose --nocapture
-```
 
 # Making a contribution to the project
 
@@ -155,14 +184,14 @@ To test the process you can go try the following:
 cd inferelator/
 ```
 
-Change one of the files (for example the `utils.py` file), by adding a blank line or something.
+Change one of the files (for example the `workflow.py` file), by adding a blank line or something.
 
 ## Run Unit Tests again to make sure everything still works
 
-run nosetests (this runs the unit tests):
+run pytest (this runs the unit tests):
 
 ```
-python -m nose
+python -m pytest
 ```
 
 ## Push your changes to your Github directory
@@ -170,13 +199,13 @@ python -m nose
 For each file you altered, run the following command:
 
 ```
-git add utils.py
+git add workflow.py
 ```
 
 After you've done this for every file you've changed (in this case it's just 1 file), commit the changes to your fork by running:
 
 ```
-git commit -m "fixed utils.py"
+git commit -m "fixed workflow.py"
 ```
 It is a good idea to commit the files you intended to change one at a time
 to make sure you don't add unintended changes to the commit.
@@ -196,7 +225,7 @@ Someone with write access to the master repository will look over your changes. 
 approve, or close your request.
 
 An approver may ask for changes before approving your pull request.  You can add changes by pushing
-more commits (to the same branch of your forked repository, in this case the `master` branch).
+more commits (to the same branch of your forked repository, in this case the `release` branch).
 
 ## More sophisticated work flows
 
