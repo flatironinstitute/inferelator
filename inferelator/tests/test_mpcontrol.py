@@ -131,8 +131,9 @@ class TestDaskHPCMPController(TestMPControl):
         MPControl.shutdown()
         MPControl.set_multiprocess_engine(cls.name)
         MPControl.client.use_default_configuration('greene', 0)
-        MPControl.client.set_cluster_params(interface='lo')
         MPControl.client._num_local_workers = 2
+        MPControl.client._interface = None
+        MPControl.client._local_directory = cls.tempdir
         MPControl.connect(log_directory=cls.tempdir)
 
     @classmethod

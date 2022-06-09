@@ -400,8 +400,16 @@ class DaskHPCClusterController(DaskAbstract):
                    "--local-directory", str(cls._local_directory)]
 
             # Execute it through the Popen ()
-            out_handle = open("slurm-{i}.out".format(i=_DEFAULT_SLURM_ID), mode="w")
-            subprocess.Popen(cmd, stdout=out_handle, stderr=out_handle)
+            out_path = cls._local_directory if cls._local_directory is not None else "."
+
+            if not os.path.exists(out_path):
+                os.makedirs(out_path, exist_ok=True)
+
+            subprocess.Popen(
+                cmd,
+                stdout=open(os.path.join(out_path, f"slurm-{_DEFAULT_SLURM_ID}.out"), mode="w"),
+                stderr=open(os.path.join(out_path, f"slurm-{_DEFAULT_SLURM_ID}.err"), mode="w")
+            )
 
 
 class WorkerTracker:
