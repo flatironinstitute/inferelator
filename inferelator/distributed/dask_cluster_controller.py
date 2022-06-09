@@ -131,6 +131,7 @@ class DaskHPCClusterController(DaskAbstract):
     _project = None
     _interface = _DEFAULT_INTERFACE
     _local_directory = _DEFAULT_LOCAL_DIR
+    _log_directory = None
 
     # Job variables
     _job_n = _DEFAULT_NUM_JOBS
@@ -148,31 +149,38 @@ class DaskHPCClusterController(DaskAbstract):
         Setup slurm cluster
         """
 
+        if cls.client is None:
+
         # Create a slurm cluster with all the various class settings
-        cls._local_cluster = cls._cluster_controller_class(queue=cls._queue,
-                                                           project=cls._project,
-                                                           interface=cls._interface,
-                                                           walltime=cls._job_time,
-                                                           job_cpu=cls._job_n_workers * cls._worker_n_threads,
-                                                           cores=cls._job_n_workers * cls._worker_n_threads,
-                                                           processes=cls._job_n_workers,
-                                                           job_mem=cls._job_mem,
-                                                           env_extra=cls._config_env(),
-                                                           local_directory=cls._local_directory,
-                                                           memory=cls._job_mem,
-                                                           job_extra=cls._job_slurm_commands,
-                                                           job_cls=SLURMJobNoMemLimit,
-                                                           **kwargs)
+            cls._local_cluster = cls._cluster_controller_class(
+                queue=cls._queue,
+                project=cls._project,
+                interface=cls._interface,
+                walltime=cls._job_time,
+                job_cpu=cls._job_n_workers * cls._worker_n_threads,
+                cores=cls._job_n_workers * cls._worker_n_threads,
+                processes=cls._job_n_workers,
+                job_mem=cls._job_mem,
+                env_extra=cls._config_env(),
+                local_directory=cls._local_directory,
+                memory=cls._job_mem,
+                job_extra=cls._job_slurm_commands,
+                job_cls=SLURMJobNoMemLimit,
+                **kwargs
+            )
 
-        cls.client = distributed.Client(cls._local_cluster, direct_to_workers=True)
+            cls.client = distributed.Client(
+                cls._local_cluster,
+                direct_to_workers=True
+            )
 
-        cls._add_local_node_workers(cls._num_local_workers)
-        cls._tracker = WorkerTracker()
+            cls._add_local_node_workers(cls._num_local_workers)
+            cls._tracker = WorkerTracker()
 
-        utils.Debug.vprint(
-            f"Dask dashboard active: {cls.client.dashboard_link}",
-            level=0
-        )
+            utils.Debug.vprint(
+                f"Dask dashboard active: {cls.client.dashboard_link}",
+                level=0
+            )
 
         return True
 
@@ -400,7 +408,7 @@ class DaskHPCClusterController(DaskAbstract):
                    "--local-directory", str(cls._local_directory)]
 
             # Execute it through the Popen ()
-            out_path = cls._local_directory if cls._local_directory is not None else "."
+            out_path = cls._log_directory if cls._log_directory is not None else "."
 
             if not os.path.exists(out_path):
                 os.makedirs(out_path, exist_ok=True)

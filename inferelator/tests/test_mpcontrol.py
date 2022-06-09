@@ -134,8 +134,8 @@ class TestDaskHPCMPController(TestMPControl):
         MPControl.client.use_default_configuration('greene', 0)
         MPControl.client._num_local_workers = 2
         MPControl.client._interface = None
-        MPControl.client._local_directory = cls.tempdir
-        MPControl.connect(log_directory=cls.tempdir)
+        MPControl.client._log_directory = cls.tempdir
+        MPControl.connect()
 
     @classmethod
     def tearDownClass(cls):
