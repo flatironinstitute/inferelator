@@ -8,11 +8,15 @@ import pandas as pd
 import pandas.testing as pdt
 
 from inferelator import workflow
+from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.tests.artifacts.test_stubs import TaskDataStub
 from inferelator.regression import amusr_regression
 from inferelator.utils import InferelatorData
 
 data_path = os.path.join(os.path.dirname(__file__), "../../data/dream4")
+
+MPControl.shutdown()
+MPControl.set_multiprocess_engine('local')
 
 class TestAMuSRrunner(unittest.TestCase):
 
