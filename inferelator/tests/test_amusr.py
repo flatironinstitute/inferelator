@@ -1,6 +1,5 @@
 import os
 import unittest
-import copy
 
 import numpy as np
 import numpy.testing as npt
@@ -9,8 +8,7 @@ import pandas.testing as pdt
 
 from inferelator import workflow
 from inferelator.distributed.inferelator_mp import MPControl
-from inferelator.tests.artifacts.test_stubs import TaskDataStub
-from inferelator.regression import amusr_regression
+from inferelator.regression import amusr_regression, amusr_math
 from inferelator.utils import InferelatorData
 
 data_path = os.path.join(os.path.dirname(__file__), "../../data/dream4")
@@ -44,8 +42,8 @@ class TestAMuSRrunner(unittest.TestCase):
         Y = [np.array([3, 3, 3]),
              np.array([3, 3, 3])]
         W = np.array([[1, 0], [1, 0], [1, 0]])
-        self.assertEqual(amusr_regression.sum_squared_errors(X, Y, W, 0), 0)
-        self.assertEqual(amusr_regression.sum_squared_errors(X, Y, W, 1), 27)
+        self.assertEqual(amusr_math.sum_squared_errors(X, Y, W, 0), 0)
+        self.assertEqual(amusr_math.sum_squared_errors(X, Y, W, 1), 27)
 
 
 class TestAMuSRRegresionEBIC:
@@ -66,10 +64,10 @@ class TestAMuSRRegresionEBIC:
         
         gene1_prior = amusr_regression.format_prior(priors, 'gene1', [0, 1], 1.)
         gene2_prior = amusr_regression.format_prior(priors, 'gene2', [0, 1], 1.)
-        output = [amusr_regression.run_regression_EBIC(des, res, ['tf1', 'tf2', 'tf3'], [0, 1], 'gene1', gene1_prior,
-                                                       scale_data=True, use_numba=self.use_numba),
-                  amusr_regression.run_regression_EBIC(des, res, ['tf1', 'tf2', 'tf3'], [0, 1], 'gene2', gene2_prior,
-                                                       scale_data=True, use_numba=self.use_numba)]
+        output = [amusr_math.run_regression_EBIC(des, res, ['tf1', 'tf2', 'tf3'], [0, 1], 'gene1', gene1_prior,
+                                                 scale_data=True, use_numba=self.use_numba),
+                  amusr_math.run_regression_EBIC(des, res, ['tf1', 'tf2', 'tf3'], [0, 1], 'gene2', gene2_prior,
+                                                 scale_data=True, use_numba=self.use_numba)]
 
         out0 = pd.DataFrame([['tf3', 'gene1', -1, 1],
                              ['tf3', 'gene1', -1, 1]],
@@ -179,8 +177,8 @@ class TestAMuSRParams(unittest.TestCase):
 
             npt.assert_array_equal(lambda_Ss, lamb_s)
 
-            return amusr_regression.run_regression_EBIC(X, Y, TFs, tasks, gene, prior, Cs, Ss, lambda_Bs,
-                                                        lambda_Ss, scale_data)
+            return amusr_math.run_regression_EBIC(X, Y, TFs, tasks, gene, prior, Cs, Ss, lambda_Bs,
+                                                  lambda_Ss, scale_data)
 
         regress.regression_function = is_passed
 
@@ -201,8 +199,8 @@ class TestAMuSRParams(unittest.TestCase):
 
             npt.assert_array_equal(set_Cs, Cs)
 
-            return amusr_regression.run_regression_EBIC(X, Y, TFs, tasks, gene, prior, Cs, Ss, lambda_Bs,
-                                                        lambda_Ss, scale_data)
+            return amusr_math.run_regression_EBIC(X, Y, TFs, tasks, gene, prior, Cs, Ss, lambda_Bs,
+                                                  lambda_Ss, scale_data)
 
         regress.regression_function = is_passed
 
