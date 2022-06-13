@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import itertools
+import functools
 
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator import utils
@@ -10,13 +11,9 @@ from .base_regression import (_MultitaskRegressionWorkflowMixin,
 from .amusr_math import run_regression_EBIC
 
 DEFAULT_prior_weight = 1.0
-DEFAULT_Cs = np.logspace(np.log10(0.01), np.log10(10), 20)[::-1]
 
-MAX_ITER = 1000
 TOL = 1e-2
 REL_TOL = None
-MIN_WEIGHT_VAL = 0.1
-MIN_RSS = 1e-10
 
 
 class AMuSR_regression(BaseRegression):
@@ -51,7 +48,7 @@ class AMuSR_regression(BaseRegression):
                  tfs=None,
                  genes=None,
                  priors=None,
-                 prior_weight=1,
+                 prior_weight=DEFAULT_prior_weight,
                  remove_autoregulation=True,
                  lambda_Bs=None,
                  lambda_Ss=None,
@@ -60,13 +57,17 @@ class AMuSR_regression(BaseRegression):
                  tol=TOL,
                  rel_tol=REL_TOL,
                  use_numba=False
-                 ):
+        ):
         """
         Set up a regression object for multitask regression
-        :param X: list(InferelatorData)
-        :param Y: list(InferelatorData)
-        :param priors: pd.DataFrame [G, K]
-        :param prior_weight: float
+        :param X: Design activity data for each task
+        :type X: list(InferelatorData)
+        :param Y: Response expression data for each task
+        :type Y: list(InferelatorData)
+        :param priors: Prior network data for each task
+        :type priors: list(pd.DataFrame [G, K])
+        :param prior_weight: Weight for existing edges in prior network
+        :type prior_weight: numeric
         :param remove_autoregulation: bool
         :param lambda_Bs: list(float) [None]
         :param lambda_Ss: list(float) [None]
@@ -78,13 +79,12 @@ class AMuSR_regression(BaseRegression):
         # Check input types are correct
         assert check.argument_type(X, list)
         assert check.argument_type(Y, list)
-        assert check.argument_type(tfs, (list, pd.Series, pd.Index),
-                                   allow_none=True)
-        assert check.argument_type(genes, (list, pd.Series, pd.Index),
-                                   allow_none=True)
+        assert check.argument_type(tfs, list, allow_none=True)
+        assert check.argument_type(genes, list, allow_none=True)
         assert check.argument_numeric(prior_weight)
         assert check.argument_numeric(tol)
         assert check.argument_numeric(rel_tol, allow_none=True)
+
         assert len(X) == len(Y)
 
         # Set the data into the regression object
@@ -96,25 +96,24 @@ class AMuSR_regression(BaseRegression):
         self.priors = priors
         self.prior_weight = float(prior_weight)
 
-        # Construct a list of regulators if they are not passed in from the
-        # union of the task regulators
+        # Construct a list of regulators if they are not passed in
         if tfs is None:
-            tfs = [design.gene_names for design in X]
-            self.tfs = filter_genes_on_tasks(tfs, "union")
+            self.tfs = [design.gene_names.tolist() for design in X]
         else:
             self.tfs = tfs
 
-        # Construct a list of genes if they are not passed in from the
-        # union of the task genes
+        # Construct a list of genes if they are not passed in
         if genes is None:
-            genes = [resp.gene_names for resp in Y]
-            self.genes = filter_genes_on_tasks(genes, "union")
-
+            self.genes = filter_genes_on_tasks(
+                [resp.gene_names for resp in Y],
+                'union'
+            )
+            self.genes = _genes_tasks(self.genes, self.Y)
         else:
             self.genes = genes
 
         # Set the regulators and targets into the regression object
-        self.K, self.G = len(tfs), len(genes)
+        self.K, self.G = len(self.tfs), len(self.genes)
         self.remove_autoregulation = remove_autoregulation
 
         # Set the regularization coefficients into the regression object
@@ -140,7 +139,7 @@ class AMuSR_regression(BaseRegression):
         return MPControl.map(
             _amusr_wrapper,
             itertools.repeat(self.X, self.G),
-            _y_generator(self.Y, self.genes, self.G, self.n_tasks),
+            _y_generator(self.Y, self.genes),
             itertools.repeat(self.priors, self.G),
             itertools.repeat(self.prior_weight, self.G),
             range(self.G),
@@ -173,16 +172,17 @@ class AMuSR_regression(BaseRegression):
             results_k = pd.concat(results_k)
 
             weights_k = _format_weights(
-                results_k, 'weights',
-                self.genes,
-                self.tfs
+                results_k,
+                'weights',
+                self.Y[k].gene_names,
+                self.tfs[k]
             )
 
             rescaled_weights_k = _format_weights(
                 results_k,
                 'resc_weights',
-                self.genes,
-                self.tfs
+                self.Y[k].gene_names,
+                self.tfs[k]
             )
 
             rescaled_weights_k[rescaled_weights_k < 0.] = 0
@@ -213,14 +213,20 @@ def _amusr_wrapper(
         level=0 if j % 1000 == 0 else 2
     )
 
-    x, y, tasks = [], [], []
+    x, y, tf_t, tasks = [], [], [], []
 
     if remove_autoregulation:
-        tf = [t for t in tfs if t != gene]
+        tfs = np.asarray(tfs)
+        tf_keep = np.ones_like(tfs, dtype=bool)
+        for g in gene:
+            tf_keep &= tfs != g
+        tfs = tfs[:, np.any(tf_keep, axis=0)]
 
+    # Reorder the task data so it matches the genes that were passed in
     for k, y_task in y_data:
-        x.append(x_data[k].get_gene_data(tf))  # list([N, K])
+        x.append(x_data[k].get_gene_data(tfs[k]))  # list([N, K])
         y.append(y_task)
+        tf_t.append(tfs[k])
         tasks.append(k)  # [T,]
 
     prior = format_prior(
@@ -228,35 +234,32 @@ def _amusr_wrapper(
         gene,
         tasks,
         prior_weight,
-        tfs=tf
+        tfs=tfs
     )
 
-    return run_regression_EBIC(x, y, tf, tasks, gene, prior, **kwargs)
+    return run_regression_EBIC(x, y, tf_t, tasks, gene, prior, **kwargs)
 
 
-def _y_generator(y_data, genes, nG, n_tasks):
+def _y_generator(y_data, genes):
+
+    nG = len(genes)
 
     for i in range(nG):
-        y, y_genes, gene = [], [], genes[i]
+        y, y_genes = [], []
 
-        if isinstance(gene, (tuple, list)):
-            riter = gene
-        else:
-            riter = zip(range(n_tasks), itertools.repeat(gene))
-
-        for k, g in riter:
+        for k, g in genes[i]:
 
             if g in y_data[k].gene_names:
 
                 y.append((
                     k,
                     y_data[k].get_gene_data(
-                        gene,
+                        g,
                         force_dense=True
                     ).reshape(-1, 1)
                 ))
 
-                y_genes.append(gene)
+                y_genes.append(g)
 
         yield y, y_genes
 
@@ -289,12 +292,15 @@ def format_prior(priors, gene, tasks, prior_weight, tfs=None):
     if not isinstance(gene, (tuple, list)):
         gene = [gene] * len(priors)
 
+    if tfs is None:
+        tfs = [p.columns.tolist() for p in priors]
+
     priors_out = [
         _weight_prior(
             _reindex_to_gene(
                 priors[k],
                 gene[i],
-                tfs
+                tfs[k]
             ).loc[gene[i], :].values,
             prior_weight
         ) for i, k in enumerate(tasks)
@@ -452,7 +458,7 @@ class AMUSRRegressionWorkflowMixin(_MultitaskRegressionWorkflowMixin):
         self._set_without_warning("relative_tol", relative_tol)
 
     def run_bootstrap(self, bootstrap_idx):
-        x, y = [], []
+        x, y, tfs, genes = [], [], [], []
 
         # Select the appropriate bootstrap from each task and stash the
         # data into X and Y
@@ -463,12 +469,15 @@ class AMUSRRegressionWorkflowMixin(_MultitaskRegressionWorkflowMixin):
             y.append(self._task_response[k].get_bootstrap(
                 self._task_bootstraps[k][bootstrap_idx]
             ))
+            tfs.append(self._task_design[k].gene_names.tolist())
+
+        genes = _genes_tasks(self._targets, y)
 
         regress = self._r_class(
             x,
             y,
-            tfs=self._regulators,
-            genes=self._targets,
+            tfs=tfs,
+            genes=genes,
             priors=self._task_priors,
             prior_weight=self.prior_weight,
             lambda_Bs=self.lambda_Bs,
@@ -502,14 +511,20 @@ def filter_genes_on_tasks(list_of_indexes, task_expression_filter):
         ).value_counts()
         _filtered_idx = filtered_genes >= task_expression_filter
         filtered_genes = filtered_genes[_filtered_idx].index
+
     # If task_expression_filter is "intersection" only keep genes in all tasks
     elif task_expression_filter == "intersection":
-        for gene_idx in list_of_indexes:
-            filtered_genes = filtered_genes.intersection(gene_idx)
+        filtered_genes = functools.reduce(
+            lambda x, y: x.intersection(y),
+            list_of_indexes
+        )
+
     # If task_expression_filter is "union" keep genes that are in any task
     elif task_expression_filter == "union":
-        for gene_idx in list_of_indexes:
-            filtered_genes = filtered_genes.union(gene_idx)
+        filtered_genes = functools.reduce(
+            lambda x, y: x.union(y),
+            list_of_indexes
+        )
     else:
         raise ValueError(
             f"{task_expression_filter} is not an allowed "
@@ -517,3 +532,16 @@ def filter_genes_on_tasks(list_of_indexes, task_expression_filter):
         )
 
     return filtered_genes
+
+def _genes_tasks(list_of_genes, list_of_data):
+
+    genes_tasks = []
+    for g in list_of_genes:
+        genes_group = [(i, g)
+                       for i, d in enumerate(list_of_data)
+                       if g in d.gene_names]
+
+        if len(genes_group) > 0:
+            genes_tasks.append(genes_group)
+
+    return genes_tasks

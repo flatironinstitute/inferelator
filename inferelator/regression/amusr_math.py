@@ -17,6 +17,8 @@ REL_TOL = None
 MIN_WEIGHT_VAL = 0.1
 MIN_RSS = 1e-10
 
+OUT_DF_COLS = ['regulator', 'target', 'weights', 'resc_weights']
+
 
 def run_regression_EBIC(
     X,
@@ -43,7 +45,7 @@ def run_regression_EBIC(
     :type X: list(np.ndarray [N x K]) [t]
     :param Y: List consisting of response matrixes for each task
     :type Y: list(np.ndarray [N x 1]) [t]
-    :param TFs: List of TF names for each feature
+    :param TFs: List of TF names for each task
     :type TFs: list(list(str) [K]) [t]
     :param tasks: List identifying each task
     :type tasks: list(int) [t]
@@ -71,6 +73,9 @@ def run_regression_EBIC(
 
     assert len(X) == len(Y)
     assert len(X) == len(tasks)
+    assert len(X) == len(gene)
+    assert len(X) == len(TFs)
+
     assert prior.ndim == 2 if prior is not None else True
     assert prior.shape[1] == len(tasks) if prior is not None else True
 
@@ -79,9 +84,6 @@ def run_regression_EBIC(
 
     # The number of predictors
     n_preds = X[0].shape[1]
-
-    if not isinstance(gene, (list, tuple)):
-        gene = [gene] * n_tasks
 
     # A list of the number of samples for each task
     n_samples = [X[k].shape[0] for k in range(n_tasks)]
@@ -142,18 +144,22 @@ def run_regression_EBIC(
                 opt_b, opt_s = b, s
 
     ###### RESCALE WEIGHTS ######
-    output = {}
+    output = {k: [] for k in tasks}
 
     if model_output is not None:
         for kx, k in enumerate(tasks):
             nonzero = model_output[:, kx] != 0
             if nonzero.sum() > 0:
-                output[k] = _final_weights(
+                output[k].append(_final_weights(
                     X[kx][:, nonzero],
                     Y[kx],
-                    np.asarray(TFs)[nonzero],
+                    np.asarray(TFs[kx])[nonzero],
                     gene[kx]
-                )
+                ))
+
+    output = {k: pd.concat(output[k], axis=0)
+              for k in list(output.keys()) 
+              if len(output[k]) > 0}
 
     return (output, opt_b, opt_s) if return_lambdas else output
 
@@ -442,7 +448,7 @@ def _final_weights(X, y, TFs, gene):
 
     # Format output into an edge table
     out_weights = pd.DataFrame([TFs, [gene] * len(TFs), weights, resc_weights]).transpose()
-    out_weights.columns = ['regulator', 'target', 'weights', 'resc_weights']
+    out_weights.columns = OUT_DF_COLS
 
     return out_weights
 
