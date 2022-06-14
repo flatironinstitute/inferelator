@@ -1,14 +1,19 @@
 Change Log
 ==========
 
-Inferelator v0.6.0 `June  9, 2022`
+Inferelator v0.6.0 `June  14, 2022`
 ---------------------------------------
+
+New Functionality:
+
+- Support for grouping arbitrary genes from multiple tasks into learning groups
+- Workflow to learn homology groups together
 
 Code Refactoring:
 
+- Refactored multi-task learning to parameterize tfs and genes for each task
 - Refactored parallelization around joblib & dask
 - Removed pathos
-
 
 Inferelator v0.5.8 `February  23, 2022`
 ---------------------------------------

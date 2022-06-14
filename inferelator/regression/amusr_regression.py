@@ -108,7 +108,7 @@ class AMuSR_regression(BaseRegression):
                 [resp.gene_names for resp in Y],
                 'union'
             )
-            self.genes = _genes_tasks(self.genes, self.Y)
+            self.genes = genes_tasks(self.genes, self.Y)
         else:
             self.genes = genes
 
@@ -370,7 +370,7 @@ def _format_weights(df, col, targets, regs):
         columns='regulator',
         values=col,
         fill_value=0.
-    )
+    ).astype(float)
 
     # Reindex to a [targets x regulators] dataframe and fill anything
     # missing with 0s
@@ -458,7 +458,7 @@ class AMUSRRegressionWorkflowMixin(_MultitaskRegressionWorkflowMixin):
         self._set_without_warning("relative_tol", relative_tol)
 
     def run_bootstrap(self, bootstrap_idx):
-        x, y, tfs, genes = [], [], [], []
+        x, y, tfs = [], [], []
 
         # Select the appropriate bootstrap from each task and stash the
         # data into X and Y
@@ -471,13 +471,11 @@ class AMUSRRegressionWorkflowMixin(_MultitaskRegressionWorkflowMixin):
             ))
             tfs.append(self._task_design[k].gene_names.tolist())
 
-        genes = _genes_tasks(self._targets, y)
-
         regress = self._r_class(
             x,
             y,
             tfs=tfs,
-            genes=genes,
+            genes=self._task_genes,
             priors=self._task_priors,
             prior_weight=self.prior_weight,
             lambda_Bs=self.lambda_Bs,
@@ -533,7 +531,22 @@ def filter_genes_on_tasks(list_of_indexes, task_expression_filter):
 
     return filtered_genes
 
-def _genes_tasks(list_of_genes, list_of_data):
+def genes_tasks(list_of_genes, list_of_data):
+    """
+    Take a list of genes and find them in the task
+    response data gene_names.
+
+    Returns (task #, gene_id) tuples
+
+    :param list_of_genes: List of gene IDs
+    :type list_of_genes: list, pd.Index
+    :param list_of_data: list of response data
+    :type list_of_data: list(InferelatorData)
+    :return: List where each element is genes that
+        should be learned together as (task #, gene_id)
+        tuples
+    :rtype: list(list(tuple(int, str)))
+    """
 
     genes_tasks = []
     for g in list_of_genes:

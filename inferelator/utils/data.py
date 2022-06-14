@@ -590,7 +590,7 @@ class InferelatorData(object):
             x = x.X
 
         if zscore:
-            
+
             # Z-score the values
             z_x = np.subtract(x, self.obs_means.reshape(-1, 1))
             z_x = np.divide(z_x, self.obs_stdev.reshape(-1, 1))
@@ -644,7 +644,7 @@ class InferelatorData(object):
         :param random_seed: Seed for numpy random generator, defaults to None. Will be ignored if a generator itself is
             passed to random_gen.
         :type random_seed: int, optional
-        :param random_gen: Numpy random generator to use, defaults to None. 
+        :param random_gen: Numpy random generator to use, defaults to None.
         :type random_gen: np.random.Generator, optional
         :param inplace: Change this instance of the data structure inplace and return a reference to itself
         :type inplace: bool, optional
@@ -664,7 +664,7 @@ class InferelatorData(object):
         # Sample with replacement using randint
         if with_replacement:
             keeper_ilocs = random_gen.integers(self.num_obs, size=(num_obs,))
-        
+
         # Sample without replacement using choice
         else:
             keeper_ilocs = random_gen.choice(np.arange(self.num_obs), size=(num_obs,), replace=False)
@@ -673,7 +673,7 @@ class InferelatorData(object):
         if inplace:
             self._adata = self._adata[keeper_ilocs, :].copy()
             return_obj = self
-        
+
         # Create a new InferelatorData instance with the _adata slice
         else:
             return_obj = InferelatorData(self._adata[keeper_ilocs, :].copy())
@@ -682,7 +682,6 @@ class InferelatorData(object):
         return_obj._adata.obs_names_make_unique() if with_replacement and fix_names else None
 
         return return_obj
-
 
     def subset_copy(self, row_index=None, column_index=None):
 
@@ -870,6 +869,20 @@ class InferelatorData(object):
 
     def to_df(self):
         return self._adata.to_df()
+
+    def replace_data(self, new_data, new_gene_names=None, new_gene_metadata=None):
+
+        if new_gene_metadata is None and new_gene_names is not None:
+            new_gene_metadata = pd.DataFrame(index=new_gene_names)
+
+        self._adata = AnnData(
+            X=new_data,
+            dtype=new_data.dtype,
+            var=new_gene_metadata,
+            obs=self._adata.obs
+        )
+
+        gc.collect()
 
     @staticmethod
     def _make_idx_str(df):

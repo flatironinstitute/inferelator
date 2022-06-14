@@ -35,6 +35,7 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
     _task_priors = None
     _task_names = None
     _task_objects = None
+    _task_genes = None
 
     task_results = None
 
@@ -93,7 +94,7 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         # Use the raw gene expression data if response isn't calculated yet
         elif self._task_objects is not None:
             task_ref = [t.data.gene_names for t in self._task_objects if t.data is not None]
-        
+
         else:
             return None
 
@@ -390,12 +391,18 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         self._targets = amusr_regression.filter_genes_on_tasks(targets, self._target_expression_filter)
         self._regulators = amusr_regression.filter_genes_on_tasks(regulators, self._regulator_expression_filter)
 
+        self._task_genes = amusr_regression.genes_tasks(self._targets, self._task_response)
+
         Debug.vprint("Processed data into design/response [{g} x {k}]".format(g=len(self._targets),
                                                                               k=len(self._regulators)), level=0)
 
         # Clean up the TaskData objects and force a cyclic collection
         del self._task_objects
         gc.collect()
+
+        self._align_design_response()
+
+    def _align_design_response(self):
 
         # Make sure that the task data files have the correct columns
         for d in self._task_design:
@@ -448,12 +455,12 @@ def create_task_data_class(workflow_class="single-cell"):
             :rtype: str
             """
 
-            task_str = "{n}:\n\tWorkflow Class: {cl}\n".format(n=self.task_name, cl=self.task_workflow_class)
+            task_str = f"{self.task_name}:\n\tWorkflow Class: {self.task_workflow_class}\n"
             for attr in self.str_attrs:
                 try:
-                    task_str += "\t{attr}: {val}\n".format(attr=attr, val=getattr(self, attr))
+                    task_str += f"\t{attr}: {getattr(self, attr)}\n"
                 except AttributeError:
-                    task_str += "\t{attr}: Nonexistant\n".format(attr=attr)
+                    task_str += f"\t{attr}: NA\n"
             return task_str
 
         def __init__(self):
