@@ -65,7 +65,7 @@ class TestAMuSRRegresionEBIC:
 
         priors = [pd.DataFrame([[0, 1, 1], [1, 0, 1]], index=targets[0], columns=tfs[0]),
                   pd.DataFrame([[0, 0, 1], [1, 0, 1]], index=targets[1], columns=tfs[1])]
-        
+
         gene1_prior = amusr_regression.format_prior(priors, ['gene1'] * 2, [0, 1], 1.)
         gene2_prior = amusr_regression.format_prior(priors, ['gene2'] * 2, [0, 1], 1.)
 
@@ -85,7 +85,7 @@ class TestAMuSRRegresionEBIC:
                             index=pd.MultiIndex(levels=[[0, 1], [0]],
                                                 codes=[[0, 1], [0, 0]]),
                             columns=['regulator', 'target', 'weights', 'resc_weights'])
-                            
+
         pdt.assert_frame_equal(pd.concat(output[0]), out0, check_dtype=False)
         pdt.assert_frame_equal(pd.concat(output[1]), out1, check_dtype=False)
 
@@ -135,6 +135,11 @@ class TestAMuSRREgressionEBICNumba(TestAMuSRRegresionEBIC):
 
 class TestAMuSRParams(unittest.TestCase):
 
+    @classmethod
+    def setUpClass(cls):
+        MPControl.shutdown()
+        MPControl.set_multiprocess_engine('local')
+
     def setUp(self):
 
         self.workflow = workflow.inferelator_workflow(workflow="amusr", regression="amusr")
@@ -167,7 +172,7 @@ class TestAMuSRParams(unittest.TestCase):
         npt.assert_array_equal(self.workflow.lambda_Bs, lamb_b)
         npt.assert_array_equal(regress.lambda_Bs, lamb_b)
 
-        output = regress.run()
+        regress.run()
 
     def test_lamb_s(self):
 
@@ -180,7 +185,7 @@ class TestAMuSRParams(unittest.TestCase):
         npt.assert_array_equal(self.workflow.lambda_Ss, lamb_s)
         npt.assert_array_equal(regress.lambda_Ss, lamb_s)
 
-        output = regress.run()
+        regress.run()
 
     def test_heuristic_c(self):
 
@@ -193,4 +198,4 @@ class TestAMuSRParams(unittest.TestCase):
         npt.assert_array_equal(self.workflow.heuristic_Cs, set_Cs)
         npt.assert_array_equal(regress.Cs, set_Cs)
 
-        output = regress.run()
+        regress.run()
