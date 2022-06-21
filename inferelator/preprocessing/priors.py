@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import warnings
 
 from inferelator import utils
 from inferelator.utils import Validator as check
@@ -76,26 +77,48 @@ class ManagePriors(object):
         assert check.argument_enum(cv_split_axis, (0, 1), allow_none=True)
         assert check.argument_numeric(cv_split_ratio, low=0, high=1)
 
+        _gs_shape = gold_standard.shape
+
         if cv_split_axis == 1:
-            utils.Debug.vprint("Selecting cv_split_axis of 1 is possible but a very bad idea", level=1)
+            warnings.warn(
+                "Setting a cv_split_axis of 1 means TFs in the gold standard "
+                "will have no prior network knowledge for activity. "
+                "This is not advisable."
+            )
 
-        utils.Debug.vprint("Resampling GS ({gs}) for crossvalidation".format(gs=gold_standard.shape), level=0)
-        gs_to_prior, gold_standard = ManagePriors._split_for_cv(gold_standard, cv_split_ratio, split_axis=cv_split_axis,
-                                                                seed=random_seed)
+        gs_to_prior, gold_standard = ManagePriors._split_for_cv(
+            gold_standard,
+            cv_split_ratio,
+            split_axis=cv_split_axis,
+            seed=random_seed
+        )
 
-        # If the priors are split on an axis, remove circularity
+        # If the priors are split on an axis, remove circularity from prior
         if cv_split_axis is not None:
-            priors_data, gold_standard = ManagePriors._remove_prior_circularity(priors_data, gold_standard,
-                                                                                split_axis=cv_split_axis)
+
+            priors_data, gold_standard = ManagePriors._remove_prior_circularity(
+                priors_data,
+                gold_standard,
+                split_axis=cv_split_axis
+            )
+
         else:
             if priors_data is not None:
-                utils.Debug.vprint("Existing prior is being replaced with a downsampled gold standard")
+                warnings.warn(
+                    "Existing prior is being replaced with a downsampled gold standard "
+                    "because cv_split_axis == None"
+                )
+
             priors_data = gs_to_prior
 
-        _msg = "CV prior {pr} [{pr_x}] and gold standard {gs} [{gs_x}]"
-        utils.Debug.vprint(_msg.format(pr=priors_data.shape, gs=gold_standard.shape,
-                                       pr_x=(priors_data != 0).sum().sum(),
-                                       gs_x=(gold_standard != 0).sum().sum()), level=0)
+        utils.Debug.vprint(
+            f"Gold standard {_gs_shape} split on axis {cv_split_axis}. "
+            f"Prior knowledge network {priors_data.shape} "
+            f"[{np.sum(priors_data != 0)} edges] is for activity "
+            f"and gold standard network {gold_standard.shape} "
+            f"[{np.sum(gold_standard != 0)} edges] is for testing.",
+            level=0
+        )
 
         return priors_data, gold_standard
 
@@ -111,10 +134,11 @@ class ManagePriors(object):
         try:
             priors_data = ManagePriors._filter_df_index(priors_data, gene_list)
         except ValueError as err:
-            err = str(err) + " when filtering priors for gene list. "
-            err += " Prior matrix genes: " + str(priors_data.index[0]) + "..."
-            err += " Gene list genes: " + gene_list[0]
-            raise ValueError(err)
+            raise ValueError(
+                f"{str(err)} when filtering priors for gene list. "
+                f"Prior matrix genes: {str(priors_data.index[0])} ... "
+                f"Gene list genes: {str(gene_list[0])}"
+            )
 
         return priors_data
 
@@ -245,7 +269,7 @@ class ManagePriors(object):
         new_prior = rgen.random(priors_data.shape)
         cutoff = np.quantile(new_prior, noise_ratio, axis=None)
 
-        priors_data = priors_data != 0 
+        priors_data = priors_data != 0
         old_prior_sum = priors_data.sum().sum()
 
         priors_data += new_prior <= cutoff
