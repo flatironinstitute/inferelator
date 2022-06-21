@@ -158,7 +158,7 @@ def run_regression_EBIC(
                 ))
 
     output = {k: pd.concat(output[k], axis=0)
-              for k in list(output.keys()) 
+              for k in list(output.keys())
               if len(output[k]) > 0}
 
     return (output, opt_b, opt_s) if return_lambdas else output
@@ -552,27 +552,34 @@ class AMuSR_math:
 
             # set all tasks to zero if l1-norm less than lamB
             if np.linalg.norm(alphas, 1) <= lamB:
-                B[j,:] = np.zeros(n_tasks)
+                B[j, :] = np.zeros(n_tasks)
 
             # regularized update for predictors with larger l1-norm
             else:
                 # find number of coefficients that would make l1-norm greater than penalty
                 indices = np.abs(alphas).argsort()[::-1]
                 sorted_alphas = alphas[indices]
-                m_star = np.argmax((np.abs(sorted_alphas).cumsum()-lamB)/(np.arange(n_tasks)+1))
+
+                m_star = np.argmax((np.abs(sorted_alphas).cumsum() - lamB) / (np.arange(n_tasks) + 1))
+
                 # initialize new weights
                 new_weights = np.zeros(n_tasks)
+
                 # keep small coefficients and regularize large ones (in above group)
                 for k in range(n_tasks):
+
                     idx = indices[k]
+
                     if k > m_star:
                         new_weights[idx] = sorted_alphas[k]
+
                     else:
                         sign = np.sign(sorted_alphas[k])
-                        update_term = np.sum(np.abs(sorted_alphas)[:m_star+1])-lamB
-                        new_weights[idx] = (sign/(m_star+1))*update_term
+                        update_term = np.sum(np.abs(sorted_alphas)[:m_star + 1]) - lamB
+                        new_weights[idx] = (sign/(m_star + 1)) * update_term
+
                 # update current predictor
-                B[j,:] = new_weights
+                B[j, :] = new_weights
 
         return B
 

@@ -547,7 +547,9 @@ class InferelatorData(object):
             nz_var = nz_var.A.flatten() if self.is_sparse else nz_var
 
             if np.any(np.isnan(nz_var)):
-                raise ValueError("NaN values are present in the expression matrix; unable to remove var=0 genes")
+                raise ValueError(
+                    f"NaN values are present in data matrix {self.name} "
+                    f"when removing zero variance genes")
 
             nz_var = comp < nz_var
 
@@ -557,23 +559,31 @@ class InferelatorData(object):
             var_zero_trim = 0
 
         if np.sum(keep_column_bool) == 0:
-            err_msg = "No genes remain after trimming. ({lst} removed to match list, {v} removed for var=0)"
-            raise ValueError(err_msg.format(lst=list_trim, v=var_zero_trim))
+            raise ValueError(
+                "No genes remain after trimming. "
+                f"({list_trim} removed to match list, "
+                f"{var_zero_trim} removed for zero variance)"
+            )
 
         if np.sum(keep_column_bool) == self._adata.shape[1]:
             pass
         else:
-            Debug.vprint("Trimming {name} matrix {sh} to {n} columns".format(name=self.name, sh=self._adata.X.shape,
-                                                                             n=np.sum(keep_column_bool)),
-                         level=1)
+            Debug.vprint(
+                f"Trimming {self.name} matrix "
+                f"{self._adata.X.shape} to "
+                f"{np.sum(keep_column_bool)} columns",
+                level=1
+            )
 
             # This explicit copy allows the original to be deallocated
-            # Otherwise the GC leaves the original because the view reference keeps it alive
+            # Otherwise the view reference keeps it in memory
             # At some point it will need to copy so why not now
-            self._adata = AnnData(self._adata.X[:, keep_column_bool],
-                                  obs=self._adata.obs.copy(),
-                                  var=self._adata.var.loc[keep_column_bool, :].copy(),
-                                  dtype=self._adata.X.dtype)
+            self._adata = AnnData(
+                self._adata.X[:, keep_column_bool],
+                obs=self._adata.obs.copy(),
+                var=self._adata.var.loc[keep_column_bool, :].copy(),
+                dtype=self._adata.X.dtype
+            )
 
             # Make sure that there's no hanging reference to the original object
             gc.collect()
