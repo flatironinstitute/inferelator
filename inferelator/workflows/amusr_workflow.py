@@ -488,8 +488,10 @@ def create_task_data_class(workflow_class="single-cell"):
             :return: List of TaskData objects with loaded data
             :rtype: list(TaskData)
             """
-            Debug.vprint("Loading data for task {task_name}".format(task_name=self.task_name))
+            Debug.vprint(f"Loading data for task {self.task_name}")
             super(TaskData, self).get_data()
+
+            self.data.name = self.task_name
 
             if self.tasks_from_metadata:
                 return self.separate_tasks_by_metadata()
