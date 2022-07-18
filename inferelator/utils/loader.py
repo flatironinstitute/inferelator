@@ -328,12 +328,16 @@ def _decode_series(series, encoding):
         series.cat.categories = _decode_series(series.dtype.categories, encoding=encoding)
         return series
 
-    _new_series = series.str.decode(encoding).values
+    try:
+        _new_series = series.str.decode(encoding).values
+    except AttributeError:
+        return series
+
     _no_decode = pd.isna(_new_series)
 
     if np.all(_no_decode):
         return series
-    
+
     _new_series[_no_decode] = series.values[_no_decode]
 
     try:
