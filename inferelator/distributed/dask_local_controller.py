@@ -34,6 +34,8 @@ class DaskAbstract(AbstractController):
     # Settings for dask workers
     processes = 4
 
+    _batch_size=10
+
     @abstractclassmethod
     def connect(cls, *args, **kwargs):
         pass
@@ -84,9 +86,15 @@ class DaskAbstract(AbstractController):
             client=cls.client
         ):
 
-            res = [r for r in joblib.Parallel()(
-                joblib.delayed(func)(*scatter_func(*a), **kwargs) for a in zip(*args)
-            )]
+            res = [
+                r for r in joblib.Parallel(
+                    batch_size=cls._batch_size
+                )(joblib.delayed(func)(
+                    *scatter_func(*a), **kwargs
+                )
+                for a in zip(*args)
+                )
+            ]
 
         if scatter is not None:
             cls.client.cancel(scatter.values())
