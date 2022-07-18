@@ -72,14 +72,16 @@ class DaskAbstract(AbstractController):
                 for a in scatter
             }
 
-            def scatter_func(*a):
-                return [scatter[id(b)] if id(b) in scatter.keys() else b for b in a]
-
             distributed.wait(scatter.values(), timeout=120)
 
-        else:
-            def scatter_func(*a):
-                return a
+            # Replace kwargs with scattered object
+            # If object ID was in the scatter table
+            kwargs = {
+                k: scatter[id(v)]
+                if id(v) in scatter.keys()
+                else v
+                for k, v in kwargs.items()
+            }
 
         with joblib.parallel_backend(
             'dask',
@@ -90,7 +92,8 @@ class DaskAbstract(AbstractController):
                 r for r in joblib.Parallel(
                     batch_size=cls._batch_size
                 )(joblib.delayed(func)(
-                    *scatter_func(*a), **kwargs
+                    *_scatter_wrapper_args(*a, scatter_map=scatter),
+                    **kwargs
                 )
                 for a in zip(*args)
                 )
@@ -118,6 +121,24 @@ class DaskAbstract(AbstractController):
     @classmethod
     def status(cls):
         return cls.check_cluster_state()
+
+
+def _scatter_wrapper_args(*args, scatter_map=None):
+    """
+    Replace args with dask delayed scatter objects if IDs
+    match a lookup table
+    """
+
+    if scatter_map is None:
+        return args
+
+    else:
+        return [
+            scatter_map[id(a)]
+            if id(a) in scatter_map.keys()
+            else a
+            for a in args
+        ]
 
 
 class DaskController(DaskAbstract):
