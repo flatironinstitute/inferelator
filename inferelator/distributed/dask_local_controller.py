@@ -34,7 +34,7 @@ class DaskAbstract(AbstractController):
     # Settings for dask workers
     processes = 4
 
-    _batch_size=10
+    _batch_size = None
 
     @abstractclassmethod
     def connect(cls, *args, **kwargs):
@@ -45,7 +45,14 @@ class DaskAbstract(AbstractController):
         pass
 
     @classmethod
-    def map(cls, func, *args, scatter=None, restart_workers=False, **kwargs):
+    def map(
+        cls,
+        func,
+        *args,
+        scatter=None,
+        restart_workers=False,
+        **kwargs
+    ):
         """
         Map a function through dask workers
 
@@ -83,6 +90,14 @@ class DaskAbstract(AbstractController):
                 for k, v in kwargs.items()
             }
 
+        # Quick & dirty batch size heuristic
+        if cls._batch_size is None:
+            arglen = max(_safe_len(x) for x in args)
+            batch_size = int(arglen / cls.num_workers() / 2)
+            batch_size = max(2, min(100, batch_size))
+        else:
+            batch_size = cls._batch_size
+
         with joblib.parallel_backend(
             'dask',
             client=cls.client
@@ -90,7 +105,7 @@ class DaskAbstract(AbstractController):
 
             res = [
                 r for r in joblib.Parallel(
-                    batch_size=cls._batch_size
+                    batch_size=batch_size
                 )(joblib.delayed(func)(
                     *_scatter_wrapper_args(*a, scatter_map=scatter),
                     **kwargs
@@ -122,6 +137,9 @@ class DaskAbstract(AbstractController):
     def status(cls):
         return cls.check_cluster_state()
 
+    @classmethod
+    def num_workers(cls):
+        return len(cls.local_cluster.observed)
 
 def _scatter_wrapper_args(*args, scatter_map=None):
     """
@@ -139,6 +157,16 @@ def _scatter_wrapper_args(*args, scatter_map=None):
             else a
             for a in args
         ]
+
+def _safe_len(x):
+    """
+    Length check that's generator-safe
+    """
+
+    try:
+        return len(x)
+    except TypeError:
+        return 0
 
 
 class DaskController(DaskAbstract):
