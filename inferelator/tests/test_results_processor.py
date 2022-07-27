@@ -416,5 +416,9 @@ class TestMTLResults(TestResults):
     def test_mtl_multiple_priors(self):
         rp = results_processor_mtl.ResultsProcessorMultiTask([[self.beta1], [self.beta1]], [[self.beta2], [self.beta2]])
         rp.write_task_files = False
-        result = rp.summarize_network(None, [self.gold_standard, self.gold_standard], [self.prior, self.prior])
+        result = rp.summarize_network(
+            None,
+            self.gold_standard,
+            [self.prior, self.prior],
+            task_gold_standards=[self.gold_standard, self.gold_standard])
         self.assertEqual(result.score, 1)
