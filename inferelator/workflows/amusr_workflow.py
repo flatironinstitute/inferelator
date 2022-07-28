@@ -15,9 +15,26 @@ from inferelator.workflows import single_cell_workflow
 from inferelator.regression import amusr_regression
 from inferelator.postprocessing.results_processor_mtl import ResultsProcessorMultiTask
 
-TRANSFER_ATTRIBUTES = ['count_minimum', 'preprocessing_workflow', 'input_dir', 'make_data_noise']
-NON_TASK_ATTRIBUTES = ["random_seed", "num_bootstraps"]
+TRANSFER_ATTRIBUTES = [
+    'count_minimum',
+    'preprocessing_workflow',
+    'input_dir',
+    'make_data_noise'
+]
 
+NON_TASK_ATTRIBUTES = [
+    "random_seed",
+    "num_bootstraps"
+]
+
+TASK_STR_ATTRS = [
+    "input_dir",
+    "expression_matrix_file",
+    "tf_names_file",
+    "meta_data_file",
+    "priors_file",
+    "gold_standard_file"
+]
 
 class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
     """
@@ -33,6 +50,7 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
     _task_response = None
     _task_bootstraps = None
     _task_priors = None
+    _task_gold_standards = None
     _task_names = None
     _task_objects = None
     _task_genes = None
@@ -154,9 +172,20 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         self._process_task_priors()
         self._process_task_data()
 
-    def create_task(self, task_name=None, input_dir=None, expression_matrix_file=None, meta_data_file=None,
-                    tf_names_file=None, priors_file=None, gene_names_file=None, gene_metadata_file=None,
-                    workflow_type="single-cell", **kwargs):
+    def create_task(
+        self,
+        task_name=None,
+        input_dir=None,
+        expression_matrix_file=None,
+        meta_data_file=None,
+        tf_names_file=None,
+        priors_file=None,
+        gold_standard_file=None,
+        gene_names_file=None,
+        gene_metadata_file=None,
+        workflow_type="single-cell",
+        **kwargs
+    ):
         """
         Create a task object and set any arguments to this function as attributes of that task object. TaskData objects
         are stored internally in _task_objects.
@@ -197,6 +226,7 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         task_object.priors_file = priors_file
         task_object.gene_names_file = gene_names_file
         task_object.gene_metadata_file = gene_metadata_file
+        task_object.gold_standard_file = gold_standard_file
 
         # Warn if there is an attempt to set something that isn't supported
         msg = "Task-specific {} is not supported. This setting will be ignored. Set this in the parent workflow."
@@ -211,7 +241,7 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
                 setattr(task_object, attr, val)
                 task_object.str_attrs.append(attr)
             else:
-                raise ValueError("Argument {attr} cannot be set as an attribute".format(attr=attr))
+                raise ValueError(f"Argument {attr} cannot be set as an attribute")
 
         if self._task_objects is None:
             self._task_objects = [task_object]
@@ -276,10 +306,18 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
 
         # If they all have priors don't worry about it - use a 0 prior here for crossvalidation selection if needed
         elif self.priors_data is None and self.gold_standard is not None:
-            priors = pd.DataFrame(0, index=self.gold_standard.index, columns=self.gold_standard.columns)
+            priors = pd.DataFrame(
+                0,
+                index=self.gold_standard.index,
+                columns=self.gold_standard.columns
+            )
 
         elif self.priors_data is None and self.tf_names is not None:
-            priors = pd.DataFrame(0, index=self._gene_names, columns=self.tf_names)
+            priors = pd.DataFrame(
+                0,
+                index=self._gene_names,
+                columns=self.tf_names
+            )
 
         # If there's no gold standard or use_no_prior isn't set, raise a RuntimeError
         else:
@@ -298,25 +336,47 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
 
         # Filter to regulators
         if self.tf_names is not None:
-            priors = self.prior_manager.filter_to_tf_names_list(priors, self.tf_names)
+            priors = self.prior_manager.filter_to_tf_names_list(
+                priors,
+                self.tf_names
+            )
 
         # Filter to targets
         if self.gene_names is not None:
-            priors = self.prior_manager.filter_priors_to_genes(priors, self.gene_names)
+            priors = self.prior_manager.filter_priors_to_genes(
+                priors,
+                self.gene_names
+            )
 
         # Shuffle labels
         if self.shuffle_prior_axis is not None:
-            priors = self.prior_manager.shuffle_priors(priors, self.shuffle_prior_axis, self.random_seed)
+            priors = self.prior_manager.shuffle_priors(
+                priors,
+                self.shuffle_prior_axis,
+                self.random_seed
+            )
 
         # Add prior noise now (to the base prior) if add_prior_noise_to_task_priors is False
         # Otherwise add later to the task priors (will be different for each task)
         if self.add_prior_noise is not None and not self.add_prior_noise_to_task_priors:
-            priors = self.prior_manager.add_prior_noise(priors, self.add_prior_noise, self.random_seed)
+            priors = self.prior_manager.add_prior_noise(
+                priors,
+                self.add_prior_noise,
+                self.random_seed
+            )
 
-            _has_prior = [t.priors_data is not None for t in self._task_objects]
-            if any(_has_prior):
-                _msg = "Overriding task priors in {tn} because add_prior_noise_to_task_priors is False"
-                utils.Debug.vprint(_msg.format(tn=_has_prior), level=0)
+            _has_prior = [
+                t.task_name
+                for t in self._task_objects
+                if t.priors_data is not None
+            ]
+
+            if len(_has_prior) > 0:
+                utils.Debug.vprint(
+                    f"Overriding task priors in {_has_prior} because "
+                    "add_prior_noise_to_task_priors is False",
+                    level=0
+                )
 
                 for t in self._task_objects:
                     t.priors_data = priors.copy()
@@ -365,8 +425,18 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         This is chosen based on the filtering strategy set in self.target_expression_filter and
         self.regulator_expression_filter
         """
-        self._task_design, self._task_response = [], []
-        self._task_bootstraps, self._task_names, self._task_priors = [], [], []
+
+        # Create empty task data lists
+        for attr in [
+            "_task_design",
+            "_task_response",
+            "_task_bootstraps",
+            "_task_names",
+            "_task_priors",
+            "_task_gold_standards"]:
+
+            setattr(self, attr, [])
+
         targets, regulators = [], []
 
         # Iterate through a list of TaskData objects holding data
@@ -387,6 +457,11 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
             self._task_names.append(task_name)
             self._task_priors.append(task_obj.priors_data)
 
+            if task_obj.gold_standard is not None:
+                self._task_gold_standards.append(task_obj.gold_standard)
+            else:
+                self._task_gold_standards.append(self.gold_standard.copy())
+
             regulators.append(task_obj.design.gene_names)
             targets.append(task_obj.response.gene_names)
 
@@ -396,10 +471,20 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
                 level=1
             )
 
-        self._targets = amusr_regression.filter_genes_on_tasks(targets, self._target_expression_filter)
-        self._regulators = amusr_regression.filter_genes_on_tasks(regulators, self._regulator_expression_filter)
+        self._targets = amusr_regression.filter_genes_on_tasks(
+            targets,
+            self._target_expression_filter
+        )
 
-        self._task_genes = amusr_regression.genes_tasks(self._targets, self._task_response)
+        self._regulators = amusr_regression.filter_genes_on_tasks(
+            regulators,
+            self._regulator_expression_filter
+        )
+
+        self._task_genes = amusr_regression.genes_tasks(
+            self._targets,
+            self._task_response
+        )
 
         Debug.vprint("Processed data into design/response [{g} x {k}]".format(g=len(self._targets),
                                                                               k=len(self._regulators)), level=0)
@@ -432,12 +517,19 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
             betas,
             rescaled_betas,
             filter_method=self.gold_standard_filter_method,
-            metric=self.metric
+            metric=self.metric,
+            task_names=self._task_names
         )
 
-        rp.tasks_names = self._task_names
-        self.results = rp.summarize_network(self.output_dir, gold_standard, self._task_priors)
+        self.results = rp.summarize_network(
+            self.output_dir,
+            gold_standard,
+            self._task_priors,
+            task_gold_standards=self._task_gold_standards
+        )
+
         self.task_results = rp.tasks_networks
+
         return self.results
 
 
@@ -446,7 +538,10 @@ def create_task_data_object(workflow_class="single-cell"):
 
 
 def create_task_data_class(workflow_class="single-cell"):
-    task_parent = workflow._factory_build_inferelator(regression="base", workflow=workflow_class)
+    task_parent = workflow._factory_build_inferelator(
+        regression="base",
+        workflow=workflow_class
+    )
 
     class TaskData(task_parent):
         """
@@ -459,7 +554,7 @@ def create_task_data_class(workflow_class="single-cell"):
 
         task_workflow_class = str(workflow_class)
 
-        str_attrs = ["input_dir", "expression_matrix_file", "tf_names_file", "meta_data_file", "priors_file"]
+        str_attrs = copy.copy(TASK_STR_ATTRS)
 
         def __str__(self):
             """
@@ -471,10 +566,8 @@ def create_task_data_class(workflow_class="single-cell"):
 
             task_str = f"{self.task_name}:\n\tWorkflow Class: {self.task_workflow_class}\n"
             for attr in self.str_attrs:
-                try:
-                    task_str += f"\t{attr}: {getattr(self, attr)}\n"
-                except AttributeError:
-                    task_str += f"\t{attr}: NA\n"
+                task_str += f"\t{attr}: {getattr(self, attr, 'NA')}\n"
+
             return task_str
 
         def __init__(self):
@@ -526,8 +619,14 @@ def create_task_data_class(workflow_class="single-cell"):
 
             warnings.warn("Task-specific `num_bootstraps` and `random_seed` is not supported. Set on parent workflow.")
 
-        def process_priors_and_gold_standard(self, gold_standard=None, cv_flag=None, cv_axis=None, shuffle_priors=None,
-                                             add_prior_noise=None):
+        def process_priors_and_gold_standard(
+            self,
+            gold_standard=None,
+            cv_flag=None,
+            cv_axis=None,
+            shuffle_priors=None,
+            add_prior_noise=None
+        ):
             """
             Make sure that the priors for this task are correct
 
@@ -573,7 +672,9 @@ def create_task_data_class(workflow_class="single-cell"):
                 )
 
             if min(self.priors_data.shape) == 0:
-                raise ValueError("Priors for task {n} have an axis of length 0".format(n=self.task_name))
+                raise ValueError(
+                    f"Priors for task {self.task_name} have an axis of length 0"
+                )
 
         def separate_tasks_by_metadata(self, meta_data_column=None):
             """

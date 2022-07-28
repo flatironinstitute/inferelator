@@ -176,19 +176,30 @@ class TFAWorkFlow(workflow.WorkflowBase):
         file = self._tfa_input_file if file is None else file
         file_type = self._tfa_input_file_type if file_type is None else file_type
 
-        loader = InferelatorDataLoader(input_dir=self.input_dir, file_format_settings=self._file_format_settings)
+        loader = InferelatorDataLoader(
+            input_dir=self.input_dir,
+            file_format_settings=self._file_format_settings
+        )
 
         if file_type.lower() == "h5ad":
             self.design = loader.load_data_h5ad(file)
-        elif self._expression_loader.lower() == "tsv":
+        else:
             self.design = loader.load_data_tsv(file)
 
-        Debug.vprint("Loaded {f} as design matrix {d}".format(d=self.design.shape, f=file), level=1)
+        Debug.vprint(
+            f"Loaded {file} as design matrix {self.design.shape}",
+            level=1
+        )
 
-        self.design.trim_genes(remove_constant_genes=False,
-                               trim_gene_list=self.design.gene_names.intersection(self.tf_names))
+        self.design.trim_genes(
+            remove_constant_genes=False,
+            trim_gene_list=self.design.gene_names.intersection(self.tf_names)
+        )
 
-        Debug.vprint("Trimmed to {d} for TF activity".format(d=self.design.shape, f=file), level=1)
+        Debug.vprint(
+            f"Trimmed to {self.design.shape} for TF activity",
+            level=1
+        )
 
         assert check.indexes_align([self.design.sample_names, self.response.sample_names])
 

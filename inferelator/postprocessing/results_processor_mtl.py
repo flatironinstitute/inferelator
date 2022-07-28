@@ -20,7 +20,15 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
     tasks_names = None
     tasks_networks = None
 
-    def __init__(self, betas, rescaled_betas, threshold=None, filter_method=None, metric=None):
+    def __init__(
+        self,
+        betas,
+        rescaled_betas,
+        threshold=None,
+        filter_method=None,
+        metric=None,
+        task_names=None
+    ):
         """
         :param betas: list(list(pd.DataFrame[G x K]) [B]) [T]
             A list of the task inferelator outputs per bootstrap per task
@@ -34,11 +42,20 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
             The scoring metric to use
         """
 
-        super(ResultsProcessorMultiTask, self).__init__(betas, rescaled_betas, threshold, filter_method, metric)
+        super(ResultsProcessorMultiTask, self).__init__(
+            betas,
+            rescaled_betas,
+            threshold,
+            filter_method,
+            metric
+        )
 
         # Make up some default names
         # The workflow will have to replace these with real names if necessary
-        self.tasks_names = list(map(str, range(len(self.betas))))
+        if task_names is None:
+            self.tasks_names = list(map(str, range(len(self.betas))))
+        else:
+            self.tasks_names = task_names
 
     @staticmethod
     def validate_init_args(betas, rescaled_betas, threshold=None, filter_method=None, metric=None):
