@@ -162,6 +162,7 @@ class TestMultitaskFactory(SetUpDenseDataMTL):
         self.workflow = workflow.inferelator_workflow(workflow="multitask", regression="bbsr")
 
         with self.assertWarns(Warning):
+            self.workflow.set_regression_parameters(prior_weight=2.)
             self.workflow.set_regression_parameters(prior_weight=1.)
 
         self.reset_workflow()

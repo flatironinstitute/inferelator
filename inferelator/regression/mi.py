@@ -183,7 +183,33 @@ def _make_array_discrete(array, num_bins, axis=0):
     """
     Applies _make_discrete to a 2d array
     """
-    return np.apply_along_axis(_make_discrete, arr=array, axis=axis, num_bins=num_bins)
+
+    if sps.issparse(array):
+        disc_array = np.zeros(array.shape, dtype=np.int16)
+
+        if axis == 0:
+            for i in range(array.shape[1]):
+                disc_array[:, i] = _make_discrete(
+                    array[:, i].A.ravel(),
+                    num_bins
+                )
+
+        elif axis == 1:
+            for i in range(array.shape[0]):
+                disc_array[i, :] = _make_discrete(
+                    array[i, :].A.ravel(),
+                    num_bins
+                )
+
+        return disc_array
+
+    else:
+        return np.apply_along_axis(
+            _make_discrete,
+            arr=array,
+            axis=axis,
+            num_bins=num_bins
+        )
 
 
 def _make_discrete(arr_vec, num_bins):

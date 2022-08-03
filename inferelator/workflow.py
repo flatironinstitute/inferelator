@@ -394,9 +394,11 @@ class WorkflowBaseLoader(object):
             return
 
         current_value = getattr(self, attr_name)
-        if current_value is not None:
-            _msg = "Setting {a}: replacing value {vo} with value {vn}".format(a=attr_name, vo=current_value, vn=value)
-            warnings.warn(_msg)
+        if current_value is not None and current_value != value:
+            warnings.warn(
+                f"Setting {attr_name}: replacing value {current_value} with "
+                f"value {value}"
+            )
 
         setattr(self, attr_name, value)
 
