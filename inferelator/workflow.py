@@ -27,6 +27,8 @@ _H5AD = "h5ad"
 _HDF5 = "hdf5"
 _MTX = "mtx"
 
+_VALID_FILE_TYPES = [_TSV, _H5AD, _HDF5, _MTX, _TENX]
+
 
 class WorkflowBaseLoader(object):
     """
@@ -430,59 +432,125 @@ class WorkflowBaseLoader(object):
                                                                                               var_name=var_name))
         setattr(self, var_name, os.path.join(path, to_append))
 
-    def read_expression(self, expression_matrix_file=None, meta_data_file=None, gene_data_file=None):
+    def read_expression(
+        self,
+        expression_matrix_file=None,
+        meta_data_file=None,
+        gene_data_file=None
+    ):
         """
-        Read expression matrix file into an InferelatorData object
+        Read expression data into an InferelatorData object
+
+        :param expression_matrix_file: Expression file, defaults to None
+        :type expression_matrix_file: str, optional
+        :param meta_data_file: Metadata file, defaults to None
+        :type meta_data_file: str, optional
+        :param gene_data_file: Gene metadata file, defaults to None
+        :type gene_data_file: str, optional
         """
         expression_file = expression_matrix_file if expression_matrix_file is not None else self.expression_matrix_file
         meta_data_file = meta_data_file if meta_data_file is not None else self.meta_data_file
         gene_data_file = gene_data_file if gene_data_file is not None else self.gene_metadata_file
 
-        loader = InferelatorDataLoader(input_dir=self.input_dir, file_format_settings=self._file_format_settings)
-
-        if self._expression_loader == _H5AD:
-            self.data = loader.load_data_h5ad(expression_file,
-                                              use_layer=self._h5_layer,
-                                              meta_data_file=meta_data_file,
-                                              meta_data_handler=self.metadata_handler,
-                                              gene_data_file=gene_data_file,
-                                              gene_name_column=self.gene_list_index)
-
-        elif self._expression_loader == _TSV:
-            self.data = loader.load_data_tsv(expression_file,
-                                             transpose_expression_data=not self.expression_matrix_columns_are_genes,
-                                             expression_matrix_metadata=self.expression_matrix_metadata,
-                                             meta_data_file=meta_data_file,
-                                             meta_data_handler=self.metadata_handler,
-                                             gene_data_file=gene_data_file,
-                                             gene_name_column=self.gene_list_index)
-
-        elif self._expression_loader == _MTX:
-            self.data = loader.load_data_mtx(expression_file[0],
-                                             mtx_feature=expression_file[2],
-                                             mtx_obs=expression_file[1],
-                                             meta_data_file=meta_data_file,
-                                             meta_data_handler=self.metadata_handler,
-                                             gene_data_file=gene_data_file,
-                                             gene_name_column=self.gene_list_index)
-
-        elif self._expression_loader == _TENX:
-            self.data = loader.load_data_tenx(expression_file,
-                                              meta_data_file=meta_data_file,
-                                              meta_data_handler=self.metadata_handler,
-                                              gene_data_file=gene_data_file,
-                                              gene_name_column=self.gene_list_index)
-
-        elif self._expression_loader == _HDF5:
-            self.data = loader.load_data_hdf5(expression_file,
-                                              transpose_expression_data=not self.expression_matrix_columns_are_genes,
-                                              use_layer=self._h5_layer,
-                                              meta_data_file=meta_data_file,
-                                              meta_data_handler=self.metadata_handler,
-                                              gene_data_file=gene_data_file,
-                                              gene_name_column=self.gene_list_index)
+        self.data = self.read_gene_data_file(
+            expression_file,
+            self._expression_loader,
+            file_layer=self._h5_layer,
+            meta_data_file=meta_data_file,
+            gene_data_file=gene_data_file
+        )
 
         self.data.name = "Expression"
+
+    def read_gene_data_file(
+        self,
+        file_name,
+        file_type,
+        file_layer=None,
+        meta_data_file=None,
+        gene_data_file=None
+    ):
+        """
+        Read file into an InferelatorData object
+        """
+
+        loader = InferelatorDataLoader(
+            input_dir=self.input_dir,
+            file_format_settings=self._file_format_settings
+        )
+
+        if file_type == _H5AD:
+            return loader.load_data_h5ad(
+                file_name,
+                use_layer=file_layer,
+                meta_data_file=meta_data_file,
+                meta_data_handler=self.metadata_handler,
+                gene_data_file=gene_data_file,
+                gene_name_column=self.gene_list_index
+            )
+
+        elif file_type == _TSV:
+            return loader.load_data_tsv(
+                file_name,
+                transpose_expression_data=not self.expression_matrix_columns_are_genes,
+                expression_matrix_metadata=self.expression_matrix_metadata,
+                meta_data_file=meta_data_file,
+                meta_data_handler=self.metadata_handler,
+                gene_data_file=gene_data_file,
+                gene_name_column=self.gene_list_index
+            )
+
+        elif file_type == _MTX:
+            return loader.load_data_mtx(
+                file_name[0],
+                mtx_feature=file_name[2],
+                mtx_obs=file_name[1],
+                meta_data_file=meta_data_file,
+                meta_data_handler=self.metadata_handler,
+                gene_data_file=gene_data_file,
+                gene_name_column=self.gene_list_index
+            )
+
+        elif file_type == _TENX:
+            return loader.load_data_tenx(
+                file_name,
+                meta_data_file=meta_data_file,
+                meta_data_handler=self.metadata_handler,
+                gene_data_file=gene_data_file,
+                gene_name_column=self.gene_list_index
+            )
+
+        elif file_type == _HDF5:
+            return loader.load_data_hdf5(
+                file_name,
+                transpose_expression_data=not self.expression_matrix_columns_are_genes,
+                use_layer=file_layer,
+                meta_data_file=meta_data_file,
+                meta_data_handler=self.metadata_handler,
+                gene_data_file=gene_data_file,
+                gene_name_column=self.gene_list_index
+            )
+
+        else:
+            raise ValueError(
+                f"file_type must be in {_VALID_FILE_TYPES}; "
+                f"{file_type} provided"
+            )
+
+    def read_data_frame(self, file_name, **kwargs):
+
+        if file_name is None:
+            return None
+
+        loader = InferelatorDataLoader(
+            input_dir=self.input_dir,
+            file_format_settings=self._file_format_settings
+        )
+
+        return loader.input_dataframe(
+            file_name,
+            **kwargs
+        )
 
     def read_tfs(self, file=None):
         """
@@ -493,10 +561,14 @@ class WorkflowBaseLoader(object):
         file = self.tf_names_file if file is None else file
 
         if file is not None:
-            Debug.vprint("Loading TF feature names from file {file}".format(file=file), level=1)
+
+            Debug.vprint(
+                f"Loading TF feature names from file {file}",
+                level=1
+            )
+
             # Read in a dataframe with no header or index
-            loader = InferelatorDataLoader(input_dir=self.input_dir, file_format_settings=self._file_format_settings)
-            tfs = loader.input_dataframe(file, header=None, index_col=None)
+            tfs = self.read_data_frame(file, header=None, index_col=None)
 
             # Cast the dataframe into a list
             assert tfs.shape[1] == 1
@@ -511,10 +583,14 @@ class WorkflowBaseLoader(object):
         file = self.gene_names_file if file is None else file
 
         if file is not None:
-            Debug.vprint("Loading Gene feature names from file {file}".format(file=file), level=1)
+
+            Debug.vprint(
+                f"Loading Gene feature names from file {file}",
+                level=1
+            )
+
             # Read in a dataframe with no header or index
-            loader = InferelatorDataLoader(input_dir=self.input_dir, file_format_settings=self._file_format_settings)
-            genes = loader.input_dataframe(file, header=None, index_col=None)
+            genes = self.read_data_frame(file, header=None, index_col=None)
 
             # Cast the dataframe into a list
             assert genes.shape[1] == 1
@@ -532,16 +608,26 @@ class WorkflowBaseLoader(object):
         priors_file = priors_file if priors_file is not None else self.priors_file
         gold_standard_file = gold_standard_file if gold_standard_file is not None else self.gold_standard_file
 
-        loader = InferelatorDataLoader(input_dir=self.input_dir, file_format_settings=self._file_format_settings)
-
         if priors_file is not None:
 
-            Debug.vprint("Loading prior data from file {file}".format(file=priors_file), level=1)
-            self.priors_data = loader.input_dataframe(priors_file)
+            Debug.vprint(
+                f"Loading prior data from file {priors_file}",
+                level=1
+            )
+
+            self.priors_data = self.read_data_frame(priors_file)
 
             # Print debug info & check prior for duplicate indices (which will raise errors later)
-            self.loaded_file_info("Priors data", self.priors_data)
-            self._check_network_labels_unique("Priors_data", priors_file, self.priors_data)
+            self.loaded_file_info(
+                "Priors data",
+                self.priors_data
+            )
+
+            self._check_network_labels_unique(
+                "Priors_data",
+                priors_file,
+                self.priors_data
+            )
 
             # Add to the data object if loaded
             if self.data is not None:
@@ -549,37 +635,81 @@ class WorkflowBaseLoader(object):
 
         if gold_standard_file is not None:
 
-            Debug.vprint("Loading gold_standard data from file {file}".format(file=gold_standard_file), level=1)
-            self.gold_standard = loader.input_dataframe(gold_standard_file)
+            Debug.vprint(
+                f"Loading gold_standard data from file {gold_standard_file}",
+                level=1
+            )
+
+            self.gold_standard = self.read_data_frame(gold_standard_file)
 
             # Print debug info & check gold standard for duplicate indices (which will raise errors later)
-            self.loaded_file_info("Gold standard", self.gold_standard)
-            self._check_network_labels_unique("Gold standard", gold_standard_file, self.gold_standard)
+            self.loaded_file_info(
+                "Gold standard",
+                self.gold_standard
+            )
 
-    def validate_data(self, check_prior=True, check_gold_standard=True):
+            self._check_network_labels_unique(
+                "Gold standard",
+                gold_standard_file,
+                self.gold_standard
+            )
+
+    def validate_data(
+        self,
+        check_prior=True,
+        check_gold_standard=True
+    ):
         """
         Make sure that the data that's loaded is acceptable
         """
 
         if check_prior:
+
             # Create a null prior if the flag is set
             if self.use_no_prior and self.priors_data is not None:
-                warnings.warn("The use_no_prior flag will be ignored because prior data exists")
+                warnings.warn(
+                    "use_no_prior flag will be ignored "
+                    "because prior data exists"
+                )
+
             elif self.use_no_prior:
-                Debug.vprint("A null prior is has been created", level=0)
-                self.priors_data = self._create_null_prior(self._gene_names, self.tf_names)
+                self.priors_data = self._create_null_prior(
+                    self._gene_names,
+                    self.tf_names
+                )
+
+                Debug.vprint(
+                    f"A {self.priors_data.shape} null prior "
+                    "has been created",
+                    level=0
+                )
 
         if check_gold_standard:
+
             # Create a null gold standard if the flag is set
             if self.use_no_gold_standard and self.gold_standard is not None:
-                warnings.warn("The use_no_gold_standard flag will be ignored because gold standard data exists")
+                warnings.warn(
+                    "use_no_gold_standard flag will be ignored "
+                    "because gold standard data exists"
+                )
+
             elif self.use_no_gold_standard:
-                Debug.vprint("A null gold standard has been created", level=0)
-                self.gold_standard = self._create_null_prior(self._gene_names, self.tf_names)
+                self.gold_standard = self._create_null_prior(
+                    self._gene_names,
+                    self.tf_names
+                )
+                Debug.vprint(
+                    f"A {self.gold_standard.shape} null gold standard "
+                    "has been constructed",
+                    level=0
+                )
+
             elif self.gold_standard is None:
-                _msg = "No gold standard found. Model scoring will be invalid. "
-                _msg += "Set worker.set_network_data_flags(use_no_gold_standard=True) to explicitly continue."
-                raise ValueError(_msg)
+                raise ValueError(
+                    "No gold standard found. Model scoring will be invalid. "
+                    "Set worker.set_network_data_flags(use_no_gold_standard=True) "
+                    "to explicitly continue."
+                )
 
         if check_prior and check_gold_standard:
             # Validate that some network information exists and has been loaded

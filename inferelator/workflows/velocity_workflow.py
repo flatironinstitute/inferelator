@@ -1,9 +1,11 @@
 from inferelator.workflow import _H5AD, _HDF5, _TSV
 from inferelator.workflows.tfa_workflow import TFAWorkFlow
 from inferelator.workflows.single_cell_workflow import SingleCellWorkflow
-from inferelator.utils import InferelatorDataLoader, InferelatorData, Debug, Validator as check
+from inferelator.utils import InferelatorData, Debug, Validator as check
 from inferelator.preprocessing.velocity_tfa import VelocityTFA
+
 import numpy as np
+import pandas as pd
 
 
 _VELOCITY_FILE_TYPES = [_TSV, _HDF5, _H5AD]
@@ -16,71 +18,258 @@ class VelocityWorkflow(SingleCellWorkflow):
     _velocity_h5_layer = None
 
     _decay_constants = None
-    _use_precalculated_decay_constants = True
+    _decay_constant_var_col = None
+    _decay_constant_file_name = None
+    _decay_constant_file_type = None
+    _decay_constant_h5_layer = None
 
-    tau = None
+    _global_decay_constant = None
+    _gene_specific_decay_constant = False
+    _gene_sample_decay_constant = False
+
     tfa_driver = VelocityTFA
 
     def get_data(self):
         super(VelocityWorkflow, self).get_data()
         self.load_velocity()
+        self.load_decay()
 
     def startup_finish(self):
         self.single_cell_normalize()
         self._align_velocity()
         TFAWorkFlow.startup_finish(self)
 
-    def set_velocity_parameters(self, velocity_file_name=None, velocity_file_type=None, velocity_file_layer=None):
+    def set_velocity_parameters(
+        self,
+        velocity_file_name=None,
+        velocity_file_type=None,
+        velocity_file_layer=None
+    ):
         """
         Set velocity file arguments
 
-        :param velocity_file_name: File name that has velocity data. Orientation must match expression data
+        :param velocity_file_name: File name that has velocity data.
+            Orientation must match expression data
         :type velocity_file_name: str
-        :param velocity_file_type: Type of file to load. Accepts 'tsv', 'h5ad' and 'hdf5'.
+        :param velocity_file_type: Type of file to load.
+            Accepts 'tsv', 'h5ad' and 'hdf5'.
         :type velocity_file_type: str
-        :param velocity_file_layer: If the loaded file is an h5 file, which layer should be used
+        :param velocity_file_layer: If the loaded file is an h5 file,
+            which layer should be used for velocity
         :type velocity_file_layer: str
         """
 
-        self._set_with_warning("_velocity_file_name", velocity_file_name)
-        self._set_with_warning("_velocity_h5_layer", velocity_file_layer)
+        self._set_with_warning(
+            "_velocity_file_name",
+            velocity_file_name
+        )
 
-        if velocity_file_type is not None and velocity_file_type.lower() in _VELOCITY_FILE_TYPES:
-            self._set_with_warning("_velocity_file_type", velocity_file_type)
-        elif velocity_file_type is not None:
-            msg = "velocity_file_type must be in {ft}".format(ft=_VELOCITY_FILE_TYPES)
-            raise ValueError(msg)
+        self._set_with_warning(
+            "_velocity_h5_layer",
+            velocity_file_layer
+        )
 
-    def load_velocity(self, velocity_file=None, loader_type=None):
+        self._set_file_type(
+            "_velocity_file_type",
+            velocity_file_type
+        )
 
-        velocity_file = self._velocity_file_name if velocity_file is None else velocity_file
-        loader_type = self._velocity_file_type if loader_type is None else loader_type
-        transpose = not self.expression_matrix_columns_are_genes
+    def set_decay_parameters(
+        self,
+        global_decay_constant=None,
+        gene_metadata_decay_constant_column=None,
+        decay_constant_file=None,
+        decay_constant_file_type=None,
+        decay_constant_file_layer=None
+    ):
+        """
+        Set decay arguments
 
-        loader = InferelatorDataLoader(input_dir=self.input_dir, file_format_settings=self._file_format_settings)
-        Debug.vprint("Loading velocity data from {f}".format(f=velocity_file), level=1)
+        :param global_decay_constant: Set decay constant for all genes
+        :type global_decay_constant: numeric
+        :param decay_constant_file: File containing decay constants for
+            each gene
+        :type decay_constant_file: str
+        :param gene_metadata_decay_constant_column: Column in gene_metadata
+            which has decay constants
+        :type gene_metadata_decay_constant_column: str
+        :param decay_constant_type: Type of file to load.
+            Accepts 'tsv', 'h5ad' and 'hdf5'.
+        :type decay_constant_type: str
+        :param decay_constant_layer: If the loaded file is an h5 file,
+            which layer should be used for decay constants
+        :type decay_constant_layer: str
+        """
 
-        if loader_type == _TSV or loader_type is None:
-            self._velocity_data = loader.load_data_tsv(velocity_file, transpose_expression_data=transpose)
+        self._set_with_warning(
+            "_global_decay_constant",
+            global_decay_constant
+        )
 
-        elif loader_type == _H5AD:
-            self._velocity_data = loader.load_data_h5ad(velocity_file, use_layer=self._velocity_h5_layer)
+        self._set_with_warning(
+            "_decay_constant_file_name",
+            decay_constant_file
+        )
 
-        elif loader_type == _HDF5:
-            self._velocity_data = loader.load_data_hdf5(velocity_file, transpose_expression_data=transpose,
-                                                        use_layer=self._velocity_h5_layer)
+        self._set_with_warning(
+            "_decay_constant_var_col",
+            gene_metadata_decay_constant_column
+        )
+
+        self._set_with_warning(
+            "_decay_constant_h5_layer",
+            decay_constant_file_layer
+        )
+
+        self._set_file_type(
+            "_decay_constant_file_type",
+            decay_constant_file_type
+        )
+
+    def _set_file_type(
+        self,
+        selfattr,
+        filetype
+    ):
+
+        if filetype is None:
+            return None
+
+        elif filetype.lower() in _VELOCITY_FILE_TYPES:
+            return self._set_with_warning(
+                selfattr,
+                filetype.lower()
+            )
+
         else:
-            raise ValueError("Invalid velocity_file_type: {a}".format(a=loader_type))
+            raise ValueError(
+                f"file_type must be in {_VELOCITY_FILE_TYPES}; "
+                f"{filetype} provided"
+            )
 
+    def load_velocity(self):
+
+        self._velocity_data = self.read_gene_data_file(
+            self._velocity_file_name,
+            self._velocity_file_type,
+            file_layer=self._velocity_h5_layer,
+            gene_data_file=self.gene_metadata_file,
+            meta_data_file=self.meta_data_file
+        )
         self._velocity_data.name = "Velocity"
+
+    def load_decay(self, file=None):
+
+        file = file if file is not None else self._decay_constant_file_name
+
+        # If a decay constant file has been provided
+        # Load it
+        if self._decay_constant_file_name is not None:
+
+            # Check and see if it's a 2-column TSV
+            # Which is per-gene decay constants
+            # Or if it's larger
+            # Which is full samples x genes decay constants
+            if self._decay_constant_file_type == _TSV:
+                _check_df_size = self.read_data_frame(
+                    file,
+                    nrows=2
+                )
+
+                if _check_df_size.shape[1] == 1:
+                    self._gene_specific_decay_constant = True
+
+                else:
+                    self._gene_sample_decay_constant = True
+
+            else:
+                self._gene_sample_decay_constant = True
+
+            # Load a two-column TSV and reindex to match
+            # The gene names
+            if self._gene_specific_decay_constant:
+                self._decay_constants = self.read_data_frame(
+                    file
+                ).reindex(
+                    self.gene_names
+                )
+
+            # Load a samples x genes data object
+            # With the standard loader
+            else:
+
+                self._decay_constants = self.read_gene_data_file(
+                    self._decay_constant_file_name,
+                    self._decay_constant_file_type,
+                    file_layer=self._decay_constant_h5_layer,
+                    gene_data_file=self.gene_metadata_file,
+                    meta_data_file=self.meta_data_file
+                )
+
+                self._decay_constants.name = "Decay Constants"
+
+        elif self._decay_constant_var_col is not None:
+
+            if self._decay_constant_var_col not in self.data.gene_data.columns:
+                raise ValueError(
+                    f"Column {self._decay_constant_var_col} not in "
+                    f"gene metadata columns {self.data.gene_data.columns.tolist()}"
+                )
+
+            Debug.vprint(
+                f"Using decay constants from gene metadata "
+                f"column {self._decay_constant_var_col} ",
+                level=0
+            )
+
+            self._decay_constants = self.data.gene_data[
+                self._decay_constant_var_col
+            ].copy()
+
+            self._gene_specific_decay_constant = True
+
+        elif self._global_decay_constant is not None:
+            self._decay_constants = pd.DataFrame(
+                self._global_decay_constant,
+                index=self.gene_names
+            )
+
+            Debug.vprint(
+                f"Setting decay constant {self._global_decay_constant} "
+                "for all genes",
+                level=0
+            )
+
+            self._gene_specific_decay_constant = True
+
+        else:
+            self._decay_constants = 0
+
+            Debug.vprint(
+                "Setting decay constant to 0 for all genes; "
+                "expression and decay will not be included in model",
+                level=0
+            )
 
     def _align_velocity(self):
 
         keep_genes = self._velocity_data.gene_names.intersection(self.data.gene_names)
-        Debug.vprint("Aligning velocity and expression data on {n} genes".format(n=len(keep_genes)))
+        _lose_genes = self._velocity_data.gene_names.symmetric_difference(self.data.gene_names)
 
-        self._velocity_data.trim_genes(remove_constant_genes=False, trim_gene_list=keep_genes)
-        self.data.trim_genes(remove_constant_genes=False, trim_gene_list=keep_genes)
+        Debug.vprint(
+            f"Aligning velocity and expression data on {len(keep_genes)} genes; "
+            f"{len(_lose_genes)} removed"
+        )
+
+        self._velocity_data.trim_genes(
+            remove_constant_genes=False,
+            trim_gene_list=keep_genes
+        )
+
+        self.data.trim_genes(
+            remove_constant_genes=False,
+            trim_gene_list=keep_genes
+        )
 
         assert check.indexes_align((self._velocity_data.gene_names, self.data.gene_names))
         assert check.indexes_align((self._velocity_data.sample_names, self.data.sample_names))
@@ -94,11 +283,19 @@ class VelocityWorkflow(SingleCellWorkflow):
         :return:
         """
 
-        self.response = self._combine_expression_velocity(self.data, self._velocity_data)
+        self.response = self._combine_expression_velocity(
+            self.data,
+            self._velocity_data
+        )
+
         self.data = None
         self._velocity_data = None
+        self._decay_constants = None
 
-        self.design = self.tfa_driver().compute_transcription_factor_activity(self.priors_data, self.response)
+        self.design = self.tfa_driver().compute_transcription_factor_activity(
+            self.priors_data,
+            self.response
+        )
 
     def _combine_expression_velocity(self, expression, velocity):
         """
@@ -111,22 +308,77 @@ class VelocityWorkflow(SingleCellWorkflow):
         assert check.indexes_align((expression.gene_names, velocity.gene_names))
         assert check.indexes_align((expression.sample_names, velocity.sample_names))
 
-        if self._decay_constants is not None:
-            Debug.vprint("Using preloaded decay constants in _decay_constants")
-            decay_constants = self._decay_constants
-        elif self.tau is not None:
-            Debug.vprint("Calculating decay constants for tau {t}".format(t=self.tau))
-            decay_constants = np.repeat(1 / self.tau, expression.num_genes)
-        elif "decay_constants" in velocity.gene_data.columns and self._use_precalculated_decay_constants:
-            Debug.vprint("Extracting decay constants from {n}".format(n=velocity.name))
-            decay_constants = velocity.gene_data["decay_constants"].values
-        elif "decay_constants" in expression.gene_data.columns and self._use_precalculated_decay_constants:
-            Debug.vprint("Extracting decay constants from {n}".format(n=expression.name))
-            decay_constants = expression.gene_data["decay_constants"].values
-        else:
-            Debug.vprint("No decay information found. Solving dX/dt = AB for Betas")
-            return velocity
+        if self._global_decay_constant:
+            Debug.vprint(
+                "Modeling TFA on fixed decay constant "
+                f"{self._global_decay_constant} for every gene"
+            )
 
-        x = np.multiply(expression.values, decay_constants[None, :])
-        return InferelatorData(np.add(velocity.values, x), gene_names=expression.gene_names,
-                               sample_names=expression.sample_names, meta_data=expression.meta_data)
+            return InferelatorData(
+                np.add(
+                    velocity.values,
+                    np.multiply(
+                        expression.values,
+                        self._global_decay_constant
+                    )
+                ),
+                gene_names=expression.gene_names,
+                sample_names=expression.sample_names,
+                meta_data=expression.meta_data
+            )
+
+        # If decay is off, just copy velocity
+        # As dx/dt = 0 * X + f(A)
+        elif self._decay_constants is None:
+            Debug.vprint("Modeling TFA on velocity only")
+
+            return InferelatorData(
+                velocity.values,
+                gene_names=expression.gene_names,
+                sample_names=expression.sample_names,
+                meta_data=expression.meta_data
+            )
+
+        # If a full samples x genes decay constant
+        # Array has been provided, use it directly
+        # As dx/dt + \lambda * X = f(A)
+        elif self._gene_sample_decay_constant:
+            Debug.vprint(
+                "Modeling TFA on velocity and decay "
+                "per sample and per gene"
+            )
+
+            return InferelatorData(
+                np.add(
+                    velocity.values,
+                    np.multiply(
+                        expression.values,
+                        self._decay_constants.values
+                    )
+                ),
+                gene_names=expression.gene_names,
+                sample_names=expression.sample_names,
+                meta_data=expression.meta_data
+            )
+
+        # If gene-specific decay constants are provided
+        # broadcast them to the full array
+        # As dx/dt + \lambda * X = f(A)
+        else:
+            Debug.vprint(
+                "Modeling TFA on velocity and decay "
+                "per gene"
+            )
+
+            return InferelatorData(
+                np.add(
+                    velocity.values,
+                    np.multiply(
+                        expression.values,
+                        self._decay_constants.values.flatten()[None, :]
+                    )
+                ),
+                gene_names=expression.gene_names,
+                sample_names=expression.sample_names,
+                meta_data=expression.meta_data
+            )
