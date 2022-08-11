@@ -18,6 +18,8 @@ DEFAULT_STRICT_CHECKING_FOR_DUPLICATES = True
 
 class MetadataParser(object):
 
+    name = None
+
     cond_col = COND_COLUMN_NAME
     req_cols = tuple(COND_COLUMN_NAME)
 
@@ -91,6 +93,8 @@ class MetadataParserBranching(MetadataParser):
     """
     Metadata parser that handles prev_col & del_t metadata (which allows for Branching Time Courses)
     """
+
+    name = "Branching"
 
     ists_col = ISTS_COLUMN_NAME  # Column of booleans for "Is a time-series experiment"
     cond_col = COND_COLUMN_NAME  # Column of sample names (matching expression data column names)
@@ -239,6 +243,9 @@ class MetadataParserBranching(MetadataParser):
 
 
 class MetadataParserNonbranching(MetadataParserBranching):
+
+    name = "Nonbranching"
+
     group_col = GROUP_COLUMN_NAME
     time_col = TIME_COLUMN_NAME
     cond_col = COND_COLUMN_NAME
@@ -323,7 +330,7 @@ class MetadataHandler(object):
             elif handler_ref == "nonbranching":
                 return MetadataParserNonbranching
             else:
-                raise ValueError("Parser {parser_str} unknown".format(parser_str=handler_ref))
+                raise ValueError(f"Parser {handler_ref} unknown")
         elif issubclass(handler_ref, MetadataParser):
             return handler_ref
         else:

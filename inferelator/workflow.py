@@ -492,8 +492,8 @@ class WorkflowBaseLoader(object):
         elif file_type == _TSV:
             return loader.load_data_tsv(
                 file_name,
-                transpose_expression_data=not self.expression_matrix_columns_are_genes,
-                expression_matrix_metadata=self.expression_matrix_metadata,
+                transpose_data=not self.expression_matrix_columns_are_genes,
+                tsv_matrix_metadata=self.expression_matrix_metadata,
                 meta_data_file=meta_data_file,
                 meta_data_handler=self.metadata_handler,
                 gene_data_file=gene_data_file,
@@ -523,7 +523,7 @@ class WorkflowBaseLoader(object):
         elif file_type == _HDF5:
             return loader.load_data_hdf5(
                 file_name,
-                transpose_expression_data=not self.expression_matrix_columns_are_genes,
+                transpose_data=not self.expression_matrix_columns_are_genes,
                 use_layer=file_layer,
                 meta_data_file=meta_data_file,
                 meta_data_handler=self.metadata_handler,
@@ -836,7 +836,7 @@ class WorkflowBase(WorkflowBaseLoader):
     use_mkl = None
 
     # Use numba for JIT
-    use_numba = False
+    use_numba = True
 
     # Multiprocessing controller
     initialize_mp = True
@@ -960,14 +960,18 @@ class WorkflowBase(WorkflowBaseLoader):
         """
         Set parameters used during runtime
 
-        :param num_bootstraps: The number of bootstraps to run. Defaults to 2.
+        :param num_bootstraps: The number of bootstraps to run.
+            Defaults to 2.
         :type num_bootstraps: int
-        :param random_seed: The random number seed to use. Defaults to 42.
+        :param random_seed: The random number seed to use.
+            Defaults to 42.
         :type random_seed: int
-        :param use_mkl: A flag to indicate if the intel MKL library should be used for matrix multiplication
+        :param use_mkl: A flag to indicate if the intel MKL library
+            should be used for matrix multiplication, defaults to False
         :type use_mkl: bool
-        :param use_numba: A flag to indicate if numba should be used to accelerate the calculations.
-        Requires numba to be installed if set. Currently only accelerates AMuSR regression.
+        :param use_numba: A flag to indicate if numba should be used 
+            to accelerate the calculations. Requires numba to be installed if set.
+            Currently only accelerates AMuSR regression, defaults to True
         :type use_numba: bool
         """
 
