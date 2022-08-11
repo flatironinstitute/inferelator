@@ -1,14 +1,9 @@
 from abc import abstractclassmethod
 from dask import distributed
 import joblib
-import os
+import tempfile
 
 from inferelator.distributed import AbstractController
-
-try:
-    DEFAULT_LOCAL_DIR = os.environ['TMPDIR']
-except KeyError:
-    DEFAULT_LOCAL_DIR = 'dask-worker-space'
 
 
 class DaskAbstract(AbstractController):
@@ -172,7 +167,9 @@ def _safe_len(x):
 class DaskController(DaskAbstract):
 
     _controller_name = "dask-local"
-    local_dir = DEFAULT_LOCAL_DIR
+    local_dir = None
+
+    _tempdir = None
 
     @classmethod
     def connect(cls, *args, **kwargs):
@@ -189,7 +186,13 @@ class DaskController(DaskAbstract):
             # Ugly hack because dask-jobqueue changed this keyword arg
             local_directory = kwargs.pop("local_dir", None)
             local_directory = kwargs.pop("local_directory", None) if local_directory is None else local_directory
-            kwargs["local_directory"] = local_directory if local_directory is not None else cls.local_dir
+            local_directory = cls.local_dir if local_directory is None else local_directory
+
+            if local_directory is None:
+                cls._tempdir = tempfile.TemporaryDirectory()
+                local_directory = cls._tempdir.name
+
+            kwargs["local_directory"] = local_directory
 
             cls.local_cluster = distributed.LocalCluster(*args, **kwargs)
             cls.client = distributed.Client(cls.local_cluster)
@@ -221,5 +224,9 @@ class DaskController(DaskAbstract):
 
         cls.client = None
         cls.local_cluster = None
+
+        if cls._tempdir is not None:
+            cls._tempdir.cleanup()
+            cls._tempdir = None
 
         return True

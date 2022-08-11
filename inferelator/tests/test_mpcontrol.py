@@ -96,20 +96,12 @@ class TestMultiprocessingMPController(TestMPControl):
 class TestDaskLocalMPController(TestMPControl):
     name = "dask-local"
     client_name = "dask-local"
-    tempdir = None
 
     @classmethod
     def setUpClass(cls):
-        cls.tempdir = tempfile.mkdtemp()
         MPControl.shutdown()
         MPControl.set_multiprocess_engine(cls.name)
-        MPControl.connect(local_dir=cls.tempdir, n_workers=1)
-
-    @classmethod
-    def tearDownClass(cls):
-        super(TestDaskLocalMPController, cls).tearDownClass()
-        if cls.tempdir is not None:
-            shutil.rmtree(cls.tempdir)
+        MPControl.connect(n_workers=1)
 
     def test_dask_local_connect(self):
         self.assertTrue(MPControl.status())
@@ -169,7 +161,7 @@ class TestDaskHPCMPController(TestMPControl):
     tempdir = None
 
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls):    
         cls.tempdir = tempfile.mkdtemp()
         MPControl.shutdown()
         MPControl.set_multiprocess_engine(cls.name)
@@ -178,6 +170,7 @@ class TestDaskHPCMPController(TestMPControl):
         MPControl.client.set_cluster_params(local_workers=2)
         MPControl.client._interface = None
         MPControl.client._log_directory = cls.tempdir
+        MPControl.client._local_directory = cls.tempdir
         MPControl.connect()
         MPControl.client._scale_jobs()
 
