@@ -10,7 +10,7 @@ from dask_jobqueue.slurm import SLURMJob
 
 from inferelator import utils
 from inferelator.utils import Validator as check
-from inferelator.distributed.dask_local_controller import DaskAbstract
+from inferelator.distributed.dask import DaskAbstract
 
 
 _DEFAULT_NUM_JOBS = 1

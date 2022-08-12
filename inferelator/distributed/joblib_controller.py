@@ -32,7 +32,15 @@ class JoblibController(AbstractController):
         cls.processes = process_count
 
     @classmethod
-    def map(cls, func, *args, scatter=None, restart_workers=False, **kwargs):
+    def map(
+        cls,
+        func,
+        *args,
+        scatter=None,
+        restart_workers=False,
+        batch_size=None,
+        **kwargs
+    ):
         """
         Map a function across iterable(s) and return a list of results
 
@@ -44,6 +52,8 @@ class JoblibController(AbstractController):
         :type scatter: None
         :param restart_Workers: Ignored parameter to match dask requirements
         :type restart_workers: bool
+        :param batch_size: Ignored parameter to match dask requirements
+        :type batch_size: bool
         """
 
         check.argument_callable(func)

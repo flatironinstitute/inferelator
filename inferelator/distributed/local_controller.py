@@ -24,7 +24,15 @@ class LocalController(AbstractController):
         return True
 
     @classmethod
-    def map(cls, func, *arg, scatter=None, restart_workers=False, **kwargs):
+    def map(
+        cls,
+        func,
+        *arg,
+        scatter=None,
+        restart_workers=False,
+        batch_size=None,
+        **kwargs
+    ):
         """
         Map a function across iterable(s) and return a list of results
 

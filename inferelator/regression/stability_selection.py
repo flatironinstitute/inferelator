@@ -184,7 +184,12 @@ class StARS(base_regression.BaseRegression):
             num_subsamples=self.num_subsamples,
             random_seed=self.random_seed,
             **self.params,
-            scatter=[x]
+            scatter=[x],
+            batch_size=max(
+                min(
+                    int(nG / 20),
+                    10
+                ), 1)
         )
 
 
