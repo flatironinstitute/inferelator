@@ -196,21 +196,31 @@ class BBSRRegressionWorkflowMixin(base_regression._RegressionWorkflowMixin):
     clr_only = False
     ols_only = False
 
-    def set_regression_parameters(self, prior_weight=None, no_prior_weight=None, bsr_feature_num=None, clr_only=False,
-                                  ordinary_least_squares_only=None):
+    def set_regression_parameters(
+        self,
+        prior_weight=None,
+        no_prior_weight=None,
+        bsr_feature_num=None,
+        clr_only=None,
+        ordinary_least_squares_only=None
+    ):
         """
         Set regression parameters for BBSR
 
-        :param prior_weight: Weight for edges that are present in the prior network. Defaults to 1.
+        :param prior_weight: Weight for edges that are present in
+            the prior network. Defaults to 1.
         :type prior_weight: float
-        :param no_prior_weight: Weight for edges that are not present in the prior network. Defaults to 1.
+        :param no_prior_weight: Weight for edges that are not present
+            in the prior network. Defaults to 1.
         :type no_prior_weight: float
-        :param bsr_feature_num: The number of features to include in best subset regression. Defaults to 10.
+        :param bsr_feature_num: The number of features to include in
+            best subset regression. Defaults to 10.
         :type bsr_feature_num: int
-        :param clr_only: Only use Context Likelihood of Relatedness to select features for BSR, not prior edges.
-            Defaults to False.
+        :param clr_only: Only use Context Likelihood of Relatedness to
+            select features for BSR, not prior edges. Defaults to False.
         :type clr_only: bool
-        :param ordinary_least_squares_only: Use OLS instead of Bayesian regression, for testing. Defaults to False.
+        :param ordinary_least_squares_only: Use OLS instead of Bayesian
+            regression, for testing. Defaults to False.
         :type ordinary_least_squares_only: bool
         """
 
@@ -224,16 +234,34 @@ class BBSRRegressionWorkflowMixin(base_regression._RegressionWorkflowMixin):
         X = self.design.get_bootstrap(bootstrap)
         Y = self.response.get_bootstrap(bootstrap)
 
-        utils.Debug.vprint('Calculating MI, Background MI, and CLR Matrix', level=0)
+        utils.Debug.vprint(
+            'Calculating MI, Background MI, and CLR Matrix',
+            level=0
+        )
         clr_matrix, _ = self.mi_driver().run(Y, X, return_mi=False)
-        utils.Debug.vprint('Calculating betas using BBSR', level=0)
+
+        utils.Debug.vprint(
+            'Calculating betas using BBSR',
+            level=0
+        )
 
         # Create a mock prior with no information if clr_only is set
         if self.clr_only:
-            priors = pd.DataFrame(0, index=self.priors_data.index, columns=self.priors_data.columns)
+            priors = pd.DataFrame(
+                0,
+                index=self.priors_data.index,
+                columns=self.priors_data.columns
+            )
         else:
             priors = self.priors_data
 
-        return BBSR(X, Y, clr_matrix, priors, prior_weight=self.prior_weight,
-                    no_prior_weight=self.no_prior_weight, nS=self.bsr_feature_num,
-                    ordinary_least_squares=self.ols_only).run()
+        return BBSR(
+            X,
+            Y,
+            clr_matrix,
+            priors,
+            prior_weight=self.prior_weight,
+            no_prior_weight=self.no_prior_weight,
+            nS=self.bsr_feature_num,
+            ordinary_least_squares=self.ols_only
+        ).run()
