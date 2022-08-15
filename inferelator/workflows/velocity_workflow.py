@@ -6,7 +6,7 @@ from inferelator.preprocessing.velocity_tfa import VelocityTFA
 
 import numpy as np
 import pandas as pd
-
+import warnings
 
 _VELOCITY_FILE_TYPES = [_TSV, _HDF5, _H5AD]
 
@@ -36,6 +36,7 @@ class VelocityWorkflow(SingleCellWorkflow):
 
     def startup_finish(self):
         self.single_cell_normalize()
+        self._check_decays()
         self._align_velocity()
         TFAWorkFlow.startup_finish(self)
 
@@ -243,7 +244,7 @@ class VelocityWorkflow(SingleCellWorkflow):
             self._gene_specific_decay_constant = True
 
         else:
-            self._decay_constants = 0
+            self._global_decay_constant = 0
 
             Debug.vprint(
                 "Setting decay constant to 0 for all genes; "
@@ -296,6 +297,29 @@ class VelocityWorkflow(SingleCellWorkflow):
             self.priors_data,
             self.response
         )
+
+    def _check_decays(self):
+        """
+        Check for negative decay parameters
+        """
+
+        if (self._global_decay_constant is not None
+            and self._global_decay_constant < 0):
+
+            warnings.warn(
+                f"Decay constant is negative ({self._global_decay_constant})"
+                "this is highly inadvisable"
+            )
+
+        if self._decay_constants is not None:
+
+            _n_neg = np.sum(self._decay_constants.values < 0)
+
+            if _n_neg > 0:
+                warnings.warn(
+                    f"Negative decay parameters (n = {_n_neg}); "
+                    "this is highly inadvisable"
+                )
 
     def _combine_expression_velocity(self, expression, velocity):
         """
