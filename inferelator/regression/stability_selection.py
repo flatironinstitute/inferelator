@@ -1,6 +1,7 @@
 import math
 import warnings
 import itertools
+import copy
 import numpy as np
 import pandas.api.types as pat
 from sklearn.linear_model import LinearRegression as _LinearRegression, Lasso as _Lasso, Ridge as _Ridge
@@ -150,8 +151,17 @@ def _make_subsample_idx(n, b, num_subsamples, random_seed=42):
 
 class StARS(base_regression.BaseRegression):
 
-    def __init__(self, X, Y, random_seed, alphas=_DEFAULT_ALPHAS, num_subsamples=_DEFAULT_NUM_SUBSAMPLES,
-                 method=_DEFAULT_METHOD, parameters=None):
+    def __init__(
+        self,
+        X,
+        Y,
+        random_seed,
+        alphas=_DEFAULT_ALPHAS,
+        num_subsamples=_DEFAULT_NUM_SUBSAMPLES,
+        method=_DEFAULT_METHOD,
+        parameters=None
+    ):
+
         self.random_seed = random_seed
         self.alphas = alphas
         self.num_subsamples = num_subsamples
@@ -184,12 +194,7 @@ class StARS(base_regression.BaseRegression):
             num_subsamples=self.num_subsamples,
             random_seed=self.random_seed,
             **self.params,
-            scatter=[x],
-            batch_size=max(
-                min(
-                    int(nG / 20),
-                    10
-                ), 1)
+            scatter=[x]
         )
 
 
@@ -213,13 +218,14 @@ def _stars_regression_wrapper(x, y, alphas, j, gene, nG, **kwargs):
 
 class StARSWorkflowMixin(base_regression._RegressionWorkflowMixin):
     """
-    Stability Approach to Regularization Selection (StARS)-LASSO. StARS-Ridge is implemented on an experimental basis.
+    Stability Approach to Regularization Selection (StARS)-LASSO.
+    StARS-Ridge is implemented on an experimental basis.
 
     https://arxiv.org/abs/1006.3316
     https://doi.org/10.1016/j.immuni.2019.06.001
     """
 
-    sklearn_params = _DEFAULT_PARAMS
+    sklearn_params = copy.copy(_DEFAULT_PARAMS)
     alphas = _DEFAULT_ALPHAS
     regress_method = _DEFAULT_METHOD
     num_subsamples = _DEFAULT_NUM_SUBSAMPLES
@@ -228,40 +234,71 @@ class StARSWorkflowMixin(base_regression._RegressionWorkflowMixin):
         self.sklearn_params = {}
         super(StARSWorkflowMixin, self).__init__(*args, **kwargs)
 
-    def set_regression_parameters(self, alphas=None, num_subsamples=None, method=None, **kwargs):
+    def set_regression_parameters(
+        self,
+        alphas=None,
+        num_subsamples=None,
+        method=None,
+        **kwargs
+    ):
         """
         Set regression parameters for StARS-LASSO
 
-        :param alphas: A list of alpha (L1 term) values to search. Defaults to logspace between 0. and 10.
+        :param alphas: A list of alpha (L1 term) values to search.
+            Defaults to logspace between 0. and 10.
         :type alphas: list(float)
-        :param num_subsamples: The number of groups to break data into. Defaults to 20.
+        :param num_subsamples: The number of groups to break data
+            into. Defaults to 20.
         :type num_subsamples: int
-        :param method: The model to use. Can choose from 'lasso' or 'ridge'. Defaults to 'lasso'.
-            If 'ridge' is set, ridge_threshold should also be passed. Any value below ridge_threshold will be set to 0.
+        :param method: The model to use. Can choose from 'lasso'
+            or 'ridge'. Defaults to 'lasso'.
+            If 'ridge' is set, ridge_threshold should also be passed.
+            Any value below ridge_threshold will be set to 0.
         :type method: str
-        :param kwargs: Any additional arguments will be passed to the LASSO or Ridge scikit-learn object at
-            instantiation
+        :param kwargs: Any additional arguments will be passed to the
+            LASSO or Ridge scikit-learn object at instantiation
         :type kwargs: any
         """
 
         self.sklearn_params.update(kwargs)
-        self.alphas = alphas if alphas is not None else self.alphas
-        self.num_subsamples = num_subsamples if num_subsamples is not None else self.num_subsamples
-        self.regress_method = method if method is not None else self.regress_method
+
+        self._set_with_warning(
+            'alphas',
+            alphas
+        )
+
+        self._set_with_warning(
+            'num_subsamples',
+            num_subsamples
+        )
+
+        self._set_with_warning(
+            'regress_method',
+            method
+        )
 
     def run_regression(self):
 
-        betas, resc_betas = StARS(self.design, self.response, self.random_seed, alphas=self.alphas,
-                                  method=self.regress_method,
-                                  num_subsamples=self.num_subsamples,
-                                  parameters=self.sklearn_params).run()
+        betas, resc_betas = StARS(
+            self.design,
+            self.response,
+            self.random_seed,
+            alphas=self.alphas,
+            method=self.regress_method,
+            num_subsamples=self.num_subsamples,
+            parameters=self.sklearn_params
+        ).run()
 
         return [betas], [resc_betas]
 
 
-class StARSWorkflowByTaskMixin(base_regression._MultitaskRegressionWorkflowMixin, StARSWorkflowMixin):
+class StARSWorkflowByTaskMixin(
+    base_regression._MultitaskRegressionWorkflowMixin,
+    StARSWorkflowMixin
+):
     """
-    Stability Approach to Regularization Selection (StARS)-LASSO. StARS-Ridge is implemented on an experimental basis.
+    Stability Approach to Regularization Selection (StARS)-LASSO.
+    StARS-Ridge is implemented on an experimental basis.
 
     https://arxiv.org/abs/1006.3316
     https://doi.org/10.1016/j.immuni.2019.06.001
@@ -270,16 +307,34 @@ class StARSWorkflowByTaskMixin(base_regression._MultitaskRegressionWorkflowMixin
     def run_bootstrap(self, bootstrap_idx):
         betas, betas_resc = [], []
 
-        # Select the appropriate bootstrap from each task and stash the data into X and Y
+        # Run tasks individually
         for k in range(self._n_tasks):
-            x = self._task_design[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx])
-            y = self._task_response[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx])
 
-            utils.Debug.vprint('Calculating task {k} betas using StARS'.format(k=k), level=0)
-            t_beta, t_br = StARS(x, y, self.random_seed, alphas=self.alphas,
-                                 method=self.regress_method,
-                                 num_subsamples=self.num_subsamples,
-                                 parameters=self.sklearn_params).run()
+            # Select the appropriate bootstrap from each task
+            # and stash the data into X and Y
+            x = self._task_design[k].get_bootstrap(
+                self._task_bootstraps[k][bootstrap_idx]
+            )
+
+            y = self._task_response[k].get_bootstrap(
+                self._task_bootstraps[k][bootstrap_idx]
+            )
+
+            utils.Debug.vprint(
+                f'Calculating task {k} betas using StARS',
+                level=0
+            )
+
+            t_beta, t_br = StARS(
+                x,
+                y,
+                self.random_seed,
+                alphas=self.alphas,
+                method=self.regress_method,
+                num_subsamples=self.num_subsamples,
+                parameters=self.sklearn_params
+            ).run()
+
             betas.append(t_beta)
             betas_resc.append(t_br)
 
