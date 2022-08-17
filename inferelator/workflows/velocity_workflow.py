@@ -5,7 +5,6 @@ from inferelator.utils import InferelatorData, Debug, Validator as check
 from inferelator.preprocessing.velocity_tfa import VelocityTFA
 
 import numpy as np
-import pandas as pd
 import warnings
 
 _VELOCITY_FILE_TYPES = [_TSV, _HDF5, _H5AD]
@@ -230,19 +229,12 @@ class VelocityWorkflow(SingleCellWorkflow):
             self._gene_specific_decay_constant = True
 
         elif self._global_decay_constant is not None:
-            self._decay_constants = pd.DataFrame(
-                self._global_decay_constant,
-                columns=[0],
-                index=self.gene_names
-            )
 
             Debug.vprint(
                 f"Setting decay constant {self._global_decay_constant} "
                 "for all genes",
                 level=0
             )
-
-            self._gene_specific_decay_constant = True
 
         else:
             self._global_decay_constant = 0
