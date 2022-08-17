@@ -232,6 +232,7 @@ class VelocityWorkflow(SingleCellWorkflow):
         elif self._global_decay_constant is not None:
             self._decay_constants = pd.DataFrame(
                 self._global_decay_constant,
+                columns=[0],
                 index=self.gene_names
             )
 
