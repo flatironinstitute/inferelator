@@ -1,4 +1,4 @@
-from abc import abstractclassmethod
+from abc import abstractmethod
 import joblib
 from dask import distributed
 
@@ -7,9 +7,11 @@ from inferelator.distributed import AbstractController
 
 class DaskAbstract(AbstractController):
     """
-    The DaskController class launches a local dask cluster and connects as a client
+    The DaskAbstract class launches implements the cluster
+    mapping function
 
-    The map functionality is deliberately not implemented; dask-specific multiprocessing functions are used instead
+    It should be extended by a class to build a cluster and
+    client for processing
     """
 
     _controller_name = "dask"
@@ -30,11 +32,13 @@ class DaskAbstract(AbstractController):
 
     _batch_size = None
 
-    @abstractclassmethod
+    @classmethod
+    @abstractmethod
     def connect(cls, *args, **kwargs):
         pass
 
-    @abstractclassmethod
+    @classmethod
+    @abstractmethod
     def shutdown(cls):
         pass
 
@@ -59,7 +63,8 @@ class DaskAbstract(AbstractController):
         :type restart_workers: bool
         :param batch_size: Individual job batch size, optional
         :type batch_size: numeric, None
-        :raises RuntimeError: Raise a  RuntimeError if the cluster workers arent up
+        :raises RuntimeError: Raise a  RuntimeError if the cluster
+            workers arent up
         :return: List of results from the function
         :rtype: list
         """
@@ -70,9 +75,15 @@ class DaskAbstract(AbstractController):
                 "call .connect() before calling .map()"
             )
 
+        # Scatter things
+        # And build a dict of object id to future
         if scatter is not None:
             scatter = {
-                id(a): cls.client.scatter([a], hash=False, broadcast=True)[0]
+                id(a): cls.client.scatter(
+                    [a],
+                    hash=False,
+                    broadcast=True
+                )[0]
                 for a in scatter
             }
 
@@ -103,11 +114,15 @@ class DaskAbstract(AbstractController):
             res = [
                 r for r in joblib.Parallel(
                     batch_size=batch_size
-                )(joblib.delayed(func)(
-                    *_scatter_wrapper_args(*a, scatter_map=scatter),
-                    **kwargs
-                )
-                for a in zip(*args)
+                )(
+                    joblib.delayed(func)(
+                        *_scatter_wrapper_args(
+                            *a,
+                            scatter_map=scatter
+                        ),
+                        **kwargs
+                    )
+                    for a in zip(*args)
                 )
             ]
 
@@ -119,9 +134,14 @@ class DaskAbstract(AbstractController):
 
         return res
 
-    @abstractclassmethod
+    @classmethod
+    @abstractmethod
     def set_processes(cls, process_count):
         pass
+
+    @classmethod
+    def set_batch_size(cls, batch_size):
+        cls._batch_size = batch_size
 
     @classmethod
     def check_cluster_state(cls):
