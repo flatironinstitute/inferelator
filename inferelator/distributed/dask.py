@@ -9,7 +9,6 @@ class DaskAbstract(AbstractController):
     """
     The DaskAbstract class launches implements the cluster
     mapping function
-
     It should be extended by a class to build a cluster and
     client for processing
     """
@@ -31,6 +30,7 @@ class DaskAbstract(AbstractController):
     processes = 4
 
     _batch_size = None
+    _num_retries = 2
 
     @classmethod
     @abstractmethod
@@ -54,7 +54,6 @@ class DaskAbstract(AbstractController):
     ):
         """
         Map a function through dask workers
-
         :param func: Mappable function that takes args and kwargs
         :type func: callable
         :param scatter: Scatter this data to all workers, optional
@@ -108,7 +107,8 @@ class DaskAbstract(AbstractController):
 
         with joblib.parallel_backend(
             'dask',
-            client=cls.client
+            client=cls.client,
+            retries=cls._num_retries
         ):
 
             res = [
