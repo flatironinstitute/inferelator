@@ -4,7 +4,12 @@ import itertools
 import copy
 import numpy as np
 import pandas.api.types as pat
-from sklearn.linear_model import LinearRegression as _LinearRegression, Lasso as _Lasso, Ridge as _Ridge
+
+from sklearn.linear_model import (
+    LinearRegression as _LinearRegression,
+    Lasso as _Lasso,
+    Ridge as _Ridge
+)
 
 from inferelator.regression import base_regression
 from inferelator.distributed.inferelator_mp import MPControl
@@ -18,27 +23,97 @@ _DEFAULT_METHOD = 'lasso'
 _DEFAULT_PARAMS = {"max_iter": 2000}
 
 
-def lasso(x, y, alpha, **kwargs):
-    return _regress(x, y, alpha, _Lasso, **kwargs)
+def _regress(x, y, alpha, regression, ridge_threshold=1e-2, **kwargs):
 
-
-def ridge(x, y, alpha, ridge_threshold=1e-2, **kwargs):
-    betas = _regress(x, y, alpha, _Ridge, **kwargs).flatten()
-    betas[betas < ridge_threshold] = 0.
-    return betas
-
-
-def _regress(x, y, alpha, regression, **kwargs):
     if alpha == 0:
         return _LinearRegression().fit(x, y).coef_
+
+    if regression == 'lasso':
+        _fitter = _Lasso
+    elif regression == 'ridge':
+        _fitter = _Ridge
     else:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            return regression(alpha=alpha, fit_intercept=False, **kwargs).fit(x, y).coef_
+        raise ValueError("regression must be 'lasso' or 'ridge'")
 
 
-def stars_model_select(x, y, alphas, threshold=_DEFAULT_THRESHOLD, num_subsamples=_DEFAULT_NUM_SUBSAMPLES,
-                       random_seed=_DEFAULT_SEED, method='lasso', **kwargs):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        _coefs = _fitter(
+            alpha=alpha,
+            fit_intercept=False,
+            **kwargs
+        ).fit(x, y).coef_
+
+    if regression == 'ridge':
+        _coefs[_coefs < ridge_threshold] = 0.
+
+    return _coefs
+
+
+def _regress_all_alphas(
+    x,
+    y,
+    alphas,
+    regression,
+    ridge_threshold=1e-2,
+    **kwargs
+):
+
+    _regression_coefs = []
+    _model = None
+
+    if regression == 'lasso':
+        _fitter = _Lasso
+    elif regression == 'ridge':
+        _fitter = _Ridge
+    else:
+        raise ValueError("regression must be 'lasso' or 'ridge'")
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+
+        for a in alphas:
+
+            # Just use OLS if alpha == 0
+            if a == 0:
+                _regression_coefs.append(
+                    _LinearRegression().fit(x, y).coef_
+                )
+
+            else:
+
+                # Create a new sklearn model
+                # Or just update the existing model
+                if _model is None:
+                    _model = _fitter(
+                        alpha=a,
+                        fit_intercept=False,
+                        warm_start=True,
+                        **kwargs
+                    )
+                else:
+                    _model.alpha = a
+
+                _coefs = _model.fit(x, y).coef_
+
+                if regression == 'ridge':
+                    _coefs[_coefs < ridge_threshold] = 0.
+
+                _regression_coefs.append(_coefs)
+
+    return _regression_coefs
+
+
+def stars_model_select(
+    x,
+    y,
+    alphas,
+    threshold=_DEFAULT_THRESHOLD,
+    num_subsamples=_DEFAULT_NUM_SUBSAMPLES,
+    random_seed=_DEFAULT_SEED,
+    method='lasso',
+    **kwargs
+):
     """
     Model using StARS (Stability Approach to Regularization Selection) for model selection
 
@@ -53,19 +128,14 @@ def stars_model_select(x, y, alphas, threshold=_DEFAULT_THRESHOLD, num_subsample
     :return:
     """
 
-    if method.lower() == 'lasso':
-        _regress_func = lasso
-    elif method.lower() == 'ridge':
-        _regress_func = ridge
-    else:
-        raise ValueError("Method must be 'lasso' or 'ridge'")
-
     # Number of obs
     n, k = x.shape
 
     if n < num_subsamples:
-        msg = "Subsamples ({ns}) for StARS is larger than the number of samples ({n})".format(ns=num_subsamples, n=n)
-        raise ValueError(msg)
+        raise ValueError(
+            f"Subsamples ({num_subsamples}) for StARS is larger "
+            f"than the number of samples ({n})"
+        )
 
     # Calculate the number of obs per subsample
     b = math.floor(n / num_subsamples)
@@ -80,15 +150,28 @@ def stars_model_select(x, y, alphas, threshold=_DEFAULT_THRESHOLD, num_subsample
         x_samp = np.asarray(x[idx == sample, :], order='F')
         y_samp = y[idx == sample]
 
-        for a in alphas:
-            betas[a].append(_regress_func(x_samp, y_samp, a, **kwargs))
+        _beta_coefs = _regress_all_alphas(
+            x_samp,
+            y_samp,
+            alphas,
+            method,
+            **kwargs
+        )
+
+        for _coef, a in zip(_beta_coefs, alphas):
+            betas[a].append(_coef)
 
     # Calculate edge stability
-    stabilities = {a: _calculate_stability(betas[a]) for a in alphas}
+    stabilities = {
+        a: _calculate_stability(betas[a])
+        for a in alphas
+    }
 
     # Calculate monotonic increasing (as alpha decreases) mean edge stability
     alphas = np.sort(alphas)[::-1]
-    total_instability = np.array([np.mean(stabilities[a]) for a in alphas])
+    total_instability = np.array(
+        [np.mean(stabilities[a]) for a in alphas]
+    )
 
     for i in range(1, len(total_instability)):
         if total_instability[i] < total_instability[i - 1]:
@@ -97,7 +180,14 @@ def stars_model_select(x, y, alphas, threshold=_DEFAULT_THRESHOLD, num_subsample
     threshold_alphas = np.array(alphas)[total_instability < threshold]
     selected_alpha = np.min(threshold_alphas) if len(threshold_alphas) > 0 else alphas[0]
 
-    refit_betas = _regress_func(x, y, selected_alpha, **kwargs)
+    refit_betas = _regress(
+        x,
+        y,
+        selected_alpha,
+        method,
+        **kwargs
+    )
+
     beta_nonzero = _make_bool_matrix(refit_betas)
 
     if beta_nonzero.sum() == 0:

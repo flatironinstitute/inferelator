@@ -127,7 +127,7 @@ class TestSingleTaskRegressionFactory(SetUpDenseData):
         self.workflow.tf_names = self.tf_names
 
         self.workflow.run()
-        self.assertAlmostEqual(self.workflow.results.score, 0.32222, places=4)
+        self.assertAlmostEqual(self.workflow.results.score, 1, places=4)
 
 
 class TestSingleTaskRegressionFactorySparse(SetUpSparseData, TestSingleTaskRegressionFactory):
@@ -187,7 +187,7 @@ class TestMultitaskFactory(SetUpDenseDataMTL):
         self.reset_workflow()
 
         self.workflow.run()
-        self.assertAlmostEqual(self.workflow.results.score, 0.32222, places=4)
+        self.assertAlmostEqual(self.workflow.results.score, 1, places=4)
 
 
 class TestMultitaskFactorySparse(SetUpSparseDataMTL, TestMultitaskFactory):
