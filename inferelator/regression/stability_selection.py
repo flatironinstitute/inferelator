@@ -23,33 +23,6 @@ _DEFAULT_METHOD = 'lasso'
 _DEFAULT_PARAMS = {"max_iter": 2000}
 
 
-def _regress(x, y, alpha, regression, ridge_threshold=1e-2, **kwargs):
-
-    if alpha == 0:
-        return _LinearRegression().fit(x, y).coef_
-
-    if regression == 'lasso':
-        _fitter = _Lasso
-    elif regression == 'ridge':
-        _fitter = _Ridge
-    else:
-        raise ValueError("regression must be 'lasso' or 'ridge'")
-
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        _coefs = _fitter(
-            alpha=alpha,
-            fit_intercept=False,
-            **kwargs
-        ).fit(x, y).coef_
-
-    if regression == 'ridge':
-        _coefs[_coefs < ridge_threshold] = 0.
-
-    return _coefs
-
-
 def _regress_all_alphas(
     x,
     y,
@@ -58,6 +31,30 @@ def _regress_all_alphas(
     ridge_threshold=1e-2,
     **kwargs
 ):
+    """
+    Fit regression with LASSO or Ridge
+    on an array of alpha values,
+    using OLS for alpha == 0
+
+    Warm start LASSO with the previous
+    coefficients.
+
+    :param x: Predictor data
+    :type x: np.ndarray
+    :param y: Response data
+    :type y: np.ndarray
+    :param alphas: Regression alphas
+    :type alphas: np.ndarray, list
+    :param regression: Regression method ('lasso' or 'ridge')
+    :type regression: str
+    :param ridge_threshold: Shrink values less than this to 0
+        for ridge regression, defaults to 1e-2
+    :type ridge_threshold: numeric, optional
+    :raises ValueError: Raise a ValueError if regression string
+        is not 'lasso' or 'ridge'
+    :return: A list of model coefficients from regression
+    :rtype: list(np.ndarray)
+    """
 
     _regression_coefs = []
     _model = None
@@ -79,7 +76,9 @@ def _regress_all_alphas(
             # Just use OLS if alpha == 0
             if a == 0:
                 _regression_coefs.append(
-                    _LinearRegression().fit(x, y).coef_
+                    _LinearRegression(
+                        fit_intercept=False
+                    ).fit(x, y).coef_
                 )
 
             else:
@@ -112,6 +111,12 @@ def _regress_all_alphas(
 
     return _regression_coefs
 
+# Wrapper for a single alpha value
+def _regress(x, y, alpha, regression, **kwargs):
+
+    return _regress_all_alphas(
+        x, y, [alpha], regression, **kwargs
+    )[0]
 
 def stars_model_select(
     x,
