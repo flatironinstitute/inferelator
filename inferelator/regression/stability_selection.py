@@ -64,8 +64,10 @@ def _regress_all_alphas(
 
     if regression == 'lasso':
         _fitter = _Lasso
+        _lasso = True
     elif regression == 'ridge':
         _fitter = _Ridge
+        _lasso = False
     else:
         raise ValueError("regression must be 'lasso' or 'ridge'")
 
@@ -88,15 +90,22 @@ def _regress_all_alphas(
                     _model = _fitter(
                         alpha=a,
                         fit_intercept=False,
-                        warm_start=True,
                         **kwargs
                     )
+
+                    # Use warm starts for LASSO
+                    if _lasso:
+                        _model.set_params(warm_start=True)
+
+                    if _lasso and len(_regression_coefs) > 0:
+                        _model._coef=_regression_coefs[-1]
+
                 else:
-                    _model.alpha = a
+                    _model.set_params(alpha=a)
 
-                _coefs = _model.fit(x, y).coef_
+                _coefs = _model.fit(x, y).coef_.copy()
 
-                if regression == 'ridge':
+                if not _lasso:
                     _coefs[_coefs < ridge_threshold] = 0.
 
                 _regression_coefs.append(_coefs)
@@ -146,7 +155,8 @@ def stars_model_select(
     # Calculate betas for stability selection
     betas = {a: [] for a in alphas}
     for sample in range(num_subsamples):
-        # Sample and put into column-major (the coordinate descent implementation in sklearn wants that order)
+        # Sample and put into column-major (the coordinate descent
+        # implementation in sklearn wants that order)
         x_samp = np.asarray(x[idx == sample, :], order='F')
         y_samp = y[idx == sample]
 
@@ -169,13 +179,9 @@ def stars_model_select(
 
     # Calculate monotonic increasing (as alpha decreases) mean edge stability
     alphas = np.sort(alphas)[::-1]
-    total_instability = np.array(
+    total_instability = np.maximum.accumulate(
         [np.mean(stabilities[a]) for a in alphas]
     )
-
-    for i in range(1, len(total_instability)):
-        if total_instability[i] < total_instability[i - 1]:
-            total_instability[i] = total_instability[i - 1]
 
     threshold_alphas = np.array(alphas)[total_instability < threshold]
     selected_alpha = np.min(threshold_alphas) if len(threshold_alphas) > 0 else alphas[0]
@@ -266,7 +272,8 @@ class StARS(base_regression.BaseRegression):
         Execute StARS
 
         :return: list
-            Returns a list of regression results that base_regression's pileup_data can process
+            Returns a list of regression results that base_regression
+            pileup_data can process
         """
 
         x = self.X.values
