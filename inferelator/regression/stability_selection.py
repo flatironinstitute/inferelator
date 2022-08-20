@@ -8,7 +8,8 @@ import pandas.api.types as pat
 from sklearn.linear_model import (
     LinearRegression as _LinearRegression,
     Lasso as _Lasso,
-    Ridge as _Ridge
+    Ridge as _Ridge,
+    lasso_path
 )
 
 from inferelator.regression import base_regression
@@ -21,6 +22,39 @@ _DEFAULT_THRESHOLD = 0.05
 _DEFAULT_SEED = 42
 _DEFAULT_METHOD = 'lasso'
 _DEFAULT_PARAMS = {"max_iter": 2000}
+
+
+def _lasso_path(
+    x,
+    y,
+    alphas,
+    **kwargs
+):
+
+    _coefs = np.zeros((x.shape[1], len(alphas)))
+    alphas = np.sort(alphas)[::-1]
+
+    _alpha0 = alphas == 0.
+
+    if np.sum(_alpha0) > 0:
+        _coefs[:, _alpha0] = _LinearRegression(
+            fit_intercept=False
+        ).fit(x, y).coef_[:, None]
+
+    _, _lp_coef, _ = lasso_path(
+        x,
+        y,
+        alphas=alphas[~_alpha0],
+        **kwargs
+    )
+
+    _coefs[:, ~_alpha0] = _lp_coef
+    _coefs = [
+        _coefs[:, i].flatten()
+        for i in range(_coefs.shape[1])
+    ]
+
+    return alphas, _coefs
 
 
 def _regress_all_alphas(
@@ -57,14 +91,16 @@ def _regress_all_alphas(
     """
 
     _regression_coefs = []
-    _model = None
 
     if regression == 'lasso':
-        _fitter = _Lasso
-        _lasso = True
+        return _lasso_path(
+            x,
+            y,
+            alphas,
+            **kwargs
+        )
     elif regression == 'ridge':
-        _fitter = _Ridge
-        _lasso = False
+        pass
     else:
         raise ValueError("regression must be 'lasso' or 'ridge'")
 
@@ -73,50 +109,53 @@ def _regress_all_alphas(
 
         for a in alphas:
 
-            # Just use OLS if alpha == 0
-            if a == 0:
-                _regression_coefs.append(
-                    _LinearRegression(
-                        fit_intercept=False
-                    ).fit(x, y).coef_
+            _regression_coefs.append(
+                _regress(
+                    x,
+                    y,
+                    a,
+                    regression,
+                    ridge_threshold=ridge_threshold,
+                    **kwargs
                 )
+            )
 
-            else:
-
-                # Create a new sklearn model
-                # Or just update the existing model
-                if _model is None:
-                    _model = _fitter(
-                        alpha=a,
-                        fit_intercept=False,
-                        **kwargs
-                    )
-
-                    # Use warm starts for LASSO
-                    if _lasso:
-                        _model.set_params(warm_start=True)
-
-                    if _lasso and len(_regression_coefs) > 0:
-                        _model._coef=_regression_coefs[-1]
-
-                else:
-                    _model.set_params(alpha=a)
-
-                _coefs = _model.fit(x, y).coef_.copy()
-
-                if not _lasso:
-                    _coefs[_coefs < ridge_threshold] = 0.
-
-                _regression_coefs.append(_coefs)
-
-    return _regression_coefs
+    return alphas, _regression_coefs
 
 # Wrapper for a single alpha value
-def _regress(x, y, alpha, regression, **kwargs):
+def _regress(
+    x,
+    y,
+    alpha,
+    regression,
+    ridge_threshold=1e-2,
+    **kwargs
+):
 
-    return _regress_all_alphas(
-        x, y, [alpha], regression, **kwargs
-    )[0]
+    if alpha == 0:
+        return _LinearRegression(
+            fit_intercept=False
+        ).fit(x, y).coef_.copy()
+    elif regression == 'lasso':
+        return _Lasso(
+            alpha=alpha,
+            fit_intercept=False,
+            **kwargs
+        ).fit(x, y).coef_.copy()
+    elif regression == 'ridge':
+        _coefs = _Ridge(
+            alpha=alpha,
+            fit_intercept=False,
+            **kwargs
+        ).fit(x, y).coef_.copy()
+
+        _coefs[_coefs < ridge_threshold] = 0.
+
+        return _coefs
+    else:
+        raise ValueError(
+            "regression must be 'lasso' or 'ridge'"
+        )
 
 def stars_model_select(
     x,
@@ -145,6 +184,9 @@ def stars_model_select(
     # Number of obs
     n, k = x.shape
 
+    # Sort alphas
+    alphas = np.sort(alphas)[::-1]
+
     if n < num_subsamples:
         raise ValueError(
             f"Subsamples ({num_subsamples}) for StARS is larger "
@@ -159,13 +201,14 @@ def stars_model_select(
 
     # Calculate betas for stability selection
     betas = {a: [] for a in alphas}
+
     for sample in range(num_subsamples):
         # Sample and put into column-major (the coordinate descent
         # implementation in sklearn wants that order)
         x_samp = np.asarray(x[idx == sample, :], order='F')
         y_samp = y[idx == sample]
 
-        _beta_coefs = _regress_all_alphas(
+        _beta_alphas, _beta_coefs = _regress_all_alphas(
             x_samp,
             y_samp,
             alphas,
@@ -173,7 +216,7 @@ def stars_model_select(
             **kwargs
         )
 
-        for _coef, a in zip(_beta_coefs, alphas):
+        for _coef, a in zip(_beta_coefs, _beta_alphas):
             betas[a].append(_coef)
 
     # Calculate edge stability
@@ -183,7 +226,6 @@ def stars_model_select(
     }
 
     # Calculate monotonic increasing (as alpha decreases) mean edge stability
-    alphas = np.sort(alphas)[::-1]
     total_instability = np.maximum.accumulate(
         [np.mean(stabilities[a]) for a in alphas]
     )
