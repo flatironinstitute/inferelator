@@ -97,14 +97,6 @@ class DaskAbstract(AbstractController):
         # Submit directly and process futures if batchsize is 1
         if cls._batch_size == 1:
 
-            print([id(b) for a in zip(*args) for b in a])
-
-            print([_scatter_wrapper_args(*a, scatter_map=scatter)
-                    for a in zip(*args)])
-
-            print([id(b) for a in zip(*args)
-                   for b in _scatter_wrapper_args(*a, scatter_map=scatter)])
-
             futures = [
                 cls.client.submit(
                     func,
