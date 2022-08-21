@@ -152,8 +152,7 @@ class AMuSR_regression(BaseRegression):
             tol=self.tol,
             rel_tol=self.rel_tol,
             use_numba=self.use_numba,
-            scatter=[self.X, self.priors],
-            restart_workers=True
+            scatter=[self.X, self.priors]
         )
 
     def pileup_data(self, run_data):

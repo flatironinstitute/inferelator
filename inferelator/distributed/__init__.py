@@ -64,3 +64,22 @@ class AbstractController:
         Clean shutdown of the multiprocessing state
         """
         raise NotImplementedError
+
+    @classmethod
+    def set_param(
+        cls,
+        param_name,
+        value
+    ):
+        """
+        Set a parameter in this object
+        If the value is not None
+
+        :param param_name: Parameter name
+        :type param_name: str
+        :param value: Value
+        :type value: any
+        """
+
+        if value is not None:
+            setattr(cls, param_name, value)

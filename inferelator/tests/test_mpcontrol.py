@@ -93,7 +93,7 @@ class TestMultiprocessingMPController(TestMPControl):
         self.assertListEqual(test_result, self.map_test_expect)
 
 
-class TestDaskLocalMPController(TestMPControl):
+class TestDaskLocalMPControllerJoblib(TestMPControl):
     name = "dask-local"
     client_name = "dask-local"
 
@@ -102,6 +102,12 @@ class TestDaskLocalMPController(TestMPControl):
         MPControl.shutdown()
         MPControl.set_multiprocess_engine(cls.name)
         MPControl.connect(n_workers=1)
+        MPControl.client.set_task_parameters(batch_size=2)
+
+    @classmethod
+    def tearDownClass(cls):
+        MPControl.client.set_task_parameters(batch_size=1)
+        super().tearDownClass()
 
     def test_dask_local_connect(self):
         self.assertTrue(MPControl.status())
@@ -118,9 +124,6 @@ class TestDaskLocalMPController(TestMPControl):
         a, b, c = np.random.rand(100), np.random.rand(50), np.random.rand(10)
 
         def _not_scattered(x, y, z):
-            print(id(a) == id(x))
-            print(id(b) == id(y))
-            print(id(c) == id(z))
 
             return (
                 id(a) == id(x),
@@ -155,13 +158,28 @@ class TestDaskLocalMPController(TestMPControl):
 
         self.assertEqual(sum(not_scattered[0]), 3)
 
+
+class TestDaskLocalMPControllerSubmit(TestDaskLocalMPControllerJoblib):
+
+    @classmethod
+    def setUpClass(cls):
+        MPControl.shutdown()
+        MPControl.set_multiprocess_engine(cls.name)
+        MPControl.connect(n_workers=1)
+        MPControl.client.set_task_parameters(batch_size=1)
+
+    @unittest.skip("Doesnt work for submit because its not a coroutine")
+    def test_scatter(self):
+        pass
+
+
 class TestDaskHPCMPController(TestMPControl):
     name = "dask-cluster"
     client_name = "dask-cluster"
     tempdir = None
 
     @classmethod
-    def setUpClass(cls):    
+    def setUpClass(cls):
         cls.tempdir = tempfile.mkdtemp()
         MPControl.shutdown()
         MPControl.set_multiprocess_engine(cls.name)

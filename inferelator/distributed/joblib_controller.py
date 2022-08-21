@@ -37,8 +37,6 @@ class JoblibController(AbstractController):
         func,
         *args,
         scatter=None,
-        restart_workers=False,
-        batch_size=None,
         **kwargs
     ):
         """
@@ -50,10 +48,6 @@ class JoblibController(AbstractController):
         :type args: iterators
         :param scatter: Ignored parameter to match dask requirements
         :type scatter: None
-        :param restart_Workers: Ignored parameter to match dask requirements
-        :type restart_workers: bool
-        :param batch_size: Ignored parameter to match dask requirements
-        :type batch_size: bool
         """
 
         check.argument_callable(func)

@@ -29,8 +29,6 @@ class LocalController(AbstractController):
         func,
         *arg,
         scatter=None,
-        restart_workers=False,
-        batch_size=None,
         **kwargs
     ):
         """

@@ -558,16 +558,6 @@ class DaskHPCClusterController(DaskAbstract):
 
         return _total
 
-    @classmethod
-    def set_param(
-        cls,
-        param_name,
-        value
-    ):
-
-        if value is not None:
-            setattr(cls, param_name, value)
-
 
 class WorkerTracker:
     """

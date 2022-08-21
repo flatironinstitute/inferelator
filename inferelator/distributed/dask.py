@@ -1,9 +1,10 @@
 from abc import abstractmethod
-import joblib
+
 from dask import distributed
+import joblib
 
 from inferelator.distributed import AbstractController
-
+from inferelator.utils import Debug
 
 class DaskAbstract(AbstractController):
     """
@@ -29,8 +30,9 @@ class DaskAbstract(AbstractController):
     # Settings for dask workers
     processes = 4
 
-    _batch_size = None
+    _batch_size = 1
     _num_retries = 2
+    _restart_workers = False
 
     @classmethod
     @abstractmethod
@@ -48,21 +50,16 @@ class DaskAbstract(AbstractController):
         func,
         *args,
         scatter=None,
-        restart_workers=False,
-        batch_size=None,
         **kwargs
     ):
         """
         Map a function through dask workers
+
         :param func: Mappable function that takes args and kwargs
         :type func: callable
         :param scatter: Scatter this data to all workers, optional
         :type scatter: list, None
-        :param restart_Workers: Restart workers when job is complete
-        :type restart_workers: bool
-        :param batch_size: Individual job batch size, optional
-        :type batch_size: numeric, None
-        :raises RuntimeError: Raise a  RuntimeError if the cluster
+        :raises RuntimeError: Raise a RuntimeError if the cluster
             workers arent up
         :return: List of results from the function
         :rtype: list
@@ -97,39 +94,65 @@ class DaskAbstract(AbstractController):
                 for k, v in kwargs.items()
             }
 
-        # Quick & dirty batch size heuristic if not passed
-        if cls._batch_size is None and batch_size is None:
-            arglen = max(_safe_len(x) for x in args)
-            batch_size = int(arglen / cls.num_workers() / 2)
-            batch_size = max(2, min(100, batch_size))
-        elif batch_size is None:
-            batch_size = cls._batch_size
+        # Submit directly and process futures if batchsize is 1
+        if cls._batch_size == 1:
 
-        with joblib.parallel_backend(
-            'dask',
-            client=cls.client,
-            retries=cls._num_retries
-        ):
+            print([id(b) for a in zip(*args) for b in a])
 
-            res = [
-                r for r in joblib.Parallel(
-                    batch_size=batch_size
-                )(
-                    joblib.delayed(func)(
-                        *_scatter_wrapper_args(
-                            *a,
-                            scatter_map=scatter
-                        ),
-                        **kwargs
-                    )
-                    for a in zip(*args)
+            print([_scatter_wrapper_args(*a, scatter_map=scatter)
+                    for a in zip(*args)])
+
+            print([id(b) for a in zip(*args)
+                   for b in _scatter_wrapper_args(*a, scatter_map=scatter)])
+
+            futures = [
+                cls.client.submit(
+                    func,
+                    *_scatter_wrapper_args(
+                        *a,
+                        scatter_map=scatter
+                    ),
+                    retries=cls._num_retries,
+                    **kwargs,
                 )
+                for a in zip(*args)
             ]
+
+            res = process_futures_into_list(
+                futures,
+                cls.client
+            )
+
+        # Submit through joblib if batchsize > 1
+        # Has some weird behavior sometimes
+        # Isn't properly checking for some error conditions
+        # Can race/end up in infinite wait state
+        else:
+            with joblib.parallel_backend(
+                'dask',
+                client=cls.client,
+                retries=cls._num_retries
+            ):
+
+                res = [
+                    r for r in joblib.Parallel(
+                        batch_size=cls._batch_size
+                    )(
+                        joblib.delayed(func)(
+                            *_scatter_wrapper_args(
+                                *a,
+                                scatter_map=scatter
+                            ),
+                            **kwargs
+                        )
+                        for a in zip(*args)
+                    )
+                ]
 
         if scatter is not None:
             cls.client.cancel(scatter.values())
 
-        if restart_workers:
+        if cls._restart_workers:
             cls.client.restart()
 
         return res
@@ -140,8 +163,28 @@ class DaskAbstract(AbstractController):
         pass
 
     @classmethod
-    def set_batch_size(cls, batch_size):
-        cls._batch_size = batch_size
+    def set_task_parameters(
+        cls,
+        batch_size=None,
+        restart_workers=None,
+        retries=None
+    ):
+        """
+        Set parameters for submitted worker tasks
+
+        :param batch_size: Batch into submissions of this size,
+            defaults to 1
+        :type batch_size: int, optional
+        :param restart_workers: Restart workers after every map,
+            defaults to False
+        :type restart_workers: bool, optional
+        :param retries: Number of times to retry failed jobs,
+            defaults to 2
+        :type retries: int, optional
+        """
+        cls.set_param("_batch_size", batch_size)
+        cls.set_param("_restart_workers", restart_workers)
+        cls.set_param("_num_retries", retries)
 
     @classmethod
     def check_cluster_state(cls):
@@ -175,12 +218,70 @@ def _scatter_wrapper_args(*args, scatter_map=None):
             for a in args
         ]
 
-def _safe_len(x):
+def process_futures_into_list(
+    future_list,
+    client,
+    raise_on_error=True,
+    check_results=True
+):
     """
-    Length check that's generator-safe
+    Take a list of futures and turn them into a list of results
+
+    :param future_list: A list of executing futures
+    :type future_list: list
+    :param client: A dask client
+    :type: distributed.Client
+    :param raise_on_error: Should an error be raised if a job can't be
+        restarted or just move on from it.
+    Defaults to True
+    :type raise_on_error: bool
+    :param check_results: Should the result object be checked (and
+        restarted if there's a problem). If False, this will raise
+        an error with the result of a failed future is retrieved.
+        Defaults to True.
+    :type check_results: bool
+
+    :return output_list: A list of results from the completed futures
+    :rtype: list
     """
 
-    try:
-        return len(x)
-    except TypeError:
-        return 0
+    output_list = [None] * len(future_list)
+
+    # Make a dict to look up positions
+    # To retain final ordering of results
+    position_lookup = {
+        id(f): i
+        for i, f in enumerate(future_list)
+    }
+
+    complete_gen = distributed.as_completed(future_list)
+
+    for finished_future in complete_gen:
+
+        # Check possible error states
+        _is_error = finished_future.cancelled()
+        _is_error |= (finished_future.status == "erred")
+
+        # Jobs can be cancelled in certain situations
+        if check_results and _is_error:
+
+            Debug.vprint(
+                f"Restarting job (Error: {finished_future.exception()})",
+                level=0
+            )
+
+            # Restart cancelled futures and put them back into the work pile
+            try:
+                client.retry(finished_future)
+                complete_gen.update([finished_future])
+            except KeyError:
+                if raise_on_error:
+                    raise
+
+        # In the event of success, get the data
+        else:
+            result_data = finished_future.result()
+            output_list[position_lookup[id(finished_future)]] = result_data
+            finished_future.cancel()
+
+    return output_list
