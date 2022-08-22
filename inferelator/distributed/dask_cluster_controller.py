@@ -147,6 +147,7 @@ class DaskHPCClusterController(DaskAbstract):
     # Scale & await parameters
     _await_all_workers = False
     _await_non_local = True
+    _await_complete = False
 
     # The dask cluster object
     local_cluster = None
@@ -435,8 +436,13 @@ class DaskHPCClusterController(DaskAbstract):
         _total_workers = cls._total_workers()
 
         # If there are no workers to be had, skip waiting
-        if skip_await or  _total_workers == 0:
+        if skip_await or _total_workers == 0:
             return
+
+        # If we've already done this, just make sure
+        # The cluster isn't dead
+        elif cls._await_complete:
+            _require_workers = 1
 
         # If we want all the workers up
         elif cls._await_all_workers:
@@ -461,6 +467,9 @@ class DaskHPCClusterController(DaskAbstract):
         cls.client.wait_for_workers(
             n_workers=_require_workers
         )
+
+        cls._await_complete = True
+
 
     @classmethod
     def _config_str(cls):
