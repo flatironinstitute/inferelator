@@ -5,6 +5,7 @@ from inferelator.utils import InferelatorData, Debug, Validator as check
 from inferelator.preprocessing.velocity_tfa import VelocityTFA
 
 import numpy as np
+import pandas as pd
 import warnings
 
 _VELOCITY_FILE_TYPES = [_TSV, _HDF5, _H5AD]
@@ -247,11 +248,14 @@ class VelocityWorkflow(SingleCellWorkflow):
 
     def _align_velocity(self):
 
+        # Find intersection of velocity and expression
         keep_genes, _lose_genes = self._aligned_names(
             self._velocity_data.gene_names,
             self.data.gene_names
         )
 
+        # Also find intersection of decay if it's a obs x genes
+        # data object
         if isinstance(self._decay_constants, InferelatorData):
             keep_genes, _lose_genes_2 = self._aligned_names(
                 keep_genes,
@@ -265,11 +269,31 @@ class VelocityWorkflow(SingleCellWorkflow):
                 trim_gene_list=keep_genes
             )
 
+        # If it's a genes dataframe, reindex it to the other
+        # data objects and fill NA with zeros
+        elif isinstance(self._decay_constants, pd.DataFrame):
+
+            self._decay_constants = self._decay_constants.reindex(
+                keep_genes
+            )
+
+            _no_decays = pd.isna(self._decay_constants)
+
+            if _no_decays.sum() > 0:
+                Debug.vprint(
+                    f"{_no_decays.sum()} genes not in decay constant "
+                    "data; decay constant for these genes set to 0. "
+                    f"[{', '.join(keep_genes[_no_decays])}]"
+                )
+
+                self._decay_constants = self._decay_constants.fillna(0)
+
         Debug.vprint(
             "Aligning expression and dynamic data on "
             f"{len(keep_genes)} genes; {len(_lose_genes)} removed"
         )
 
+        # Trim genes
         self._velocity_data.trim_genes(
             remove_constant_genes=False,
             trim_gene_list=keep_genes
