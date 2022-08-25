@@ -247,12 +247,27 @@ class VelocityWorkflow(SingleCellWorkflow):
 
     def _align_velocity(self):
 
-        keep_genes = self._velocity_data.gene_names.intersection(self.data.gene_names)
-        _lose_genes = self._velocity_data.gene_names.symmetric_difference(self.data.gene_names)
+        keep_genes, _lose_genes = self._aligned_names(
+            self._velocity_data.gene_names,
+            self.data.gene_names
+        )
+
+        if isinstance(self._decay_constants, InferelatorData):
+            keep_genes, _lose_genes_2 = self._aligned_names(
+                keep_genes,
+                self._decay_constants.gene_names
+            )
+
+            _lose_genes = _lose_genes.union(_lose_genes_2)
+
+            self._decay_constants.trim_genes(
+                remove_constant_genes=False,
+                trim_gene_list=keep_genes
+            )
 
         Debug.vprint(
-            f"Aligning velocity and expression data on {len(keep_genes)} genes; "
-            f"{len(_lose_genes)} removed"
+            "Aligning expression and dynamic data on "
+            f"{len(keep_genes)} genes; {len(_lose_genes)} removed"
         )
 
         self._velocity_data.trim_genes(
@@ -265,8 +280,13 @@ class VelocityWorkflow(SingleCellWorkflow):
             trim_gene_list=keep_genes
         )
 
-        assert check.indexes_align((self._velocity_data.gene_names, self.data.gene_names))
-        assert check.indexes_align((self._velocity_data.sample_names, self.data.sample_names))
+        assert check.indexes_align(
+            (self._velocity_data.gene_names, self.data.gene_names)
+        )
+
+        assert check.indexes_align(
+            (self._velocity_data.sample_names, self.data.sample_names)
+        )
 
     def compute_common_data(self):
         pass
@@ -322,8 +342,13 @@ class VelocityWorkflow(SingleCellWorkflow):
         :return:
         """
 
-        assert check.indexes_align((expression.gene_names, velocity.gene_names))
-        assert check.indexes_align((expression.sample_names, velocity.sample_names))
+        assert check.indexes_align(
+            (expression.gene_names, velocity.gene_names)
+        )
+
+        assert check.indexes_align(
+            (expression.sample_names, velocity.sample_names)
+        )
 
         if self._global_decay_constant:
             Debug.vprint(
@@ -365,6 +390,13 @@ class VelocityWorkflow(SingleCellWorkflow):
                 "per sample and per gene"
             )
 
+            assert check.indexes_align(
+                (
+                    expression.sample_names,
+                    self._decay_constants.sample_names
+                )
+            )
+
             return InferelatorData(
                 np.add(
                     velocity.values,
@@ -399,3 +431,11 @@ class VelocityWorkflow(SingleCellWorkflow):
                 sample_names=expression.sample_names,
                 meta_data=expression.meta_data
             )
+
+    @staticmethod
+    def _aligned_names(idx1, idx2):
+
+        keep_genes = idx1.intersection(idx2)
+        lose_genes = idx1.symmetric_difference(idx2)
+
+        return keep_genes, lose_genes
