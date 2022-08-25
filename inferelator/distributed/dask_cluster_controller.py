@@ -69,9 +69,8 @@ _KNOWN_CONFIG = {
     },
 
     "rusty_rome": {
-        "_job_n_workers": 64,
-        "_job_n_threads": 2,
-        "_num_local_workers": 60,
+        "_job_n_workers": 128,
+        "_num_local_workers": 52,
         "_job_mem": "990GB",
         "_job_time": "24:00:00",
         "_interface": "ib0",
