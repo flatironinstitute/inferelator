@@ -145,7 +145,7 @@ class DaskHPCClusterController(DaskAbstract):
 
     # Scale & await parameters
     _await_all_workers = False
-    _await_non_local = True
+    _await_non_local = False
     _await_complete = False
 
     # The dask cluster object
