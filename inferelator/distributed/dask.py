@@ -74,16 +74,10 @@ class DaskAbstract(AbstractController):
         # Scatter things
         # And build a dict of object id to future
         if scatter is not None:
-            scatter = {
-                id(a): cls.client.scatter(
-                    [a],
-                    hash=False,
-                    broadcast=True
-                )[0]
-                for a in scatter
-            }
-
-            distributed.wait(scatter.values(), timeout=120)
+            scatter = make_scatter_map(
+                scatter,
+                cls.client
+            )
 
             # Replace kwargs with scattered object
             # If object ID was in the scatter table
@@ -119,6 +113,8 @@ class DaskAbstract(AbstractController):
         # Has some weird behavior sometimes
         # Isn't properly checking for some error conditions
         # Can race/end up in infinite wait state
+        # I think it's because this is submitting coroutines
+        # Instead of sending functions to worker processes
         else:
             with joblib.parallel_backend(
                 'dask',
@@ -210,6 +206,38 @@ def _scatter_wrapper_args(*args, scatter_map=None):
             for a in args
         ]
 
+def make_scatter_map(scatter_objs, client):
+
+    """
+    Scatter stuff and return a dict of
+    object id: dask.Future for that object
+
+    :param scatter_objs: list or iterable of objects to scatter
+    :type scatter_objs: list, tuple, iterable
+    :param client: Dask client
+    :type client: distributed.Client
+    :return: Dict {id(obj):distributed.Future(obj)}
+    :rtype: dict
+    """
+
+    if scatter_objs is None:
+        return None
+
+    # Generate a dict, keyed by ID
+    # Of dask futures
+    scatter = {
+        id(a): client.scatter(
+            [a],
+            hash=False,
+            broadcast=True
+        )[0]
+        for a in scatter_objs
+    }
+
+    distributed.wait(scatter.values(), timeout=120)
+
+    return scatter
+
 def process_futures_into_list(
     future_list,
     client,
@@ -269,6 +297,11 @@ def process_futures_into_list(
             except KeyError:
                 if raise_on_error:
                     raise
+                else:
+                    Debug.vprint(
+                        f"Job {id(finished_future)} failed",
+                        level=0
+                    )
 
         # In the event of success, get the data
         else:

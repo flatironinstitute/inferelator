@@ -3,9 +3,18 @@ import tempfile
 import shutil
 import os
 import numpy as np
+import numpy.testing as npt
+
+from distributed import Future
 
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.distributed import dask_cluster_controller
+
+from inferelator.distributed.dask import (
+    _scatter_wrapper_args,
+    process_futures_into_list,
+    make_scatter_map
+)
 
 
 def math_function(x, y, z):
@@ -157,6 +166,109 @@ class TestDaskLocalMPControllerJoblib(TestMPControl):
         )
 
         self.assertEqual(sum(not_scattered[0]), 3)
+
+
+class TestDaskAccessories(TestDaskLocalMPControllerJoblib):
+
+    def setUp(self) -> None:
+        self.a, self.b, self.c = (
+            np.random.rand(100),
+            np.random.rand(100),
+            np.random.rand(100)
+        )
+
+        self.futures = [
+            MPControl.client.client.submit(
+                math_function,
+                *a
+            )
+            for a in zip(
+                [self.a, self.b],
+                [self.b, self.a],
+                [self.c, self.c]
+            )
+        ]
+
+        return super().setUp()
+
+    def test_scatter_replace(self):
+
+        a, b, c = self.a, self.b, self.c
+
+        scatter_map = make_scatter_map(
+            [a, b],
+            MPControl.client.client
+        )
+
+        self.assertEqual(len(scatter_map), 2)
+
+        self.assertListEqual(
+            [id(a), id(b)],
+            list(scatter_map.keys())
+        )
+
+        for v in scatter_map.values():
+            self.assertTrue(isinstance(v, Future))
+
+        submit_stuff = _scatter_wrapper_args(
+            a, b, c,
+            scatter_map=scatter_map
+        )
+
+        self.assertTrue(isinstance(submit_stuff[0], Future))
+        self.assertTrue(isinstance(submit_stuff[1], Future))
+        self.assertFalse(isinstance(submit_stuff[2], Future))
+        self.assertEqual(id(submit_stuff[2]), id(c))
+
+        MPControl.client.client.cancel(scatter_map.values())
+
+    def test_get_results(self):
+
+        a, b, c = self.a, self.b, self.c
+
+        res = process_futures_into_list(
+            self.futures,
+            MPControl.client.client
+        )
+
+        npt.assert_array_almost_equal(
+            res[0],
+            math_function(a, b, c)
+        )
+
+        npt.assert_array_almost_equal(
+            res[1],
+            math_function(b, a, c)
+        )
+
+    def test_get_results_missing(self):
+
+        a, b, c = self.a, self.b, self.c
+
+        self.futures[1].cancel()
+
+        res = process_futures_into_list(
+            self.futures,
+            MPControl.client.client,
+            raise_on_error=False
+        )
+
+        npt.assert_array_almost_equal(
+            res[0],
+            math_function(a, b, c)
+        )
+
+        self.assertIsNone(res[1])
+
+    def test_get_results_error(self):
+
+        self.futures[1].cancel()
+
+        with self.assertRaises(KeyError):
+            _ = process_futures_into_list(
+                self.futures,
+                MPControl.client.client
+            )
 
 
 class TestDaskLocalMPControllerSubmit(TestDaskLocalMPControllerJoblib):
