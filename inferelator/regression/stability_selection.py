@@ -274,8 +274,10 @@ def _calculate_stability(edges):
 
 
 def _make_bool_matrix(edge_matrix):
+
     if pat.is_float_dtype(edge_matrix.dtype):
-        return np.abs(edge_matrix) > np.finfo(dtype=edge_matrix.dtype).eps
+        _eps = np.finfo(dtype=edge_matrix.dtype).eps
+        return np.abs(edge_matrix) > _eps
     else:
         return edge_matrix != 0
 

@@ -1,6 +1,10 @@
 """
-Implementation for the Transcription Factor Activity (TFA) based Inferelator workflow.
-This workflow also has a design driver which will incorporate timecourse data.
+Implementation for the Transcription Factor Activity (TFA)
+based Inferelator workflow.
+
+This workflow also has a design driver which will incorporate
+timecourse data.
+
 This is the standard workflow for most applications.
 """
 
@@ -8,12 +12,18 @@ import numpy as np
 from inferelator import workflow
 from inferelator.preprocessing import design_response_translation
 from inferelator.preprocessing.tfa import TFA, NoTFA
-from inferelator.utils import InferelatorDataLoader, Debug, InferelatorData, Validator as check
+from inferelator.utils import (
+    InferelatorDataLoader,
+    Debug,
+    InferelatorData,
+    Validator as check
+)
 
 
 class TFAWorkFlow(workflow.WorkflowBase):
     """
-    TFAWorkFlow runs the timecourse driver and the TFA driver prior to regression.
+    TFAWorkFlow runs the timecourse driver and the TFA driver
+    prior to regression.
     """
     # Design/response parameters
     delTmin = 0
@@ -39,23 +49,33 @@ class TFAWorkFlow(workflow.WorkflowBase):
     # Design-Response Driver implementation
     drd_driver = design_response_translation.PythonDRDriver
 
-    def set_design_settings(self, timecourse_response_driver=True, delTmin=None, delTmax=None, tau=None):
+    def set_design_settings(
+        self,
+        timecourse_response_driver=None,
+        delTmin=None,
+        delTmax=None,
+        tau=None
+    ):
         """
         Set the parameters used in the timecourse design-response driver.
 
-        :param timecourse_response_driver: A flag to indicate that the timecourse calculations should be performed.
+        :param timecourse_response_driver: A flag to indicate that the
+            timecourse calculations should be performed.
             If set False, no other timecourse settings will have any effect.
             Defaults to True.
         :type timecourse_response_driver: bool
-        :param delTmin: The minimum allowed time difference between timepoints to model as a time series. Provide in the
+        :param delTmin: The minimum allowed time difference between timepoints
+            to model as a time series. Provide in the
             same units as the metadata time column (usually minutes).
             Defaults to 0.
         :type delTmin: int, float
-        :param delTmax: The maximum allowed time difference between timepoints to model as a time series. Provide in the
+        :param delTmax: The maximum allowed time difference between timepoints
+            to model as a time series. Provide in the
             same units as the metadata time column (usually minutes).
             Defaults to 120.
         :type delTmax: int, float
-        :param tau: The tau parameter. Provide in the same units as the metadata time column (usually minutes).
+        :param tau: The tau parameter. Provide in the same units as the
+            metadata time column (usually minutes).
             Defaults to 45.
         :type tau: int, float
         """
@@ -71,26 +91,38 @@ class TFAWorkFlow(workflow.WorkflowBase):
         self._set_without_warning("delTmax", delTmax)
         self._set_without_warning("tau", tau)
 
-    def set_tfa(self, tfa_driver=None, tfa_output_file=None, tfa_input_file=None, tfa_input_file_type=None):
+    def set_tfa(
+        self,
+        tfa_driver=None,
+        tfa_output_file=None,
+        tfa_input_file=None,
+        tfa_input_file_type=None
+    ):
         """
-        Perform or skip the TFA calculations; by default the design matrix will be transcription factor activity.
-        If this is called with `tfa_driver = False`, the design matrix will be transcription factor expression.
-        It is not necessary to call this function unless setting `tfa_driver = False`.
+        Perform or skip the TFA calculations; by default the design matrix will
+        be transcription factor activity. If this is called with
+        `tfa_driver = False`, the design matrix will be transcription factor
+        expression. It is not necessary to call this function unless setting
+        `tfa_driver = False`.
 
-        :param tfa_driver: A flag to indicate that the TFA calculations should be performed.
+        :param tfa_driver: A flag to indicate that the TFA calculations should
+            be performed.
             Defaults to True
         :type tfa_driver: bool
-        :param tfa_output_file: A path to a TSV file which will be created with the calculated TFAs. Note that this file
-            may contain TF expression if the TFA cannot be calculated for that TF.
+        :param tfa_output_file: A path to a TSV file which will be created
+            with the calculated TFAs. Note that this file may contain TF
+            expression if the TFA cannot be calculated for that TF.
             If None, no output file will be produced.
             Defaults to None
         :type tfa_output_file: str, optional
-        :param tfa_input_file: A path to a TFA file which will be loaded and used in place of activity calculations
-            If set, all TFA-related settings will be irrelevant. TSV file MUST be Samples X TFA.
+        :param tfa_input_file: A path to a TFA file which will be loaded
+            and used in place of activity calculations. If set, all TFA-related
+            settings will be irrelevant. TSV file MUST be Samples X TFA.
             If None, the inferelator will calculate TFA
             Defaults to None
         :type tfa_output_file: str, optional
-        :param tfa_input_file_type: A string which identifies file type. Accepts "tsv" and "h5ad".
+        :param tfa_input_file_type: A string which identifies file type.
+            Accepts "tsv" and "h5ad".
             If None, assume the file is a TSV
             Defaults to None
         :type tfa_output_file: str, optional
@@ -103,9 +135,20 @@ class TFAWorkFlow(workflow.WorkflowBase):
         else:
             self.tfa_driver = NoTFA
 
-        self._set_with_warning("_tfa_output_file", tfa_output_file)
-        self._set_file_name("_tfa_input_file", tfa_input_file)
-        self._set_without_warning("_tfa_input_file_type", tfa_input_file_type)
+        self._set_with_warning(
+            "_tfa_output_file",
+            tfa_output_file
+        )
+
+        self._set_file_name(
+            "_tfa_input_file",
+            tfa_input_file
+        )
+
+        self._set_without_warning(
+            "_tfa_input_file_type",
+            tfa_input_file_type
+        )
 
     def run(self):
         """
@@ -122,7 +165,12 @@ class TFAWorkFlow(workflow.WorkflowBase):
         betas, rescaled_betas = self.run_regression()
 
         # Write the results out to a file
-        return self.emit_results(betas, rescaled_betas, self.gold_standard, self.priors_data)
+        return self.emit_results(
+            betas,
+            rescaled_betas,
+            self.gold_standard,
+            self.priors_data
+        )
 
     def startup_run(self):
         self.get_data()
@@ -134,7 +182,8 @@ class TFAWorkFlow(workflow.WorkflowBase):
         self.compute_common_data()
         self.compute_activity()
 
-        # Most operations will be column-wise; change sparse type if needed here
+        # Most operations will be column-wise
+        # change sparse type if needed here
         self.response.to_csc()
 
     def run_regression(self):
@@ -147,8 +196,9 @@ class TFAWorkFlow(workflow.WorkflowBase):
         """
         Compute Transcription Factor Activity
         """
-        # If there is a tfa driver, run it to calculate TFA from the prior & expression data
 
+        # If there is a tfa driver, run it to calculate TFA
+        # from the prior & expression data
         if self._tfa_input_file is not None:
             self.load_activity()
         else:
@@ -156,9 +206,18 @@ class TFAWorkFlow(workflow.WorkflowBase):
 
         self.half_tau_response = None
 
+        # Save output TFA file
         if self._tfa_output_file is not None:
             self.create_output_dir()
-            self.design.to_csv(self.output_path(self._tfa_output_file), sep="\t")
+            self.design.to_csv(
+                self.output_path(self._tfa_output_file),
+                sep="\t"
+            )
+
+            Debug.vprint(
+                f"Writing TFA {self.design.shape} to {self._tfa_output_file}",
+                level=1
+            )
 
     def _recalculate_design(self):
         """
@@ -166,10 +225,16 @@ class TFAWorkFlow(workflow.WorkflowBase):
         """
         self.design.convert_to_float()
         self.half_tau_response.convert_to_float()
-        self.design = self.tfa_driver().compute_transcription_factor_activity(self.priors_data,
-                                                                              self.design,
-                                                                              self.half_tau_response)
-        Debug.vprint("Rebuilt design matrix {d} with TF activity".format(d=self.design.shape), level=1)
+        self.design = self.tfa_driver().compute_transcription_factor_activity(
+            self.priors_data,
+            self.design,
+            self.half_tau_response
+        )
+
+        Debug.vprint(
+            f"Rebuilt design matrix {self.design.shape} with TF activity",
+            level=1
+        )
 
     def load_activity(self, file=None, file_type=None):
 
@@ -201,7 +266,9 @@ class TFAWorkFlow(workflow.WorkflowBase):
             level=1
         )
 
-        assert check.indexes_align([self.design.sample_names, self.response.sample_names])
+        assert check.indexes_align(
+            [self.design.sample_names, self.response.sample_names]
+        )
 
     def emit_results(self, betas, rescaled_betas, gold_standard, priors):
         """
@@ -209,9 +276,19 @@ class TFAWorkFlow(workflow.WorkflowBase):
         """
 
         self.create_output_dir()
-        rp = self._result_processor_driver(betas, rescaled_betas, filter_method=self.gold_standard_filter_method,
-                                            metric=self.metric)
-        self.results = rp.summarize_network(self.output_dir, gold_standard, priors)
+
+        rp = self._result_processor_driver(
+            betas,
+            rescaled_betas,
+            filter_method=self.gold_standard_filter_method,
+            metric=self.metric
+        )
+
+        self.results = rp.summarize_network(
+            self.output_dir,
+            gold_standard, priors
+        )
+
         return self.results
 
     def compute_common_data(self):
@@ -219,28 +296,47 @@ class TFAWorkFlow(workflow.WorkflowBase):
         Compute common data structures like design and response matrices.
         """
 
-        drd = self.drd_driver(metadata_handler=self.metadata_handler,
-                              return_half_tau=True) if self.drd_driver is not None else None
+        if self.drd_driver is not None:
+            drd = self.drd_driver(
+                metadata_handler=self.metadata_handler,
+                return_half_tau=True
+            )
+        else:
+            drd = None
 
-        # If there is no design-response driver set, use the expression data for design and response
+        # If there is no design-response driver set,
+        # use the expression data for design and response
         # Also do this if there is no usable metadata
         if drd is None or not drd.validate_run(self.data.meta_data):
-            self.design, self.response, self.half_tau_response = self.data, self.data, self.data
+
+            self.design = self.data
+            self.response = self.data.copy()
+            self.half_tau_response = self.data
 
         # Otherwise calculate the design-response ODE
         # TODO: Rewrite DRD for InferelatorData
         # TODO: This is *horrifying* as is from a memory perspective
         # TODO: Really fix this soon
         else:
-            Debug.vprint('Creating design and response matrix ... ')
-            drd.delTmin, drd.delTmax, drd.tau = self.delTmin, self.delTmax, self.tau
+            Debug.vprint(
+                'Creating design and response matrix from time metadata'
+            )
 
-            design, response, half_tau_response = drd.run(self.data.to_df().T, self.data.meta_data)
+            drd.delTmin, drd.delTmax = self.delTmin, self.delTmax
+            drd.tau = self.tau
+
+            design, response, half_tau_response = drd.run(
+                self.data.to_df().T,
+                self.data.meta_data
+            )
+
             self.design = InferelatorData(design.T)
             self.response = InferelatorData(response.T)
             self.half_tau_response = InferelatorData(half_tau_response.T)
 
-        Debug.vprint("Constructed design {d} and response {r} matrices".format(d=self.design.shape,
-                                                                               r=self.response.shape), level=1)
+        Debug.vprint(
+            f"Constructed design {self.design.shape} and response "
+            f"{self.response.shape} matrices", level=1
+        )
 
         self.data = None

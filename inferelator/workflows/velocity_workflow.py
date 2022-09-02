@@ -1,4 +1,4 @@
-from inferelator.workflow import _H5AD, _HDF5, _TSV
+from inferelator.workflows.workflow_base import _H5AD, _HDF5, _TSV
 from inferelator.workflows.tfa_workflow import TFAWorkFlow
 from inferelator.workflows.single_cell_workflow import SingleCellWorkflow
 from inferelator.utils import InferelatorData, Debug, Validator as check
