@@ -500,7 +500,7 @@ class WorkflowBaseLoader(object):
             return None
         elif not os.path.isfile(self.input_path(file_name)):
             warnings.warn(
-                f"File {file_name} does not exist",
+                f"File {self.input_path(file_name)} does not exist",
                 RuntimeWarning
             )
 
