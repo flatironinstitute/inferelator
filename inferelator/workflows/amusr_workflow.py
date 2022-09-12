@@ -283,17 +283,41 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         """
         Make sure that the data that's loaded is acceptable
 
-        This is called when `.startup()` is run. It is not necessary to call separately.
+        This is called when `.startup()` is run. It is not necessary
+        to call separately.
 
-        :raises ValueError: Raises a ValueError if any tasks have invalid priors or gold standard structures
+        :raises ValueError: Raises a ValueError if any tasks have invalid
+        priors or gold standard structures
         """
 
         super().validate_data(check_prior=False)
 
         # Check to see if there are any tasks which don't have priors
-        no_priors = sum(map(lambda x: x.priors_data is None, self._task_objects))
-        if no_priors > 0 and self.priors_data is None:
-            raise ValueError("{n} tasks have no priors (no default prior is set)".format(n=no_priors))
+        no_priors = sum(map(
+            lambda x: x.priors_data is None,
+            self._task_objects
+        ))
+
+        _missing_prior = no_priors > 0 and self.priors_data is None
+
+        if _missing_prior and self.use_no_prior:
+            self.priors_data = self._create_null_prior(
+                    self._gene_names,
+                    self.tf_names
+                )
+
+            warnings.warn(
+                f"A null prior will be used for {no_priors}"
+                " tasks which have no prior set"
+            )
+
+        elif _missing_prior:
+            raise ValueError(
+                f"{no_priors} tasks have no priors "
+                "(no default prior is set). "
+                "worker.set_network_data_flags(use_no_prior=True) "
+                "will override this error."
+            )
 
     def _process_default_priors(self):
         """
