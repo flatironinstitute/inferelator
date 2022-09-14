@@ -7,14 +7,6 @@ import os
 import numpy.testing as npt
 from scipy import sparse as _sparse
 
-try:
-    from dask import distributed
-    from inferelator.distributed import dask_local_controller
-
-    TEST_DASK_LOCAL = True
-except ImportError:
-    TEST_DASK_LOCAL = False
-
 my_dir = os.path.dirname(__file__)
 
 
@@ -22,9 +14,7 @@ class NoiseData(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        if MPControl.is_initialized:
-            MPControl.shutdown()
-
+        MPControl.shutdown()
         MPControl.set_multiprocess_engine("local")
         MPControl.connect()
 
@@ -119,15 +109,13 @@ class NoiseWorkflowData(unittest.TestCase):
             task1 = wkf.create_task(input_dir=os.path.join(my_dir, "../../data/dream4"),
                                     expression_matrix_file="expression.tsv",
                                     meta_data_file="meta_data.tsv",
-                                    priors_file="gold_standard.tsv",
-                                    gold_standard_file="gold_standard.tsv")
+                                    priors_file="gold_standard.tsv")
             task1.set_file_properties(expression_matrix_columns_are_genes=False)
 
             task2 = wkf.create_task(input_dir=os.path.join(my_dir, "../../data/dream4"),
                                     expression_matrix_file="expression.tsv",
                                     meta_data_file="meta_data.tsv",
-                                    priors_file="gold_standard.tsv",
-                                    gold_standard_file="gold_standard.tsv")
+                                    priors_file="gold_standard.tsv")
             task2.set_file_properties(expression_matrix_columns_are_genes=False)
 
         wk = inferelator_workflow(regression=FakeRegressionMixin, workflow="multitask")
@@ -155,18 +143,14 @@ class NoiseDataMultiprocessing(NoiseData):
 
     @classmethod
     def setUpClass(cls):
-        if MPControl.is_initialized:
-            MPControl.shutdown()
-
+        MPControl.shutdown()
         MPControl.set_multiprocess_engine("multiprocessing")
         MPControl.set_processes(1)
         MPControl.connect()
 
     @classmethod
     def tearDownClass(cls):
-        if MPControl.is_initialized:
-            MPControl.shutdown()
-
+        MPControl.shutdown()
         MPControl.set_multiprocess_engine("local")
         MPControl.connect()
 
@@ -176,17 +160,13 @@ class NoiseDataDask(NoiseData):
 
     @classmethod
     def setUpClass(cls):
-        if MPControl.is_initialized:
-            MPControl.shutdown()
-
+        MPControl.shutdown()
         MPControl.set_multiprocess_engine("dask-local")
         MPControl.set_processes(1)
         MPControl.connect()
 
     @classmethod
     def tearDownClass(cls):
-        if MPControl.is_initialized:
-            MPControl.shutdown()
-
+        MPControl.shutdown()
         MPControl.set_multiprocess_engine("local")
         MPControl.connect()

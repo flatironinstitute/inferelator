@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import itertools
 
 from inferelator import utils
 from inferelator.regression import bayes_stats
@@ -89,25 +90,22 @@ class BBSR(base_regression.BaseRegression):
             Returns None, None if it's a subordinate thread
         """
 
-        if MPControl.is_dask():
-            from inferelator.distributed.dask_functions import bbsr_regress_dask
-            return bbsr_regress_dask(self.X, self.Y, self.pp, self.weights_mat, self.G, self.genes, self.nS)
+        nG = self.G
+        X = self.X.values
 
-        def regression_maker(j):
-            level = 0 if j % 100 == 0 else 2
-            utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G),
-                                 level=level)
-
-            data = bayes_stats.bbsr(self.X.values,
-                                    utils.scale_vector(self.Y.get_gene_data(j, force_dense=True, flatten=True)),
-                                    self.pp.iloc[j, :].values.flatten(),
-                                    self.weights_mat.iloc[j, :].values.flatten(),
-                                    self.nS,
-                                    ordinary_least_squares=self.ols_only)
-            data['ind'] = j
-            return data
-
-        return MPControl.map(regression_maker, range(self.G), tell_children=False)
+        return MPControl.map(
+            _bbsr_regression_wrapper,
+            itertools.repeat(X, nG),
+            base_regression.gene_data_generator(self.Y, nG),
+            itertools.repeat(self.pp, nG),
+            itertools.repeat(self.weights_mat, nG),
+            itertools.repeat(self.nS, nG),
+            itertools.repeat(self.genes, nG),
+            itertools.repeat(nG, nG),
+            range(self.G),
+            ols_only=self.ols_only,
+            scatter=[X, self.pp, self.weights_mat]
+        )
 
     def _build_pp_matrix(self):
         """
@@ -161,6 +159,27 @@ class BBSR(base_regression.BaseRegression):
         return weights_mat.mask(p_matrix != 0, other=p_weight)
 
 
+def _bbsr_regression_wrapper(X, y, pp, weights, nS, genes, nG, j, ols_only=False):
+    """ Wrapper for multiprocessing BBSR """
+
+    utils.Debug.vprint(
+        base_regression.PROGRESS_STR.format(gn=genes[j], i=j, total=nG),
+        level=0 if j % 1000 == 0 else 2
+    )
+
+    data = bayes_stats.bbsr(
+        X,
+        utils.scale_vector(y),
+        pp.iloc[j, :].values.flatten(),
+        weights.iloc[j, :].values.flatten(),
+        nS,
+        ordinary_least_squares=ols_only
+    )
+
+    data['ind'] = j
+    return data
+
+
 class BBSRRegressionWorkflowMixin(base_regression._RegressionWorkflowMixin):
     """
     Bayesian Best Subset Regression (BBSR)
@@ -177,21 +196,31 @@ class BBSRRegressionWorkflowMixin(base_regression._RegressionWorkflowMixin):
     clr_only = False
     ols_only = False
 
-    def set_regression_parameters(self, prior_weight=None, no_prior_weight=None, bsr_feature_num=None, clr_only=False,
-                                  ordinary_least_squares_only=None):
+    def set_regression_parameters(
+        self,
+        prior_weight=None,
+        no_prior_weight=None,
+        bsr_feature_num=None,
+        clr_only=None,
+        ordinary_least_squares_only=None
+    ):
         """
         Set regression parameters for BBSR
 
-        :param prior_weight: Weight for edges that are present in the prior network. Defaults to 1.
+        :param prior_weight: Weight for edges that are present in
+            the prior network. Defaults to 1.
         :type prior_weight: float
-        :param no_prior_weight: Weight for edges that are not present in the prior network. Defaults to 1.
+        :param no_prior_weight: Weight for edges that are not present
+            in the prior network. Defaults to 1.
         :type no_prior_weight: float
-        :param bsr_feature_num: The number of features to include in best subset regression. Defaults to 10.
+        :param bsr_feature_num: The number of features to include in
+            best subset regression. Defaults to 10.
         :type bsr_feature_num: int
-        :param clr_only: Only use Context Likelihood of Relatedness to select features for BSR, not prior edges.
-            Defaults to False.
+        :param clr_only: Only use Context Likelihood of Relatedness to
+            select features for BSR, not prior edges. Defaults to False.
         :type clr_only: bool
-        :param ordinary_least_squares_only: Use OLS instead of Bayesian regression, for testing. Defaults to False.
+        :param ordinary_least_squares_only: Use OLS instead of Bayesian
+            regression, for testing. Defaults to False.
         :type ordinary_least_squares_only: bool
         """
 
@@ -205,16 +234,34 @@ class BBSRRegressionWorkflowMixin(base_regression._RegressionWorkflowMixin):
         X = self.design.get_bootstrap(bootstrap)
         Y = self.response.get_bootstrap(bootstrap)
 
-        utils.Debug.vprint('Calculating MI, Background MI, and CLR Matrix', level=0)
+        utils.Debug.vprint(
+            'Calculating MI, Background MI, and CLR Matrix',
+            level=0
+        )
         clr_matrix, _ = self.mi_driver().run(Y, X, return_mi=False)
-        utils.Debug.vprint('Calculating betas using BBSR', level=0)
+
+        utils.Debug.vprint(
+            'Calculating betas using BBSR',
+            level=0
+        )
 
         # Create a mock prior with no information if clr_only is set
         if self.clr_only:
-            priors = pd.DataFrame(0, index=self.priors_data.index, columns=self.priors_data.columns)
+            priors = pd.DataFrame(
+                0,
+                index=self.priors_data.index,
+                columns=self.priors_data.columns
+            )
         else:
             priors = self.priors_data
 
-        return BBSR(X, Y, clr_matrix, priors, prior_weight=self.prior_weight,
-                    no_prior_weight=self.no_prior_weight, nS=self.bsr_feature_num,
-                    ordinary_least_squares=self.ols_only).run()
+        return BBSR(
+            X,
+            Y,
+            clr_matrix,
+            priors,
+            prior_weight=self.prior_weight,
+            no_prior_weight=self.no_prior_weight,
+            nS=self.bsr_feature_num,
+            ordinary_least_squares=self.ols_only
+        ).run()

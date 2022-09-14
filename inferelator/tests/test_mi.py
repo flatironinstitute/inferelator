@@ -81,3 +81,70 @@ class Test2By3(unittest.TestCase):
         self.clr_matrix, self.mi_matrix = mi.context_likelihood_mi(self.x_dataframe, self.y_dataframe)
         expected = np.array([[0, 1], [1, 0]])
         np.testing.assert_almost_equal(self.clr_matrix.values, expected)
+
+
+class TestMakeDiscrete(unittest.TestCase):
+
+    def setUp(self):
+
+        self.x_array = np.tile(np.arange(10), 10).reshape(10, 10)
+
+    def test_axis_0(self):
+
+        discrete = mi._make_array_discrete(self.x_array, 10, axis=0)
+
+        np.testing.assert_equal(
+            np.zeros_like(discrete),
+            discrete
+        )
+
+        discrete5 = mi._make_array_discrete(self.x_array, 5, axis=0)
+
+        np.testing.assert_equal(
+            np.zeros_like(discrete5),
+            discrete5
+        )
+
+        discrete1 = mi._make_array_discrete(self.x_array, 1, axis=0)
+
+        np.testing.assert_equal(
+            np.zeros_like(discrete1),
+            discrete1
+        )
+
+        discrete0 = mi._make_array_discrete(self.x_array, 0, axis=0)
+
+        np.testing.assert_equal(
+            np.zeros_like(discrete0),
+            discrete0
+        )
+
+    def test_axis_1(self):
+
+        discrete = mi._make_array_discrete(self.x_array, 10, axis=1)
+
+        np.testing.assert_equal(
+            np.tile(np.arange(10), 10).reshape(10, 10).astype(np.int16),
+            discrete
+        )
+
+        discrete = mi._make_array_discrete(self.x_array, 5, axis=1)
+
+        np.testing.assert_equal(
+            np.tile(np.repeat(np.arange(5), 2), 10).reshape(10, 10).astype(np.int16),
+            discrete
+        )
+
+
+class TestMakeDiscreteSparseCSR(TestMakeDiscrete):
+
+    def setUp(self):
+        super().setUp()
+        self.x_array = sps.csr_matrix(self.x_array)
+
+
+class TestMakeDiscreteSparseCSC(TestMakeDiscrete):
+
+    def setUp(self):
+        super().setUp()
+        self.x_array = sps.csc_matrix(self.x_array)

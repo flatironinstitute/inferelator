@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import os
 
-from inferelator import utils
+from inferelator.utils import Debug
 from inferelator.utils import Validator as check
 from inferelator.postprocessing import results_processor
 from inferelator.postprocessing import BETA_SIGN_COLUMN, MEDIAN_EXPLAIN_VAR_COLUMN
@@ -20,7 +20,15 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
     tasks_names = None
     tasks_networks = None
 
-    def __init__(self, betas, rescaled_betas, threshold=None, filter_method=None, metric=None):
+    def __init__(
+        self,
+        betas,
+        rescaled_betas,
+        threshold=None,
+        filter_method=None,
+        metric=None,
+        task_names=None
+    ):
         """
         :param betas: list(list(pd.DataFrame[G x K]) [B]) [T]
             A list of the task inferelator outputs per bootstrap per task
@@ -34,11 +42,20 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
             The scoring metric to use
         """
 
-        super(ResultsProcessorMultiTask, self).__init__(betas, rescaled_betas, threshold, filter_method, metric)
+        super(ResultsProcessorMultiTask, self).__init__(
+            betas,
+            rescaled_betas,
+            threshold,
+            filter_method,
+            metric
+        )
 
         # Make up some default names
         # The workflow will have to replace these with real names if necessary
-        self.tasks_names = list(map(str, range(len(self.betas))))
+        if task_names is None:
+            self.tasks_names = list(map(str, range(len(self.betas))))
+        else:
+            self.tasks_names = task_names
 
     @staticmethod
     def validate_init_args(betas, rescaled_betas, threshold=None, filter_method=None, metric=None):
@@ -52,20 +69,36 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
         assert check.argument_enum(filter_method, results_processor.FILTER_METHODS, allow_none=True)
         assert check.argument_numeric(threshold, 0, 1, allow_none=True)
 
-    def summarize_network(self, output_dir, gold_standard, priors):
+    def summarize_network(
+        self,
+        output_dir,
+        gold_standard,
+        priors,
+        task_gold_standards=None
+    ):
         """
-        Take the betas and rescaled beta_errors, construct a network, and test it against the gold standard
-        :param output_dir: str
-            Path to write files into. Don't write anything if this is None.
-        :param gold_standard: pd.DataFrame [G x K]
-            Gold standard to test the network against
-        :param priors: list(pd.DataFrame [G x K])
-            Prior data
-        :return overall_result: InferelatorResult
-            Returns an InferelatorResult for the final aggregate network
+        Take the betas and rescaled beta_errors, construct a network, and test
+        it against the gold standard
+
+        :param output_dir: Path to write files into. Don't write anything if
+            this is None.
+        :type output_dir: str
+        :param gold_standard: [G x K] Gold standard to test the network
+            against
+        :type gold_standard: pd.DataFrame
+        :param priors: [G x K] Prior data for each task
+        :type priors: list(pd.DataFrame)
+        :param task_gold_standards: Task-specific [G x K] gold standards for
+            scoring individual networks, will use gold_standard for all
+            networks if None, defaults to None
+        :type task_gold_standards: list(pd.DataFrame), None
+        :return overall_result: Returns an InferelatorResult for the final
+            aggregate network, with individual results in a dict in `.tasks`
+        :rtype: InferelatorResult
         """
 
         assert check.argument_type(priors, list)
+        assert check.argument_type(task_gold_standards, list, allow_none=True)
         assert len(priors) == len(self.tasks_names)
         assert len(self.betas) == len(self.tasks_names)
         assert len(self.rescaled_betas) == len(self.tasks_names)
@@ -79,34 +112,54 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
         tf_set = list(set([i for df in self.betas for i in df[0].columns.tolist()]))
 
         # Use the existing indices if there's no difference from the intersection
-        gene_set = gene_set if len(self.betas[0][0].index.symmetric_difference(gene_set)) != 0 else self.betas[0][0].index
-        tf_set = tf_set if len(self.betas[0][0].columns.symmetric_difference(tf_set)) != 0 else self.betas[0][0].columns
+        gene_set = gene_set if _is_different(self.betas[0][0].index, gene_set) else self.betas[0][0].index
+        tf_set = tf_set if _is_different(self.betas[0][0].columns, tf_set) else self.betas[0][0].columns
 
         # Create empty dataframes for task-specific results
-        overall_sign = pd.DataFrame(np.zeros((len(gene_set), len(tf_set))),
-                                    index=gene_set,
-                                    columns=tf_set)
+        overall_sign = pd.DataFrame(
+            0,
+            index=gene_set,
+            columns=tf_set
+        )
 
         overall_threshold = overall_sign.copy()
 
-        if not isinstance(gold_standard, list):
-            gold_standard = [gold_standard] * len(self.tasks_names)
+        if task_gold_standards is None:
+            task_gold_standards = [gold_standard] * len(self.tasks_names)
 
         # Run the result processing on each individual task
         # Keep the confidences from the tasks so that a final aggregate network can be assembled
         # Store the individual task network results in a dict
         self.tasks_networks = {}
+
         for task_id, task_name in enumerate(self.tasks_names):
-            task_rs_calc = self.metric(self.rescaled_betas[task_id], gold_standard[task_id],
-                                       filter_method=self.filter_method)
 
-            task_threshold, task_sign, task_nonzero = self.threshold_and_summarize(self.betas[task_id], self.threshold)
-            task_resc_betas_mean, task_resc_betas_median = self.mean_and_median(self.rescaled_betas[task_id])
+            task_rs_calc = self.metric(
+                self.rescaled_betas[task_id],
+                task_gold_standards[task_id],
+                filter_method=self.filter_method
+            )
 
-            task_extra_cols = {BETA_SIGN_COLUMN: task_sign, MEDIAN_EXPLAIN_VAR_COLUMN: task_resc_betas_median}
+            task_threshold, task_sign, _ = self.threshold_and_summarize(
+                self.betas[task_id],
+                self.threshold
+            )
 
-            task_network_data = self.process_network(task_rs_calc, priors[task_id], beta_threshold=task_threshold,
-                                                     extra_columns=task_extra_cols)
+            _, task_resc_betas_median = self.mean_and_median(
+                self.rescaled_betas[task_id]
+            )
+
+            task_extra_cols = {
+                BETA_SIGN_COLUMN: task_sign,
+                MEDIAN_EXPLAIN_VAR_COLUMN: task_resc_betas_median
+            }
+
+            task_network_data = self.process_network(
+                task_rs_calc,
+                priors[task_id],
+                beta_threshold=task_threshold,
+                extra_columns=task_extra_cols
+            )
 
             # Pile up data
             overall_confidences.append(_df_resizer(task_rs_calc.all_confidences, gene_set, tf_set))
@@ -115,31 +168,60 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
             overall_threshold += _df_resizer(task_threshold, gene_set, tf_set)
 
             m_name, score = task_rs_calc.score()
-            utils.Debug.vprint("Task {t} Model {m}:\t{score}".format(t=task_name, m=m_name, score=score), level=0)
 
-            task_result = self.result_object(task_network_data, task_threshold, task_rs_calc.all_confidences,
-                                             task_rs_calc, betas_sign=task_sign, betas=self.betas[task_id])
+            Debug.vprint(
+                f"Task {task_name} Model {m_name}:\t{score}",
+                level=0
+            )
+
+            task_result = self.result_object(
+                task_network_data,
+                task_threshold,
+                task_rs_calc.all_confidences,
+                task_rs_calc,
+                betas_sign=task_sign,
+                betas=self.betas[task_id]
+            )
 
             if self.write_task_files is True and output_dir is not None:
                 task_result.write_result_files(os.path.join(output_dir, task_name))
 
             self.tasks_networks[task_id] = task_result
 
-        overall_rs_calc = self.metric(overall_confidences, gold_standard[0], filter_method=self.filter_method)
+        overall_rs_calc = self.metric(
+            overall_confidences,
+            gold_standard,
+            filter_method=self.filter_method
+        )
 
         overall_threshold = (overall_threshold / len(overall_confidences) > self.threshold).astype(int)
-        overall_resc_betas_mean, overall_resc_betas_median = self.mean_and_median(overall_resc_betas)
-        extra_cols = {BETA_SIGN_COLUMN: overall_sign, MEDIAN_EXPLAIN_VAR_COLUMN: overall_resc_betas_median}
+        _, overall_resc_betas_median = self.mean_and_median(overall_resc_betas)
+
+        extra_cols = {
+            BETA_SIGN_COLUMN: overall_sign,
+            MEDIAN_EXPLAIN_VAR_COLUMN: overall_resc_betas_median
+        }
 
         m_name, score = overall_rs_calc.score()
-        utils.Debug.vprint("Aggregate Model {m}:\t{score}".format(m=m_name, score=score), level=0)
+        Debug.vprint(
+            f"Aggregate Model {m_name}:\t{score}",
+            level=0
+        )
 
-        network_data = self.process_network(overall_rs_calc, None, beta_threshold=overall_threshold,
-                                            extra_columns=extra_cols)
+        network_data = self.process_network(
+            overall_rs_calc,
+            None,
+            beta_threshold=overall_threshold,
+            extra_columns=extra_cols
+        )
 
-        overall_result = self.result_object(network_data, overall_threshold,
-                                            _df_resizer(overall_rs_calc.all_confidences, gene_set, tf_set),
-                                            overall_rs_calc, betas_sign=overall_sign)
+        overall_result = self.result_object(
+            network_data, overall_threshold,
+            _df_resizer(overall_rs_calc.all_confidences, gene_set, tf_set),
+            overall_rs_calc,
+            betas_sign=overall_sign
+        )
+
         overall_result.write_result_files(output_dir)
         overall_result.tasks = self.tasks_networks
 
@@ -148,3 +230,6 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
 
 def _df_resizer(df, row_labs, col_labs, fill=0):
     return df.reindex(row_labs, axis=0).reindex(col_labs, axis=1).fillna(fill)
+
+def _is_different(x, y):
+    return len(x.symmetric_difference(y)) != 0

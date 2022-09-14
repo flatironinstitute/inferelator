@@ -25,4 +25,4 @@ References
 
 * `C. A. Jackson, D. M. Castro, G.-A. Saldi, R. Bonneau, and D. Gresham, “Gene regulatory network reconstruction using single-cell RNA sequencing of barcoded genotypes in diverse environments,” eLife, vol. 9, p. e51254, Jan. 2020. <https://doi.org/10.7554/eLife.51254>`_
 
-* `C. Skok Gibbs, C. A. Jackson, G.-A. Saldi et al. “Single-cell gene regulatory network inference at scale: The Inferelator 3.0,” bioRxiv, p. 2021.05.03.442499, May 2021. <https://www.biorxiv.org/content/10.1101/2021.05.03.442499v2>`_ 
+* `C. S. Gibbs, C. A. Jackson, G.-A. Saldi, A. Tjärnberg, A. Shah, et al. 2022. “High Performance Single-Cell Gene Regulatory Network Inference at Scale: The Inferelator 3.0.” Bioinformatics , February. <https://doi.org/10.1093/bioinformatics/btac117>``

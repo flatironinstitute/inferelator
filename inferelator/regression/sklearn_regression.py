@@ -7,6 +7,7 @@ from sklearn.base import BaseEstimator
 from inferelator.regression.base_regression import _MultitaskRegressionWorkflowMixin
 import copy
 import inspect
+import itertools
 
 
 def sklearn_gene(x, y, model, min_coef=None, **kwargs):
@@ -82,22 +83,38 @@ class SKLearnRegression(base_regression.BaseRegression):
             Returns a list of regression results that base_regression's pileup_data can process
         """
 
-        if MPControl.is_dask():
-            from inferelator.distributed.dask_functions import sklearn_regress_dask
-            return sklearn_regress_dask(self.X, self.Y, self.model, self.G, self.genes, self.min_coef)
+        nG = self.G
+        X = self.X.values
 
-        def regression_maker(j):
-            level = 0 if j % 100 == 0 else 2
-            utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G), level=level)
+        return MPControl.map(
+            _sklearn_regression_wrapper,
+            itertools.repeat(X, nG),
+            base_regression.gene_data_generator(self.Y, nG),
+            itertools.repeat(self.model, nG),
+            itertools.repeat(self.genes, nG),
+            itertools.repeat(nG, nG),
+            range(self.G),
+            min_coef=self.min_coef,
+            scatter=[X]
+        )
 
-            data = sklearn_gene(self.X.values,
-                                utils.scale_vector(self.Y.get_gene_data(j, force_dense=True, flatten=True)),
-                                copy.copy(self.model),
-                                min_coef=self.min_coef)
-            data['ind'] = j
-            return data
 
-        return MPControl.map(regression_maker, range(self.G), tell_children=False)
+def _sklearn_regression_wrapper(X, y, model, genes, nG, j, min_coef=None):
+        """ Wrapper for multiprocessing sklearn models """
+        utils.Debug.vprint(
+            base_regression.PROGRESS_STR.format(gn=genes[j], i=j, total=nG),
+            level=0 if j % 1000 == 0 else 2
+        )
+
+        data = sklearn_gene(
+            X,
+            utils.scale_vector(y),
+            copy.copy(model),
+            min_coef=min_coef
+        )
+
+        data['ind'] = j
+        return data
 
 
 class SKLearnWorkflowMixin(base_regression._RegressionWorkflowMixin):

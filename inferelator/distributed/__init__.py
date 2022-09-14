@@ -14,6 +14,14 @@ class AbstractController:
     _controller_name = None
     _controller_dask = False
 
+    # Does this method require setup
+    # Or can it be done on the fly
+    _require_initialization=False
+
+    # Does this method require a clean shutdown
+    # Or can we just abandon it to the GC
+    _require_shutdown=False
+
     @classmethod
     def name(cls):
         """
@@ -22,10 +30,6 @@ class AbstractController:
         if cls._controller_name is None:
             raise NameError("Controller name has not been defined")
         return cls._controller_name
-
-    @classmethod
-    def is_dask(cls):
-        return cls._controller_dask
 
     @classmethod
     @abstractmethod
@@ -60,3 +64,22 @@ class AbstractController:
         Clean shutdown of the multiprocessing state
         """
         raise NotImplementedError
+
+    @classmethod
+    def set_param(
+        cls,
+        param_name,
+        value
+    ):
+        """
+        Set a parameter in this object
+        If the value is not None
+
+        :param param_name: Parameter name
+        :type param_name: str
+        :param value: Value
+        :type value: any
+        """
+
+        if value is not None:
+            setattr(cls, param_name, value)

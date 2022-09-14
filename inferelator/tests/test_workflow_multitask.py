@@ -6,7 +6,7 @@ import pandas.testing as pdt
 import copy
 
 from inferelator import workflow
-from inferelator.amusr_workflow import MultitaskLearningWorkflow
+from inferelator.workflows.amusr_workflow import MultitaskLearningWorkflow
 from inferelator.tests.artifacts.test_stubs import TaskDataStub
 
 data_path = os.path.join(os.path.dirname(__file__), "../../data/dream4")
@@ -38,10 +38,9 @@ class TestAMuSRWorkflow(unittest.TestCase):
                                   meta_data_file="meta_data.tsv", tf_names_file="tf_names.tsv",
                                   priors_file="gold_standard.tsv", drd_driver=None)
 
-        with self.assertWarns(Warning):
-            self.workflow.create_task(expression_matrix_file="expression.tsv", input_dir=data_path,
-                                      meta_data_file="meta_data.tsv", tf_names_file="tf_names.tsv",
-                                      priors_file="gold_standard.tsv", gold_standard_file="gold_standard.tsv")
+        self.workflow.create_task(expression_matrix_file="expression.tsv", input_dir=data_path,
+                                    meta_data_file="meta_data.tsv", tf_names_file="tf_names.tsv",
+                                    priors_file="gold_standard.tsv", gold_standard_file="gold_standard.tsv")
 
         with self.assertRaises(ValueError):
             self.workflow.create_task(expression_matrix_file="expression.tsv", input_dir=data_path,

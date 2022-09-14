@@ -1,6 +1,5 @@
 import os
 import unittest
-import copy
 
 import numpy as np
 import numpy.testing as npt
@@ -8,11 +7,15 @@ import pandas as pd
 import pandas.testing as pdt
 
 from inferelator import workflow
-from inferelator.tests.artifacts.test_stubs import TaskDataStub
-from inferelator.regression import amusr_regression
+from inferelator.distributed.inferelator_mp import MPControl
+from inferelator.regression import amusr_regression, amusr_math
 from inferelator.utils import InferelatorData
 
 data_path = os.path.join(os.path.dirname(__file__), "../../data/dream4")
+
+MPControl.shutdown()
+MPControl.set_multiprocess_engine('local')
+
 
 class TestAMuSRrunner(unittest.TestCase):
 
@@ -40,8 +43,8 @@ class TestAMuSRrunner(unittest.TestCase):
         Y = [np.array([3, 3, 3]),
              np.array([3, 3, 3])]
         W = np.array([[1, 0], [1, 0], [1, 0]])
-        self.assertEqual(amusr_regression.sum_squared_errors(X, Y, W, 0), 0)
-        self.assertEqual(amusr_regression.sum_squared_errors(X, Y, W, 1), 27)
+        self.assertEqual(amusr_math.sum_squared_errors(X, Y, W, 0), 0)
+        self.assertEqual(amusr_math.sum_squared_errors(X, Y, W, 1), 27)
 
 
 class TestAMuSRRegresionEBIC:
@@ -54,18 +57,22 @@ class TestAMuSRRegresionEBIC:
         res = [np.array([1, 2, 3]).reshape(-1, 1).astype(float),
                np.array([1, 2, 3]).reshape(-1, 1).astype(float)]
 
-        tfs = ['tf1', 'tf2', 'tf3']
-        targets = ['gene1', 'gene2']
+        tfs = [['tf1', 'tf2', 'tf3'],
+               ['tf1', 'tf2', 'tf3']]
 
-        priors = [pd.DataFrame([[0, 1, 1], [1, 0, 1]], index=targets, columns=tfs),
-                  pd.DataFrame([[0, 0, 1], [1, 0, 1]], index=targets, columns=tfs)]
-        
-        gene1_prior = amusr_regression.format_prior(priors, 'gene1', [0, 1], 1.)
-        gene2_prior = amusr_regression.format_prior(priors, 'gene2', [0, 1], 1.)
-        output = [amusr_regression.run_regression_EBIC(des, res, ['tf1', 'tf2', 'tf3'], [0, 1], 'gene1', gene1_prior,
-                                                       scale_data=True, use_numba=self.use_numba),
-                  amusr_regression.run_regression_EBIC(des, res, ['tf1', 'tf2', 'tf3'], [0, 1], 'gene2', gene2_prior,
-                                                       scale_data=True, use_numba=self.use_numba)]
+        targets = [['gene1', 'gene2'],
+                   ['gene1', 'gene2']]
+
+        priors = [pd.DataFrame([[0, 1, 1], [1, 0, 1]], index=targets[0], columns=tfs[0]),
+                  pd.DataFrame([[0, 0, 1], [1, 0, 1]], index=targets[1], columns=tfs[1])]
+
+        gene1_prior = amusr_regression.format_prior(priors, ['gene1'] * 2, [0, 1], 1.)
+        gene2_prior = amusr_regression.format_prior(priors, ['gene2'] * 2, [0, 1], 1.)
+
+        output = [amusr_math.run_regression_EBIC(des, res, tfs, [0, 1], ['gene1'] * 2, gene1_prior,
+                                                 scale_data=True, use_numba=self.use_numba),
+                  amusr_math.run_regression_EBIC(des, res, tfs, [0, 1], ['gene2'] * 2, gene2_prior,
+                                                 scale_data=True, use_numba=self.use_numba)]
 
         out0 = pd.DataFrame([['tf3', 'gene1', -1, 1],
                              ['tf3', 'gene1', -1, 1]],
@@ -78,7 +85,7 @@ class TestAMuSRRegresionEBIC:
                             index=pd.MultiIndex(levels=[[0, 1], [0]],
                                                 codes=[[0, 1], [0, 0]]),
                             columns=['regulator', 'target', 'weights', 'resc_weights'])
-                            
+
         pdt.assert_frame_equal(pd.concat(output[0]), out0, check_dtype=False)
         pdt.assert_frame_equal(pd.concat(output[1]), out1, check_dtype=False)
 
@@ -93,9 +100,17 @@ class TestAMuSRRegresionEBIC:
 
         res = [InferelatorData(pd.DataFrame(np.array([[1, 1], [2, 2], [3, 3]]).astype(float), columns=targets1)),
                InferelatorData(pd.DataFrame(np.array([[1, 1], [2, 2], [3, 3]]).astype(float), columns=targets2))]
+
         priors = pd.DataFrame([[0, 1, 1], [1, 0, 1], [1, 0, 1]], index=targets, columns=tfs)
 
-        r = amusr_regression.AMuSR_regression(des, res, tfs=tfs, genes=targets, priors=priors, use_numba=self.use_numba)
+        r = amusr_regression.AMuSR_regression(
+            des,
+            res,
+            tfs=[tfs] * 2,
+            genes=[[(0, 'gene1'), (1, 'gene1')], [(0, 'gene2')], [(1, 'gene3')]],
+            priors=priors,
+            use_numba=self.use_numba
+        )
 
         out = [pd.DataFrame([['tf3', 'gene1', -1, 1], ['tf3', 'gene1', -1, 1]],
                             index=pd.MultiIndex(levels=[[0, 1], [0]], codes=[[0, 1], [0, 0]]),
@@ -119,6 +134,11 @@ class TestAMuSRREgressionEBICNumba(TestAMuSRRegresionEBIC):
 
 
 class TestAMuSRParams(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        MPControl.shutdown()
+        MPControl.set_multiprocess_engine('local')
 
     def setUp(self):
 
@@ -148,20 +168,11 @@ class TestAMuSRParams(unittest.TestCase):
         regress = amusr_regression.AMuSR_regression(self.workflow._task_design, self.workflow._task_response,
                                                     priors=self.workflow.priors_data, lambda_Bs=lamb_b)
 
-        def is_passed(X, Y, TFs, tasks, gene, prior, Cs=None, Ss=None, lambda_Bs=None,
-                      lambda_Ss=None, scale_data=False, **kwargs):
-
-            npt.assert_array_equal(lambda_Bs, lamb_b)
-
-            return amusr_regression.run_regression_EBIC(X, Y, TFs, tasks, gene, prior, Cs, Ss, lambda_Bs,
-                                                        lambda_Ss, scale_data)
-
-        regress.regression_function = is_passed
-
         self.workflow.set_regression_parameters(lambda_Bs=lamb_b)
         npt.assert_array_equal(self.workflow.lambda_Bs, lamb_b)
+        npt.assert_array_equal(regress.lambda_Bs, lamb_b)
 
-        output = regress.run()
+        regress.run()
 
     def test_lamb_s(self):
 
@@ -170,20 +181,11 @@ class TestAMuSRParams(unittest.TestCase):
         regress = amusr_regression.AMuSR_regression(self.workflow._task_design, self.workflow._task_response,
                                                     priors=self.workflow.priors_data, lambda_Ss=lamb_s)
 
-        def is_passed(X, Y, TFs, tasks, gene, prior, Cs=None, Ss=None, lambda_Bs=None,
-                      lambda_Ss=None, scale_data=False,  **kwargs):
-
-            npt.assert_array_equal(lambda_Ss, lamb_s)
-
-            return amusr_regression.run_regression_EBIC(X, Y, TFs, tasks, gene, prior, Cs, Ss, lambda_Bs,
-                                                        lambda_Ss, scale_data)
-
-        regress.regression_function = is_passed
-
         self.workflow.set_regression_parameters(lambda_Ss=lamb_s)
         npt.assert_array_equal(self.workflow.lambda_Ss, lamb_s)
+        npt.assert_array_equal(regress.lambda_Ss, lamb_s)
 
-        output = regress.run()
+        regress.run()
 
     def test_heuristic_c(self):
 
@@ -192,17 +194,8 @@ class TestAMuSRParams(unittest.TestCase):
         regress = amusr_regression.AMuSR_regression(self.workflow._task_design, self.workflow._task_response,
                                                     priors=self.workflow.priors_data, Cs=set_Cs)
 
-        def is_passed(X, Y, TFs, tasks, gene, prior, Cs=None, Ss=None, lambda_Bs=None,
-                      lambda_Ss=None, scale_data=False, **kwargs):
-
-            npt.assert_array_equal(set_Cs, Cs)
-
-            return amusr_regression.run_regression_EBIC(X, Y, TFs, tasks, gene, prior, Cs, Ss, lambda_Bs,
-                                                        lambda_Ss, scale_data)
-
-        regress.regression_function = is_passed
-
         self.workflow.set_regression_parameters(heuristic_Cs=set_Cs)
         npt.assert_array_equal(self.workflow.heuristic_Cs, set_Cs)
+        npt.assert_array_equal(regress.Cs, set_Cs)
 
-        output = regress.run()
+        regress.run()

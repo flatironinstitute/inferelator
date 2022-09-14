@@ -1,5 +1,5 @@
 from inferelator import utils
-from inferelator.single_cell_workflow import SingleCellWorkflow
+from inferelator.workflows.single_cell_workflow import SingleCellWorkflow
 from inferelator.regression.base_regression import _RegressionWorkflowMixin
 from inferelator.distributed.inferelator_mp import MPControl
 
@@ -145,7 +145,7 @@ class SCENICRegression(_RegressionWorkflowMixin):
         # Get adjacencies
         adj_method = ADJ_METHODS[self.adjacency_method]
 
-        if MPControl.is_dask:
+        if MPControl.is_dask():
             client_or_address = MPControl.client.client
             MPControl.client.check_cluster_state()
         else:

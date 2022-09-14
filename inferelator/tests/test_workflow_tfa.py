@@ -10,14 +10,19 @@ import tempfile
 import numpy as np
 import pandas as pd
 
-from inferelator import tfa_workflow
+from inferelator.workflows import tfa_workflow
 from inferelator import workflow
-from inferelator import default
 from inferelator.tests.artifacts.test_stubs import FakeResultProcessor, FakeRegressionMixin, FakeDRD
 from inferelator.preprocessing import tfa
 from inferelator.preprocessing import design_response_translation as drt
 
 my_dir = os.path.dirname(__file__)
+
+DEFAULT_EXPRESSION_FILE = "expression.tsv"
+DEFAULT_TFNAMES_FILE = "tf_names.tsv"
+DEFAULT_METADATA_FILE = "meta_data.tsv"
+DEFAULT_PRIORS_FILE = "gold_standard.tsv"
+DEFAULT_GOLDSTANDARD_FILE = "gold_standard.tsv"
 
 
 class TestTFASetup(unittest.TestCase):
@@ -27,11 +32,11 @@ class TestTFASetup(unittest.TestCase):
                                                             workflow=tfa_workflow.TFAWorkFlow)()
         self.workflow.input_dir = os.path.join(my_dir, "../../data/dream4")
         self.workflow.expression_matrix_columns_are_genes = False
-        self.workflow.expression_matrix_file = default.DEFAULT_EXPRESSION_FILE
-        self.workflow.tf_names_file = default.DEFAULT_TFNAMES_FILE
-        self.workflow.meta_data_file = default.DEFAULT_METADATA_FILE
-        self.workflow.priors_file = default.DEFAULT_PRIORS_FILE
-        self.workflow.gold_standard_file = default.DEFAULT_GOLDSTANDARD_FILE
+        self.workflow.expression_matrix_file = DEFAULT_EXPRESSION_FILE
+        self.workflow.tf_names_file = DEFAULT_TFNAMES_FILE
+        self.workflow.meta_data_file = DEFAULT_METADATA_FILE
+        self.workflow.priors_file = DEFAULT_PRIORS_FILE
+        self.workflow.gold_standard_file = DEFAULT_GOLDSTANDARD_FILE
         self.workflow.get_data()
 
     def tearDown(self):

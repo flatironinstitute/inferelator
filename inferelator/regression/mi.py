@@ -1,11 +1,10 @@
-from __future__ import division
-
 import numpy as np
 import pandas as pd
 import scipy.sparse as sps
+import itertools
 
 from inferelator.distributed.inferelator_mp import MPControl
-from inferelator.utils import Debug, InferelatorData, array_set_diag
+from inferelator.utils import Debug, array_set_diag
 from inferelator.utils import Validator as check
 
 # Number of discrete bins for mutual information calculation
@@ -92,53 +91,61 @@ def mutual_information(x, y, bins, logtype=DEFAULT_LOG_TYPE):
     """
 
     # Discretize the input matrix y
-    y = y.A if sps.isspmatrix(y) else y
-    y = _make_array_discrete(y, bins, axis=0)
+    y = _make_array_discrete(
+        y.A if sps.isspmatrix(y) else y,
+        bins,
+        axis=0
+    )
 
-    # Build the MI matrix
-    if MPControl.is_dask():
-        from inferelator.distributed.dask_functions import build_mi_array_dask
-        return build_mi_array_dask(x, y, bins, logtype=logtype)
-    else:
-        return build_mi_array(x, y, bins, logtype=logtype)
-
-
-def build_mi_array(X, Y, bins, logtype=DEFAULT_LOG_TYPE, temp_dir=None):
-    """
-    Calculate MI into an array
-
-    :param X: np.ndarray (n x m1)
-        Discrete array of bins
-    :param Y: np.ndarray (n x m2)
-        Discrete array of bins
-    :param bins: int
-        The total number of bins that were used to make the arrays discrete
-    :param logtype: np.log func
-        Which log function to use (log2 gives bits, ln gives nats)
-    :param temp_dir: path
-        Path to write temp files for multiprocessing
-    :return mi: np.ndarray (m1 x m2)
-        Returns the mutual information array
-    """
-
-    m1, m2 = X.shape[1], Y.shape[1]
-
-    # Define the function which calculates MI for each variable in X against every variable in Y
-    def mi_make(i):
-        level = 2 if i % 1000 == 0 else 3
-        Debug.allprint("Mutual Information Calculation [{i} / {total}]".format(i=i, total=m1), level=level)
-
-        discrete_X = _make_discrete(X[:, i].A.flatten() if sps.isspmatrix(X) else X[:, i].flatten(), bins)
-        return [_calc_mi(_make_table(discrete_X, Y[:, j], bins), logtype=logtype) for j in range(m2)]
+    m1 = x.shape[1]
 
     # Send the MI build to the multiprocessing controller
-    mi_list = MPControl.map(mi_make, range(m1), tmp_file_path=temp_dir)
+    mi_list = MPControl.map(
+        _mi_wrapper,
+        _x_generator(x),
+        itertools.repeat(y, m1),
+        range(m1),
+        itertools.repeat(bins, m1),
+        itertools.repeat(logtype, m1),
+        itertools.repeat(m1, m1),
+        scatter=[y]
+    )
 
     # Convert the list of lists to an array
     mi = np.array(mi_list)
-    assert (m1, m2) == mi.shape, "Array {sh} produced [({m1}, {m2}) expected]".format(sh=mi.shape, m1=m1, m2=m2)
 
     return mi
+
+def _mi_wrapper(x, Y, i, bins, logtype, m1):
+
+    Debug.vprint(
+        f"Mutual Information Calculation [{i} / {m1}]",
+        level=2 if i % 1000 == 0 else 3
+    )
+
+    # Turn off runtime warnings (there is an explicit check for NaNs and INFs in-function)
+    with np.errstate(divide='ignore', invalid='ignore'):
+
+        discrete_X = _make_discrete(
+            x.A.ravel() if sps.isspmatrix(x) else x.ravel(),
+            bins
+        )
+
+        return [
+            _calc_mi(
+                _make_table(
+                    discrete_X, Y[:, j],
+                    bins
+                ),
+                logtype=logtype)
+                for j in range(Y.shape[1]
+            )
+        ]
+
+def _x_generator(X):
+
+    for i in range(X.shape[1]):
+        yield X[:, i]
 
 
 def calc_mixed_clr(mi, mi_bg):
@@ -176,7 +183,33 @@ def _make_array_discrete(array, num_bins, axis=0):
     """
     Applies _make_discrete to a 2d array
     """
-    return np.apply_along_axis(_make_discrete, arr=array, axis=axis, num_bins=num_bins)
+
+    if sps.issparse(array):
+        disc_array = np.zeros(array.shape, dtype=np.int16)
+
+        if axis == 0:
+            for i in range(array.shape[1]):
+                disc_array[:, i] = _make_discrete(
+                    array[:, i].A.ravel(),
+                    num_bins
+                )
+
+        elif axis == 1:
+            for i in range(array.shape[0]):
+                disc_array[i, :] = _make_discrete(
+                    array[i, :].A.ravel(),
+                    num_bins
+                )
+
+        return disc_array
+
+    else:
+        return np.apply_along_axis(
+            _make_discrete,
+            arr=array,
+            axis=axis,
+            num_bins=num_bins
+        )
 
 
 def _make_discrete(arr_vec, num_bins):
@@ -220,13 +253,15 @@ def _make_table(x, y, num_bins):
         Contingency table of variables X and Y
     """
 
-    assert len(x.shape) == 1
-    assert len(y.shape) == 1
-
     # The only fast way to do this is by reindexing the table as an index array
-    reindex = x * num_bins + y
     # Then piling everything up with bincount and reshaping it back into the table
-    return np.bincount(reindex, minlength=num_bins ** 2).reshape(num_bins, num_bins).astype(np.dtype(float))
+    return np.bincount(
+        x * num_bins + y,
+        minlength=num_bins ** 2
+    ).reshape(
+        num_bins,
+        num_bins
+    ).astype(float)
 
 
 def _calc_mi(table, logtype=DEFAULT_LOG_TYPE):
@@ -241,29 +276,24 @@ def _calc_mi(table, logtype=DEFAULT_LOG_TYPE):
         Mutual information between variable x & y
     """
 
-    # Turn off runtime warnings (there is an explicit check for NaNs and INFs in-function)
-    with np.errstate(divide='ignore', invalid='ignore'):
-        m, n = table.shape
-        assert n == m
+    total = np.sum(table)
 
-        total = np.sum(table, axis=(0, 1))
+    # (PxPy) [n x n]
+    mi_val = np.dot((np.sum(table, axis=1) / total).reshape(-1, 1),
+                    (np.sum(table, axis=0) / total).reshape(1, -1))
 
-        # (PxPy) [n x n]
-        mi_val = np.dot((np.sum(table, axis=1) / total).reshape(-1, 1),
-                        (np.sum(table, axis=0) / total).reshape(1, -1))
+    # (Pxy) [n x n]
+    table = np.divide(table, total)
 
-        # (Pxy) [n x n]
-        table = np.divide(table, total)
+    # (Pxy)/(PxPy) [n x n]
+    mi_val = np.divide(table, mi_val)
 
-        # (Pxy)/(PxPy) [n x n]
-        mi_val = np.divide(table, mi_val)
+    # log[(Pxy)/(PxPy)] [n x n]
+    mi_val = logtype(mi_val)
 
-        # log[(Pxy)/(PxPy)] [n x n]
-        mi_val = logtype(mi_val)
+    # Pxy(log[(Pxy)/(PxPy)]) [n x n]
+    mi_val = np.multiply(table, mi_val)
+    mi_val[np.isnan(mi_val)] = 0
 
-        # Pxy(log[(Pxy)/(PxPy)]) [n x n]
-        mi_val = np.multiply(table, mi_val)
-        mi_val[np.isnan(mi_val)] = 0
-
-        # Summation
-        return np.sum(mi_val, axis=(0, 1))
+    # Summation
+    return np.sum(mi_val)

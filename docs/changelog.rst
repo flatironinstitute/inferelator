@@ -1,6 +1,28 @@
 Change Log
 ==========
 
+Inferelator v0.6.0 `September  14, 2022`
+----------------------------------------
+
+New Functionality:
+
+- Support for grouping arbitrary genes from multiple tasks into learning groups
+- Workflow to learn homology groups together
+- Workflow to explicitly incorporate velocity and decay into learning
+- Added support for batching parallelization calls to reduce overhead when data is relatively small
+
+Code Refactoring:
+
+- Refactored multi-task learning to parameterize tfs and genes for each task
+- Refactored parallelization around joblib & dask
+- Removed pathos and replaced with joblib
+- Optimized StARS-LASSO by replacing standalone LASSO with lasso_path
+
+Bug Fixes:
+
+- Fixed several messages to be more informative
+- use_no_prior is appropriately applied in multitask learning
+
 Inferelator v0.5.8 `February  23, 2022`
 ---------------------------------------
 

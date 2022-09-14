@@ -18,24 +18,29 @@ class TFA:
         :return: InferelatorData [N x K]
         """
 
-        prior, activity_tfs, expr_tfs = self._check_prior(prior, expression_data, keep_self=keep_self)
+        trim_prior, activity_tfs, expr_tfs = self._check_prior(prior, expression_data, keep_self=keep_self)
 
-        activity = np.zeros((expression_data.shape[0], prior.shape[1]), dtype=np.float64)
+        activity = np.zeros((expression_data.shape[0], trim_prior.shape[1]), dtype=np.float64)
 
         if len(activity_tfs) > 0:
-            a_cols = prior.columns.isin(activity_tfs)
+            a_cols = trim_prior.columns.isin(activity_tfs)
             expr = expression_data_halftau if expression_data_halftau is not None else expression_data
-            activity[:, a_cols] = self._calculate_activity(prior.loc[:, activity_tfs].values, expr)
+            activity[:, a_cols] = self._calculate_activity(trim_prior.loc[:, activity_tfs].values, expr)
 
         if len(expr_tfs) > 0:
-            activity[:, prior.columns.isin(expr_tfs)] = expression_data.get_gene_data(expr_tfs, force_dense=True)
+            activity[:, trim_prior.columns.isin(expr_tfs)] = expression_data.get_gene_data(expr_tfs, force_dense=True)
 
         data_name = "Activity" if expression_data.name is None else "{n} Activity".format(n=expression_data.name)
-        return utils.InferelatorData(activity,
-                                     gene_names=prior.columns,
+        acti = utils.InferelatorData(activity,
+                                     gene_names=trim_prior.columns,
                                      sample_names=expression_data.sample_names,
                                      meta_data=expression_data.meta_data,
                                      name=data_name)
+
+        acti.prior_data = prior
+        acti.tfa_prior_data = trim_prior.loc[:, activity_tfs].copy()
+        
+        return acti
 
     def _check_prior(self, prior, expression_data, keep_self=False):
         if not keep_self:

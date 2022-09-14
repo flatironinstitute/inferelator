@@ -11,13 +11,30 @@ from inferelator import utils
 
 from inferelator.utils import Debug
 from inferelator import workflow
-from inferelator import single_cell_workflow
+from inferelator.workflows import single_cell_workflow
 from inferelator.regression import amusr_regression
 from inferelator.postprocessing.results_processor_mtl import ResultsProcessorMultiTask
 
-TRANSFER_ATTRIBUTES = ['count_minimum', 'preprocessing_workflow', 'input_dir', 'make_data_noise']
-NON_TASK_ATTRIBUTES = ["gold_standard_file", "random_seed", "num_bootstraps"]
+TRANSFER_ATTRIBUTES = [
+    'count_minimum',
+    'preprocessing_workflow',
+    'input_dir',
+    'make_data_noise'
+]
 
+NON_TASK_ATTRIBUTES = [
+    "random_seed",
+    "num_bootstraps"
+]
+
+TASK_STR_ATTRS = [
+    "input_dir",
+    "expression_matrix_file",
+    "tf_names_file",
+    "meta_data_file",
+    "priors_file",
+    "gold_standard_file"
+]
 
 class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
     """
@@ -33,8 +50,10 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
     _task_response = None
     _task_bootstraps = None
     _task_priors = None
+    _task_gold_standards = None
     _task_names = None
     _task_objects = None
+    _task_genes = None
 
     task_results = None
 
@@ -93,7 +112,7 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         # Use the raw gene expression data if response isn't calculated yet
         elif self._task_objects is not None:
             task_ref = [t.data.gene_names for t in self._task_objects if t.data is not None]
-        
+
         else:
             return None
 
@@ -153,9 +172,20 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         self._process_task_priors()
         self._process_task_data()
 
-    def create_task(self, task_name=None, input_dir=None, expression_matrix_file=None, meta_data_file=None,
-                    tf_names_file=None, priors_file=None, gene_names_file=None, gene_metadata_file=None,
-                    workflow_type="single-cell", **kwargs):
+    def create_task(
+        self,
+        task_name=None,
+        input_dir=None,
+        expression_matrix_file=None,
+        meta_data_file=None,
+        tf_names_file=None,
+        priors_file=None,
+        gold_standard_file=None,
+        gene_names_file=None,
+        gene_metadata_file=None,
+        workflow_type="single-cell",
+        **kwargs
+    ):
         """
         Create a task object and set any arguments to this function as attributes of that task object. TaskData objects
         are stored internally in _task_objects.
@@ -196,6 +226,7 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         task_object.priors_file = priors_file
         task_object.gene_names_file = gene_names_file
         task_object.gene_metadata_file = gene_metadata_file
+        task_object.gold_standard_file = gold_standard_file
 
         # Warn if there is an attempt to set something that isn't supported
         msg = "Task-specific {} is not supported. This setting will be ignored. Set this in the parent workflow."
@@ -210,7 +241,7 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
                 setattr(task_object, attr, val)
                 task_object.str_attrs.append(attr)
             else:
-                raise ValueError("Argument {attr} cannot be set as an attribute".format(attr=attr))
+                raise ValueError(f"Argument {attr} cannot be set as an attribute")
 
         if self._task_objects is None:
             self._task_objects = [task_object]
@@ -252,17 +283,41 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         """
         Make sure that the data that's loaded is acceptable
 
-        This is called when `.startup()` is run. It is not necessary to call separately.
+        This is called when `.startup()` is run. It is not necessary
+        to call separately.
 
-        :raises ValueError: Raises a ValueError if any tasks have invalid priors or gold standard structures
+        :raises ValueError: Raises a ValueError if any tasks have invalid
+        priors or gold standard structures
         """
 
         super().validate_data(check_prior=False)
 
         # Check to see if there are any tasks which don't have priors
-        no_priors = sum(map(lambda x: x.priors_data is None, self._task_objects))
-        if no_priors > 0 and self.priors_data is None:
-            raise ValueError("{n} tasks have no priors (no default prior is set)".format(n=no_priors))
+        no_priors = sum(map(
+            lambda x: x.priors_data is None,
+            self._task_objects
+        ))
+
+        _missing_prior = no_priors > 0 and self.priors_data is None
+
+        if _missing_prior and self.use_no_prior:
+            self.priors_data = self._create_null_prior(
+                    self._gene_names,
+                    self.tf_names
+                )
+
+            warnings.warn(
+                f"A null prior will be used for {no_priors}"
+                " tasks which have no prior set"
+            )
+
+        elif _missing_prior:
+            raise ValueError(
+                f"{no_priors} tasks have no priors "
+                "(no default prior is set). "
+                "worker.set_network_data_flags(use_no_prior=True) "
+                "will override this error."
+            )
 
     def _process_default_priors(self):
         """
@@ -275,10 +330,18 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
 
         # If they all have priors don't worry about it - use a 0 prior here for crossvalidation selection if needed
         elif self.priors_data is None and self.gold_standard is not None:
-            priors = pd.DataFrame(0, index=self.gold_standard.index, columns=self.gold_standard.columns)
+            priors = pd.DataFrame(
+                0,
+                index=self.gold_standard.index,
+                columns=self.gold_standard.columns
+            )
 
         elif self.priors_data is None and self.tf_names is not None:
-            priors = pd.DataFrame(0, index=self._gene_names, columns=self.tf_names)
+            priors = pd.DataFrame(
+                0,
+                index=self._gene_names,
+                columns=self.tf_names
+            )
 
         # If there's no gold standard or use_no_prior isn't set, raise a RuntimeError
         else:
@@ -287,31 +350,57 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
 
         # Crossvalidation
         if self.split_gold_standard_for_crossvalidation:
-            priors, self.gold_standard = self.prior_manager.cross_validate_gold_standard(priors, self.gold_standard,
-                                                                                         self.cv_split_axis,
-                                                                                         self.cv_split_ratio,
-                                                                                         self.random_seed)
+            priors, self.gold_standard = self.prior_manager.cross_validate_gold_standard(
+                priors,
+                self.gold_standard,
+                self.cv_split_axis,
+                self.cv_split_ratio,
+                self.random_seed
+            )
+
         # Filter to regulators
         if self.tf_names is not None:
-            priors = self.prior_manager.filter_to_tf_names_list(priors, self.tf_names)
+            priors = self.prior_manager.filter_to_tf_names_list(
+                priors,
+                self.tf_names
+            )
 
         # Filter to targets
         if self.gene_names is not None:
-            priors = self.prior_manager.filter_priors_to_genes(priors, self.gene_names)
+            priors = self.prior_manager.filter_priors_to_genes(
+                priors,
+                self.gene_names
+            )
 
         # Shuffle labels
         if self.shuffle_prior_axis is not None:
-            priors = self.prior_manager.shuffle_priors(priors, self.shuffle_prior_axis, self.random_seed)
+            priors = self.prior_manager.shuffle_priors(
+                priors,
+                self.shuffle_prior_axis,
+                self.random_seed
+            )
 
         # Add prior noise now (to the base prior) if add_prior_noise_to_task_priors is False
         # Otherwise add later to the task priors (will be different for each task)
         if self.add_prior_noise is not None and not self.add_prior_noise_to_task_priors:
-            priors = self.prior_manager.add_prior_noise(priors, self.add_prior_noise, self.random_seed)
+            priors = self.prior_manager.add_prior_noise(
+                priors,
+                self.add_prior_noise,
+                self.random_seed
+            )
 
-            _has_prior = [t.priors_data is not None for t in self._task_objects]
-            if any(_has_prior):
-                _msg = "Overriding task priors in {tn} because add_prior_noise_to_task_priors is False"
-                utils.Debug.vprint(_msg.format(tn=_has_prior), level=0)
+            _has_prior = [
+                t.task_name
+                for t in self._task_objects
+                if t.priors_data is not None
+            ]
+
+            if len(_has_prior) > 0:
+                utils.Debug.vprint(
+                    f"Overriding task priors in {_has_prior} because "
+                    "add_prior_noise_to_task_priors is False",
+                    level=0
+                )
 
                 for t in self._task_objects:
                     t.priors_data = priors.copy()
@@ -342,11 +431,13 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
 
             _add_prior_noise = self.add_prior_noise if self.add_prior_noise_to_task_priors is True else None
             # Process priors in the task data
-            task_obj.process_priors_and_gold_standard(gold_standard=self.gold_standard,
-                                                      cv_flag=self.split_gold_standard_for_crossvalidation,
-                                                      cv_axis=self.cv_split_axis,
-                                                      shuffle_priors=self.shuffle_prior_axis,
-                                                      add_prior_noise=_add_prior_noise)
+            task_obj.process_priors_and_gold_standard(
+                gold_standard=self.gold_standard,
+                cv_flag=self.split_gold_standard_for_crossvalidation,
+                cv_axis=self.cv_split_axis,
+                shuffle_priors=self.shuffle_prior_axis,
+                add_prior_noise=_add_prior_noise
+            )
 
     def _process_task_data(self):
         """
@@ -358,8 +449,18 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         This is chosen based on the filtering strategy set in self.target_expression_filter and
         self.regulator_expression_filter
         """
-        self._task_design, self._task_response = [], []
-        self._task_bootstraps, self._task_names, self._task_priors = [], [], []
+
+        # Create empty task data lists
+        for attr in [
+            "_task_design",
+            "_task_response",
+            "_task_bootstraps",
+            "_task_names",
+            "_task_priors",
+            "_task_gold_standards"]:
+
+            setattr(self, attr, [])
+
         targets, regulators = [], []
 
         # Iterate through a list of TaskData objects holding data
@@ -380,15 +481,34 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
             self._task_names.append(task_name)
             self._task_priors.append(task_obj.priors_data)
 
+            if task_obj.gold_standard is not None:
+                self._task_gold_standards.append(task_obj.gold_standard)
+            else:
+                self._task_gold_standards.append(self.gold_standard.copy())
+
             regulators.append(task_obj.design.gene_names)
             targets.append(task_obj.response.gene_names)
 
-            task_str = "Processing task #{tid} [{t}] complete [{sh} & {sh2}]"
-            Debug.vprint(task_str.format(tid=task_id, t=task_name, sh=task_obj.design.shape,
-                                         sh2=task_obj.response.shape), level=1)
+            Debug.vprint(
+                f"Processing task #{task_id} [{task_name}] complete "
+                f"[{task_obj.design.shape} & {task_obj.response.shape}]",
+                level=1
+            )
 
-        self._targets = amusr_regression.filter_genes_on_tasks(targets, self._target_expression_filter)
-        self._regulators = amusr_regression.filter_genes_on_tasks(regulators, self._regulator_expression_filter)
+        self._targets = amusr_regression.filter_genes_on_tasks(
+            targets,
+            self._target_expression_filter
+        )
+
+        self._regulators = amusr_regression.filter_genes_on_tasks(
+            regulators,
+            self._regulator_expression_filter
+        )
+
+        self._task_genes = amusr_regression.genes_tasks(
+            self._targets,
+            self._task_response
+        )
 
         Debug.vprint("Processed data into design/response [{g} x {k}]".format(g=len(self._targets),
                                                                               k=len(self._regulators)), level=0)
@@ -396,6 +516,10 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         # Clean up the TaskData objects and force a cyclic collection
         del self._task_objects
         gc.collect()
+
+        self._align_design_response()
+
+    def _align_design_response(self):
 
         # Make sure that the task data files have the correct columns
         for d in self._task_design:
@@ -412,11 +536,24 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         """
 
         self.create_output_dir()
-        rp = self._result_processor_driver(betas, rescaled_betas, filter_method=self.gold_standard_filter_method,
-                                            metric=self.metric)
-        rp.tasks_names = self._task_names
-        self.results = rp.summarize_network(self.output_dir, gold_standard, self._task_priors)
+
+        rp = self._result_processor_driver(
+            betas,
+            rescaled_betas,
+            filter_method=self.gold_standard_filter_method,
+            metric=self.metric,
+            task_names=self._task_names
+        )
+
+        self.results = rp.summarize_network(
+            self.output_dir,
+            gold_standard,
+            self._task_priors,
+            task_gold_standards=self._task_gold_standards
+        )
+
         self.task_results = rp.tasks_networks
+
         return self.results
 
 
@@ -425,7 +562,10 @@ def create_task_data_object(workflow_class="single-cell"):
 
 
 def create_task_data_class(workflow_class="single-cell"):
-    task_parent = workflow._factory_build_inferelator(regression="base", workflow=workflow_class)
+    task_parent = workflow._factory_build_inferelator(
+        regression="base",
+        workflow=workflow_class
+    )
 
     class TaskData(task_parent):
         """
@@ -438,7 +578,7 @@ def create_task_data_class(workflow_class="single-cell"):
 
         task_workflow_class = str(workflow_class)
 
-        str_attrs = ["input_dir", "expression_matrix_file", "tf_names_file", "meta_data_file", "priors_file"]
+        str_attrs = copy.copy(TASK_STR_ATTRS)
 
         def __str__(self):
             """
@@ -448,12 +588,10 @@ def create_task_data_class(workflow_class="single-cell"):
             :rtype: str
             """
 
-            task_str = "{n}:\n\tWorkflow Class: {cl}\n".format(n=self.task_name, cl=self.task_workflow_class)
+            task_str = f"{self.task_name}:\n\tWorkflow Class: {self.task_workflow_class}\n"
             for attr in self.str_attrs:
-                try:
-                    task_str += "\t{attr}: {val}\n".format(attr=attr, val=getattr(self, attr))
-                except AttributeError:
-                    task_str += "\t{attr}: Nonexistant\n".format(attr=attr)
+                task_str += f"\t{attr}: {getattr(self, attr, 'NA')}\n"
+
             return task_str
 
         def __init__(self):
@@ -481,8 +619,10 @@ def create_task_data_class(workflow_class="single-cell"):
             :return: List of TaskData objects with loaded data
             :rtype: list(TaskData)
             """
-            Debug.vprint("Loading data for task {task_name}".format(task_name=self.task_name))
+            Debug.vprint(f"Loading data for task {self.task_name}")
             super(TaskData, self).get_data()
+
+            self.data.name = self.task_name
 
             if self.tasks_from_metadata:
                 return self.separate_tasks_by_metadata()
@@ -503,8 +643,14 @@ def create_task_data_class(workflow_class="single-cell"):
 
             warnings.warn("Task-specific `num_bootstraps` and `random_seed` is not supported. Set on parent workflow.")
 
-        def process_priors_and_gold_standard(self, gold_standard=None, cv_flag=None, cv_axis=None, shuffle_priors=None,
-                                             add_prior_noise=None):
+        def process_priors_and_gold_standard(
+            self,
+            gold_standard=None,
+            cv_flag=None,
+            cv_axis=None,
+            shuffle_priors=None,
+            add_prior_noise=None
+        ):
             """
             Make sure that the priors for this task are correct
 
@@ -519,71 +665,107 @@ def create_task_data_class(workflow_class="single-cell"):
 
             # Remove circularity from the gold standard
             if cv_flag:
-                self.priors_data, _ = self.prior_manager._remove_prior_circularity(self.priors_data, gold_standard,
-                                                                                   split_axis=cv_axis)
+                self.priors_data, _ = self.prior_manager._remove_prior_circularity(
+                    self.priors_data,
+                    gold_standard,
+                    split_axis=cv_axis
+                )
 
             if self.tf_names is not None:
-                self.priors_data = self.prior_manager.filter_to_tf_names_list(self.priors_data, self.tf_names)
+                self.priors_data = self.prior_manager.filter_to_tf_names_list(
+                    self.priors_data,
+                    self.tf_names
+                )
 
             # Filter priors and expression to a list of genes
             self.filter_to_gene_list()
 
             # Shuffle prior labels
             if shuffle_priors is not None:
-                self.priors_data = self.prior_manager.shuffle_priors(self.priors_data, shuffle_priors, self.random_seed)
+                self.priors_data = self.prior_manager.shuffle_priors(
+                    self.priors_data,
+                    shuffle_priors,
+                    self.random_seed
+                )
 
             if add_prior_noise is not None:
-                self.priors_data = self.prior_manager.add_prior_noise(self.priors_data, add_prior_noise,
-                                                                      self.random_seed)
+                self.priors_data = self.prior_manager.add_prior_noise(
+                    self.priors_data,
+                    add_prior_noise,
+                    self.random_seed
+                )
 
             if min(self.priors_data.shape) == 0:
-                raise ValueError("Priors for task {n} have an axis of length 0".format(n=self.task_name))
+                raise ValueError(
+                    f"Priors for task {self.task_name} have an axis of length 0"
+                )
 
         def separate_tasks_by_metadata(self, meta_data_column=None):
             """
-            Take a single expression matrix and break it into multiple dataframes based on meta_data. Return a list of
-            TaskData objects which have the task-specific data loaded into them
+            Take a single expression matrix and break it into multiple
+            dataframes based on meta_data. Return a list of TaskData
+            objects which have the task-specific data loaded into them
 
-            :param meta_data_column: Meta_data column which corresponds to task ID
+            :param meta_data_column: Meta_data column which corresponds
+                to task ID
             :type meta_data_column: str
-            :return new_task_objects: List of the TaskData objects with only one task's data each
+            :return new_task_objects: List of the TaskData objects with
+                only one task's data each
             :rtype: list(TaskData)
 
             """
 
+            # Check to make sure data is loaded
             if self.data is None:
-                raise ValueError("No data has been loaded prior to `separate_tasks_by_metadata`")
+                raise ValueError(
+                    "No data has been loaded; call `get_data` before `separate_tasks_by_metadata`"
+                )
 
-            meta_data_column = meta_data_column if meta_data_column is not None else self.meta_data_task_column
+            if meta_data_column is None:
+                meta_data_column = self.meta_data_task_column
+
+            # Check to make sure meta_data_column is valid
             if meta_data_column is None:
                 raise ValueError("tasks_from_metadata is set but meta_data_task_column is not")
-            elif meta_data_column not in self.data.meta_data:
-                msg = "meta_data_task_column is not found in task {t}".format(t=str(self))
-                raise ValueError(msg)
 
-            new_task_objects = list()
+            elif meta_data_column not in self.data.meta_data:
+                raise ValueError(
+                    f"meta_data_task_column is not found in task {str(self)}"
+                )
+
             tasks = self.data.meta_data[meta_data_column].unique().tolist()
-            Debug.vprint("Creating {n} tasks from metadata column {col}".format(n=len(tasks), col=meta_data_column),
-                         level=0)
+
+            Debug.vprint(
+                f"Creating {len(tasks)} tasks from metadata column {meta_data_column}",
+                level=0
+            )
 
             # Remove data references from self
             data = self.data
             self.data = None
 
-            for task in tasks:
+            def _make_task_subobject(task):
                 # Copy this object
                 task_obj = copy.deepcopy(self)
 
-                # Get an index of the stuff to keep
-                task_idx = data.meta_data[meta_data_column] == task
+                 # Reset expression matrix, metadata, and task_name in the copy
+                task_obj.data = data.subset_copy(
+                    row_index=data.meta_data[meta_data_column] == task
+                )
 
-                # Reset expression matrix, metadata, and task_name in the copy
-                task_obj.data = data.subset_copy(row_index=task_idx)
+                # Set task name
                 task_obj.data.name = task
                 task_obj.task_name = task
-                new_task_objects.append(task_obj)
 
-            Debug.vprint("Separated data into {ntask} tasks".format(ntask=len(new_task_objects)), level=0)
+                return task_obj
+
+
+            new_task_objects = [_make_task_subobject(t) for t in tasks]
+
+            Debug.vprint(
+                f"Separated data into {len(new_task_objects)} tasks",
+                level=0
+            )
 
             return new_task_objects
 

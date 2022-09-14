@@ -1,28 +1,39 @@
 import warnings
 import unittest
-import tempfile
-import pandas as pd
-import shutil
-import numpy as np
 from sklearn.linear_model import LinearRegression
+import numpy as np
+from scipy import sparse
 
 from inferelator.distributed.inferelator_mp import MPControl
 
-from inferelator import tfa_workflow
+from inferelator.workflows import tfa_workflow
 from inferelator import workflow
 from inferelator.tests.artifacts.test_data import TestDataSingleCellLike, TEST_DATA, TEST_DATA_SPARSE
 from inferelator.tests.artifacts.test_stubs import TaskDataStub, create_puppet_workflow
-from inferelator.utils import InferelatorData, DotProduct
+from inferelator.utils import DotProduct
 from inferelator.preprocessing.metadata_parser import MetadataHandler
 
-
-from dask import distributed
-from inferelator.distributed import dask_local_controller
-from inferelator.distributed import dask_functions
 
 """
 These are full-stack integration tests covering the post-loading regression workflows
 """
+
+MPControl.set_multiprocess_engine('dask-local')
+MPControl.set_processes(2)
+MPControl.connect()
+
+LASSO_TEST_DATA = TEST_DATA.copy()
+RNG = np.random.default_rng(200)
+LASSO_TEST_DATA.add(
+    np.abs(
+        np.hstack(
+            (RNG.standard_normal(
+                size=(LASSO_TEST_DATA.values.shape[0], 1)
+            ) * np.std(LASSO_TEST_DATA.values[:, i])
+            for i in range(LASSO_TEST_DATA.shape[1]))
+        )
+    )
+)
 
 
 class SetUpDenseData(unittest.TestCase):
@@ -39,6 +50,12 @@ class SetUpDenseData(unittest.TestCase):
         self.tf_names = TestDataSingleCellLike.tf_names
 
 
+class SetUpLassoData(SetUpDenseData):
+
+    def setUp(self):
+        super().setUp()
+        self.data = LASSO_TEST_DATA.copy()
+
 class SetUpSparseData(unittest.TestCase):
 
     def setUp(self):
@@ -53,31 +70,54 @@ class SetUpSparseData(unittest.TestCase):
         self.tf_names = TestDataSingleCellLike.tf_names
 
 
+class SetUpSparseLassoData(SetUpLassoData):
+
+    def setUp(self):
+        super().setUp()
+        self.data._adata.X = sparse.csr_matrix(self.data._adata.X)
+
+
 class SetUpDenseDataMTL(SetUpDenseData):
 
     def setUp(self):
-        super(SetUpDenseDataMTL, self).setUp()
+        super().setUp()
         self._task_objects = [TaskDataStub(), TaskDataStub()]
         self._task_objects[0].tasks_from_metadata = False
         self._task_objects[1].tasks_from_metadata = False
 
 
+class SetUpDenseLassoDataMTL(SetUpLassoData):
+
+    def setUp(self):
+        super().setUp()
+        self._task_objects = [TaskDataStub(), TaskDataStub()]
+        self._task_objects[0].tasks_from_metadata = False
+        self._task_objects[1].tasks_from_metadata = False
+        self._task_objects[0].data = self.data.copy()
+        self._task_objects[1].data = self.data.copy()
+
+
 class SetUpSparseDataMTL(SetUpSparseData):
 
     def setUp(self):
-        super(SetUpSparseDataMTL, self).setUp()
+        super().setUp()
         self._task_objects = [TaskDataStub(sparse=True), TaskDataStub(sparse=True)]
         self._task_objects[0].tasks_from_metadata = False
         self._task_objects[1].tasks_from_metadata = False
 
 
-class TestSingleTaskRegressionFactory(SetUpDenseData):
+class SetUpSparseLassoDataMTL(SetUpSparseLassoData):
 
-    @classmethod
-    def setUpClass(cls):
-        if not MPControl.is_initialized:
-            MPControl.set_multiprocess_engine("local")
-            MPControl.connect()
+    def setUp(self):
+        super().setUp()
+        self._task_objects = [TaskDataStub(), TaskDataStub()]
+        self._task_objects[0].tasks_from_metadata = False
+        self._task_objects[1].tasks_from_metadata = False
+        self._task_objects[0].data = self.data.copy()
+        self._task_objects[1].data = self.data.copy()
+
+
+class TestSingleTaskRegressionFactory(SetUpDenseData):
 
     def test_base(self):
         self.workflow = create_puppet_workflow(base_class=tfa_workflow.TFAWorkFlow)
@@ -91,6 +131,7 @@ class TestSingleTaskRegressionFactory(SetUpDenseData):
         self.workflow = self.workflow(self.data, self.prior, self.gold_standard)
         self.workflow.tf_names = self.tf_names
         self.workflow.run()
+
         self.assertEqual(self.workflow.results.score, 1)
 
     def test_bbsr_clr_only(self):
@@ -105,11 +146,11 @@ class TestSingleTaskRegressionFactory(SetUpDenseData):
         self.workflow = create_puppet_workflow(base_class="tfa", regression_class="elasticnet")
         self.workflow = self.workflow(self.data, self.prior, self.gold_standard)
         self.workflow.tf_names = self.tf_names
-        
+
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             self.workflow.run()
-            
+
         self.assertEqual(self.workflow.results.score, 1)
 
     def test_sklearn(self):
@@ -131,25 +172,37 @@ class TestSingleTaskRegressionFactory(SetUpDenseData):
 
         self.assertEqual(self.workflow.results.score, 1)
 
+
+class TestSingleTaskStabilityRegressionFactory(SetUpLassoData):
+
     def test_stars(self):
         self.workflow = create_puppet_workflow(base_class="tfa", regression_class="stars")
         self.workflow = self.workflow(self.data, self.prior, self.gold_standard)
-        self.workflow.set_regression_parameters(num_subsamples=5)
+        self.workflow.set_regression_parameters(num_subsamples=2)
         self.workflow.tf_names = self.tf_names
 
         self.workflow.run()
-        self.assertAlmostEqual(self.workflow.results.score, 0.32222, places=4)
+
+        print(self.workflow.results.combined_confidences)
+
+        # Not enough data / variance to get the right result
+        self.assertAlmostEqual(self.workflow.results.score, 0.657777, places=4)
+
+    def test_stars_ridge(self):
+        self.workflow = create_puppet_workflow(base_class="tfa", regression_class="stars")
+        self.workflow = self.workflow(self.data, self.prior, self.gold_standard)
+        self.workflow.set_regression_parameters(method='ridge', ridge_threshold=1e-3, num_subsamples=2)
+        self.workflow.tf_names = self.tf_names
+
+        self.workflow.run()
+
+        self.assertAlmostEqual(self.workflow.results.score, 1, places=4)
 
 
 class TestSingleTaskRegressionFactorySparse(SetUpSparseData, TestSingleTaskRegressionFactory):
 
     @classmethod
     def setUpClass(cls):
-
-        if not MPControl.is_initialized:
-            MPControl.set_multiprocess_engine("local")
-            MPControl.connect()
-
         DotProduct.set_mkl(True)
 
     @classmethod
@@ -157,12 +210,18 @@ class TestSingleTaskRegressionFactorySparse(SetUpSparseData, TestSingleTaskRegre
         DotProduct.set_mkl(False)
 
 
-class TestMultitaskFactory(SetUpDenseDataMTL):
+class TestSingleTaskStabilityRegressionFactory(SetUpSparseLassoData, TestSingleTaskStabilityRegressionFactory):
 
     @classmethod
     def setUpClass(cls):
-        if not MPControl.is_initialized:
-            MPControl.connect()
+        DotProduct.set_mkl(True)
+
+    @classmethod
+    def tearDownClass(cls):
+        DotProduct.set_mkl(False)
+
+
+class TestMultitaskFactory(SetUpDenseLassoDataMTL):
 
     def reset_workflow(self):
         self.workflow.priors_data = self.prior
@@ -177,11 +236,15 @@ class TestMultitaskFactory(SetUpDenseDataMTL):
         self.reset_workflow()
 
         self.workflow.run()
-        self.assertAlmostEqual(self.workflow.results.score, 0.84166, places=4)
+        self.assertAlmostEqual(self.workflow.results.score, 1, places=4)
 
     def test_mtl_bbsr(self):
         self.workflow = workflow.inferelator_workflow(workflow="multitask", regression="bbsr")
-        self.workflow.set_regression_parameters(prior_weight=1.)
+
+        with self.assertWarns(Warning):
+            self.workflow.set_regression_parameters(prior_weight=2.)
+            self.workflow.set_regression_parameters(prior_weight=1.)
+
         self.reset_workflow()
 
         self.workflow.run()
@@ -198,58 +261,22 @@ class TestMultitaskFactory(SetUpDenseDataMTL):
 
         self.assertEqual(self.workflow.results.score, 1)
 
-    def test_mtl_stars(self):
+    def test_mtl_stars_lasso(self):
         self.workflow = workflow.inferelator_workflow(workflow="multitask", regression="stars")
-        self.workflow.set_regression_parameters(num_subsamples=5)
+        self.workflow.set_regression_parameters(num_subsamples=2)
         self.reset_workflow()
 
         self.workflow.run()
-        self.assertAlmostEqual(self.workflow.results.score, 0.32222, places=4)
+        self.assertAlmostEqual(self.workflow.results.score, 0.657777, places=4)
+
+    def test_mtl_stars_ridge(self):
+        self.workflow = workflow.inferelator_workflow(workflow="multitask", regression="stars")
+        self.workflow.set_regression_parameters(method='ridge', ridge_threshold=1e-3, num_subsamples=2)
+        self.reset_workflow()
+
+        self.workflow.run()
+        self.assertAlmostEqual(self.workflow.results.score, 1, places=4)
 
 
-class TestMultitaskFactorySparse(SetUpSparseDataMTL, TestMultitaskFactory):
-    pass
-
-
-class SwitchToDask(unittest.TestCase):
-    tempdir = None
-
-    @classmethod
-    def setUpClass(cls):
-        cls.tempdir = tempfile.mkdtemp()
-        MPControl.shutdown()
-        MPControl.set_multiprocess_engine("dask-local")
-        MPControl.connect(local_dir=cls.tempdir, n_workers=1, processes=False)
-
-    @classmethod
-    def tearDownClass(cls):
-        MPControl.shutdown()
-        MPControl.set_multiprocess_engine("local")
-        MPControl.connect()
-        if cls.tempdir is not None:
-            shutil.rmtree(cls.tempdir)
-
-
-class TestSTLDask(SwitchToDask, TestSingleTaskRegressionFactory):
-
-    def test_dask_function_mi(self):
-        """Compute mi for identical arrays [[1, 2, 1], [2, 4, 6]]."""
-
-        L = [[0, 0], [9, 3], [0, 9]]
-        x_dataframe = InferelatorData(pd.DataFrame(L))
-        y_dataframe = InferelatorData(pd.DataFrame(L))
-        mi = dask_functions.build_mi_array_dask(x_dataframe.values, y_dataframe.values, 10, np.log)
-        expected = np.array([[0.63651417, 0.63651417], [0.63651417, 1.09861229]])
-        np.testing.assert_almost_equal(mi, expected)
-
-
-class TestSTLDask(SwitchToDask, TestSingleTaskRegressionFactorySparse):
-    pass
-
-
-class TestMTLDask(SwitchToDask, TestMultitaskFactory):
-    pass
-
-
-class TestMTLSparseDask(SwitchToDask, TestMultitaskFactorySparse):
+class TestMultitaskFactorySparse(SetUpSparseLassoDataMTL, TestMultitaskFactory):
     pass

@@ -1,8 +1,16 @@
 import math
 import warnings
+import itertools
+import copy
 import numpy as np
 import pandas.api.types as pat
-from sklearn.linear_model import LinearRegression as _LinearRegression, Lasso as _Lasso, Ridge as _Ridge
+
+from sklearn.linear_model import (
+    LinearRegression as _LinearRegression,
+    Lasso as _Lasso,
+    Ridge as _Ridge,
+    lasso_path
+)
 
 from inferelator.regression import base_regression
 from inferelator.distributed.inferelator_mp import MPControl
@@ -16,27 +24,149 @@ _DEFAULT_METHOD = 'lasso'
 _DEFAULT_PARAMS = {"max_iter": 2000}
 
 
-def lasso(x, y, alpha, **kwargs):
-    return _regress(x, y, alpha, _Lasso, **kwargs)
+def _lasso_path(
+    x,
+    y,
+    alphas,
+    **kwargs
+):
+
+    _coefs = np.zeros((x.shape[1], len(alphas)))
+    alphas = np.sort(alphas)[::-1]
+
+    _alpha0 = alphas == 0.
+
+    if np.sum(_alpha0) > 0:
+        _coefs[:, _alpha0] = _LinearRegression(
+            fit_intercept=False
+        ).fit(x, y).coef_[:, None]
+
+    _, _lp_coef, _ = lasso_path(
+        x,
+        y,
+        alphas=alphas[~_alpha0],
+        **kwargs
+    )
+
+    _coefs[:, ~_alpha0] = _lp_coef
+    _coefs = [
+        _coefs[:, i].flatten()
+        for i in range(_coefs.shape[1])
+    ]
+
+    return alphas, _coefs
 
 
-def ridge(x, y, alpha, ridge_threshold=1e-2, **kwargs):
-    betas = _regress(x, y, alpha, _Ridge, **kwargs).flatten()
-    betas[betas < ridge_threshold] = 0.
-    return betas
+def _regress_all_alphas(
+    x,
+    y,
+    alphas,
+    regression,
+    ridge_threshold=1e-2,
+    **kwargs
+):
+    """
+    Fit regression with LASSO or Ridge
+    on an array of alpha values,
+    using OLS for alpha == 0
 
+    Warm start LASSO with the previous
+    coefficients.
 
-def _regress(x, y, alpha, regression, **kwargs):
-    if alpha == 0:
-        return _LinearRegression(normalize=False).fit(x, y).coef_
+    :param x: Predictor data
+    :type x: np.ndarray
+    :param y: Response data
+    :type y: np.ndarray
+    :param alphas: Regression alphas
+    :type alphas: np.ndarray, list
+    :param regression: Regression method ('lasso' or 'ridge')
+    :type regression: str
+    :param ridge_threshold: Shrink values less than this to 0
+        for ridge regression, defaults to 1e-2
+    :type ridge_threshold: numeric, optional
+    :raises ValueError: Raise a ValueError if regression string
+        is not 'lasso' or 'ridge'
+    :return: A list of model coefficients from regression
+    :rtype: list(np.ndarray)
+    """
+
+    _regression_coefs = []
+
+    if regression == 'lasso':
+        return _lasso_path(
+            x,
+            y,
+            alphas,
+            **kwargs
+        )
+    elif regression == 'ridge':
+        pass
     else:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            return regression(alpha=alpha, fit_intercept=False, normalize=False, **kwargs).fit(x, y).coef_
+        raise ValueError("regression must be 'lasso' or 'ridge'")
 
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
 
-def stars_model_select(x, y, alphas, threshold=_DEFAULT_THRESHOLD, num_subsamples=_DEFAULT_NUM_SUBSAMPLES,
-                       random_seed=_DEFAULT_SEED, method='lasso', **kwargs):
+        for a in alphas:
+
+            _regression_coefs.append(
+                _regress(
+                    x,
+                    y,
+                    a,
+                    regression,
+                    ridge_threshold=ridge_threshold,
+                    **kwargs
+                )
+            )
+
+    return alphas, _regression_coefs
+
+# Wrapper for a single alpha value
+def _regress(
+    x,
+    y,
+    alpha,
+    regression,
+    ridge_threshold=1e-2,
+    **kwargs
+):
+
+    if alpha == 0:
+        return _LinearRegression(
+            fit_intercept=False
+        ).fit(x, y).coef_.copy()
+    elif regression == 'lasso':
+        return _Lasso(
+            alpha=alpha,
+            fit_intercept=False,
+            **kwargs
+        ).fit(x, y).coef_.copy()
+    elif regression == 'ridge':
+        _coefs = _Ridge(
+            alpha=alpha,
+            fit_intercept=False,
+            **kwargs
+        ).fit(x, y).coef_.copy()
+
+        _coefs[_coefs < ridge_threshold] = 0.
+
+        return _coefs
+    else:
+        raise ValueError(
+            "regression must be 'lasso' or 'ridge'"
+        )
+
+def stars_model_select(
+    x,
+    y,
+    alphas,
+    threshold=_DEFAULT_THRESHOLD,
+    num_subsamples=_DEFAULT_NUM_SUBSAMPLES,
+    random_seed=_DEFAULT_SEED,
+    method='lasso',
+    **kwargs
+):
     """
     Model using StARS (Stability Approach to Regularization Selection) for model selection
 
@@ -51,19 +181,17 @@ def stars_model_select(x, y, alphas, threshold=_DEFAULT_THRESHOLD, num_subsample
     :return:
     """
 
-    if method.lower() == 'lasso':
-        _regress_func = lasso
-    elif method.lower() == 'ridge':
-        _regress_func = ridge
-    else:
-        raise ValueError("Method must be 'lasso' or 'ridge'")
-
     # Number of obs
     n, k = x.shape
 
+    # Sort alphas
+    alphas = np.sort(alphas)[::-1]
+
     if n < num_subsamples:
-        msg = "Subsamples ({ns}) for StARS is larger than the number of samples ({n})".format(ns=num_subsamples, n=n)
-        raise ValueError(msg)
+        raise ValueError(
+            f"Subsamples ({num_subsamples}) for StARS is larger "
+            f"than the number of samples ({n})"
+        )
 
     # Calculate the number of obs per subsample
     b = math.floor(n / num_subsamples)
@@ -73,29 +201,46 @@ def stars_model_select(x, y, alphas, threshold=_DEFAULT_THRESHOLD, num_subsample
 
     # Calculate betas for stability selection
     betas = {a: [] for a in alphas}
+
     for sample in range(num_subsamples):
-        # Sample and put into column-major (the coordinate descent implementation in sklearn wants that order)
+        # Sample and put into column-major (the coordinate descent
+        # implementation in sklearn wants that order)
         x_samp = np.asarray(x[idx == sample, :], order='F')
         y_samp = y[idx == sample]
 
-        for a in alphas:
-            betas[a].append(_regress_func(x_samp, y_samp, a, **kwargs))
+        _beta_alphas, _beta_coefs = _regress_all_alphas(
+            x_samp,
+            y_samp,
+            alphas,
+            method,
+            **kwargs
+        )
+
+        for _coef, a in zip(_beta_coefs, _beta_alphas):
+            betas[a].append(_coef)
 
     # Calculate edge stability
-    stabilities = {a: _calculate_stability(betas[a]) for a in alphas}
+    stabilities = {
+        a: _calculate_stability(betas[a])
+        for a in alphas
+    }
 
     # Calculate monotonic increasing (as alpha decreases) mean edge stability
-    alphas = np.sort(alphas)[::-1]
-    total_instability = np.array([np.mean(stabilities[a]) for a in alphas])
-
-    for i in range(1, len(total_instability)):
-        if total_instability[i] < total_instability[i - 1]:
-            total_instability[i] = total_instability[i - 1]
+    total_instability = np.maximum.accumulate(
+        [np.mean(stabilities[a]) for a in alphas]
+    )
 
     threshold_alphas = np.array(alphas)[total_instability < threshold]
     selected_alpha = np.min(threshold_alphas) if len(threshold_alphas) > 0 else alphas[0]
 
-    refit_betas = _regress_func(x, y, selected_alpha, **kwargs)
+    refit_betas = _regress(
+        x,
+        y,
+        selected_alpha,
+        method,
+        **kwargs
+    )
+
     beta_nonzero = _make_bool_matrix(refit_betas)
 
     if beta_nonzero.sum() == 0:
@@ -129,8 +274,10 @@ def _calculate_stability(edges):
 
 
 def _make_bool_matrix(edge_matrix):
+
     if pat.is_float_dtype(edge_matrix.dtype):
-        return np.abs(edge_matrix) > np.finfo(dtype=edge_matrix.dtype).eps
+        _eps = np.finfo(dtype=edge_matrix.dtype).eps
+        return np.abs(edge_matrix) > _eps
     else:
         return edge_matrix != 0
 
@@ -149,8 +296,17 @@ def _make_subsample_idx(n, b, num_subsamples, random_seed=42):
 
 class StARS(base_regression.BaseRegression):
 
-    def __init__(self, X, Y, random_seed, alphas=_DEFAULT_ALPHAS, num_subsamples=_DEFAULT_NUM_SUBSAMPLES,
-                 method=_DEFAULT_METHOD, parameters=None):
+    def __init__(
+        self,
+        X,
+        Y,
+        random_seed,
+        alphas=_DEFAULT_ALPHAS,
+        num_subsamples=_DEFAULT_NUM_SUBSAMPLES,
+        method=_DEFAULT_METHOD,
+        parameters=None
+    ):
+
         self.random_seed = random_seed
         self.alphas = alphas
         self.num_subsamples = num_subsamples
@@ -165,40 +321,57 @@ class StARS(base_regression.BaseRegression):
         Execute StARS
 
         :return: list
-            Returns a list of regression results that base_regression's pileup_data can process
+            Returns a list of regression results that base_regression
+            pileup_data can process
         """
 
-        if MPControl.is_dask():
-            from inferelator.distributed.dask_functions import lasso_stars_regress_dask
-            return lasso_stars_regress_dask(self.X, self.Y, self.alphas, self.num_subsamples, self.random_seed,
-                                            self.method, self.params, self.G, self.genes)
+        x = self.X.values
+        nG = self.G
 
-        def regression_maker(j):
-            level = 0 if j % 100 == 0 else 2
-            utils.Debug.allprint(base_regression.PROGRESS_STR.format(gn=self.genes[j], i=j, total=self.G), level=level)
+        return MPControl.map(
+            _stars_regression_wrapper,
+            itertools.repeat(x, nG),
+            base_regression.gene_data_generator(self.Y, nG),
+            itertools.repeat(self.alphas, nG),
+            range(nG),
+            self.genes,
+            itertools.repeat(nG, nG),
+            method=self.method,
+            num_subsamples=self.num_subsamples,
+            random_seed=self.random_seed,
+            **self.params,
+            scatter=[x]
+        )
 
-            data = stars_model_select(self.X.values,
-                                      utils.scale_vector(self.Y.get_gene_data(j, force_dense=True, flatten=True)),
-                                      self.alphas,
-                                      method=self.method,
-                                      num_subsamples=self.num_subsamples,
-                                      random_seed=self.random_seed,
-                                      **self.params)
+
+def _stars_regression_wrapper(x, y, alphas, j, gene, nG, **kwargs):
+
+            utils.Debug.vprint(
+                base_regression.PROGRESS_STR.format(gn=gene, i=j, total=nG),
+                level=0 if j % 1000 == 0 else 2
+            )
+
+            data = stars_model_select(
+                x,
+                utils.scale_vector(y),
+                alphas,
+                **kwargs
+            )
+
             data['ind'] = j
             return data
-
-        return MPControl.map(regression_maker, range(self.G), tell_children=False)
 
 
 class StARSWorkflowMixin(base_regression._RegressionWorkflowMixin):
     """
-    Stability Approach to Regularization Selection (StARS)-LASSO. StARS-Ridge is implemented on an experimental basis.
+    Stability Approach to Regularization Selection (StARS)-LASSO.
+    StARS-Ridge is implemented on an experimental basis.
 
     https://arxiv.org/abs/1006.3316
     https://doi.org/10.1016/j.immuni.2019.06.001
     """
 
-    sklearn_params = _DEFAULT_PARAMS
+    sklearn_params = copy.copy(_DEFAULT_PARAMS)
     alphas = _DEFAULT_ALPHAS
     regress_method = _DEFAULT_METHOD
     num_subsamples = _DEFAULT_NUM_SUBSAMPLES
@@ -207,40 +380,71 @@ class StARSWorkflowMixin(base_regression._RegressionWorkflowMixin):
         self.sklearn_params = {}
         super(StARSWorkflowMixin, self).__init__(*args, **kwargs)
 
-    def set_regression_parameters(self, alphas=None, num_subsamples=None, method=None, **kwargs):
+    def set_regression_parameters(
+        self,
+        alphas=None,
+        num_subsamples=None,
+        method=None,
+        **kwargs
+    ):
         """
         Set regression parameters for StARS-LASSO
 
-        :param alphas: A list of alpha (L1 term) values to search. Defaults to logspace between 0. and 10.
+        :param alphas: A list of alpha (L1 term) values to search.
+            Defaults to logspace between 0. and 10.
         :type alphas: list(float)
-        :param num_subsamples: The number of groups to break data into. Defaults to 20.
+        :param num_subsamples: The number of groups to break data
+            into. Defaults to 20.
         :type num_subsamples: int
-        :param method: The model to use. Can choose from 'lasso' or 'ridge'. Defaults to 'lasso'.
-            If 'ridge' is set, ridge_threshold should also be passed. Any value below ridge_threshold will be set to 0.
+        :param method: The model to use. Can choose from 'lasso'
+            or 'ridge'. Defaults to 'lasso'.
+            If 'ridge' is set, ridge_threshold should also be passed.
+            Any value below ridge_threshold will be set to 0.
         :type method: str
-        :param kwargs: Any additional arguments will be passed to the LASSO or Ridge scikit-learn object at
-            instantiation
+        :param kwargs: Any additional arguments will be passed to the
+            LASSO or Ridge scikit-learn object at instantiation
         :type kwargs: any
         """
 
         self.sklearn_params.update(kwargs)
-        self.alphas = alphas if alphas is not None else self.alphas
-        self.num_subsamples = num_subsamples if num_subsamples is not None else self.num_subsamples
-        self.regress_method = method if method is not None else self.regress_method
+
+        self._set_with_warning(
+            'alphas',
+            alphas
+        )
+
+        self._set_with_warning(
+            'num_subsamples',
+            num_subsamples
+        )
+
+        self._set_with_warning(
+            'regress_method',
+            method
+        )
 
     def run_regression(self):
 
-        betas, resc_betas = StARS(self.design, self.response, self.random_seed, alphas=self.alphas,
-                                  method=self.regress_method,
-                                  num_subsamples=self.num_subsamples,
-                                  parameters=self.sklearn_params).run()
+        betas, resc_betas = StARS(
+            self.design,
+            self.response,
+            self.random_seed,
+            alphas=self.alphas,
+            method=self.regress_method,
+            num_subsamples=self.num_subsamples,
+            parameters=self.sklearn_params
+        ).run()
 
         return [betas], [resc_betas]
 
 
-class StARSWorkflowByTaskMixin(base_regression._MultitaskRegressionWorkflowMixin, StARSWorkflowMixin):
+class StARSWorkflowByTaskMixin(
+    base_regression._MultitaskRegressionWorkflowMixin,
+    StARSWorkflowMixin
+):
     """
-    Stability Approach to Regularization Selection (StARS)-LASSO. StARS-Ridge is implemented on an experimental basis.
+    Stability Approach to Regularization Selection (StARS)-LASSO.
+    StARS-Ridge is implemented on an experimental basis.
 
     https://arxiv.org/abs/1006.3316
     https://doi.org/10.1016/j.immuni.2019.06.001
@@ -249,16 +453,34 @@ class StARSWorkflowByTaskMixin(base_regression._MultitaskRegressionWorkflowMixin
     def run_bootstrap(self, bootstrap_idx):
         betas, betas_resc = [], []
 
-        # Select the appropriate bootstrap from each task and stash the data into X and Y
+        # Run tasks individually
         for k in range(self._n_tasks):
-            x = self._task_design[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx])
-            y = self._task_response[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx])
 
-            utils.Debug.vprint('Calculating task {k} betas using StARS'.format(k=k), level=0)
-            t_beta, t_br = StARS(x, y, self.random_seed, alphas=self.alphas,
-                                 method=self.regress_method,
-                                 num_subsamples=self.num_subsamples,
-                                 parameters=self.sklearn_params).run()
+            # Select the appropriate bootstrap from each task
+            # and stash the data into X and Y
+            x = self._task_design[k].get_bootstrap(
+                self._task_bootstraps[k][bootstrap_idx]
+            )
+
+            y = self._task_response[k].get_bootstrap(
+                self._task_bootstraps[k][bootstrap_idx]
+            )
+
+            utils.Debug.vprint(
+                f'Calculating task {k} betas using StARS',
+                level=0
+            )
+
+            t_beta, t_br = StARS(
+                x,
+                y,
+                self.random_seed,
+                alphas=self.alphas,
+                method=self.regress_method,
+                num_subsamples=self.num_subsamples,
+                parameters=self.sklearn_params
+            ).run()
+
             betas.append(t_beta)
             betas_resc.append(t_br)
 
