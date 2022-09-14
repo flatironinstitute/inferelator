@@ -246,6 +246,8 @@ class TFAWorkFlow(workflow.WorkflowBase):
             file_format_settings=self._file_format_settings
         )
 
+        if file_type is None:
+            self.design = loader.load_data_tsv(file)
         if file_type.lower() == "h5ad":
             self.design = loader.load_data_h5ad(file)
         else:

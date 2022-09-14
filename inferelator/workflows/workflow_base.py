@@ -350,15 +350,14 @@ class WorkflowBaseLoader(object):
         Set flags to skip using existing network data. Note that these
         flags will be ignored if network data is provided
 
-        :param use_no_prior: Flag to indicate the inferelator should
-            be run without existing prior data.
-            Will create a mock prior with no information.
-            Highly inadvisable. Defaults to False
+        :param use_no_prior: Flag to indicate the inferelator should be run
+            without existing prior data. Will create a mock prior with no
+            information. Highly inadvisable. Defaults to False
         :type use_no_prior: bool
-        :param use_no_gold_standard: Flag to indicate the inferelator
-        should be run without existing gold standard data.
-            Will create a mock gold standard with no information.
-            Highly inadvisable. Defaults to False
+        :param use_no_gold_standard: Flag to indicate the inferelator should
+            be run without existing gold standard data. Will create a mock
+            gold standard with no information. Highly inadvisable.
+            Defaults to False
         :type use_no_gold_standard: bool
         """
 
