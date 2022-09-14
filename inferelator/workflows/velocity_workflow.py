@@ -2,7 +2,7 @@ from inferelator.workflows.workflow_base import _H5AD, _HDF5, _TSV
 from inferelator.workflows.tfa_workflow import TFAWorkFlow
 from inferelator.workflows.single_cell_workflow import SingleCellWorkflow
 from inferelator.utils import InferelatorData, Debug, Validator as check
-from inferelator.preprocessing.velocity_tfa import VelocityTFA
+from inferelator.tfa.pinv_tfa import ActivityOnlyPinvTFA
 
 import numpy as np
 import pandas as pd
@@ -27,7 +27,7 @@ class VelocityWorkflow(SingleCellWorkflow):
     _gene_specific_decay_constant = False
     _gene_sample_decay_constant = False
 
-    tfa_driver = VelocityTFA
+    tfa_driver = ActivityOnlyPinvTFA
 
     def get_data(self):
         super(VelocityWorkflow, self).get_data()
