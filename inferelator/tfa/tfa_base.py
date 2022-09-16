@@ -18,7 +18,13 @@ class TFABase:
 
         raise NotImplementedError
 
-    def _check_prior(self, prior, expression_data, keep_self=False):
+    def _check_prior(
+        self,
+        prior,
+        expression_data,
+        keep_self=False,
+        use_expression=True
+    ):
 
         if not keep_self:
             prior = utils.df_set_diag(prior, 0)
@@ -28,15 +34,18 @@ class TFABase:
             expression_data
         )
 
+        if not use_expression:
+            drop_tfs = drop_tfs.append(expr_tfs)
+
         if len(drop_tfs) > 0:
             utils.Debug.vprint(
-                f"{len(drop_tfs)} TFs are removed from activity "
-                "(no expression or prior exists)",
+                f"{len(drop_tfs)} TFs are removed from activity ",
                 level=0
             )
             utils.Debug.vprint(" ".join(drop_tfs), level=1)
 
         prior = prior.drop(drop_tfs, axis=1)
+
 
         return prior, activity_tfs, expr_tfs
 
@@ -92,7 +101,8 @@ class ActivityExpressionTFA(TFABase):
         trim_prior, activity_tfs, expr_tfs = self._check_prior(
             prior,
             expression_data,
-            keep_self=keep_self
+            keep_self=keep_self,
+            use_expression=True
         )
 
         # Make empty array to fill with activity
@@ -161,7 +171,8 @@ class ActivityOnlyTFA(TFABase):
         prior, activity_tfs, expr_tfs = self._check_prior(
             prior,
             expression_data,
-            keep_self=keep_self
+            keep_self=keep_self,
+            use_expression=False
         )
 
         if len(activity_tfs) > 0:
