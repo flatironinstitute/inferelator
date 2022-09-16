@@ -5,6 +5,8 @@ class _Ridge_TFA_mixin:
     """
     TFA calculates transcription factor activity
     using ridge regression
+
+    Constrained to positive values
     """
 
     @staticmethod
@@ -20,10 +22,16 @@ class _Ridge_TFA_mixin:
             positive=True
         )
 
-        ridge_regressor.fit(
-            prior,
-            expression_data.values.T
-        )
+        if expression_data.is_sparse:
+            ridge_regressor.fit(
+                prior,
+                expression_data.values.A.T
+            )
+        else:
+            ridge_regressor.fit(
+                prior,
+                expression_data.values.T
+            )
 
         return ridge_regressor.coef_.copy()
 
