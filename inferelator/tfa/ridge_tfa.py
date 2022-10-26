@@ -25,12 +25,12 @@ class _Ridge_TFA_mixin:
         if expression_data.is_sparse:
             ridge_regressor.fit(
                 prior,
-                expression_data.values.A.T
+                expression_data.A.T
             )
         else:
             ridge_regressor.fit(
                 prior,
-                expression_data.values.T
+                expression_data.T
             )
 
         return ridge_regressor.coef_.copy()

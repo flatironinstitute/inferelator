@@ -46,7 +46,6 @@ class TFABase:
 
         prior = prior.drop(drop_tfs, axis=1)
 
-
         return prior, activity_tfs, expr_tfs
 
     @staticmethod
@@ -72,6 +71,14 @@ class TFABase:
         prior,
         expression_data
     ):
+        """
+        Calculate activity from prior and expression data
+
+        :param prior: Prior knowledge matrix
+        :type prior: np.ndarray
+        :param expression_data: Gene expression data
+        :type expression_data: np.ndarray, sp.spmatrix
+        """
 
         raise NotImplementedError
 
@@ -123,7 +130,7 @@ class ActivityExpressionTFA(TFABase):
 
             activity[:, a_cols] = self._calculate_activity(
                 trim_prior.loc[:, activity_tfs].values,
-                expr
+                expr.values
             )
 
         # Use TF expression in place of activity for features
@@ -178,7 +185,7 @@ class ActivityOnlyTFA(TFABase):
         if len(activity_tfs) > 0:
             activity = self._calculate_activity(
                 prior.loc[:, activity_tfs].values,
-                expression_data
+                expression_data.values
             )
         else:
             raise ValueError(

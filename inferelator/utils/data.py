@@ -1,5 +1,3 @@
-from __future__ import print_function, unicode_literals, division
-
 import copy as cp
 import gc
 import math
@@ -17,7 +15,8 @@ from inferelator.utils import Validator as check
 
 def dot_product(a, b, dense=True, cast=True):
     """
-    Dot product two matrices together. Allow either matrix (or both or neither) to be sparse.
+    Dot product two matrices together.
+    Allow either matrix (or both or neither) to be sparse.
 
     :param a:
     :param b:
@@ -27,8 +26,10 @@ def dot_product(a, b, dense=True, cast=True):
     """
     if sparse.isspmatrix(a) and sparse.isspmatrix(b):
         return a.dot(b).A if dense else a.dot(b)
+    elif sparse.isspmatrix(a) and dense:
+        return a.dot(sparse.csr_matrix(b)).A
     elif sparse.isspmatrix(a):
-        return a.dot(sparse.csr_matrix(b)).A if dense else a.dot(sparse.csr_matrix(b))
+        return a.dot(sparse.csr_matrix(b))
     elif sparse.isspmatrix(b):
         return np.dot(a, b.A)
     else:
@@ -46,25 +47,47 @@ class DotProduct:
         if mkl is None:
             pass
 
-        # If the MKL flag is True, use the dot_product_mkl function when .dot() is called
+        # If the MKL flag is True, use the dot_product_mkl function
+        # when .dot() is called
         if mkl:
             try:
-                from sparse_dot_mkl import get_version_string, dot_product_mkl as dp
-                msg = "Matrix multiplication will use sparse_dot_mkl package with MKL: {m}"
+                from sparse_dot_mkl import (
+                    get_version_string,
+                    dot_product_mkl
+                )
+
                 vstring = get_version_string()
-                Debug.vprint(msg.format(m=vstring if vstring is not None else "Install mkl-service for details"),
-                             level=2)
 
-                cls._dot_func = dp
+                if vstring is None:
+                    vstring = "Install mkl-service for details"
 
-            # If it isn't available, use the scipy/numpy functions instead
+                Debug.vprint(
+                    "Matrix multiplication will use sparse_dot_mkl "
+                    "package with MKL: {vstring}",
+                    level=2
+                )
+
+                cls._dot_func = dot_product_mkl
+
+            # If it isn't available, use the
+            # scipy/numpy functions instead
             except ImportError as err:
-                Debug.vprint("Unable to load MKL with sparse_dot_mkl:\n" + str(err), level=0)
+                Debug.vprint(
+                    "Unable to load MKL with sparse_dot_mkl:\n" +
+                    str(err),
+                    level=0
+                )
+
                 cls._dot_func = dot_product
 
-        # If the MKL flag is True, use the python (numpy/scipy) functions when .dot() is called
+        # If the MKL flag is False, use the python (numpy/scipy)
+        # functions when .dot() is called
         else:
-            Debug.vprint("Matrix multiplication will use Numpy; this is not advised for sparse data", level=2)
+            Debug.vprint(
+                "Matrix multiplication will use numpy; "
+                "this is not advised for sparse data",
+                level=2
+            )
             cls._dot_func = dot_product
 
     @classmethod
@@ -73,13 +96,23 @@ class DotProduct:
 
 
 def df_from_tsv(file_like, has_index=True):
-    "Read a tsv file or buffer with headers and row ids into a pandas dataframe."
-    return pd.read_csv(file_like, sep="\t", header=0, index_col=0 if has_index else False)
+    """
+    Read a tsv file or buffer with headers
+    and row ids into a pandas dataframe.
+    """
+
+    return pd.read_csv(
+        file_like,
+        sep="\t",
+        header=0,
+        index_col=0 if has_index else False
+    )
 
 
 def df_set_diag(df, val, copy=True):
     """
-    Sets the diagonal of a dataframe to a value. Diagonal in this case is anything where row label == column label.
+    Sets the diagonal of a dataframe to a value.
+    Diagonal in this case is anything where row label == column label.
 
     :param df: pd.DataFrame
         DataFrame to modify
@@ -88,7 +121,8 @@ def df_set_diag(df, val, copy=True):
     :param copy: bool
         Force-copy the dataframe instead of modifying in place
     :return: pd.DataFrame / int
-        Return either the modified dataframe (if copied) or the number of cells modified (if changed in-place)
+        Return either the modified dataframe (if copied) or
+        the number of cells modified (if changed in-place)
     """
 
     # Find all the labels that are shared between rows and columns
@@ -109,11 +143,13 @@ def df_set_diag(df, val, copy=True):
 
 def array_set_diag(arr, val, row_labels, col_labels):
     """
-    Sets the diagonal of an 2D array to a value. Diagonal in this case is anything where row label == column label.
+    Sets the diagonal of an 2D array to a value.
+    Diagonal in this case is anything where row label == column label.
 
     :param arr: Array to modify in place
     :type arr: np.ndarray
-    :param val: Value to insert into any cells where row label == column label
+    :param val: Value to insert into any cells where
+        row label == column label
     :type val: numeric
     :param row_labels: Labels which correspond to the rows
     :type row_labels: list, pd.Index
@@ -145,9 +181,15 @@ def make_array_2d(arr):
         arr.shape = (arr.shape[0], 1)
 
 
-def melt_and_reindex_dataframe(data_frame, value_name, idx_name="target", col_name="regulator"):
+def melt_and_reindex_dataframe(
+    data_frame,
+    value_name,
+    idx_name="target",
+    col_name="regulator"
+):
     """
-    Take a pandas dataframe and melt it into a one column dataframe (with the column `value_name`) and a multiindex
+    Take a pandas dataframe and melt it into a one column dataframe
+        (with the column `value_name`) and a multiindex
     of the original index + column
     :param data_frame: pd.DataFrame [M x N]
         Meltable dataframe
@@ -158,8 +200,8 @@ def melt_and_reindex_dataframe(data_frame, value_name, idx_name="target", col_na
     :param col_name: str
         The name to assign to the original data_frame column values
     :return: pd.DataFrame [(M*N) x 1]
-        Melted dataframe with a single column of values and a multiindex that is the original index + column for
-        that value
+        Melted dataframe with a single column of values and a multiindex
+        that is the original index + column for that value
     """
 
     # Copy the dataframe and move the index to a column
@@ -167,10 +209,18 @@ def melt_and_reindex_dataframe(data_frame, value_name, idx_name="target", col_na
     data_frame[idx_name] = data_frame.index
 
     # Melt it into a [(M*N) x 3] dataframe
-    data_frame = data_frame.melt(id_vars=idx_name, var_name=col_name, value_name=value_name)
+    data_frame = data_frame.melt(
+        id_vars=idx_name,
+        var_name=col_name,
+        value_name=value_name
+    )
 
-    # Create a multiindex and then drop the columns that are now in the index
-    data_frame.index = pd.MultiIndex.from_frame(data_frame.loc[:, [idx_name, col_name]])
+    # Create a multiindex and then drop the columns
+    # that are now in the index
+    data_frame.index = pd.MultiIndex.from_frame(
+        data_frame.loc[:, [idx_name, col_name]]
+    )
+
     del data_frame[idx_name]
     del data_frame[col_name]
 
@@ -202,25 +252,85 @@ def scale_vector(vec, ddof=1):
         return scipy.stats.zscore(vec, axis=None, ddof=ddof)
 
 
-def apply_window_vector(vec, window, func):
+def apply_window_vector(
+    vec,
+    window,
+    func
+):
     """
     Apply a function to a 1d array by windows.
-    For logical testing of an array without having to allocate a full array of bools
+    For logical testing of an array without having
+    to allocate a full array of bools
 
     :param vec: A 1d vector to be normalized
     :type vec: np.ndarray, sp.sparse.spmatrix
     :param window: The window size to process
     :type window: int
-    :param func: A function that produces an aggregate result for the window
+    :param func: A function that produces an aggregate
+        result for the window
     :type func: callable
     :return:
     """
-    steps = math.ceil(len(vec) / window)
-    return np.array([func(vec[i * window:min((i + 1) * window, len(vec))]) for i in range(steps)])
+
+    return np.array(
+        [func(vec[i * window:min((i + 1) * window, len(vec))])
+        for i in range(math.ceil(len(vec) / window))]
+    )
+
+def safe_apply_to_array(
+    array,
+    func,
+    *args,
+    axis=0,
+    dtype=None,
+    **kwargs
+):
+    """
+    Applies a function to a 2d array
+    Safe for both sparse and dense
+    """
+
+    if sparse.issparse(array):
+
+        if dtype is None:
+            dtype = array.dtype
+
+        out_arr = np.empty(array.shape, dtype=dtype)
+
+        if axis == 0:
+            for i in range(array.shape[1]):
+                out_arr[:, i] = func(
+                    array[:, i].A.ravel(),
+                    *args,
+                    **kwargs
+                )
+
+        elif axis == 1:
+            for i in range(array.shape[0]):
+                out_arr[i, :] = func(
+                    array[i, :].A.ravel(),
+                    *args,
+                    **kwargs
+                )
+
+        return out_arr
+
+    else:
+        return np.apply_along_axis(
+            func,
+            axis,
+            array,
+            *args,
+            **kwargs
+        )
+
 
 
 class InferelatorData(object):
-    """ Store inferelator data in an AnnData object. This will always be Samples by Genes """
+    """
+    Store inferelator data in an AnnData object.
+    This will always be Samples by Genes
+    """
 
     name = None
 
@@ -259,13 +369,21 @@ class InferelatorData(object):
     @property
     def _data_mem_usage(self):
         if self.is_sparse:
-            return self._adata.X.data.nbytes + self._adata.X.indices.nbytes + self._adata.X.indptr.nbytes
+            return sum(
+                self._adata.X.data.nbytes,
+                self._adata.X.indices.nbytes,
+                self._adata.X.indptr.nbytes
+            )
         else:
             return self._adata.X.nbytes
 
     @property
     def prior_data(self):
-        return self._adata.uns["prior_data"] if "prior_data" in self._adata.uns else None
+
+        if "prior_data" in self._adata.uns:
+            return self._adata.uns["prior_data"]
+        else:
+            return None
 
     @prior_data.setter
     def prior_data(self, new_prior):
@@ -273,7 +391,10 @@ class InferelatorData(object):
 
     @property
     def tfa_prior_data(self):
-        return self._adata.uns["tfa_prior_data"] if "tfa_prior_data" in self._adata.uns else None
+        if "tfa_prior_data" in self._adata.uns:
+            return self._adata.uns["tfa_prior_data"]
+        else:
+            return None
 
     @tfa_prior_data.setter
     def tfa_prior_data(self, new_prior):
@@ -419,20 +540,34 @@ class InferelatorData(object):
         return msg.format(sh=self.shape, dt=self._data.dtype, me=self.meta_data.shape,
                           mem=(self._data_mem_usage / 1e6))
 
-    def __init__(self, expression_data=None, transpose_expression=False, meta_data=None, gene_data=None,
-                 gene_data_idx_column=None, gene_names=None, sample_names=None, dtype=None, name=None):
+    def __init__(
+        self,
+        expression_data=None,
+        transpose_expression=False,
+        meta_data=None,
+        gene_data=None,
+        gene_data_idx_column=None,
+        gene_names=None,
+        sample_names=None,
+        dtype=None,
+        name=None
+    ):
         """
         Create a new InferelatorData object
 
         :param expression_data: A tabular observations x variables matrix
-        :type expression_data: np.array, scipy.sparse.spmatrix, anndata.AnnData, pd.DataFrame
-        :param transpose_expression: Should the table be transposed. Defaults to False
+        :type expression_data: np.array, scipy.sparse.spmatrix,
+            anndata.AnnData, pd.DataFrame
+        :param transpose_expression: Should the table be transposed.
+            Defaults to False
         :type transpose_expression: bool
-        :param meta_data: Meta data for observations. Needs to align to the expression data
+        :param meta_data: Meta data for observations.
+            Needs to align to the expression data
         :type meta_data: pd.DataFrame
         :param gene_data: Meta data for variables.
         :type gene_data: pd.DataFrame
-        :param gene_data_idx_column: The gene_data column which should be used to align to expression_data
+        :param gene_data_idx_column: The gene_data column which
+            should be used to align to expression_data
         :type gene_data_idx_column: bool
         :param gene_names: Names to be used for variables.
             Will be inferred from a dataframe or anndata object if not set.
@@ -441,13 +576,17 @@ class InferelatorData(object):
             Will be inferred from a dataframe or anndata object if not set.
         :type sample_names: list, pd.Index
         :param dtype: Explicitly convert the data to this dtype if set.
-            Only applies to data loaded from a pandas dataframe. Numpy arrays and scipy matrices will use existing type.
+            Only applies to data loaded from a pandas dataframe.
+            Numpy arrays and scipy matrices will use existing type.
         :type dtype: np.dtype
         :param name: Name of this data structure.
         :type name: None, str
         """
 
-        if expression_data is not None and isinstance(expression_data, pd.DataFrame):
+        if expression_data is None:
+            self._adata = AnnData()
+
+        elif isinstance(expression_data, pd.DataFrame):
             object_cols = expression_data.dtypes == object
 
             if sum(object_cols) > 0:
@@ -467,15 +606,14 @@ class InferelatorData(object):
             else:
                 self._adata = AnnData(X=expression_data, dtype=dtype)
 
-        elif expression_data is not None and isinstance(expression_data, AnnData):
+        elif isinstance(expression_data, AnnData):
             self._adata = expression_data
 
-        elif expression_data is not None:
-            self._adata = AnnData(X=expression_data.T if transpose_expression else expression_data,
-                                  dtype=expression_data.dtype)
-
         else:
-            self._adata = AnnData()
+            self._adata = AnnData(
+                X=expression_data.T if transpose_expression else expression_data,
+                dtype=expression_data.dtype
+            )
 
         if gene_names is not None and len(gene_names) > 0:
             self._adata.var_names = gene_names
@@ -488,11 +626,16 @@ class InferelatorData(object):
             self.meta_data = meta_data
 
         if gene_data is not None:
+
             if gene_data_idx_column is not None and gene_data_idx_column in gene_data:
                 gene_data.index = gene_data[gene_data_idx_column]
+
             elif gene_data_idx_column is not None:
-                msg = "No gene_data column {c} in {a}".format(c=gene_data_idx_column, a=" ".join(gene_data.columns))
-                raise ValueError(msg)
+                raise ValueError(
+                    f"No gene_data column {gene_data_idx_column} "
+                    f"in {' '.join(gene_data.columns)}"
+                )
+
             self._make_idx_str(gene_data)
             self.gene_data = gene_data
 

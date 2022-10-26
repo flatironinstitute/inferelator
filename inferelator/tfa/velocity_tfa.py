@@ -22,7 +22,7 @@ class VelocityTFA(TFA):
         if len(activity_tfs) > 0:
             activity = self._calculate_activity(
                 prior.loc[:, activity_tfs].values,
-                expression_data
+                expression_data.values
             )
         else:
             raise ValueError(
