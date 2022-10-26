@@ -42,7 +42,7 @@ class NormalizedExpressionPinvTFA(_Pinv_TFA_mixin, ActivityOnlyTFA):
     @staticmethod
     def _calculate_activity(prior, expression_data):
 
-        return super()._calculate_activity(
+        return _Pinv_TFA_mixin._calculate_activity(
             prior,
             utils.safe_apply_to_array(
                 expression_data,
