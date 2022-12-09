@@ -3,6 +3,7 @@ from inferelator.workflows.tfa_workflow import TFAWorkFlow
 from inferelator.workflows.single_cell_workflow import SingleCellWorkflow
 from inferelator.utils import InferelatorData, Debug, Validator as check
 from inferelator.tfa.pinv_tfa import ActivityOnlyPinvTFA
+from inferelator.preprocessing.velocity import extract_transcriptional_output
 
 import numpy as np
 import pandas as pd
@@ -366,94 +367,37 @@ class VelocityWorkflow(SingleCellWorkflow):
         :return:
         """
 
-        assert check.indexes_align(
-            (expression.gene_names, velocity.gene_names)
-        )
-
-        assert check.indexes_align(
-            (expression.sample_names, velocity.sample_names)
-        )
-
         if self._global_decay_constant:
-            Debug.vprint(
-                "Modeling TFA on fixed decay constant "
-                f"{self._global_decay_constant} for every gene"
+            return extract_transcriptional_output(
+                expression,
+                velocity,
+                global_decay=self._global_decay_constant
             )
 
-            return InferelatorData(
-                np.add(
-                    velocity.values,
-                    np.multiply(
-                        expression.values,
-                        self._global_decay_constant
-                    )
-                ),
-                gene_names=expression.gene_names,
-                sample_names=expression.sample_names,
-                meta_data=expression.meta_data
-            )
-
-        # If decay is off, just copy velocity
-        # As dx/dt = 0 * X + f(A)
         elif self._decay_constants is None:
-            Debug.vprint("Modeling TFA on velocity only")
-
-            return InferelatorData(
-                velocity.values,
-                gene_names=expression.gene_names,
-                sample_names=expression.sample_names,
-                meta_data=expression.meta_data
+            return extract_transcriptional_output(
+                expression,
+                velocity
             )
 
         # If a full samples x genes decay constant
         # Array has been provided, use it directly
         # As dx/dt + \lambda * X = f(A)
         elif self._gene_sample_decay_constant:
-            Debug.vprint(
-                "Modeling TFA on velocity and decay "
-                "per sample and per gene"
-            )
-
-            assert check.indexes_align(
-                (
-                    expression.sample_names,
-                    self._decay_constants.sample_names
-                )
-            )
-
-            return InferelatorData(
-                np.add(
-                    velocity.values,
-                    np.multiply(
-                        expression.values,
-                        self._decay_constants.values
-                    )
-                ),
-                gene_names=expression.gene_names,
-                sample_names=expression.sample_names,
-                meta_data=expression.meta_data
+            return extract_transcriptional_output(
+                expression,
+                velocity,
+                gene_and_sample_decay=self._decay_constants
             )
 
         # If gene-specific decay constants are provided
         # broadcast them to the full array
         # As dx/dt + \lambda * X = f(A)
         else:
-            Debug.vprint(
-                "Modeling TFA on velocity and decay "
-                "per gene"
-            )
-
-            return InferelatorData(
-                np.add(
-                    velocity.values,
-                    np.multiply(
-                        expression.values,
-                        self._decay_constants.values.flatten()[None, :]
-                    )
-                ),
-                gene_names=expression.gene_names,
-                sample_names=expression.sample_names,
-                meta_data=expression.meta_data
+            return extract_transcriptional_output(
+                expression,
+                velocity,
+                gene_specific_decay=self._decay_constants
             )
 
     @staticmethod
