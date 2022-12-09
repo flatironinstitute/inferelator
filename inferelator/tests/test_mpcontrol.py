@@ -2,6 +2,7 @@ import unittest
 import tempfile
 import shutil
 import os
+import sys
 import numpy as np
 import numpy.testing as npt
 
@@ -16,6 +17,11 @@ from inferelator.distributed.dask import (
     make_scatter_map
 )
 
+if sys.version_info[1] > 10:
+    DASK_SKIP = True
+
+else:
+    DASK_SKIP = True
 
 def math_function(x, y, z):
     return x + y ** 2 - z
@@ -102,6 +108,7 @@ class TestMultiprocessingMPController(TestMPControl):
         self.assertListEqual(test_result, self.map_test_expect)
 
 
+@unittest.skipIf(DASK_SKIP, "No dask")
 class TestDaskLocalMPControllerJoblib(TestMPControl):
     name = "dask-local"
     client_name = "dask-local"
@@ -168,6 +175,7 @@ class TestDaskLocalMPControllerJoblib(TestMPControl):
         self.assertEqual(sum(not_scattered[0]), 3)
 
 
+@unittest.skipIf(DASK_SKIP, "No dask")
 class TestDaskAccessories(TestDaskLocalMPControllerJoblib):
 
     def setUp(self) -> None:
@@ -271,6 +279,7 @@ class TestDaskAccessories(TestDaskLocalMPControllerJoblib):
             )
 
 
+@unittest.skipIf(DASK_SKIP, "No dask")
 class TestDaskLocalMPControllerSubmit(TestDaskLocalMPControllerJoblib):
 
     @classmethod
@@ -285,6 +294,7 @@ class TestDaskLocalMPControllerSubmit(TestDaskLocalMPControllerJoblib):
         pass
 
 
+@unittest.skipIf(DASK_SKIP, "No dask")
 class TestDaskHPCMPController(TestMPControl):
     name = "dask-cluster"
     client_name = "dask-cluster"

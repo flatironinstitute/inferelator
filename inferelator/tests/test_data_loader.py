@@ -78,8 +78,8 @@ class TestExpressionLoader(unittest.TestCase):
             npt.assert_array_almost_equal(data.values, self.worker.data.expression_data.A)
 
     def test_df_decode(self):
-        idx = pd.Index(['str1', b'str2', b'str3', 'str4', 5, 17.4, pd.NA, np.inf, None, ('str1',)])
-        correct = pd.Index(['str1', 'str2', 'str3', 'str4', 5, 17.4, pd.NA, np.inf, None, ('str1',)])
+        idx = pd.Index(['str1', b'str2', b'str3', 'str4', 5, 17.4, np.inf, ('str1',)])
+        correct = pd.Index(['str1', 'str2', 'str3', 'str4', 5, 17.4, np.inf, ('str1',)])
 
         df1 = pd.DataFrame(idx.tolist(), index=idx)
         df1_c = pd.DataFrame(correct.tolist(), index=correct)

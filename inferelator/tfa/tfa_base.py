@@ -234,7 +234,6 @@ class NoTFA(TFABase):
         return utils.InferelatorData(
             expression_data.get_gene_data(
                 tf_gene_overlap,
-                copy=True,
                 force_dense=True
             ),
             sample_names=expression_data.sample_names,

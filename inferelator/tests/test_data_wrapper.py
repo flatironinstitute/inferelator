@@ -1,10 +1,8 @@
 import unittest
-import pandas as pd
 import pandas.testing as pdt
 import numpy as np
 import numpy.testing as npt
 from scipy import sparse, linalg
-from anndata import AnnData
 from inferelator.tests.artifacts.test_data import TestDataSingleCellLike, CORRECT_GENES_INTERSECT, CORRECT_GENES_NZ_VAR
 from inferelator.utils import InferelatorData
 

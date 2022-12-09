@@ -427,16 +427,26 @@ class InferelatorData(object):
         try:
             new_meta_data = new_meta_data.reindex(self.sample_names)
         except ValueError:
+
             # If the metadata is the wrong size, angrily die
             if new_meta_data.shape[0] != self.num_obs:
-                msg = "Metadata size {sh1} does not match data ({sh2})".format(sh1=new_meta_data.shape,
-                                                                                          sh2=self.num_obs)
-                raise ValueError(msg)
+                raise ValueError(
+                    f"Metadata size {new_meta_data.shape} "
+                    f"does not match data ({self.num_obs})"
+                )
+
             new_meta_data.index = self.sample_names
 
         if len(self._adata.obs.columns) > 0:
-            keep_columns = self._adata.obs.columns.difference(new_meta_data.columns)
-            self._adata.obs = pd.concat((new_meta_data, self._adata.obs.loc[:, keep_columns]), axis=1)
+            keep_columns = self._adata.obs.columns.difference(
+                new_meta_data.columns
+            )
+
+            self._adata.obs = pd.concat(
+                (new_meta_data, self._adata.obs.loc[:, keep_columns]),
+                axis=1
+            )
+
         else:
             self._adata.obs = new_meta_data
 
@@ -537,8 +547,12 @@ class InferelatorData(object):
 
     def __str__(self):
         msg = "InferelatorData [{dt} {sh}, Metadata {me}] Memory: {mem:.2f} MB"
-        return msg.format(sh=self.shape, dt=self._data.dtype, me=self.meta_data.shape,
-                          mem=(self._data_mem_usage / 1e6))
+        return msg.format(
+            sh=self.shape,
+            dt=self._data.dtype,
+            me=self.meta_data.shape,
+            mem=(self._data_mem_usage / 1e6)
+        )
 
     def __init__(
         self,
@@ -583,48 +597,77 @@ class InferelatorData(object):
         :type name: None, str
         """
 
+        # Empty anndata object
         if expression_data is None:
-            self._adata = AnnData()
+            self._adata = AnnData(dtype=dtype)
 
+        # Convert a dataframe to an anndata object
         elif isinstance(expression_data, pd.DataFrame):
             object_cols = expression_data.dtypes == object
 
+            # Pull out any object columns and use them as metadata
             if sum(object_cols) > 0:
                 object_data = expression_data.loc[:, object_cols]
-                meta_data = object_data if meta_data is None else pd.concat((meta_data, object_data), axis=1)
-                expression_data.drop(expression_data.columns[object_cols], inplace=True, axis=1)
 
-            if dtype is None and all(map(lambda x: pat.is_integer_dtype(x), expression_data.dtypes)):
+                if meta_data is None:
+                    meta_data = object_data
+                else:
+                    meta_data = pd.concat((meta_data, object_data), axis=1)
+
+                expression_data.drop(
+                    expression_data.columns[object_cols],
+                    inplace=True, axis=1
+                )
+
+            if dtype is not None:
+                pass
+            elif all(map(lambda x: pat.is_integer_dtype(x), expression_data.dtypes)):
                 dtype = 'int32'
-            elif dtype is None:
+            else:
                 dtype = 'float64'
 
             self._make_idx_str(expression_data)
 
             if transpose_expression:
-                self._adata = AnnData(X=expression_data.T, dtype=dtype)
+                self._adata = AnnData(
+                    X=expression_data.T,
+                    dtype=dtype
+                )
             else:
-                self._adata = AnnData(X=expression_data, dtype=dtype)
+                self._adata = AnnData(
+                    X=expression_data,
+                    dtype=dtype
+                )
 
+        # Use an anndata object that already exists
         elif isinstance(expression_data, AnnData):
             self._adata = expression_data
 
+        # Convert a numpy array to an anndata object
         else:
+
+            if transpose_expression:
+                expression_data = expression_data.T
+
             self._adata = AnnData(
-                X=expression_data.T if transpose_expression else expression_data,
+                X=expression_data,
                 dtype=expression_data.dtype
             )
 
+        # Use gene_names as var_names
         if gene_names is not None and len(gene_names) > 0:
             self._adata.var_names = gene_names
 
+        # Use sample_names as obs_names
         if sample_names is not None and len(sample_names) > 0:
             self._adata.obs_names = sample_names
 
+        # Use meta_data as obs
         if meta_data is not None:
             self._make_idx_str(meta_data)
             self.meta_data = meta_data
 
+        # Use gene_data as var
         if gene_data is not None:
 
             if gene_data_idx_column is not None and gene_data_idx_column in gene_data:
@@ -731,16 +774,25 @@ class InferelatorData(object):
             # Make sure that there's no hanging reference to the original object
             gc.collect()
 
-    def get_gene_data(self, gene_list, copy=False, force_dense=False, to_df=False, zscore=False, flatten=False):
+    def get_gene_data(
+        self,
+        gene_list,
+        force_dense=False,
+        to_df=False,
+        zscore=False,
+        flatten=False
+    ):
 
         x = self._adata[:, gene_list]
         labels = x.var_names
 
         if (force_dense or to_df or zscore) and self.is_sparse:
             x = x.X.A
-            copy = False # Don't need to force a copy now
+
         else:
-            x = x.X
+            # Copy is necessary to get the numpy array
+            # and not an anndata arrayview
+            x = x.X.copy()
 
         if zscore:
 
@@ -749,19 +801,20 @@ class InferelatorData(object):
             z_x = np.divide(z_x, self.obs_stdev.reshape(-1, 1))
 
             # Replace the x reference with the new values
-            del x
             x = z_x
 
-            copy = False # Don't need to force a copy now
+        if flatten:
+            x = x.ravel()
 
-        if flatten and x.ndim == 2:
-            new_x = x.flatten() # Implicit copy
-        elif (flatten and x.ndim == 1) or copy:
-            new_x = x.copy() # Explicit copy
+        if to_df:
+            return pd.DataFrame(
+                x,
+                columns=labels,
+                index=self.sample_names
+            )
+
         else:
-            new_x = x
-
-        return pd.DataFrame(new_x, columns=labels, index=self.sample_names) if to_df else new_x
+            return x
 
     def get_sample_data(self, sample_index, copy=False, force_dense=False, to_df=False, zscore=False):
 

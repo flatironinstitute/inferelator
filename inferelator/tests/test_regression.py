@@ -18,16 +18,28 @@ from inferelator.preprocessing.metadata_parser import MetadataHandler
 These are full-stack integration tests covering the post-loading regression workflows
 """
 
-MPControl.set_multiprocess_engine('dask-local')
-MPControl.set_processes(2)
-MPControl.connect()
+import sys
+
+if sys.version_info[1] > 10:
+    DASK = False
+
+    MPControl.set_multiprocess_engine('joblib')
+    MPControl.set_processes(2)
+    MPControl.connect()
+
+else:
+    DASK = True
+
+    MPControl.set_multiprocess_engine('dask-local')
+    MPControl.set_processes(2)
+    MPControl.connect()
 
 LASSO_TEST_DATA = TEST_DATA.copy()
 RNG = np.random.default_rng(200)
 LASSO_TEST_DATA.add(
     np.abs(
         np.hstack(
-            (RNG.standard_normal(
+            list(RNG.standard_normal(
                 size=(LASSO_TEST_DATA.values.shape[0], 1)
             ) * np.std(LASSO_TEST_DATA.values[:, i])
             for i in range(LASSO_TEST_DATA.shape[1]))
@@ -178,12 +190,13 @@ class TestSingleTaskStabilityRegressionFactory(SetUpLassoData):
     def test_stars(self):
         self.workflow = create_puppet_workflow(base_class="tfa", regression_class="stars")
         self.workflow = self.workflow(self.data, self.prior, self.gold_standard)
-        self.workflow.set_regression_parameters(num_subsamples=2)
+
+        with self.assertWarns(expected_warning=UserWarning):
+            self.workflow.set_regression_parameters(num_subsamples=2)
+
         self.workflow.tf_names = self.tf_names
 
         self.workflow.run()
-
-        print(self.workflow.results.combined_confidences)
 
         # Not enough data / variance to get the right result
         self.assertAlmostEqual(self.workflow.results.score, 0.657777, places=4)
@@ -191,7 +204,10 @@ class TestSingleTaskStabilityRegressionFactory(SetUpLassoData):
     def test_stars_ridge(self):
         self.workflow = create_puppet_workflow(base_class="tfa", regression_class="stars")
         self.workflow = self.workflow(self.data, self.prior, self.gold_standard)
-        self.workflow.set_regression_parameters(method='ridge', ridge_threshold=1e-3, num_subsamples=2)
+
+        with self.assertWarns(expected_warning=UserWarning):
+            self.workflow.set_regression_parameters(method='ridge', ridge_threshold=1e-3, num_subsamples=2)
+
         self.workflow.tf_names = self.tf_names
 
         self.workflow.run()
@@ -263,7 +279,10 @@ class TestMultitaskFactory(SetUpDenseLassoDataMTL):
 
     def test_mtl_stars_lasso(self):
         self.workflow = workflow.inferelator_workflow(workflow="multitask", regression="stars")
-        self.workflow.set_regression_parameters(num_subsamples=2)
+
+        with self.assertWarns(expected_warning=UserWarning):
+            self.workflow.set_regression_parameters(num_subsamples=2)
+
         self.reset_workflow()
 
         self.workflow.run()
@@ -271,7 +290,10 @@ class TestMultitaskFactory(SetUpDenseLassoDataMTL):
 
     def test_mtl_stars_ridge(self):
         self.workflow = workflow.inferelator_workflow(workflow="multitask", regression="stars")
-        self.workflow.set_regression_parameters(method='ridge', ridge_threshold=1e-3, num_subsamples=2)
+
+        with self.assertWarns(expected_warning=UserWarning):
+            self.workflow.set_regression_parameters(method='ridge', ridge_threshold=1e-3, num_subsamples=2)
+
         self.reset_workflow()
 
         self.workflow.run()
