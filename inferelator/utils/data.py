@@ -455,23 +455,34 @@ class InferelatorData(object):
         return self._adata.var
 
     @gene_data.setter
-    def gene_data(self, new_gene_data):
+    def gene_data(
+        self,
+        new_gene_data
+    ):
 
         if isinstance(new_gene_data, InferelatorData):
             new_gene_data = new_gene_data.gene_data
 
         new_gene_data = new_gene_data.copy()
         new_gene_data.index = new_gene_data.index.astype(str)
-        # Use the intersection of this and the expression data genes to make a list of gene names to keep
-        self._adata.uns["trim_gene_list"] = new_gene_data.index.intersection(self._adata.var.index)
 
+        # Use the intersection of this and the expression data genes
+        # to make a list of gene names to keep
+        _in_gene_data = new_gene_data.index.intersection(self.gene_names)
+        self._adata.uns["trim_gene_list"] = _in_gene_data
+
+        # Reindex to align to the existing data
         new_gene_data = new_gene_data.reindex(self._adata.var_names)
 
         # Join any new columns to any existing columns
-        # Update (overwrite) any columns in the existing meta data if they are in the new meta data
+        # Update (overwrite) any columns in the existing meta data if
+        # they are in the new meta data
         if len(self._adata.var.columns) > 0:
-            keep_columns = self._adata.var.columns.difference(new_gene_data.columns)
-            self._adata.var = pd.concat((new_gene_data, self._adata.var.loc[:, keep_columns]), axis=1)
+            cols = self._adata.var.columns.difference(new_gene_data.columns)
+            self._adata.var = pd.concat(
+                (new_gene_data, self._adata.var.loc[:, cols]),
+                axis=1
+            )
         else:
             self._adata.var = new_gene_data
 
@@ -481,18 +492,15 @@ class InferelatorData(object):
 
     @property
     def gene_counts(self):
-        return self._adata.X.sum(axis=0).A.flatten() if self.is_sparse else self._adata.X.sum(axis=0)
+        return self._counts(axis=0)
 
     @property
     def gene_means(self):
-        return self._adata.X.mean(axis=0).A.flatten() if self.is_sparse else self._adata.X.mean(axis=0)
+        return self._means(axis=0)
 
     @property
     def gene_stdev(self):
-        if self.is_sparse:
-            return np.sqrt(StandardScaler(copy=False, with_mean=False).fit(self._adata.X).var_)
-        else:
-            return self._adata.X.std(axis=0, ddof=1)
+        return self._stds(axis=0)
 
     @property
     def sample_names(self):
@@ -500,30 +508,54 @@ class InferelatorData(object):
 
     @property
     def sample_counts(self):
-        return self._adata.X.sum(axis=1).A.flatten() if self.is_sparse else self._adata.X.sum(axis=1)
+        return self._counts(axis=1)
 
     @property
     def sample_means(self):
-        return self._adata.X.mean(axis=1).A.flatten() if self.is_sparse else self._adata.X.mean(axis=1)
+        return self._means(axis=1)
 
     @property
     def sample_stdev(self):
-        if self.is_sparse:
-            return np.sqrt(StandardScaler(copy=False, with_mean=False).fit(self._adata.X.T).var_)
-        else:
-            return self._adata.X.std(axis=1, ddof=1)
+        return self._stds(axis=1)
 
     @property
     def non_finite(self):
+        """
+        Check to see if any values are non-finite
+
+        :return: Number of non-finite values and gene names
+        :rtype: int, pd.Index
+        """
+
         if min(self._data.shape) == 0:
             return 0, None
+
         elif self.is_sparse:
-            nnf = np.sum(apply_window_vector(self._adata.X.data, 1000000, lambda x: np.sum(~np.isfinite(x))))
-            return nnf, ["GENES_NOT_ID_SPARSE_MATRIX"] if nnf > 0 else None
+            nnf = np.sum(
+                apply_window_vector(
+                    self._adata.X.data,
+                    1000000,
+                    lambda x: np.sum(~np.isfinite(x))
+                )
+            )
+
+            if nnf > 0:
+                return nnf, ["Skipping gene check (Sparse matrix)"]
+            else:
+                return 0, None
+
         else:
-            non_finite = np.apply_along_axis(lambda x: np.sum(~np.isfinite(x)) > 0, 0, self._data)
+            non_finite = np.apply_along_axis(
+                lambda x: np.sum(~np.isfinite(x)) > 0,
+                0,
+                self._data
+            )
             nnf = np.sum(non_finite)
-            return nnf, self.gene_names[non_finite] if nnf > 0 else None
+
+            if nnf > 0:
+                return nnf, self.gene_names[non_finite]
+            else:
+                return 0, None
 
     @property
     def is_sparse(self):
@@ -534,12 +566,16 @@ class InferelatorData(object):
         return self._adata.shape
 
     @property
+    def size(self):
+        return self._adata.X.size
+
+    @property
     def num_obs(self):
-        return self._adata.shape[0]
+        return self.shape[0]
 
     @property
     def num_genes(self):
-        return self._adata.shape[1]
+        return self.shape[1]
 
     @property
     def uns(self):
@@ -816,7 +852,14 @@ class InferelatorData(object):
         else:
             return x
 
-    def get_sample_data(self, sample_index, copy=False, force_dense=False, to_df=False, zscore=False):
+    def get_sample_data(
+        self,
+        sample_index,
+        copy=False,
+        force_dense=False,
+        to_df=False,
+        zscore=False
+    ):
 
         x = self._adata[sample_index, :]
         labels = x.obs_names
@@ -832,27 +875,48 @@ class InferelatorData(object):
         elif copy:
             x = x.X.copy()
 
-        return pd.DataFrame(x, columns=self.gene_names, index=labels) if to_df else x
+        if to_df:
+            x = pd.DataFrame(
+                x,
+                columns=self.gene_names,
+                index=labels
+            )
 
-    def get_bootstrap(self, sample_bootstrap_index):
-        return InferelatorData(expression_data=self._adata.X[sample_bootstrap_index, :].copy(),
-                               gene_names=self.gene_names)
+        return x
 
-    def get_random_samples(self, num_obs, with_replacement=False, random_seed=None, random_gen=None, inplace=False,
-                           fix_names=True):
+    def get_bootstrap(
+        self,
+        sample_bootstrap_index
+    ):
+        return InferelatorData(
+            expression_data=self._adata.X[sample_bootstrap_index, :].copy(),
+            gene_names=self.gene_names
+        )
+
+    def get_random_samples(
+        self,
+        num_obs,
+        with_replacement=False,
+        random_seed=None,
+        random_gen=None,
+        inplace=False,
+        fix_names=True
+    ):
         """
-        Randomly sample to a specific number of observatons from the entire data set
+        Randomly sample to a specific number of observatons
+        from the entire data set
 
         :param num_obs: Number of observations to return
         :type num_obs: int
         :param with_replacement: Sample with replacement, defaults to False
         :type with_replacement: bool, optional
-        :param random_seed: Seed for numpy random generator, defaults to None. Will be ignored if a generator itself is
-            passed to random_gen.
+        :param random_seed: Seed for numpy random generator, defaults to None.
+            Will be ignored if a generator itself is passed to random_gen.
         :type random_seed: int, optional
         :param random_gen: Numpy random generator to use, defaults to None.
         :type random_gen: np.random.Generator, optional
-        :param inplace: Change this instance of the data structure inplace and return a reference to itself
+        :param inplace: Change this instance of the data structure inplace
+            and return a reference to itself
         :type inplace: bool, optional
         """
 
@@ -860,32 +924,46 @@ class InferelatorData(object):
         check.argument_integer(random_seed, allow_none=True)
 
         if (num_obs > self.num_obs) and not with_replacement:
-            _msg = "Unable to sample {x} from {y} observations without replacement".format(x=num_obs, y=self.num_obs)
-            raise ValueError(_msg)
+            raise ValueError(
+                f"Unable to sample {num_obs} from {self.num_obs} "
+                "observations without replacement"
+            )
 
         # Make a new random generator if not provided
         if random_gen is None:
-            random_gen = np.random.default_rng() if random_seed is None else np.random.default_rng(random_seed)
+            random_gen = np.random.default_rng(random_seed)
 
         # Sample with replacement using randint
         if with_replacement:
-            keeper_ilocs = random_gen.integers(self.num_obs, size=(num_obs,))
+            keeper_ilocs = random_gen.integers(
+                self.num_obs,
+                size=(num_obs,)
+            )
 
         # Sample without replacement using choice
         else:
-            keeper_ilocs = random_gen.choice(np.arange(self.num_obs), size=(num_obs,), replace=False)
+            keeper_ilocs = random_gen.choice(
+                np.arange(self.num_obs),
+                size=(num_obs,),
+                replace=False
+            )
 
-        # Change this instance's _adata (explicit copy allows the old data to be dereferenced instead of held as view)
+        # Change this instance's _adata (explicit copy allows the old data to
+        # be dereferenced instead of held as view)
         if inplace:
             self._adata = self._adata[keeper_ilocs, :].copy()
             return_obj = self
+            gc.collect()
 
         # Create a new InferelatorData instance with the _adata slice
         else:
-            return_obj = InferelatorData(self._adata[keeper_ilocs, :].copy())
+            return_obj = InferelatorData(
+                self._adata[keeper_ilocs, :].copy()
+            )
 
         # Fix names
-        return_obj._adata.obs_names_make_unique() if with_replacement and fix_names else None
+        if with_replacement and fix_names:
+            return_obj._adata.obs_names_make_unique()
 
         return return_obj
 
@@ -902,7 +980,12 @@ class InferelatorData(object):
 
         return InferelatorData(data_view.copy())
 
-    def dot(self, other, other_is_right_side=True, force_dense=False):
+    def dot(
+        self,
+        other,
+        other_is_right_side=True,
+        force_dense=False
+    ):
         """
         Calculate dot product
         :param other:
@@ -912,9 +995,19 @@ class InferelatorData(object):
         """
 
         if other_is_right_side:
-            return DotProduct.dot(self._adata.X, other, cast=True, dense=force_dense)
+            return DotProduct.dot(
+                self._adata.X,
+                other,
+                cast=True,
+                dense=force_dense
+            )
         else:
-            return DotProduct.dot(other, self._adata.X, cast=True, dense=force_dense)
+            return DotProduct.dot(
+                other,
+                self._adata.X,
+                cast=True,
+                dense=force_dense
+            )
 
     def to_csv(self, file_name, sep="\t"):
 
@@ -927,43 +1020,108 @@ class InferelatorData(object):
 
         self._adata.write(file_name, compression=compression)
 
-    def transform(self, func, add_pseudocount=False, memory_efficient=True, chunksize=1000):
+    def transform(
+        self,
+        func,
+        add_pseudocount=False,
+        memory_efficient=True,
+        chunksize=1000
+    ):
 
+        # Add 1 to every non-zero value
         if add_pseudocount and self.is_sparse:
             self._adata.X.data += 1
         elif add_pseudocount:
             self._adata.X += 1
 
-        if self.is_sparse:
-            self._adata.X.data = func(self._adata.X.data)
-        elif self._adata.X.ndim == 1 or self._is_integer:
-            self._adata.X = func(self._adata.X)
-        elif not memory_efficient and type(func(self._data.flat[0])) == self._adata.X.dtype:
-            self._adata.X[...] = func(self._adata.X)
-        elif memory_efficient and type(func(self._data.flat[0])) == self._adata.X.dtype:
-            for i in range(math.ceil(self._adata.shape[0] / chunksize)):
-                start, stop = i * chunksize, min(i + 1 * chunksize, self._adata.shape[0])
-                self._adata.X[start:stop, :] = func(self._adata.X[start:stop, :])
-        else:
-            self._adata.X = func(self._adata.X)
+        _type_match = type(func(self._data.flat[0])) == self._data.dtype
 
-    def add(self, val):
+        # Apply function to the data if it's sparse
+        if self.is_sparse:
+            self._data = func(self._data)
+
+        # Apply function to the data
+        # by making a new data object
+        elif self._adata.X.ndim == 1 or self._is_integer:
+            self._data = func(self._data)
+
+        # If memory_efficient is True and the data type returned by func is
+        # the same as the data type of the data itself,
+        # take row-wise chunks of data, transform it, and put it back into
+        # the original data, overwriting the original
+        elif memory_efficient and _type_match:
+
+            _n_chunks = math.ceil(self._adata.shape[0] / chunksize)
+
+            for i in range(_n_chunks):
+                _start = i * chunksize
+                _stop = min(_start + chunksize, self._adata.shape[0])
+                self._data[_start:_stop, :] = func(self._data[_start:_stop, :])
+
+        # Apply function to the data
+        # by making a new data object
+        else:
+            self._data = func(self._data)
+
+    def add(
+        self,
+        val,
+        axis=None
+    ):
         """
         Add a value to the matrix in-place
         :param val: Value to add
         :type val: numeric
+        :param axis: Which axis to add to (0, 1, or None)
+        :type axis: int, None
         """
-        self._data[...] = self._data + val
+        self._math_inplace_with_broadcasts(
+            val,
+            add=True,
+            axis=axis
+        )
 
-    def subtract(self, val):
+    def subtract(
+        self,
+        val,
+        axis=None
+    ):
         """
         Subtract a value from the matrix in-place
         :param val: Value to subtract
         :type val: numeric
+        :param axis: Which axis to subtract from (0, 1, or None)
+        :type axis: int, None
         """
-        self._data[...] = self._data - val
+        self._math_inplace_with_broadcasts(
+            val,
+            subtract=True,
+            axis=axis
+        )
 
-    def divide(self, div_val, axis=None):
+    def multiply(
+        self,
+        mult_val,
+        axis=None
+    ):
+        """
+        Multiply the matrix by a value in-place
+        :param mult_val: Value to multiply
+        :type mult_val: numeric
+        :param axis: Which axis to multiply against (0, 1, or None)
+        :type axis: int, None
+        """
+        self._math_inplace_with_broadcasts(
+            mult_val,
+            multiply=True,
+            axis=axis
+        )
+
+    def divide(
+        self,
+        div_val,
+        axis=None
+    ):
         """
         Divide a value from the matrix in-place
         :param div_val: Value to divide
@@ -972,54 +1130,107 @@ class InferelatorData(object):
         :type axis: int, None
         """
 
-        if self._is_integer:
-            self.convert_to_float()
+        self._math_inplace_with_broadcasts(
+            div_val,
+            divide=True,
+            axis=axis
+        )
 
-        if self.is_sparse and axis is None:
-            self._adata.X.data /= div_val
-        elif self.is_sparse and ((sparse.isspmatrix_csr(self._adata.X) and axis == 1) or
-                                 (sparse.isspmatrix_csc(self._adata.X) and axis == 0)):
-            if not hasattr(div_val, "ndim") or div_val.ndim != 1 or self.shape[0 if axis else 1] != div_val.shape[0]:
-                raise ValueError("Division array is not aligned")
-            self._adata.X.data /= np.repeat(div_val, self._adata.X.getnnz(axis=axis))
-        elif self.is_sparse:
-            raise ValueError("axis = 1 only works for CSC & axis = 0 only works for CSR")
-        elif axis is None:
-            self._adata.X /= div_val
-        elif axis == 0:
-            self._adata.X /= div_val[None, :]
-        elif axis == 1:
-            self._adata.X /= div_val[:, None]
+    def _math_inplace_with_broadcasts(
+        self,
+        value,
+        add=False,
+        subtract=False,
+        multiply=False,
+        divide=False,
+        axis=None
+    ):
+        """
+        Do in-place math with broadcasting
+
+        :param value: Value(s)
+        :type value: numeric, np.ndarray
+        :param add: Add, defaults to False
+        :type add: bool, optional
+        :param subtract: Subtract, defaults to False
+        :type subtract: bool, optional
+        :param multiply: Multiply, defaults to False
+        :type multiply: bool, optional
+        :param divide: Divide, defaults to False
+        :type divide: bool, optional
+        :param axis: Broadcast axis, defaults to None
+        :type axis: int, optional
+        """
+
+        # Define in-place math function
+        if add:
+            def _mfunc(x):
+                self._data += x
+        elif subtract:
+            def _mfunc(x):
+                self._data -= x
+        elif multiply:
+            def _mfunc(x):
+                self._data *= x
+        elif divide:
+            def _mfunc(x):
+                self._data /= x
         else:
-            raise ValueError("axis must be 0, 1 or None")
+            raise ValueError(
+                "Must set multiply=True or divide=True"
+            )
 
-    def multiply(self, mult_val, axis=None):
-        """
-        Multiply the matrix by a value in-place
-        :param mult_val: Value to multiply
-        :type mult_val: numeric
-        :param axis: Which axis to divide from (0, 1, or None)
-        :type axis: int, None
-        """
-
+        # Convert data to floats
         if self._is_integer:
             self.convert_to_float()
 
-        if self.is_sparse and axis is None:
-            self._adata.X.data *= mult_val
-        elif self.is_sparse and ((sparse.isspmatrix_csr(self._adata.X) and axis == 1) or
-                                 (sparse.isspmatrix_csc(self._adata.X) and axis == 0)):
-            if not hasattr(mult_val, "ndim") or mult_val.ndim != 1 or self.shape[0 if axis else 1] != mult_val.shape[0]:
-                raise ValueError("Division array is not aligned")
-            self._adata.X.data *= np.repeat(mult_val, self._adata.X.getnnz(axis=axis))
-        elif self.is_sparse:
-            raise ValueError("axis = 1 only works for CSC & axis = 0 only works for CSR")
-        elif axis is None:
-            self._adata.X *= mult_val
+        # Modify in place if axis is None
+        if axis is None:
+            _mfunc(value)
+
+        # Modify in place by being clever about repeating the division values
+        # To align with the data object if it's a sparse matrix
+        elif self.is_sparse and (axis == 0 or axis == 1):
+
+            # Check the sparse type for validity
+            _valid_type = sparse.isspmatrix_csr(self._adata.X) and axis == 1
+            _valid_type |= sparse.isspmatrix_csc(self._adata.X) and axis == 0
+
+            if not _valid_type:
+                raise ValueError(
+                    "axis = 1 is only valid for CSC matrices "
+                    "and axis = 0 is only valid for CSR matrices; "
+                    f"axis={axis} and {type(self._adata.X)} passed"
+                )
+
+            _invalid_dim = (
+                not hasattr(value, "ndim") or
+                value.ndim != 1 or
+                self.shape[0 if axis else 1] != value.shape[0]
+            )
+
+            if _invalid_dim:
+                raise ValueError(
+                    "Value array is not aligned; "
+                    f"{value.shape[0]} values provided against "
+                    f"{self.shape[0 if axis else 1]} "
+                    f"(axis={axis})"
+                )
+
+            _mfunc(
+                np.repeat(
+                    value,
+                    self._adata.X.getnnz(axis=axis)
+                )
+            )
+
+        # Divide in place by broadcasting
         elif axis == 0:
-            self._adata.X *= mult_val[None, :]
+            _mfunc(value[None, :])
+
         elif axis == 1:
-            self._adata.X *= mult_val[:, None]
+            _mfunc(value[:, None])
+
         else:
             raise ValueError("axis must be 0, 1 or None")
 
@@ -1039,12 +1250,14 @@ class InferelatorData(object):
 
     def copy(self):
 
-        new_data = InferelatorData(self.values.copy(),
-                                   meta_data=self.meta_data.copy(),
-                                   gene_data=self.gene_data.copy())
+        new_data = InferelatorData(
+            self.values.copy(),
+            meta_data=self.meta_data.copy(),
+            gene_data=self.gene_data.copy()
+        )
 
-        new_data._adata.var_names = cp.copy(self._adata.var_names)
-        new_data._adata.obs_names = cp.copy(self._adata.obs_names)
+        new_data._adata.var_names = self._adata.var_names.copy()
+        new_data._adata.obs_names = self._adata.obs_names.copy()
         new_data._adata.uns = cp.copy(self._adata.uns)
 
         return new_data
@@ -1094,3 +1307,32 @@ class InferelatorData(object):
     def _make_idx_str(df):
         df.index = df.index.astype(str) if not pat.is_string_dtype(df.index.dtype) else df.index
         df.columns = df.columns.astype(str) if not pat.is_string_dtype(df.columns.dtype) else df.columns
+
+    def _counts(self, axis=None):
+        if self.is_sparse:
+            return self._adata.X.sum(axis=axis).A.flatten()
+        else:
+            return self._adata.X.sum(axis=axis)
+
+    def _means(self, axis=None):
+        if self.is_sparse:
+            return self._adata.X.mean(axis=axis).A.flatten()
+        else:
+            return self._adata.X.mean(axis=axis)
+
+    def _vars(self, axis=None, ddof=1):
+        if self.is_sparse:
+            return StandardScaler(
+                copy=False,
+                with_mean=False
+            ).fit(self._adata.X).var_
+        else:
+            return self._adata.X.var(axis=axis, ddof=ddof)
+
+    def _stds(self, axis=None, ddof=1):
+        if self.is_sparse:
+            return np.sqrt(
+                self._vars(axis=axis, ddof=ddof)
+            )
+        else:
+            return self._adata.X.std(axis=axis, ddof=ddof)
