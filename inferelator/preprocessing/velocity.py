@@ -87,7 +87,7 @@ def extract_transcriptional_output(
         assert check.indexes_align(
             (
                 expression.sample_names,
-                gene_specific_decay.sample_names
+                gene_and_sample_decay.sample_names
             )
         )
 
