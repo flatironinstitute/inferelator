@@ -209,16 +209,16 @@ def _gene_variable_decay(
     :type expression: InferelatorData
     :param velocity: Velocity data dX/dt ([M x N])
     :type velocity: InferelatorData
-    :param decay_constants: Decay constant to use ([M x N])
+    :param decay_constants: Decay constants ([M x N])
     :type decay_constants: InferelatorData
     :return: dX/dt + lambda * X
     :rtype: InferelatorData
     """
 
-    if np.sum(decay_constants.X < 0) > 0:
+    if np.sum(decay_constants.values < 0) > 0:
         raise ValueError(
             "Decay cannot be negative; "
-            f"{np.sum(decay_constants.X < 0)} / {decay_constants.size} "
+            f"{np.sum(decay_constants.values < 0)} / {decay_constants.size} "
             " are negative values"
         )
 
