@@ -1,6 +1,23 @@
 Change Log
 ==========
 
+Inferelator v0.6.1 `January 3, 2023`
+----------------------------------------
+
+New Functionality:
+
+- Extended support for mRNA velocity & decay calculations
+- Added new experimental TFA modules
+
+Code Refactoring:
+
+- Workflow, ResultProcessor, and InferelatorData restructured for readability and clearer commenting
+
+Bug Fixes:
+
+- Slicing individual gene data returns numpy vector instead of anndata view 
+- Corrected several deprecated pandas calls to eliminate FutureWarnings
+
 Inferelator v0.6.0 `September  14, 2022`
 ----------------------------------------
 

@@ -6,6 +6,7 @@ from inferelator.regression.amusr_regression import filter_genes_on_tasks
 
 from .amusr_workflow import MultitaskLearningWorkflow
 
+
 class MultitaskHomologyWorkflow(MultitaskLearningWorkflow):
 
     _regulator_expression_filter = "union"
@@ -16,7 +17,8 @@ class MultitaskHomologyWorkflow(MultitaskLearningWorkflow):
     _tf_homology_group_key = None
     _tf_homology_gene_key = None
 
-    def set_homology(self,
+    def set_homology(
+        self,
         homology_group_key=None,
         tf_homology_map=None,
         tf_homology_map_group_key=None,
@@ -25,14 +27,31 @@ class MultitaskHomologyWorkflow(MultitaskLearningWorkflow):
         """
         Set the gene metadata key that identifies genes to group by homology
 
-        :param homology_group_key: _description_, defaults to None
-        :type homology_group_key: _type_, optional
+        :param homology_group_key: Gene metadata column which identifies
+            homology group
+        :type homology_group_key: str, optional
+        :param tf_homology_map
         """
 
-        self._set_with_warning('_homology_group_key', homology_group_key)
-        self._set_with_warning('_tf_homology', tf_homology_map)
-        self._set_with_warning('_tf_homology_group_key', tf_homology_map_group_key)
-        self._set_with_warning('_tf_homology_gene_key', tf_homology_map_gene_key)
+        self._set_with_warning(
+            '_homology_group_key',
+            homology_group_key
+        )
+
+        self._set_with_warning(
+            '_tf_homology',
+            tf_homology_map
+        )
+
+        self._set_with_warning(
+            '_tf_homology_group_key',
+            tf_homology_map_group_key
+        )
+
+        self._set_with_warning(
+            '_tf_homology_gene_key',
+            tf_homology_map_gene_key
+        )
 
     def startup_finish(self):
         super().startup_finish()
@@ -43,15 +62,23 @@ class MultitaskHomologyWorkflow(MultitaskLearningWorkflow):
         # Get all the homology groups and put them in a list
         _all_groups = functools.reduce(
             lambda x, y: x.union(y),
-            [pd.Index(t._adata.var[self._homology_group_key]) for t in self._task_objects]
+            [
+                pd.Index(t._adata.var[self._homology_group_key])
+                for t in self._task_objects
+            ]
         )
 
         # Build a dict, keyed by homology group ID
-        # Values are a list of (task, gene_id) tuples for that homology group
+        # Values are a list of (task, gene_id) tuples
+        # for that homology group
         _group_dict = {g: [] for g in _all_groups}
 
         for i, t in enumerate(self._task_objects):
-            for k, gene in zip(t._adata.var[self._homology_group_key], t._adata.var_names):
+
+            for k, gene in zip(
+                t._adata.var[self._homology_group_key],
+                t._adata.var_names
+            ):
                 _group_dict[k].append((i, gene))
 
         # Unpack them into a list of lists
@@ -108,9 +135,11 @@ class MultitaskHomologyWorkflow(MultitaskLearningWorkflow):
                 _new_data[:, loc] = design_data.values[:, i]
                 _new_names[loc] = design_data.gene_names[i]
 
-            print(_new_data)
-
             design_data.replace_data(
                 _new_data,
                 new_gene_metadata=design_data.gene_data.reindex(_new_names).fillna(0)
             )
+
+    def _get_tf_homology(self):
+
+        pass
