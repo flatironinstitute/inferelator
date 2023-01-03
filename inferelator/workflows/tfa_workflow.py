@@ -130,10 +130,12 @@ class TFAWorkFlow(workflow.WorkflowBase):
 
         if tfa_driver is None:
             pass
-        elif tfa_driver:
+        elif tfa_driver is True:
             self.tfa_driver = TFA
-        else:
+        elif tfa_driver is False:
             self.tfa_driver = NoTFA
+        else:
+            self.tfa_driver = tfa_driver
 
         self._set_with_warning(
             "_tfa_output_file",

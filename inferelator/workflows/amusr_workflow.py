@@ -7,13 +7,13 @@ import warnings
 import pandas as pd
 import functools
 
-from inferelator import utils
-
 from inferelator.utils import Debug
 from inferelator import workflow
 from inferelator.workflows import single_cell_workflow
 from inferelator.regression import amusr_regression
-from inferelator.postprocessing.results_processor_mtl import ResultsProcessorMultiTask
+from inferelator.postprocessing.results_processor_mtl import (
+    ResultsProcessorMultiTask
+)
 
 TRANSFER_ATTRIBUTES = [
     'count_minimum',
@@ -38,7 +38,8 @@ TASK_STR_ATTRS = [
 
 class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
     """
-    Class that implements multitask learning. Handles loading and validation of multiple data packages.
+    Class that implements multitask learning. Handles loading and
+    validation of multiple data packages
     """
 
     _regulator_expression_filter = "intersection"
@@ -69,57 +70,110 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
 
     @property
     def _num_obs(self):
+
+        # If the task objects still exist
+        # Sum task._num_obs
         if self._task_objects is not None:
-            return sum([t if t is not None else 0 for t in map(lambda x: x._num_obs, self._task_objects)])
+            return sum(
+                [
+                    t if t is not None else 0
+                    for t in map(lambda x: x._num_obs, self._task_objects)
+                ]
+            )
+
+        # If the task design data exists
+        # Sum the columns of that
         elif self._task_design is not None:
-            return sum([t.num_obs for t in self._task_design])
+            return sum(
+                [
+                    t.num_obs
+                    for t in self._task_design
+                ]
+            )
+
+        # Otherwise return None
         else:
             return None
 
     @property
     def _num_genes(self):
-        genes = self._gene_names
-        return len(genes) if genes is not None else None
 
+        if self._gene_names is not None:
+            return len(self._gene_names)
+        else:
+            return None
 
     @property
     def _num_tfs(self):
-        tfs = self._tf_names
-        return len(tfs) if tfs is not None else None
+
+        if self._tf_names is not None:
+            return len(self._tf_names)
+        else:
+            return None
 
     @property
     def _tf_names(self):
+
         # Use column names from design data objects which have TF columns
         if self._task_design is not None:
-            task_ref = [t.gene_names for t in self._task_design]
+            task_ref = [
+                t.gene_names
+                for t in self._task_design
+            ]
 
         # Use the tf_names list if design isn't calculated yet
         elif self._task_objects is not None:
-            task_ref = [pd.Index(t.tf_names) for t in self._task_objects if t.tf_names is not None]
+            task_ref = [
+                pd.Index(t.tf_names)
+                for t in self._task_objects if t.tf_names is not None
+            ]
 
         else:
             return None
 
         # Intersect each task's tf indices
-        return functools.reduce(lambda x, y: x.intersection(y), task_ref) if len(task_ref) > 0 else None
+        if len(task_ref) > 0:
+            return functools.reduce(
+                lambda x, y: x.intersection(y),
+                task_ref
+            )
+        else:
+            return None
 
     @property
     def _gene_names(self):
+
         # Use column names from response data objects which have gene columns
         if self._task_response is not None:
-            task_ref = [t.gene_names for t in self._task_response]
+            task_ref = [
+                t.gene_names
+                for t in self._task_response
+            ]
 
         # Use the raw gene expression data if response isn't calculated yet
         elif self._task_objects is not None:
-            task_ref = [t.data.gene_names for t in self._task_objects if t.data is not None]
+            task_ref = [
+                t.data.gene_names
+                for t in self._task_objects if t.data is not None
+            ]
 
         else:
             return None
 
         # Intersect each task's gene indices
-        return functools.reduce(lambda x, y: x.intersection(y), task_ref) if len(task_ref) > 0 else None
+        if len(task_ref) > 0:
+            return functools.reduce(
+                lambda x, y: x.intersection(y),
+                task_ref
+            )
+        else:
+            return None
 
-    def set_task_filters(self, regulator_expression_filter=None, target_expression_filter=None):
+    def set_task_filters(
+        self,
+        regulator_expression_filter=None,
+        target_expression_filter=None
+    ):
         """
         Set the filtering criteria for regulators and targets between tasks
 
@@ -133,14 +187,22 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         :type target_expression_filter: str, optional
         """
 
-        self._set_without_warning("_regulator_expression_filter", regulator_expression_filter)
-        self._set_without_warning("_target_expression_filter", target_expression_filter)
+        self._set_without_warning(
+            "_regulator_expression_filter",
+            regulator_expression_filter
+        )
+
+        self._set_without_warning(
+            "_target_expression_filter",
+            target_expression_filter
+        )
 
     def startup_run(self):
         """
         Load data.
 
-        This is called when `.startup()` is run. It is not necessary to call separately.
+        This is called when `.startup()` is run.
+        It is not necessary to call separately.
         """
 
         self.get_data()
@@ -396,7 +458,7 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
             ]
 
             if len(_has_prior) > 0:
-                utils.Debug.vprint(
+                Debug.vprint(
                     f"Overriding task priors in {_has_prior} because "
                     "add_prior_noise_to_task_priors is False",
                     level=0

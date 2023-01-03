@@ -4,6 +4,7 @@ import numpy as np
 import os
 import copy as cp
 import anndata
+import warnings
 
 from inferelator.utils.data import InferelatorData
 from inferelator.utils.debug import Debug
@@ -72,7 +73,9 @@ class InferelatorDataLoader(object):
             level=0
         )
 
-        data = anndata.read_h5ad(self.input_path(h5ad_file))
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", anndata.OldFormatWarning)
+            data = anndata.read_h5ad(self.input_path(h5ad_file))
 
         # Read in meta data
         if meta_data_file is None and data.obs.shape[1] > 0:
@@ -575,12 +578,13 @@ def _decode_series(series, encoding):
     """
 
     if pat.is_categorical_dtype(series):
-        series.cat.categories = _decode_series(
-            series.dtype.categories,
-            encoding=encoding
-        )
 
-        return series
+        return series.cat.rename_categories(
+            _decode_series(
+                series.dtype.categories,
+                encoding=encoding
+            )
+        )
 
     try:
         _new_series = series.str.decode(encoding).values

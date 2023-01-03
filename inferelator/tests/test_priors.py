@@ -88,14 +88,18 @@ class TestPriorManager(unittest.TestCase):
             pdt.assert_frame_equal(ngs1, ngs2)
 
     def test_cv_tfs(self):
-        npr1, ngs1 = ManagePriors.cross_validate_gold_standard(self.priors_data, self.gold_standard, 1, 0.5, 42)
+
+        with self.assertWarns(UserWarning):
+            npr1, ngs1 = ManagePriors.cross_validate_gold_standard(self.priors_data, self.gold_standard, 1, 0.5, 42)
+
         self.assertEqual(npr1.shape, ngs1.shape)
         self.assertEqual(len(npr1.columns.intersection(ngs1.columns)), 0)
         pdt.assert_index_equal(npr1.index, self.priors_data.index)
         pdt.assert_index_equal(ngs1.index, self.gold_standard.index)
 
-        npr2, ngs2 = ManagePriors.cross_validate_gold_standard(self.priors_data, self.gold_standard, 1, 0.5, 43)
-        npr3, ngs3 = ManagePriors.cross_validate_gold_standard(self.priors_data, self.gold_standard, 1, 0.5, 42)
+        with self.assertWarns(UserWarning):
+            npr2, ngs2 = ManagePriors.cross_validate_gold_standard(self.priors_data, self.gold_standard, 1, 0.5, 43)
+            npr3, ngs3 = ManagePriors.cross_validate_gold_standard(self.priors_data, self.gold_standard, 1, 0.5, 42)
 
         pdt.assert_frame_equal(npr1, npr3)
         pdt.assert_frame_equal(ngs1, ngs3)
@@ -107,7 +111,9 @@ class TestPriorManager(unittest.TestCase):
             pdt.assert_frame_equal(ngs1, ngs2)
 
     def test_cv_downsample(self):
-        npr1, ngs1 = ManagePriors.cross_validate_gold_standard(self.priors_data, self.gold_standard, None, 0.5, 42)
+        with self.assertWarns(UserWarning):
+            npr1, ngs1 = ManagePriors.cross_validate_gold_standard(self.priors_data, self.gold_standard, None, 0.5, 42)
+
         self.assertEqual(npr1.shape, ngs1.shape)
         self.assertListEqual(npr1.index.tolist(), ngs1.index.tolist())
         self.assertListEqual(npr1.columns.tolist(), ngs1.columns.tolist())

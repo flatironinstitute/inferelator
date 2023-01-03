@@ -4,7 +4,11 @@ import scipy.sparse as sps
 import itertools
 
 from inferelator.distributed.inferelator_mp import MPControl
-from inferelator.utils import Debug, array_set_diag
+from inferelator.utils import (
+    Debug,
+    array_set_diag,
+    safe_apply_to_array
+)
 from inferelator.utils import Validator as check
 
 # Number of discrete bins for mutual information calculation
@@ -184,32 +188,13 @@ def _make_array_discrete(array, num_bins, axis=0):
     Applies _make_discrete to a 2d array
     """
 
-    if sps.issparse(array):
-        disc_array = np.zeros(array.shape, dtype=np.int16)
-
-        if axis == 0:
-            for i in range(array.shape[1]):
-                disc_array[:, i] = _make_discrete(
-                    array[:, i].A.ravel(),
-                    num_bins
-                )
-
-        elif axis == 1:
-            for i in range(array.shape[0]):
-                disc_array[i, :] = _make_discrete(
-                    array[i, :].A.ravel(),
-                    num_bins
-                )
-
-        return disc_array
-
-    else:
-        return np.apply_along_axis(
-            _make_discrete,
-            arr=array,
-            axis=axis,
-            num_bins=num_bins
-        )
+    return safe_apply_to_array(
+        array,
+        _make_discrete,
+        num_bins,
+        axis=axis,
+        dtype=np.int16
+    )
 
 
 def _make_discrete(arr_vec, num_bins):
@@ -236,8 +221,11 @@ def _make_discrete(arr_vec, num_bins):
 
     # Continuous values to discrete bins [0, num_bins)
     # Write directly into a np.int16 array with the standard unsafe conversion
-    return np.floor((arr_vec - arr_min) / (arr_max - arr_min + np.spacing(arr_max - arr_min)) * num_bins,
-                    out=np.zeros(shape=arr_vec.shape, dtype=np.int16), casting='unsafe')
+    return np.floor(
+        (arr_vec - arr_min) / (arr_max - arr_min + np.spacing(arr_max - arr_min)) * num_bins,
+        out=np.zeros(shape=arr_vec.shape, dtype=np.int16),
+        casting='unsafe'
+    )
 
 
 def _make_table(x, y, num_bins):

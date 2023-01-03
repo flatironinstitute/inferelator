@@ -372,7 +372,10 @@ class TestWorkflowFunctions(unittest.TestCase):
         self.workflow.split_gold_standard_for_crossvalidation = True
         self.workflow.cv_split_ratio = 0.5
         self.workflow.cv_split_axis = 1
-        self.workflow.process_priors_and_gold_standard()
+
+        with self.assertWarns(UserWarning):
+            self.workflow.process_priors_and_gold_standard()
+
         self.assertEqual(self.workflow.priors_data.shape, (100, 50))
         self.assertEqual(self.workflow.gold_standard.shape, (100, 50))
         self.assertListEqual(self.workflow.priors_data.index.tolist(), self.workflow.gold_standard.index.tolist())
@@ -384,7 +387,10 @@ class TestWorkflowFunctions(unittest.TestCase):
         self.workflow.split_gold_standard_for_crossvalidation = True
         self.workflow.cv_split_ratio = 0.5
         self.workflow.cv_split_axis = None
-        self.workflow.process_priors_and_gold_standard()
+
+        with self.assertWarns(UserWarning):
+            self.workflow.process_priors_and_gold_standard()
+
         self.assertEqual(self.workflow.priors_data.shape, (100, 100))
         self.workflow.align_priors_and_expression()
         self.assertEqual(self.workflow.priors_data.shape, (100, 100))
