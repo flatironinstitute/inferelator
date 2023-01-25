@@ -22,7 +22,7 @@ def extract_transcriptional_output(
     :param expression: Expression data X
     :type expression: InferelatorData
     :param velocity: Velocity data dX/dt
-    :type velocity: InferelatorData
+    :type velocity: InferelatorData, np.ndarray
     :param global_decay: Decay constant to use for
         every gene and observation, defaults to None
     :type global_decay: float, optional
@@ -31,7 +31,7 @@ def extract_transcriptional_output(
     :type gene_specific_decay: pd.DataFrame, optional
     :param gene_and_sample_decay: Decay constants that differ
         for every gene and differ for every observation, defaults to None
-    :type gene_and_sample_decay: InferelatorData, optional
+    :type gene_and_sample_decay: InferelatorData, np.ndarray, optional
     :param decay_constant_maximum: Maximum allowed value for decay constant,
         values larger will be set to this value if it is not None,
         defaults to None
@@ -40,15 +40,23 @@ def extract_transcriptional_output(
     :rtype: InferelatorData
     """
 
-    # Check that the data objects passed have the same
+    # If axis-labeled data is passed, check that
+    # the data objects passed have the same
     # dimensions & labels
-    assert check.indexes_align(
-        (expression.gene_names, velocity.gene_names)
-    )
+    # and then use a dense array
+    if isinstance(velocity, InferelatorData):
+        assert check.indexes_align(
+            (expression.gene_names, velocity.gene_names)
+        )
 
-    assert check.indexes_align(
-        (expression.sample_names, velocity.sample_names)
-    )
+        assert check.indexes_align(
+            (expression.sample_names, velocity.sample_names)
+        )
+
+        _velocity = velocity.values
+
+    else:
+        _velocity = velocity
 
     # Use the same decay constant for every gene and observation
     if global_decay is not None:
@@ -60,7 +68,7 @@ def extract_transcriptional_output(
 
         return _global_decay(
             expression,
-            velocity,
+            _velocity,
             global_decay
         )
 
@@ -68,12 +76,20 @@ def extract_transcriptional_output(
     # but a different decay constant for every gene
     elif gene_specific_decay is not None:
 
-        assert check.indexes_align(
-            (
-                expression.gene_names,
-                gene_specific_decay.index
+        # Convert a dataframe or series to an array
+        # after checking labels
+        try:
+            assert check.indexes_align(
+                (
+                    expression.gene_names,
+                    gene_specific_decay.index
+                )
             )
-        )
+
+            gene_specific_decay = gene_specific_decay.values.ravel()
+
+        except AttributeError:
+            pass
 
         Debug.vprint(
             "Modeling transcription with velocity and decay per gene"
@@ -81,7 +97,7 @@ def extract_transcriptional_output(
 
         return _gene_constant_decay(
             expression,
-            velocity,
+            _velocity,
             gene_specific_decay,
             decay_constant_maximum=decay_constant_maximum
         )
@@ -90,12 +106,15 @@ def extract_transcriptional_output(
     # Decay constants must be a [M x N] data object
     elif gene_and_sample_decay is not None:
 
-        assert check.indexes_align(
-            (
-                expression.sample_names,
-                gene_and_sample_decay.sample_names
+        if isinstance(gene_and_sample_decay, InferelatorData):
+            assert check.indexes_align(
+                (
+                    expression.sample_names,
+                    gene_and_sample_decay.sample_names
+                )
             )
-        )
+
+            gene_and_sample_decay = gene_and_sample_decay.values
 
         Debug.vprint(
             "Modeling transcription with velocity and decay "
@@ -104,7 +123,7 @@ def extract_transcriptional_output(
 
         return _gene_variable_decay(
             expression,
-            velocity,
+            _velocity,
             gene_and_sample_decay,
             decay_constant_maximum=decay_constant_maximum
         )
@@ -131,7 +150,7 @@ def _global_decay(
     :param expression: Expression data X
     :type expression: InferelatorData
     :param velocity: Velocity data dX/dt
-    :type velocity: InferelatorData
+    :type velocity: np.ndarray
     :param constant: Decay constant to use
     :type constant: float
     :return: dX/dt + lambda * X
@@ -147,7 +166,7 @@ def _global_decay(
     # dx/dt + constant * X = f(A)
     return InferelatorData(
         np.add(
-            velocity.values,
+            velocity,
             np.multiply(
                 expression.values,
                 constant
@@ -172,30 +191,30 @@ def _gene_constant_decay(
     :param expression: Expression data X ([M x N])
     :type expression: InferelatorData
     :param velocity: Velocity data dX/dt ([M x N])
-    :type velocity: InferelatorData
+    :type velocity: np.ndarray
     :param decay_constants: Decay constant to use ([N x 1])
     :type decay_constants: pd.DataFrame
     :return: dX/dt + lambda * X
     :rtype: InferelatorData
     """
 
-    if np.sum(decay_constants.values < 0) > 0:
+    if np.sum(decay_constants < 0) > 0:
         raise ValueError(
             "Decay cannot be negative; "
-            f"{np.sum(decay_constants.values < 0)} / {decay_constants.size} "
+            f"{np.sum(decay_constants < 0)} / {decay_constants.size} "
             " are negative values"
         )
 
     if decay_constant_maximum is not None:
-        _decays = decay_constants.values.flatten()
+        _decays = decay_constants.copy()
         _decays[_decays > decay_constant_maximum] = decay_constant_maximum
     else:
-        _decays = decay_constants.values.ravel()
+        _decays = decay_constants
 
     # dx/dt + \lambda * X = f(A)
     return InferelatorData(
         np.add(
-            velocity.values,
+            velocity,
             np.multiply(
                 expression.values,
                 _decays[None, :]
@@ -223,30 +242,30 @@ def _gene_variable_decay(
     :param expression: Expression data X ([M x N])
     :type expression: InferelatorData
     :param velocity: Velocity data dX/dt ([M x N])
-    :type velocity: InferelatorData
+    :type velocity: np.ndarray
     :param decay_constants: Decay constants ([M x N])
-    :type decay_constants: InferelatorData
+    :type decay_constants: np.ndarray
     :return: dX/dt + lambda * X
     :rtype: InferelatorData
     """
 
-    if np.sum(decay_constants.values < 0) > 0:
+    if np.sum(decay_constants < 0) > 0:
         raise ValueError(
             "Decay cannot be negative; "
-            f"{np.sum(decay_constants.values < 0)} / {decay_constants.size} "
+            f"{np.sum(decay_constants < 0)} / {decay_constants.size} "
             " are negative values"
         )
 
     if decay_constant_maximum is not None:
-        _decay = decay_constants.values.copy()
+        _decay = decay_constants.copy()
         _decay[_decay > decay_constant_maximum] = decay_constant_maximum
     else:
-        _decay = decay_constants.values
+        _decay = decay_constants
 
     # dx/dt + \lambda * X = f(A)
     return InferelatorData(
         np.add(
-            velocity.values,
+            velocity,
             np.multiply(
                 expression.values,
                 _decay
