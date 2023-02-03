@@ -473,21 +473,21 @@ class InferelatorDataLoader(object):
 
     @staticmethod
     def _check_loaded_data(data, filename=None):
-        msg = f"Loaded {filename if filename is not None else ''}:\n"
+        msg = f"Loaded {filename if filename is not None else ''}:"
 
         nnf, non_finite_genes = data.non_finite
 
         if nnf > 0:
             msg += f"\t{nnf} genes with non-finite expression "
-            msg += f"({' '.join(non_finite_genes)})\n"
+            msg += f"({' '.join(non_finite_genes)})"
 
         if not data.gene_names.is_unique:
             _repeated = data.gene_names[data.gene_names.duplicated()]
 
             msg += f"\t{len(_repeated)} genes are duplicated "
-            msg += f"({' '.join(_repeated)})\n"
+            msg += f"({' '.join(_repeated)})"
 
-        msg += "Data loaded: {dt}".format(dt=str(data))
+        msg += f"Data loaded: {str(data)}"
 
         Debug.vprint(msg, level=0)
 

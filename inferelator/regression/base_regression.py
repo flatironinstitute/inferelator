@@ -43,14 +43,17 @@ class BaseRegression(object):
 
         self.Y = Y
 
-        Debug.vprint("Predictor matrix {pr} and response matrix {re} ready".format(pr=X.shape, re=Y.shape))
+        Debug.vprint(
+            f"Predictor matrix {X.shape} and response matrix {Y.shape} ready"
+        )
 
     def run(self):
         """
         Execute regression separately on each response variable in the data
 
         :return: pd.DataFrame [G x K], pd.DataFrame [G x K]
-            Returns the regression betas and beta error reductions for all threads if this is the master thread (rank 0)
+            Returns the regression betas and beta error reductions for all
+            threads if this is the master thread (rank 0)
             Returns None, None if it's a subordinate thread
         """
 
@@ -58,7 +61,8 @@ class BaseRegression(object):
 
     def regress(self):
         """
-        Execute regression and return a list which can be provided to pileup_data
+        Execute regression and return a list which can be provided to
+        pileup_data
         :return: list
         """
         raise NotImplementedError
@@ -67,10 +71,12 @@ class BaseRegression(object):
         """
         Take the completed run data and pack it up into a DataFrame of betas
 
-        :param run_data: list
-            A list of regression result dicts ordered by gene. Each regression result should have `ind`, `pp`, `betas`
-            and `betas_resc` keys with the appropriate data.
-        :return betas, betas_rescale: (pd.DataFrame [G x K], pd.DataFrame [G x K])
+        :param run_data: A list of regression result dicts ordered by gene.
+            Each regression result should have `ind`, `pp`, `betas` and
+            `betas_resc` keys with the appropriate data.
+        :type: run_data: list
+        :return betas, betas_rescale: [G x K] DataFrames
+        :rtype: pd.DataFrame, pd.DataFrame
         """
 
         # Create G x K arrays of 0s to populate with the regression data
@@ -90,14 +96,25 @@ class BaseRegression(object):
             betas_rescale[xidx, yidx] = data['betas_resc']
 
         d_len, b_avg, null_m = self._summary_stats(betas)
-        Debug.vprint("Regression complete:", end=" ", level=0)
-        Debug.vprint("{d_len} Models, {b_avg} Preds per Model ({nom} Null)".format(d_len=d_len,
-                                                                                   b_avg=round(b_avg, 4),
-                                                                                   nom=null_m), level=0)
+
+        Debug.vprint(
+            "Regression complete: "
+            f"{d_len} Models, {b_avg:.02f} Preds per Model ({null_m} Null)",
+            level=0
+        )
 
         # Convert arrays into pd.DataFrames to return results
-        betas = pd.DataFrame(betas, index=self.Y.gene_names, columns=self.X.gene_names)
-        betas_rescale = pd.DataFrame(betas_rescale, index=self.Y.gene_names, columns=self.X.gene_names)
+        betas = pd.DataFrame(
+            betas,
+            index=self.Y.gene_names,
+            columns=self.X.gene_names
+        )
+
+        betas_rescale = pd.DataFrame(
+            betas_rescale,
+            index=self.Y.gene_names,
+            columns=self.X.gene_names
+        )
 
         return betas, betas_rescale
 
