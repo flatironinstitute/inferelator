@@ -249,4 +249,7 @@ def inferelator_workflow(
     :rtype: Workflow instance
     """
 
-    return _factory_build_inferelator(regression=regression, workflow=workflow)()
+    return _factory_build_inferelator(
+        regression=regression,
+        workflow=workflow
+    )()

@@ -4,13 +4,19 @@ import os
 
 from inferelator.utils import Debug
 from inferelator.utils import Validator as check
-from inferelator.postprocessing import results_processor
-from inferelator.postprocessing import BETA_SIGN_COLUMN, MEDIAN_EXPLAIN_VAR_COLUMN
+from inferelator.postprocessing.results_processor import (
+    ResultsProcessor,
+    FILTER_METHODS
+)
+from inferelator.postprocessing import (
+    BETA_SIGN_COLUMN,
+    MEDIAN_EXPLAIN_VAR_COLUMN
+)
 
-
-class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
+class ResultsProcessorMultiTask(ResultsProcessor):
     """
-    This results processor should handle the results of the MultiTask inferelator
+    This results processor should handle the results of
+    the MultiTask inferelator
 
     It will output the results for each task, as well as rank-combining to construct a network from all tasks
     """
@@ -24,7 +30,6 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
         self,
         betas,
         rescaled_betas,
-        threshold=None,
         filter_method=None,
         metric=None,
         task_names=None
@@ -45,7 +50,6 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
         super(ResultsProcessorMultiTask, self).__init__(
             betas,
             rescaled_betas,
-            threshold,
             filter_method,
             metric
         )
@@ -58,23 +62,39 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
             self.tasks_names = task_names
 
     @staticmethod
-    def validate_init_args(betas, rescaled_betas, threshold=None, filter_method=None, metric=None):
+    def validate_init_args(
+        betas,
+        rescaled_betas,
+        filter_method=None
+    ):
         assert check.argument_type(betas, list)
         assert check.argument_list_type(betas, list)
         assert check.argument_list_type(betas[0], pd.DataFrame)
+
         assert check.argument_type(rescaled_betas, list)
         assert check.argument_list_type(rescaled_betas, list)
         assert check.argument_list_type(rescaled_betas[0], pd.DataFrame)
-        assert all([check.dataframes_align(b_task + bresc_task) for b_task, bresc_task in zip(betas, rescaled_betas)])
-        assert check.argument_enum(filter_method, results_processor.FILTER_METHODS, allow_none=True)
-        assert check.argument_numeric(threshold, 0, 1, allow_none=True)
+
+        assert all([
+            check.dataframes_align(b_task + bresc_task)
+            for b_task, bresc_task in zip(betas, rescaled_betas)
+        ])
+
+        assert check.argument_enum(
+            filter_method,
+            FILTER_METHODS,
+            allow_none=True
+        )
 
     def summarize_network(
         self,
         output_dir,
         gold_standard,
         priors,
-        task_gold_standards=None
+        full_model_betas=None,
+        full_model_var_exp=None,
+        task_gold_standards=None,
+        extra_cols=None
     ):
         """
         Take the betas and rescaled beta_errors, construct a network, and test
@@ -108,12 +128,21 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
         overall_resc_betas = []
 
         # Get intersection of indices
-        gene_set = list(set([i for df in self.betas for i in df[0].index.tolist()]))
-        tf_set = list(set([i for df in self.betas for i in df[0].columns.tolist()]))
+        gene_set = list(set(
+            [i for df in self.betas for i in df[0].index.tolist()]
+        ))
 
-        # Use the existing indices if there's no difference from the intersection
-        gene_set = gene_set if _is_different(self.betas[0][0].index, gene_set) else self.betas[0][0].index
-        tf_set = tf_set if _is_different(self.betas[0][0].columns, tf_set) else self.betas[0][0].columns
+        tf_set = list(set(
+            [i for df in self.betas for i in df[0].columns.tolist()]
+        ))
+
+        # Use the existing indices if there's no difference from the
+        # intersection
+        if not _is_different(self.betas[0][0].index, gene_set):
+            gene_set = self.betas[0][0].index
+
+        if not _is_different(self.betas[0][0].columns, tf_set):
+            tf_set = self.betas[0][0].columns
 
         # Create empty dataframes for task-specific results
         overall_sign = pd.DataFrame(
@@ -121,8 +150,6 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
             index=gene_set,
             columns=tf_set
         )
-
-        overall_threshold = overall_sign.copy()
 
         if task_gold_standards is None:
             task_gold_standards = [gold_standard] * len(self.tasks_names)
@@ -140,9 +167,8 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
                 filter_method=self.filter_method
             )
 
-            task_threshold, task_sign, _ = self.threshold_and_summarize(
-                self.betas[task_id],
-                self.threshold
+            task_sign, _ = self.summarize(
+                self.betas[task_id]
             )
 
             _, task_resc_betas_median = self.mean_and_median(
@@ -154,29 +180,50 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
                 MEDIAN_EXPLAIN_VAR_COLUMN: task_resc_betas_median
             }
 
+            if full_model_betas is not None:
+                _task_model_betas = full_model_betas[task_id]
+            else:
+                _task_model_betas = None
+
+            if full_model_var_exp is not None:
+                _task_model_var_exp = full_model_var_exp[task_id]
+            else:
+                _task_model_var_exp = None
+
             task_network_data = self.process_network(
                 task_rs_calc,
                 priors[task_id],
-                beta_threshold=task_threshold,
-                extra_columns=task_extra_cols
+                extra_columns=task_extra_cols,
+                full_model_betas=_task_model_betas,
+                full_model_var_exp=_task_model_var_exp
             )
 
             # Pile up data
-            overall_confidences.append(_df_resizer(task_rs_calc.all_confidences, gene_set, tf_set))
-            overall_resc_betas.append(_df_resizer(task_resc_betas_median, gene_set, tf_set))
-            overall_sign += np.sign(_df_resizer(task_sign, gene_set, tf_set))
-            overall_threshold += _df_resizer(task_threshold, gene_set, tf_set)
+            overall_confidences.append(
+                _df_resizer(task_rs_calc.all_confidences, gene_set, tf_set)
+            )
+
+            overall_resc_betas.append(
+                _df_resizer(task_resc_betas_median, gene_set, tf_set)
+            )
+
+            overall_sign += np.sign(
+                _df_resizer(task_sign, gene_set, tf_set)
+            )
 
             m_name, score = task_rs_calc.score()
 
             Debug.vprint(
-                f"Task {task_name} Model {m_name}:\t{score}",
+                f"Task {task_name} Model {m_name}:\t{score:.05f}",
                 level=0
             )
 
+            if _task_model_betas is None:
+                _task_model_betas = task_resc_betas_median
+
             task_result = self.result_object(
                 task_network_data,
-                task_threshold,
+                _task_model_betas,
                 task_rs_calc.all_confidences,
                 task_rs_calc,
                 betas_sign=task_sign,
@@ -184,7 +231,9 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
             )
 
             if self.write_task_files is True and output_dir is not None:
-                task_result.write_result_files(os.path.join(output_dir, task_name))
+                task_result.write_result_files(
+                    os.path.join(output_dir, task_name)
+                )
 
             self.tasks_networks[task_id] = task_result
 
@@ -194,7 +243,6 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
             filter_method=self.filter_method
         )
 
-        overall_threshold = (overall_threshold / len(overall_confidences) > self.threshold).astype(int)
         _, overall_resc_betas_median = self.mean_and_median(overall_resc_betas)
 
         extra_cols = {
@@ -211,13 +259,17 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
         network_data = self.process_network(
             overall_rs_calc,
             None,
-            beta_threshold=overall_threshold,
             extra_columns=extra_cols
         )
 
         overall_result = self.result_object(
-            network_data, overall_threshold,
-            _df_resizer(overall_rs_calc.all_confidences, gene_set, tf_set),
+            network_data,
+            overall_resc_betas_median,
+            _df_resizer(
+                overall_rs_calc.all_confidences,
+                gene_set,
+                tf_set
+            ),
             overall_rs_calc,
             betas_sign=overall_sign
         )
@@ -229,7 +281,19 @@ class ResultsProcessorMultiTask(results_processor.ResultsProcessor):
 
 
 def _df_resizer(df, row_labs, col_labs, fill=0):
-    return df.reindex(row_labs, axis=0).reindex(col_labs, axis=1).fillna(fill)
+    """
+    Reindex a dataframe on rows and columns
+    And fill out all NAs
+    """
+
+    return df.reindex(
+        row_labs,
+        axis=0
+    ).reindex(
+        col_labs,
+        axis=1
+    ).fillna(fill)
+
 
 def _is_different(x, y):
     return len(x.symmetric_difference(y)) != 0

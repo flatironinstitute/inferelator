@@ -77,7 +77,7 @@ class Debug:
         if cls.logger is not None:
             return
 
-        cls.logger = logging.Logger('Inferelator')
+        cls.logger = logging.Logger('inferelator')
 
         logger_handler = logging.StreamHandler(
             sys.stderr if cls.stderr else sys.stdout

@@ -435,7 +435,7 @@ class StARSWorkflowMixin(base_regression._RegressionWorkflowMixin):
             parameters=self.sklearn_params
         ).run()
 
-        return [betas], [resc_betas]
+        return [betas], [resc_betas], betas, resc_betas
 
 
 class StARSWorkflowByTaskMixin(
@@ -450,21 +450,11 @@ class StARSWorkflowByTaskMixin(
     https://doi.org/10.1016/j.immuni.2019.06.001
     """
 
-    def run_bootstrap(self, bootstrap_idx):
+    def run_regression(self):
         betas, betas_resc = [], []
 
         # Run tasks individually
         for k in range(self._n_tasks):
-
-            # Select the appropriate bootstrap from each task
-            # and stash the data into X and Y
-            x = self._task_design[k].get_bootstrap(
-                self._task_bootstraps[k][bootstrap_idx]
-            )
-
-            y = self._task_response[k].get_bootstrap(
-                self._task_bootstraps[k][bootstrap_idx]
-            )
 
             utils.Debug.vprint(
                 f'Calculating task {k} betas using StARS',
@@ -472,8 +462,8 @@ class StARSWorkflowByTaskMixin(
             )
 
             t_beta, t_br = StARS(
-                x,
-                y,
+                self._task_design[k],
+                self._task_response[k],
                 self.random_seed,
                 alphas=self.alphas,
                 method=self.regress_method,
@@ -481,7 +471,10 @@ class StARSWorkflowByTaskMixin(
                 parameters=self.sklearn_params
             ).run()
 
-            betas.append(t_beta)
-            betas_resc.append(t_br)
+            betas.append([t_beta])
+            betas_resc.append([t_br])
 
-        return betas, betas_resc
+        _unpack_betas = [x[0] for x in betas]
+        _unpack_var_exp = [x[0] for x in betas_resc]
+
+        return betas, betas_resc, _unpack_betas, _unpack_var_exp

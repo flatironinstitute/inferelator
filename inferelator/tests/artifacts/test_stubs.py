@@ -91,7 +91,7 @@ class FakeRegressionMixin(_RegressionWorkflowMixin):
     def run_regression(self):
         beta = [pd.DataFrame(np.array([[0, 1], [0.5, 0.05]]), index=['gene1', 'gene2'], columns=['tf1', 'tf2'])]
         beta_resc = [pd.DataFrame(np.array([[0, 1], [1, 0.05]]), index=['gene1', 'gene2'], columns=['tf1', 'tf2'])]
-        return beta, beta_resc
+        return beta, beta_resc, beta[0], beta_resc[0]
 
     def run_bootstrap(self, bootstrap):
         return True

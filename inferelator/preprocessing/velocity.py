@@ -63,7 +63,7 @@ def extract_transcriptional_output(
 
         Debug.vprint(
             "Modeling transcription with fixed decay constant "
-            f"{global_decay} for every gene"
+            f"{global_decay:.4f} for every gene"
         )
 
         return _global_decay(

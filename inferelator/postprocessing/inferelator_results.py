@@ -3,17 +3,31 @@ import os
 import matplotlib.pyplot as plt
 
 from inferelator.utils import Validator as check
-_SERIALIZE_ATTRS = ["network", "betas", "betas_stack", "betas_sign", "combined_confidences", "tasks"]
+
+_SERIALIZE_ATTRS = [
+    "network",
+    "betas",
+    "betas_stack",
+    "betas_sign",
+    "combined_confidences",
+    "tasks"
+]
 
 
-class InferelatorResults(object):
+class InferelatorResults:
     """
-    For network analysis, the results produced in the output_dir are sufficient.
-    Model development and comparisons may require to values that are not written to files.
-    An InferelatorResults object is returned by the ``workflow.run()`` methods
-    (A list of InferelatorResults objects is returned by the ``CrossValidationManager.run()`` method).
+    For network analysis, the results produced in the output_dir
+    are sufficient. Model development and comparisons may require
+    access to values that are not written to files.
 
-    This object allows access to most of the internal values created by the inferelator.
+    An InferelatorResults object is returned by the
+    ``workflow.run()`` methods
+
+    A list of InferelatorResults objects is returned by the
+    ``CrossValidationManager.run()`` methods
+
+    This object allows access to most of the internal values
+    created by the inferelator.
     """
 
     #: Results name, usually set to task name.
@@ -39,7 +53,8 @@ class InferelatorResults(object):
     #: This is a dataframe which is Genes x TFs
     combined_confidences = None
 
-    #: Task result objects if there were multiple tasks. None if there were not.
+    #: Task result objects if there were multiple tasks.
+    #: None if there were not.
     #: This is a dict, keyed by task ID
     tasks = None
 
@@ -59,7 +74,15 @@ class InferelatorResults(object):
     all_scores = None
     all_names = None
 
-    def __init__(self, network_data, betas_stack, combined_confidences, metric_object, betas_sign=None, betas=None):
+    def __init__(
+        self,
+        network_data,
+        betas_stack,
+        combined_confidences,
+        metric_object,
+        betas_sign=None,
+        betas=None
+    ):
         self.network = network_data
         self.betas_stack = betas_stack
         self.combined_confidences = combined_confidences
@@ -71,7 +94,12 @@ class InferelatorResults(object):
         self.betas_sign = betas_sign
         self.betas = betas
 
-    def new_metric(self, metric_object, curve_file_name=None, curve_data_file_name=None):
+    def new_metric(
+        self,
+        metric_object,
+        curve_file_name=None,
+        curve_data_file_name=None
+    ):
         """
         Generate a new result object with a new metric
         :param metric_object:
@@ -79,15 +107,27 @@ class InferelatorResults(object):
         :param curve_data_file_name:
         :return:
         """
-        new_result = InferelatorResults(self.network, self.betas_stack, self.combined_confidences, metric_object,
-                                        betas_sign=self.betas_sign, betas=self.betas)
+        new_result = InferelatorResults(
+            self.network,
+            self.betas_stack,
+            self.combined_confidences,
+            metric_object,
+            betas_sign=self.betas_sign,
+            betas=self.betas
+        )
 
         new_result.curve_data_file_name = curve_data_file_name
         new_result.curve_file_name = curve_file_name
 
         return new_result
 
-    def plot_other_metric(self, metric_object, output_dir, curve_file_name=None, curve_data_file_name=None):
+    def plot_other_metric(
+        self,
+        metric_object,
+        output_dir,
+        curve_file_name=None,
+        curve_data_file_name=None
+    ):
         """
         Write just the curve files for another provided metric.
 
@@ -97,31 +137,75 @@ class InferelatorResults(object):
         :param curve_data_file_name:
         :return:
         """
-        nm = self.new_metric(metric_object, curve_file_name=curve_file_name, curve_data_file_name=curve_data_file_name)
-        nm.metric.output_curve_pdf(output_dir, curve_file_name) if curve_file_name is not None else None
-        self.write_to_tsv(nm.curve, output_dir, curve_data_file_name) if curve_data_file_name is not None else None
+        nm = self.new_metric(
+            metric_object,
+            curve_file_name=curve_file_name,
+            curve_data_file_name=curve_data_file_name
+        )
 
-    def write_result_files(self, output_dir):
+        if curve_file_name is not None:
+            nm.metric.output_curve_pdf(output_dir, curve_file_name)
+
+        if curve_data_file_name is not None:
+            self.write_to_tsv(nm.curve, output_dir, curve_data_file_name)
+
+    def write_result_files(
+        self,
+        output_dir
+    ):
         """
-        Write all of the output files. Any individual file output can be overridden by setting the file name to None.
+        Write all of the output files. Any individual file output can be
+        overridden by setting the file name to None.
         All files can be suppressed by calling output_dir as None
 
-        :param output_dir: Path to a directory where output files should be created. If None, no files will be made
+        :param output_dir: Path to a directory where output files should
+            be created. If None, no files will be made
         :type output_dir: str, None
         """
 
         # Validate that the output path exists (create it if necessary)
-        check.argument_path(output_dir, allow_none=True, create_if_needed=True)
+        check.argument_path(
+            output_dir,
+            allow_none=True,
+            create_if_needed=True
+        )
 
         # Write TSV files
-        self.write_to_tsv(self.network, output_dir, self.network_file_name, index=False)
-        self.write_to_tsv(self.combined_confidences, output_dir, self.confidence_file_name, index=True)
-        self.write_to_tsv(self.betas_stack, output_dir, self.threshold_file_name, index=True)
-        self.write_to_tsv(self.curve, output_dir, self.curve_data_file_name, index=False)
+        self.write_to_tsv(
+            self.network,
+            output_dir,
+            self.network_file_name,
+            index=False
+        )
+
+        self.write_to_tsv(
+            self.combined_confidences,
+            output_dir,
+            self.confidence_file_name,
+            index=True
+        )
+
+        self.write_to_tsv(
+            self.betas_stack,
+            output_dir,
+            self.threshold_file_name,
+            index=True
+        )
+
+        self.write_to_tsv(
+            self.curve,
+            output_dir,
+            self.curve_data_file_name,
+            index=False
+        )
 
         # Write Metric Curve PDF
         if self.curve_file_name is not None:
-            fig, ax = self.metric.output_curve_pdf(output_dir, self.curve_file_name)
+            fig, ax = self.metric.output_curve_pdf(
+                output_dir,
+                self.curve_file_name
+            )
+
             plt.close(fig)
 
     def clear_output_file_names(self):

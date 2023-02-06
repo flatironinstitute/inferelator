@@ -214,10 +214,12 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         self.validate_data()
 
     def get_data(self):
-        # Task data has expression & metadata and may have task-specific files for anything else
+        # Task data has expression & metadata and may have task-specific
+        # files for anything else
         self._load_tasks()
 
-        # Priors, gold standard, tf_names, and gene metadata will be loaded if set
+        # Priors, gold standard, tf_names, and gene metadata
+        # will be loaded if set
         self.read_tfs()
         self.read_priors()
         self.read_genes()
@@ -390,7 +392,8 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         if self.priors_data is not None:
             priors = self.priors_data
 
-        # If they all have priors don't worry about it - use a 0 prior here for crossvalidation selection if needed
+        # If they all have priors don't worry about it -
+        # use a 0 prior here for crossvalidation selection if needed
         elif self.priors_data is None and self.gold_standard is not None:
             priors = pd.DataFrame(
                 0,
@@ -407,8 +410,9 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
 
         # If there's no gold standard or use_no_prior isn't set, raise a RuntimeError
         else:
-            _msg = "No base prior or gold standard or TF list has been provided."
-            raise RuntimeError(_msg)
+            raise RuntimeError(
+                "No base prior or gold standard or TF list has been provided."
+            )
 
         # Crossvalidation
         if self.split_gold_standard_for_crossvalidation:
@@ -442,8 +446,10 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
                 self.random_seed
             )
 
-        # Add prior noise now (to the base prior) if add_prior_noise_to_task_priors is False
-        # Otherwise add later to the task priors (will be different for each task)
+        # Add prior noise now (to the base prior)
+        # if add_prior_noise_to_task_priors is False
+        # Otherwise add later to the task priors
+        # (will be different for each task)
         if self.add_prior_noise is not None and not self.add_prior_noise_to_task_priors:
             priors = self.prior_manager.add_prior_noise(
                 priors,
@@ -478,7 +484,9 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
 
             # Set priors if task-specific priors are not present
             if task_obj.priors_data is None and self.priors_data is None:
-                raise ValueError("No priors exist in the main workflow or in tasks")
+                raise ValueError(
+                    "No priors exist in the main workflow or in tasks"
+                )
 
             elif task_obj.priors_data is None:
                 task_obj.priors_data = self.priors_data.copy()
@@ -491,8 +499,12 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
             if task_obj.tf_names is None:
                 task_obj.tf_names = copy.deepcopy(self.tf_names)
 
-            _add_prior_noise = self.add_prior_noise if self.add_prior_noise_to_task_priors is True else None
+            if self.add_prior_noise_to_task_priors is True:
+                _add_prior_noise = self.add_prior_noise
+            else:
+                _add_prior_noise = None
             # Process priors in the task data
+
             task_obj.process_priors_and_gold_standard(
                 gold_standard=self.gold_standard,
                 cv_flag=self.split_gold_standard_for_crossvalidation,
@@ -503,13 +515,16 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
 
     def _process_task_data(self):
         """
-        Preprocess the individual task data using the TaskData worker into task design and response data. Set
-        self.task_design, self.task_response, self.task_bootstraps with lists which contain
+        Preprocess the individual task data using the TaskData worker
+        into task design and response data. Set self.task_design,
+        self.task_response, self.task_bootstraps with lists which contain
         DataFrames.
 
-        Also set self.regulators and self.targets with pd.Indexes that correspond to the genes and tfs to model
-        This is chosen based on the filtering strategy set in self.target_expression_filter and
-        self.regulator_expression_filter
+        Also set self.regulators and self.targets with pd.Indexes that
+        correspond to the genes and tfs to model.
+
+        This is chosen based on the filtering strategy set in
+        self.target_expression_filter and self.regulator_expression_filter
         """
 
         # Create empty task data lists
@@ -519,8 +534,8 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
             "_task_bootstraps",
             "_task_names",
             "_task_priors",
-            "_task_gold_standards"]:
-
+            "_task_gold_standards"
+        ]:
             setattr(self, attr, [])
 
         targets, regulators = [], []
@@ -528,10 +543,17 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         # Iterate through a list of TaskData objects holding data
         for task_id, task_obj in enumerate(self._task_objects):
             # Get task name from Task
-            task_name = task_obj.task_name if task_obj.task_name is not None else str(task_id)
 
-            task_str = "Processing task #{tid} [{t}] {sh}"
-            Debug.vprint(task_str.format(tid=task_id, t=task_name, sh=task_obj.data.shape), level=1)
+            if task_obj.task_name is not None:
+                task_name = task_obj.task_name
+            else:
+                task_name = str(task_id)
+
+            Debug.vprint(
+                f"Processing task #{task_id} [{task_name}] "
+                f"{task_obj.data.shape}",
+                level=1
+            )
 
             # Run the preprocessing workflow
             task_obj.startup_finish()
@@ -572,8 +594,11 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
             self._task_response
         )
 
-        Debug.vprint("Processed data into design/response [{g} x {k}]".format(g=len(self._targets),
-                                                                              k=len(self._regulators)), level=0)
+        Debug.vprint(
+            "Processed data into design/response "
+            f"[{len(self._targets)} x {len(self._regulators)}]",
+            level=0
+        )
 
         # Clean up the TaskData objects and force a cyclic collection
         del self._task_objects
@@ -585,16 +610,31 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
 
         # Make sure that the task data files have the correct columns
         for d in self._task_design:
-            d.trim_genes(remove_constant_genes=False, trim_gene_list=self._regulators)
+            d.trim_genes(
+                remove_constant_genes=False,
+                trim_gene_list=self._regulators
+            )
 
         for r in self._task_response:
-            r.trim_genes(remove_constant_genes=False, trim_gene_list=self._targets)
+            r.trim_genes(
+                remove_constant_genes=False,
+                trim_gene_list=self._targets
+            )
 
-    def emit_results(self, betas, rescaled_betas, gold_standard, priors_data):
+    def emit_results(
+        self,
+        betas,
+        rescaled_betas,
+        gold_standard,
+        priors_data,
+        full_model=None,
+        full_exp_var=None
+    ):
         """
         Output result report(s) for workflow run.
 
-        This is called when `.startup()` is run. It is not necessary to call separately.
+        This is called when `.startup()` is run.
+        It is not necessary to call separately.
         """
 
         self.create_output_dir()
@@ -611,7 +651,9 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
             self.output_dir,
             gold_standard,
             self._task_priors,
-            task_gold_standards=self._task_gold_standards
+            task_gold_standards=self._task_gold_standards,
+            full_model_betas=full_model,
+            full_model_var_exp=full_exp_var
         )
 
         self.task_results = rp.tasks_networks
@@ -703,7 +745,10 @@ def create_task_data_class(workflow_class="single-cell"):
             Set parameters used during runtime
             """
 
-            warnings.warn("Task-specific `num_bootstraps` and `random_seed` is not supported. Set on parent workflow.")
+            warnings.warn(
+                "Task-specific `num_bootstraps` and `random_seed` is not supported."
+                "Set on parent workflow."
+            )
 
         def process_priors_and_gold_standard(
             self,
@@ -820,7 +865,6 @@ def create_task_data_class(workflow_class="single-cell"):
                 task_obj.task_name = task
 
                 return task_obj
-
 
             new_task_objects = [_make_task_subobject(t) for t in tasks]
 

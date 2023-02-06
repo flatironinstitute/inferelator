@@ -143,14 +143,27 @@ class _RegressionWorkflowMixin(object):
         rescaled_betas = []
 
         for idx, bootstrap in enumerate(self.get_bootstraps()):
-            Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps), level=0)
+
+            Debug.vprint(
+                f'Bootstrap {idx + 1} of {self.num_bootstraps}',
+                level=0
+            )
+
             np.random.seed(self.random_seed + idx)
+
             current_betas, current_rescaled_betas = self.run_bootstrap(bootstrap)
 
             betas.append(current_betas)
             rescaled_betas.append(current_rescaled_betas)
 
-        return betas, rescaled_betas
+        Debug.vprint(
+            'Fitting final full model',
+            level=0
+        )
+
+        full_betas, full_rescaled = self.run_bootstrap(None)
+
+        return betas, rescaled_betas, full_betas, full_rescaled
 
     def run_bootstrap(self, bootstrap):
         raise NotImplementedError
@@ -158,8 +171,11 @@ class _RegressionWorkflowMixin(object):
 
 class _MultitaskRegressionWorkflowMixin(_RegressionWorkflowMixin):
     """
-    MultitaskRegressionWorkflow implements run_regression and run_bootstrap for multitask workflow
-    Each regression method needs to extend this to implement run_bootstrap (and also run_regression if necessary)
+    MultitaskRegressionWorkflow implements run_regression and
+    run_bootstrap for multitask workflow
+
+    Each regression method needs to extend this to implement
+    run_bootstrap (and also run_regression if necessary)
     """
 
     def run_regression(self):
@@ -168,14 +184,25 @@ class _MultitaskRegressionWorkflowMixin(_RegressionWorkflowMixin):
         rescaled_betas = [[] for _ in range(self._n_tasks)]
 
         for idx in range(self.num_bootstraps):
-            Debug.vprint('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps), level=0)
+            Debug.vprint(
+                f'Bootstrap {idx + 1} of {self.num_bootstraps}',
+                level=0
+            )
+
             current_betas, current_rescaled_betas = self.run_bootstrap(idx)
 
             for k in range(self._n_tasks):
                 betas[k].append(current_betas[k])
                 rescaled_betas[k].append(current_rescaled_betas[k])
 
-        return betas, rescaled_betas
+        Debug.vprint(
+            'Fitting final full model',
+            level=0
+        )
+
+        full_betas, full_rescaled = self.run_bootstrap(None)
+
+        return betas, rescaled_betas, full_betas, full_rescaled
 
     def run_bootstrap(self, bootstrap):
         raise NotImplementedError

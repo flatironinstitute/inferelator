@@ -888,6 +888,10 @@ class InferelatorData(object):
         self,
         sample_bootstrap_index
     ):
+
+        if sample_bootstrap_index is None:
+            return self.copy()
+
         return InferelatorData(
             expression_data=self._adata.X[sample_bootstrap_index, :].copy(),
             gene_names=self.gene_names

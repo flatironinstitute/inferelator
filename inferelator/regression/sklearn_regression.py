@@ -130,56 +130,112 @@ class SKLearnWorkflowMixin(base_regression._RegressionWorkflowMixin):
         self._sklearn_model_params = {}
         super(SKLearnWorkflowMixin, self).__init__(*args, **kwargs)
 
-    def set_regression_parameters(self, model=None, add_random_state=None, **kwargs):
+    def set_regression_parameters(
+        self,
+        model=None,
+        add_random_state=None,
+        **kwargs
+    ):
         """
         Set parameters to use a sklearn model for regression
 
         :param model: A scikit-learn model class
         :type model: BaseEstimator subclass
-        :param add_random_state: Flag to include workflow random seed as "random_state" in the model
+        :param add_random_state: Flag to include workflow random seed
+            as "random_state" in the model
         :type add_random_state: bool
-        :param kwargs: Any arguments which should be passed to the scikit-learn model class instantiation
+        :param kwargs: Any arguments which should be passed to the
+            scikit-learn model class instantiation
         :type kwargs: any
         """
 
         if model is not None and not inspect.isclass(model):
-            raise ValueError("Pass an uninstantiated scikit-learn model (i.e. LinearRegression, not LinearRegression()")
+            raise ValueError(
+                "Pass an uninstantiated scikit-learn model "
+                "(i.e. LinearRegression, not LinearRegression()"
+            )
 
-        self._set_with_warning("_sklearn_model", model)
-        self._set_without_warning("_sklearn_add_random_state", add_random_state)
-        self._sklearn_model_params.update(kwargs)
+        self._set_with_warning(
+            "_sklearn_model",
+            model
+        )
+        self._set_without_warning(
+            "_sklearn_add_random_state",
+            add_random_state
+        )
+        self._sklearn_model_params.update(
+            kwargs
+        )
 
     def run_bootstrap(self, bootstrap):
         x = self.design.get_bootstrap(bootstrap)
         y = self.response.get_bootstrap(bootstrap)
-        utils.Debug.vprint('Calculating betas using SKLearn model {m}'.format(m=self._sklearn_model.__name__), level=0)
 
-        return SKLearnRegression(x,
-                                 y,
-                                 self._sklearn_model,
-                                 random_state=self.random_seed if self._sklearn_add_random_state else None,
-                                 **self._sklearn_model_params).run()
+        utils.Debug.vprint(
+            'Calculating betas using SKLearn model '
+            f'{self._sklearn_model.__name__}',
+            level=0
+        )
+
+        if self._sklearn_add_random_state:
+            seed = self.random_seed
+        else:
+            seed = None
+
+        return SKLearnRegression(
+            x,
+            y,
+            self._sklearn_model,
+            random_state=seed,
+            **self._sklearn_model_params
+        ).run()
 
 
-class SKLearnByTaskMixin(_MultitaskRegressionWorkflowMixin, SKLearnWorkflowMixin):
+class SKLearnByTaskMixin(
+    _MultitaskRegressionWorkflowMixin,
+    SKLearnWorkflowMixin
+):
     """
-    This runs BBSR regression on tasks defined by the AMUSR regression (MTL) workflow
+    This runs scikit models on tasks defined by the MTL workflow
     """
 
     def run_bootstrap(self, bootstrap_idx):
         betas, betas_resc = [], []
 
-        # Select the appropriate bootstrap from each task and stash the data into X and Y
-        for k in range(self._n_tasks):
-            x = self._task_design[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx])
-            y = self._task_response[k].get_bootstrap(self._task_bootstraps[k][bootstrap_idx])
+        if self._sklearn_add_random_state:
+            seed = self.random_seed
+        else:
+            seed = None
 
-            utils.Debug.vprint('Calculating task {k} using {n}'.format(k=k, n=self._sklearn_model.__name__), level=0)
-            t_beta, t_br = SKLearnRegression(x,
-                                             y,
-                                             self._sklearn_model,
-                                             random_state=self.random_seed if self._sklearn_add_random_state else None,
-                                             **self._sklearn_model_params).run()
+        for k in range(self._n_tasks):
+
+            # Select the appropriate bootstrap from each task
+            # and stash the data into X and Y
+            if bootstrap_idx is not None:
+                x = self._task_design[k].get_bootstrap(
+                    self._task_bootstraps[k][bootstrap_idx]
+                )
+                y = self._task_response[k].get_bootstrap(
+                    self._task_bootstraps[k][bootstrap_idx]
+                )
+            else:
+                x = self._task_design[k]
+                y = self._task_response[k]
+
+            utils.Debug.vprint(
+                f'Calculating task {k} using '
+                f'{self._sklearn_model.__name__}',
+                level=0
+            )
+
+            t_beta, t_br = SKLearnRegression(
+                x,
+                y,
+                self._sklearn_model,
+                random_state=seed,
+                **self._sklearn_model_params
+            ).run()
+
             betas.append(t_beta)
             betas_resc.append(t_br)
 

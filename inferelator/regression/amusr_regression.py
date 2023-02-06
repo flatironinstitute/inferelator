@@ -462,12 +462,19 @@ class AMUSRRegressionWorkflowMixin(_MultitaskRegressionWorkflowMixin):
         # Select the appropriate bootstrap from each task and stash the
         # data into X and Y
         for k in range(self._n_tasks):
-            x.append(self._task_design[k].get_bootstrap(
-                self._task_bootstraps[k][bootstrap_idx]
-            ))
-            y.append(self._task_response[k].get_bootstrap(
-                self._task_bootstraps[k][bootstrap_idx]
-            ))
+
+            if bootstrap_idx is not None:
+                x.append(self._task_design[k].get_bootstrap(
+                    self._task_bootstraps[k][bootstrap_idx]
+                ))
+                y.append(self._task_response[k].get_bootstrap(
+                    self._task_bootstraps[k][bootstrap_idx]
+                ))
+
+            else:
+                x.append(self._task_design[k])
+                y.append(self._task_response[k])
+
             tfs.append(self._task_design[k].gene_names.tolist())
 
         regress = self._r_class(
