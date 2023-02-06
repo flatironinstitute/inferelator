@@ -192,10 +192,10 @@ class DaskHPCClusterController(DaskAbstract):
                 cores=cls._job_n_workers * cls._worker_n_threads,
                 processes=cls._job_n_workers,
                 job_mem=cls._job_mem,
-                env_extra=cls._config_env(),
+                job_script_prologue=cls._config_env(),
                 local_directory=cls._local_directory,
                 memory=cls._job_mem,
-                job_extra=cls._job_slurm_commands,
+                job_extra_directives=cls._job_slurm_commands,
                 job_cls=SLURMJobNoMemLimit,
                 **kwargs
             )
