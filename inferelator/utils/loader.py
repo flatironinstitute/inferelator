@@ -70,7 +70,7 @@ class InferelatorDataLoader(object):
         # Read H5AD file
         Debug.vprint(
             f"Loading AnnData file {h5ad_file} "
-            f"(layer {use_layer if use_layer is not None else 'X'})",
+            f"(Layer: {use_layer if use_layer is not None else 'X'})",
             level=0
         )
 

@@ -346,20 +346,20 @@ class StARS(base_regression.BaseRegression):
 
 def _stars_regression_wrapper(x, y, alphas, j, gene, nG, **kwargs):
 
-            utils.Debug.vprint(
-                base_regression.PROGRESS_STR.format(gn=gene, i=j, total=nG),
-                level=0 if j % 1000 == 0 else 2
-            )
+    utils.Debug.vprint(
+        base_regression.PROGRESS_STR.format(gn=gene, i=j, total=nG),
+        level=0 if j % 1000 == 0 else 2
+    )
 
-            data = stars_model_select(
-                x,
-                utils.scale_vector(y),
-                alphas,
-                **kwargs
-            )
+    data = stars_model_select(
+        x,
+        utils.scale_vector(y),
+        alphas,
+        **kwargs
+    )
 
-            data['ind'] = j
-            return data
+    data['ind'] = j
+    return data
 
 
 class StARSWorkflowMixin(base_regression._RegressionWorkflowMixin):

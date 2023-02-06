@@ -262,7 +262,7 @@ class ResultsProcessor(object):
         if full_model_var_exp is not None:
             network_data = network_data.join(
                 utils.melt_and_reindex_dataframe(
-                    full_model_betas,
+                    full_model_var_exp,
                     MODEL_EXP_VAR_COLUMN
                 ),
                 on=[TARGET_COLUMN, REGULATOR_COLUMN]
