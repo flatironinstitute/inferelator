@@ -110,8 +110,9 @@ class RankSummingMetric(object):
         # Filter the gold standard and confidences down to a format
         # that can be directly compared
         utils.Debug.vprint(
-            f"GS: {gold_standard.shape[0]} edges; "
-            f"Confidences: {confidence_data.shape[0]} edges",
+            f"GS: {gold_standard.sum().sum()} edges; "
+            f"Confidences: {(confidence_data[CONFIDENCE_COLUMN] > 0).sum()} "
+            "edges",
             level=0
         )
 
