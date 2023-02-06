@@ -97,7 +97,9 @@ class TestResults(unittest.TestCase):
             result = rp.summarize_network(
                 td,
                 self.gold_standard,
-                self.prior
+                self.prior,
+                full_model_betas=self.beta,
+                full_model_var_exp=self.beta_resc
             )
 
             if result.curve_data_file_name is not None:
@@ -288,7 +290,7 @@ class TestRankSummary(TestResults):
 
     def test_output_files(self):
         pass
-    
+
 
 class TestPrecisionRecallMetric(TestResults):
 
