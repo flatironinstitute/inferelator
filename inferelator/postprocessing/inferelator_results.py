@@ -61,7 +61,7 @@ class InferelatorResults:
     # File names
     network_file_name = "network.tsv.gz"
     confidence_file_name = "combined_confidences.tsv.gz"
-    threshold_file_name = None
+    threshold_file_name = "model_coefficients.tsv.gz"
     curve_file_name = "combined_metrics.pdf"
     curve_data_file_name = None
 
