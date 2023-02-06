@@ -15,8 +15,14 @@ from inferelator.utils import (
 )
 
 from inferelator.distributed.inferelator_mp import MPControl
-from inferelator.preprocessing import ManagePriors, make_data_noisy
-from inferelator.postprocessing import ResultsProcessor, InferelatorResults
+from inferelator.preprocessing import (
+    ManagePriors,
+    make_data_noisy
+)
+from inferelator.postprocessing import (
+    ResultsProcessor,
+    InferelatorResults as IR
+)
 
 SBATCH_VARS_FOR_WORKFLOW = ["output_dir", "input_dir"]
 
@@ -899,7 +905,8 @@ class WorkflowBaseLoader(object):
         """
         Join filename to output_dir
 
-        :param filename: Path to some file that needs to be attached to the output path
+        :param filename: Path to some file that needs to be
+            attached to the output path
         :type filename: str
         :return: File joined to output_dir instance variable
         :rtype: str
@@ -931,8 +938,9 @@ class WorkflowBaseLoader(object):
     def _create_null_prior(gene_names, tf_names):
         """
         Create a prior data matrix that is all 0s
-        :param gene_names: Anything that can be used as an index for a dataframe
-        :param tf_names: list
+        :param gene_names: Anything that can be used as an index
+            for a dataframe
+        :param tf_names: list, pd.Index
         :return priors: pd.DataFrame
         """
 
@@ -1012,7 +1020,8 @@ class WorkflowBaseLoader(object):
 
 class WorkflowBase(WorkflowBaseLoader):
     """
-    WorkflowBase handles crossvalidation, shuffling, and validating priors and gold standards
+    WorkflowBase handles crossvalidation, shuffling, and
+    validating priors and gold standards
     """
     # Flags to control splitting priors into a prior/gold-standard set
     split_gold_standard_for_crossvalidation = False
@@ -1057,105 +1066,177 @@ class WorkflowBase(WorkflowBaseLoader):
         # Get environment variables
         self.get_environmentals()
 
-    def set_crossvalidation_parameters(self, split_gold_standard_for_crossvalidation=None, cv_split_ratio=None,
-                                       cv_split_axis=None):
+    def set_crossvalidation_parameters(
+        self,
+        split_gold_standard_for_crossvalidation=None,
+        cv_split_ratio=None,
+        cv_split_axis=None
+    ):
         """
         Set parameters for crossvalidation.
 
-        :param split_gold_standard_for_crossvalidation: Boolean flag indicating if the gold standard should be
-            split. Must be set to True for other crossvalidation settings to have an effect. Defaults to False.
+        :param split_gold_standard_for_crossvalidation: Boolean flag indicating
+            if the gold standard should be split. Must be set to True for other
+            crossvalidation settings to have an effect. Defaults to False.
         :type split_gold_standard_for_crossvalidation: bool
-        :param cv_split_ratio: The proportion of the gold standard which should be retained for scoring. The rest will
-            be used to train the model. Must be set betweeen 0 and 1.
+        :param cv_split_ratio: The proportion of the gold standard which should
+            be retained for scoring. The rest will be used to train the model.
+            Must be set betweeen 0 and 1.
         :type cv_split_ratio: float
-        :param cv_split_axis: How to split the gold standard. If 0, split genes; this will take all the data for certain
-            genes and keep it in the gold standard. These genes will be removed from the prior. If 1, split regulators;
-            this will take all the data for certain regulators and keep it in the gold standard. These regulators will
-            be removed from the prior. Splitting regulators is inadvisable. If None, the prior will be replaced with a
-            downsampled gold standard. Setting this to 0 is generally the best choice.
-            Defaults to None.
+        :param cv_split_axis: How to split the gold standard.
+
+            If 0, split genes; this will take all the data for certain genes
+            and keep it in the gold standard. These genes will be removed from
+            the prior.
+
+            If 1, split regulators; this will take all the data for certain
+            regulatorsnand keep it in the gold standard. These regulators will
+            be removed from the prior. Splitting regulators is inadvisable.
+
+            If None, the prior will be replaced with a downsampled gold
+            standard.
+
+            Setting this to 0 is generally the best choice. Defaults to None.
+
         :type cv_split_axis: int, None
 
         """
 
-        self._set_without_warning("split_gold_standard_for_crossvalidation", split_gold_standard_for_crossvalidation)
-        self._set_with_warning("cv_split_ratio", cv_split_ratio)
-        self._set_with_warning("cv_split_axis", cv_split_axis)
+        self._set_without_warning(
+            "split_gold_standard_for_crossvalidation",
+            split_gold_standard_for_crossvalidation
+        )
+        self._set_with_warning(
+            "cv_split_ratio",
+            cv_split_ratio
+        )
+        self._set_with_warning(
+            "cv_split_axis",
+            cv_split_axis
+        )
 
-        if not split_gold_standard_for_crossvalidation and (cv_split_axis is not None or cv_split_ratio is not None):
-            warnings.warn("The split_gold_standard_for_crossvalidation flag is not set. Other options may be ignored")
+        if cv_split_axis is not None or cv_split_ratio is not None:
 
-    def set_shuffle_parameters(self, shuffle_prior_axis=None, make_data_noise=None, add_prior_noise=None):
+            if not self.split_gold_standard_for_crossvalidation:
+                warnings.warn(
+                    "The split_gold_standard_for_crossvalidation flag is not set. "
+                    "Other options may be ignored"
+                )
+
+    def set_shuffle_parameters(
+        self,
+        shuffle_prior_axis=None,
+        make_data_noise=None,
+        add_prior_noise=None
+    ):
         """
-        Set parameters for shuffling labels on a prior axis. This is useful to establish a baseline.
+        Set parameters for shuffling labels on a prior axis. This is useful
+        to establish a baseline.
 
-        :param shuffle_prior_axis: The axis for shuffling prior labels. 0 shuffles gene labels. 1 shuffles regulator
-            labels. None means labels will not be shuffled. Defaults to None.
+        :param shuffle_prior_axis: The axis for shuffling prior labels.
+            0 shuffles gene labels.
+            1 shuffles regulator labels.
+            None means labels will not be shuffled.
+            Defaults to None.
         :type shuffle_prior_axis: int, None
-        :param make_data_noise: Replace loaded data with simulated data that is entirely random. This retains type;
-            integer data remains integer, float remains float. Gene distributions should be centered around the
-            mean of gene expression in the original data, but is otherwise random.
+        :param make_data_noise: Replace loaded data with simulated data
+            that is entirely random. This retains type; integer data remains
+            integer, float remains float. Gene distributions should be
+            centered around the mean of gene expression in the original data,
+            but is otherwise random.
         :type make_data_noise: bool, None
-        :param add_prior_noise: Add random edges to the prior data. This is a numeric value between 0 and 1 such that 0
-            adds no edges, 1 sets every edge in the prior to True, 0.1 sets 10% of the edges in the prior to True, and
-            so on. Note that this will binarize the prior if it is not already binary.
+        :param add_prior_noise: Add random edges to the prior data.
+            This is a numeric value between 0 and 1 such that
+            0 adds no edges,
+            1 sets every edge in the prior to True,
+            0.1 sets 10% of the edges in the prior to True,
+            and so on.
+            Note that this will binarize the prior if it is not already binary.
         :type add_prior_noise: numeric, None
         """
         self._set_with_warning("shuffle_prior_axis", shuffle_prior_axis)
         self._set_with_warning("make_data_noise", make_data_noise)
         self._set_with_warning("add_prior_noise", add_prior_noise)
 
-    def set_postprocessing_parameters(self, gold_standard_filter_method=None, metric=None):
+    def set_postprocessing_parameters(
+        self,
+        gold_standard_filter_method=None,
+        metric=None
+    ):
         """
         Set parameters for the postprocessing engine
 
-        :param gold_standard_filter_method: A flag that determines if the gold standard should be shrunk to the
-            size of the produced model. "overlap" will only score on overlap between the gold standard and the
-            inferred gene regulatory network. "keep_all_gold_standard" will score on the entire gold standard.
+        :param gold_standard_filter_method: A flag that determines if the
+            old standard should be shrunk to the size of the produced model.
+            "overlap" will only score on overlap between the gold standard
+            and the inferred gene regulatory network.
+            "keep_all_gold_standard" will score on the entire gold standard.
             Defaults to "keep_all_gold_standard".
         :type gold_standard_filter_method: str
-        :param metric: The model metric to use for scoring. Supports "precision-recall", "mcc", "f1", and "combined"
+        :param metric: The model metric to use for scoring. Supports
+            "precision-recall", "mcc", "f1", and "combined"
             Defaults to "combined".
         :type metric: str
         """
 
-        self._set_with_warning("gold_standard_filter_method", gold_standard_filter_method)
-        self._set_with_warning("metric", metric)
+        self._set_with_warning(
+            "gold_standard_filter_method",
+            gold_standard_filter_method
+        )
+        self._set_with_warning(
+            "metric",
+            metric
+        )
 
     @staticmethod
-    def set_output_file_names(network_file_name="", confidence_file_name="", nonzero_coefficient_file_name="",
-                              pdf_curve_file_name="", curve_data_file_name=""):
+    def set_output_file_names(
+        network_file_name="",
+        confidence_file_name="",
+        nonzero_coefficient_file_name="",
+        pdf_curve_file_name="",
+        curve_data_file_name=""
+    ):
         """
         Set output file names. File names that end in '.gz' will be gzipped.
 
-        :param network_file_name: Long-format network TSV file with TF->Gene edge information.
+        :param network_file_name: Long-format network TSV file with
+            TF->Gene edge information.
             Default is "network.tsv".
         :type network_file_name: str
-        :param confidence_file_name: Genes x TFs TSV with confidence scores for each edge.
+        :param confidence_file_name: Genes x TFs TSV with confidence
+            scores for each edge.
             Default is "combined_confidences.tsv"
         :type confidence_file_name: str
-        :param nonzero_coefficient_file_name: Genes x TFs TSV with the number of non-zero model coefficients for each
-            edge. Default is None (this file is not produced).
+        :param nonzero_coefficient_file_name: Genes x TFs TSV with
+            the non-zero model coefficients for each
+            edge. Default is "model_coefficients.tsv.gz"
         :type nonzero_coefficient_file_name: str
-        :param pdf_curve_file_name: PDF file with plotted curve(s). Default is "combined_metrics.pdf".
+        :param pdf_curve_file_name: PDF file with plotted curve(s).
+            Default is "combined_metrics.pdf".
         :type pdf_curve_file_name: str
-        :param curve_data_file_name: TSV file with the data used to plot curves.
-            Default is None (this file is not produced).
+        :param curve_data_file_name: TSV file with the data used to plot
+            curves. Default is None (this file is not produced).
         :type curve_data_file_name: str
         """
 
         if network_file_name != "":
-            InferelatorResults.network_file_name = network_file_name
+            IR.network_file_name = network_file_name
         if confidence_file_name != "":
-            InferelatorResults.confidence_file_name = confidence_file_name
+            IR.confidence_file_name = confidence_file_name
         if nonzero_coefficient_file_name != "":
-            InferelatorResults.threshold_file_name = nonzero_coefficient_file_name
+            IR.threshold_file_name = nonzero_coefficient_file_name
         if pdf_curve_file_name != "":
-            InferelatorResults.curve_file_name = pdf_curve_file_name
+            IR.curve_file_name = pdf_curve_file_name
         if curve_data_file_name != "":
-            InferelatorResults.curve_data_file_name = curve_data_file_name
+            IR.curve_data_file_name = curve_data_file_name
 
-    def set_run_parameters(self, num_bootstraps=None, random_seed=None, use_mkl=None, use_numba=None):
+    def set_run_parameters(
+        self,
+        num_bootstraps=None,
+        random_seed=None,
+        use_mkl=None,
+        use_numba=None
+    ):
         """
         Set parameters used during runtime
 
@@ -1169,8 +1250,9 @@ class WorkflowBase(WorkflowBaseLoader):
             should be used for matrix multiplication, defaults to False
         :type use_mkl: bool
         :param use_numba: A flag to indicate if numba should be used
-            to accelerate the calculations. Requires numba to be installed if set.
-            Currently only accelerates AMuSR regression, defaults to True
+            to accelerate the calculations. Requires numba to be installed
+            if set. Currently only accelerates AMuSR regression, defaults
+            to True
         :type use_numba: bool
         """
 
@@ -1210,13 +1292,15 @@ class WorkflowBase(WorkflowBaseLoader):
 
     def startup_run(self):
         """
-        Execute any data preprocessing necessary before regression. Startup_run is mostly for reading in data
+        Execute any data preprocessing necessary before regression.
+        Startup_run is mostly for reading in data
         """
         raise NotImplementedError  # implement in subclass
 
     def startup_finish(self):
         """
-        Execute any data preprocessing necessary before regression. Startup_finish is mostly for preprocessing data
+        Execute any data preprocessing necessary before regression.
+        Startup_finish is mostly for preprocessing data
         prior to regression
         """
         raise NotImplementedError  # implement in subclass
@@ -1233,53 +1317,76 @@ class WorkflowBase(WorkflowBaseLoader):
         This also filters the expression matrix to the list of genes to model
         """
 
+        pm = self.prior_manager
+
         # Split gold standard for cross-validation
         if self.split_gold_standard_for_crossvalidation:
-            self.priors_data, self.gold_standard = self.prior_manager.cross_validate_gold_standard(self.priors_data,
-                                                                                                   self.gold_standard,
-                                                                                                   self.cv_split_axis,
-                                                                                                   self.cv_split_ratio,
-                                                                                                   self.random_seed)
+            self.priors_data, self.gold_standard = pm.cross_validate_gold_standard(
+                self.priors_data,
+                self.gold_standard,
+                self.cv_split_axis,
+                self.cv_split_ratio,
+                self.random_seed
+            )
 
         # Filter priors to a list of regulators
         if self.tf_names is not None:
-            self.priors_data = self.prior_manager.filter_to_tf_names_list(self.priors_data, self.tf_names)
+            self.priors_data = pm.filter_to_tf_names_list(
+                self.priors_data,
+                self.tf_names
+            )
+
         elif self.tf_names is None and self.priors_data is not None:
             self.tf_names = self.priors_data.columns.tolist()
+
         elif self.tf_names is None:
-            raise ValueError("Either a priors_data or a tf_names file must be provided to identify regulators.")
+            raise ValueError(
+                "Either a priors_data or a tf_names file must be provided "
+                "to identify regulators."
+            )
 
         # Filter priors and expression to a list of genes
         self.filter_to_gene_list()
 
         # Shuffle prior labels
         if self.shuffle_prior_axis is not None:
-            self.priors_data = self.prior_manager.shuffle_priors(self.priors_data,
-                                                                 self.shuffle_prior_axis,
-                                                                 self.random_seed)
+            self.priors_data = pm.shuffle_priors(
+                self.priors_data,
+                self.shuffle_prior_axis,
+                self.random_seed
+            )
 
         # Check for duplicates or whatever
-        self.priors_data, self.gold_standard = self.prior_manager.validate_priors_gold_standard(self.priors_data,
-                                                                                                self.gold_standard)
+        self.priors_data, self.gold_standard = pm.validate_priors_gold_standard(
+            self.priors_data,
+            self.gold_standard
+        )
 
         if self.add_prior_noise is not None:
-            self.priors_data = self.prior_manager.add_prior_noise(self.priors_data, self.add_prior_noise,
-                                                                  self.random_seed)
+            self.priors_data = pm.add_prior_noise(
+                self.priors_data,
+                self.add_prior_noise,
+                self.random_seed
+            )
 
     def filter_to_gene_list(self):
         """
         Filter the priors and expression matrix to just genes in gene_metadata
         """
-
-        Debug.vprint("Trimming expression matrix", level=1)
         self.data.trim_genes(trim_gene_list=self.gene_names)
-        self.priors_data = self.prior_manager.filter_priors_to_genes(self.priors_data, self.data.gene_names)
+        self.priors_data = self.prior_manager.filter_priors_to_genes(
+            self.priors_data,
+            self.data.gene_names
+        )
 
     def align_priors_and_expression(self):
         """
         Align prior to the expression matrix
         """
-        self.priors_data = self.prior_manager.align_priors_to_expression(self.priors_data, self.data.gene_names)
+        self.priors_data = self.prior_manager.align_priors_to_expression(
+            self.priors_data,
+            self.data.gene_names
+        )
         self.data_white_noise()
 
     def data_white_noise(self):
@@ -1295,9 +1402,10 @@ class WorkflowBase(WorkflowBaseLoader):
         """
         Generate sequence of bootstrap parameter objects for run.
         """
-        col_range = range(self._num_obs)
-        random_state = np.random.RandomState(seed=self.random_seed)
-        return random_state.choice(col_range, size=(self.num_bootstraps, self._num_obs)).tolist()
+        return np.random.RandomState(seed=self.random_seed).choice(
+            range(self._num_obs),
+            size=(self.num_bootstraps, self._num_obs)
+        ).tolist()
 
     def emit_results(
         self,
@@ -1315,16 +1423,26 @@ class WorkflowBase(WorkflowBaseLoader):
 
     def create_output_dir(self):
         """
-        Set a default output_dir if nothing is set. Create the path if it doesn't exist.
+        Set a default output_dir if nothing is set.
+        Create the path if it doesn't exist.
         """
-        if self.output_dir is None:
-            new_path = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-            self.output_dir = InferelatorDataLoader.make_path_safe(os.path.join(self.input_dir, new_path))
-        else:
-            self.output_dir = InferelatorDataLoader.make_path_safe(self.output_dir)
 
+        if self.output_dir is None:
+            self.output_dir = InferelatorDataLoader.make_path_safe(
+                os.path.join(
+                    self.input_dir,
+                    datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+                )
+            )
+
+        else:
+            self.output_dir = InferelatorDataLoader.make_path_safe(
+                self.output_dir
+            )
+
+        # Create the output directory
         try:
-            os.makedirs(os.path.expanduser(self.output_dir))
+            os.makedirs(self.output_dir)
         except FileExistsError:
             pass
 
@@ -1332,4 +1450,6 @@ class WorkflowBase(WorkflowBaseLoader):
         """
         Create a task data object
         """
-        raise NotImplementedError("This workflow does not support multiple tasks")
+        raise NotImplementedError(
+            "This workflow does not support multiple tasks"
+        )
