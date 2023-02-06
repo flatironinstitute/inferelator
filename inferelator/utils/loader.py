@@ -69,7 +69,8 @@ class InferelatorDataLoader(object):
 
         # Read H5AD file
         Debug.vprint(
-            f"Loading AnnData file {h5ad_file}",
+            f"Loading AnnData file {h5ad_file} "
+            f"(layer {use_layer if use_layer is not None else 'X'})",
             level=0
         )
 
@@ -131,7 +132,7 @@ class InferelatorDataLoader(object):
         _safe_dataframe_decoder(data.gene_data)
         _safe_dataframe_decoder(data.meta_data)
 
-        self._check_loaded_data(data, filename=h5ad_file)
+        self._check_loaded_data(data)
 
         return data
 
@@ -322,7 +323,7 @@ class InferelatorDataLoader(object):
             gene_data=gene_metadata
         )
 
-        self._check_loaded_data(data, filename=tsv_matrix_file)
+        self._check_loaded_data(data)
 
         return data
 
@@ -472,8 +473,8 @@ class InferelatorDataLoader(object):
         )[0].tolist()
 
     @staticmethod
-    def _check_loaded_data(data, filename=None):
-        msg = f"Loaded {filename if filename is not None else ''}:"
+    def _check_loaded_data(data):
+        msg = ""
 
         nnf, non_finite_genes = data.non_finite
 

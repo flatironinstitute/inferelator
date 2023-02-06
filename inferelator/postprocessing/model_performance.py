@@ -123,7 +123,8 @@ class RankSummingMetric(object):
         ).copy()
 
         utils.Debug.vprint(
-            f"Filtered data to {self.filtered_data.shape[0]} edges",
+            "Filtered network data to "
+            f"{(self.filtered_data[CONFIDENCE_COLUMN] > 0).sum()} edges",
             level=1
         )
 

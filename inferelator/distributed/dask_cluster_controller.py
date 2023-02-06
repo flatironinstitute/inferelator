@@ -475,10 +475,10 @@ class DaskHPCClusterController(DaskAbstract):
 
         return (
             f"Dask cluster: Allocated {cls._job_n} jobs ({cls._job_n_workers} "
-            f"workers with {cls._job_mem} memory per job)\n"
-            f"SLURM: -p {cls._queue}, -A {cls._project}, " +
-            ", ".join(cls._job_slurm_commands) + "\n",
-            "ENV: " + "\n\t".join(cls._job_extra_env_commands) + "\n"
+            f"workers with {cls._job_mem} memory per job)"
+            f"SLURM: -p {cls._queue}, -A {cls._project}, "
+            f"{', '.join(cls._job_slurm_commands)} "
+            f"ENV: {', '.join(cls._job_extra_env_commands)}"
         )
 
     @classmethod
