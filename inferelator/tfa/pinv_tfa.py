@@ -64,8 +64,7 @@ class NormalizedExpressionPinvTFA(_Pinv_TFA_mixin, ActivityOnlyTFA):
         """
 
         arr_scale = RobustScaler(
-            with_centering=False,
-            axis=0
+            with_centering=False
         ).fit_transform(array)
 
         # Enforce positive values by setting the minimum value to zero
