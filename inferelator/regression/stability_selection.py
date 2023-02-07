@@ -12,7 +12,17 @@ from sklearn.linear_model import (
     lasso_path
 )
 
-from inferelator.regression import base_regression
+from inferelator.regression.base_regression import (
+    BaseRegression,
+    PreprocessData,
+    _RegressionWorkflowMixin,
+    _MultitaskRegressionWorkflowMixin,
+    recalculate_betas_from_selected,
+    predict_error_reduction,
+    gene_data_generator,
+    PROGRESS_STR
+)
+
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator import utils
 
@@ -250,8 +260,8 @@ def stars_model_select(
     else:
         x = x[:, beta_nonzero]
         utils.make_array_2d(y)
-        betas = base_regression.recalculate_betas_from_selected(x, y)
-        betas_resc = base_regression.predict_error_reduction(x, y, betas)
+        betas = recalculate_betas_from_selected(x, y)
+        betas_resc = predict_error_reduction(x, y, betas)
 
         return dict(pp=beta_nonzero,
                     betas=betas,
@@ -294,7 +304,7 @@ def _make_subsample_idx(n, b, num_subsamples, random_seed=42):
     return subsample_index
 
 
-class StARS(base_regression.BaseRegression):
+class StARS(BaseRegression):
 
     def __init__(
         self,
@@ -331,7 +341,7 @@ class StARS(base_regression.BaseRegression):
         return MPControl.map(
             _stars_regression_wrapper,
             itertools.repeat(x, nG),
-            base_regression.gene_data_generator(self.Y, nG),
+            gene_data_generator(self.Y, nG),
             itertools.repeat(self.alphas, nG),
             range(nG),
             self.genes,
@@ -347,13 +357,13 @@ class StARS(base_regression.BaseRegression):
 def _stars_regression_wrapper(x, y, alphas, j, gene, nG, **kwargs):
 
     utils.Debug.vprint(
-        base_regression.PROGRESS_STR.format(gn=gene, i=j, total=nG),
+        PROGRESS_STR.format(gn=gene, i=j, total=nG),
         level=0 if j % 1000 == 0 else 2
     )
 
     data = stars_model_select(
         x,
-        utils.scale_vector(y),
+        PreprocessData.preprocess_response_vector(y),
         alphas,
         **kwargs
     )
@@ -362,7 +372,7 @@ def _stars_regression_wrapper(x, y, alphas, j, gene, nG, **kwargs):
     return data
 
 
-class StARSWorkflowMixin(base_regression._RegressionWorkflowMixin):
+class StARSWorkflowMixin(_RegressionWorkflowMixin):
     """
     Stability Approach to Regularization Selection (StARS)-LASSO.
     StARS-Ridge is implemented on an experimental basis.
@@ -439,7 +449,7 @@ class StARSWorkflowMixin(base_regression._RegressionWorkflowMixin):
 
 
 class StARSWorkflowByTaskMixin(
-    base_regression._MultitaskRegressionWorkflowMixin,
+    _MultitaskRegressionWorkflowMixin,
     StARSWorkflowMixin
 ):
     """

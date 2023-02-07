@@ -1,16 +1,33 @@
-import numpy as np
-from inferelator.utils import Validator as check
-from inferelator import utils
-from inferelator.regression import base_regression
-from inferelator.distributed.inferelator_mp import MPControl
-from sklearn.base import BaseEstimator
-from inferelator.regression.base_regression import _MultitaskRegressionWorkflowMixin
-import copy
 import inspect
 import itertools
+import numpy as np
+from sklearn.base import BaseEstimator
+
+from inferelator.utils import (
+    Debug,
+    Validator as check,
+    make_array_2d
+)
+from inferelator.distributed.inferelator_mp import MPControl
+from inferelator.regression.base_regression import (
+    BaseRegression,
+    PreprocessData,
+    _RegressionWorkflowMixin,
+    _MultitaskRegressionWorkflowMixin,
+    recalculate_betas_from_selected,
+    predict_error_reduction,
+    gene_data_generator,
+    PROGRESS_STR
+)
 
 
-def sklearn_gene(x, y, model, min_coef=None, **kwargs):
+def sklearn_gene(
+    x,
+    y,
+    model,
+    min_coef=None,
+    **kwargs
+):
     """
     Use a scikit-learn model for regression
 
@@ -20,11 +37,13 @@ def sklearn_gene(x, y, model, min_coef=None, **kwargs):
     :type y: np.ndarray [N x 1]
     :param model: Instance of a scikit BaseEstimator-derived model
     :type model: BaseEstimator
-    :param min_coef: A minimum coefficient value to include in the model. Any values smaller will be set to 0.
+    :param min_coef: A minimum coefficient value to include in the model.
+        Any values smaller will be set to 0.
     :type min_coef: numeric
     :return: A dict of results for this gene
     :rtype: dict
     """
+
     assert check.argument_type(x, np.ndarray)
     assert check.argument_type(y, np.ndarray)
     assert check.argument_is_subclass(model, BaseEstimator)
@@ -42,27 +61,33 @@ def sklearn_gene(x, y, model, min_coef=None, **kwargs):
 
     # Set coefficients below threshold to 0
     if min_coef is not None:
-        coefs[np.abs(coefs) < min_coef] = 0.  # Threshold coefficients
+        coefs[np.abs(coefs) < min_coef] = 0.
 
-    coef_nonzero = coefs != 0  # Create a boolean array where coefficients are nonzero [K, ]
+    # Create a boolean array where coefficients are nonzero [K, ]
+    coef_nonzero = coefs != 0
 
-    # If there are non-zero coefficients, redo the linear regression with them alone
-    # And calculate beta_resc
+    # If there are non-zero coefficients, redo the linear regression
+    # with them alone and calculate beta_resc
     if coef_nonzero.sum() > 0:
         x = x[:, coef_nonzero]
-        utils.make_array_2d(y)
-        betas = base_regression.recalculate_betas_from_selected(x, y)
-        betas_resc = base_regression.predict_error_reduction(x, y, betas)
-        return dict(pp=coef_nonzero,
-                    betas=betas,
-                    betas_resc=betas_resc)
+        make_array_2d(y)
+        betas = recalculate_betas_from_selected(x, y)
+        betas_resc = predict_error_reduction(x, y, betas)
+        return dict(
+            pp=coef_nonzero,
+            betas=betas,
+            betas_resc=betas_resc
+        )
+
     else:
-        return dict(pp=np.repeat(True, K).tolist(),
-                    betas=np.zeros(K),
-                    betas_resc=np.zeros(K))
+        return dict(
+            pp=np.repeat(True, K).tolist(),
+            betas=np.zeros(K),
+            betas_resc=np.zeros(K)
+        )
 
 
-class SKLearnRegression(base_regression.BaseRegression):
+class SKLearnRegression(BaseRegression):
 
     def __init__(self, x, y, model, random_state=None, **kwargs):
         self.params = kwargs
@@ -71,7 +96,7 @@ class SKLearnRegression(base_regression.BaseRegression):
             self.params["random_state"] = random_state
 
         self.min_coef = self.params.pop("min_coef", None)
-        self.model = model(**self.params)
+        self.model = model
 
         super(SKLearnRegression, self).__init__(x, y)
 
@@ -80,7 +105,8 @@ class SKLearnRegression(base_regression.BaseRegression):
         Execute Elastic Net
 
         :return: list
-            Returns a list of regression results that base_regression's pileup_data can process
+            Returns a list of regression results that base_regression's
+            pileup_data can process
         """
 
         nG = self.G
@@ -89,27 +115,37 @@ class SKLearnRegression(base_regression.BaseRegression):
         return MPControl.map(
             _sklearn_regression_wrapper,
             itertools.repeat(X, nG),
-            base_regression.gene_data_generator(self.Y, nG),
+            gene_data_generator(self.Y, nG),
             itertools.repeat(self.model, nG),
             itertools.repeat(self.genes, nG),
             itertools.repeat(nG, nG),
             range(self.G),
+            params=self.params,
             min_coef=self.min_coef,
             scatter=[X]
         )
 
 
-def _sklearn_regression_wrapper(X, y, model, genes, nG, j, min_coef=None):
+def _sklearn_regression_wrapper(
+    X,
+    y,
+    model,
+    genes,
+    nG,
+    j,
+    params={},
+    min_coef=None
+):
         """ Wrapper for multiprocessing sklearn models """
-        utils.Debug.vprint(
-            base_regression.PROGRESS_STR.format(gn=genes[j], i=j, total=nG),
+        Debug.vprint(
+            PROGRESS_STR.format(gn=genes[j], i=j, total=nG),
             level=0 if j % 1000 == 0 else 2
         )
 
         data = sklearn_gene(
             X,
-            utils.scale_vector(y),
-            copy.copy(model),
+            PreprocessData.preprocess_response_vector(y),
+            model(**params),
             min_coef=min_coef
         )
 
@@ -117,7 +153,7 @@ def _sklearn_regression_wrapper(X, y, model, genes, nG, j, min_coef=None):
         return data
 
 
-class SKLearnWorkflowMixin(base_regression._RegressionWorkflowMixin):
+class SKLearnWorkflowMixin(_RegressionWorkflowMixin):
     """
     Use any scikit-learn regression module
     """
@@ -171,7 +207,7 @@ class SKLearnWorkflowMixin(base_regression._RegressionWorkflowMixin):
         x = self.design.get_bootstrap(bootstrap)
         y = self.response.get_bootstrap(bootstrap)
 
-        utils.Debug.vprint(
+        Debug.vprint(
             'Calculating betas using SKLearn model '
             f'{self._sklearn_model.__name__}',
             level=0
@@ -222,7 +258,7 @@ class SKLearnByTaskMixin(
                 x = self._task_design[k]
                 y = self._task_response[k]
 
-            utils.Debug.vprint(
+            Debug.vprint(
                 f'Calculating task {k} using '
                 f'{self._sklearn_model.__name__}',
                 level=0

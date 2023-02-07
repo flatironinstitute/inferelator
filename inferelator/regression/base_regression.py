@@ -1,16 +1,18 @@
 import numpy as np
 import pandas as pd
 import scipy.stats
-import copy
 
-from inferelator.utils import Debug
-from inferelator.utils import Validator as check
+from inferelator.utils import (
+    Debug,
+    Validator as check,
+    scale_vector
+)
 
 DEFAULT_CHUNK = 25
 PROGRESS_STR = "Regression on {gn} [{i} / {total}]"
 
 
-class BaseRegression(object):
+class BaseRegression:
     # These are all the things that have to be set in a new regression class
 
     chunk = DEFAULT_CHUNK  # int
@@ -38,9 +40,7 @@ class BaseRegression(object):
         self.genes = Y.gene_names
 
         # Rescale the design expression or activity data on features
-        self.X = X
-        self.X.zscore()
-
+        self.X = PreprocessData.preprocess_design(X)
         self.Y = Y
 
         Debug.vprint(
@@ -126,15 +126,50 @@ class BaseRegression(object):
         return d_len, b_avg, null_m
 
 
+class PreprocessData:
+
+    scale = True
+    scale_limit = None
+
+    @classmethod
+    def preprocess_design(cls, X):
+        """
+        Preprocess data for design matrix
+
+        :param X: Calculated activity matrix (from full prior) [N x K]
+        :type X: InferelatorData
+        """
+
+        return X.zscore(
+            limit=cls.scale_limit
+        )
+
+    @classmethod
+    def preprocess_response_vector(cls, y):
+        """
+        Preprocess data for design matrix
+
+        :param y: Design vector [N x K]
+        :type X: InferelatorData
+        """
+
+        return scale_vector(
+            y,
+            magnitude_limit=cls.scale_limit
+        )
+
+
 class _RegressionWorkflowMixin(object):
     """
     RegressionWorkflow implements run_regression and run_bootstrap
-    Each regression method needs to extend this to implement run_bootstrap (and also run_regression if necessary)
+    Each regression method needs to extend this to implement
+    run_bootstrap (and also run_regression if necessary)
     """
 
     def set_regression_parameters(self, **kwargs):
         """
-        Set any parameters which are specific to one or another regression method
+        Set any parameters which are specific to one or another
+        regression method
         """
         pass
 
@@ -267,32 +302,46 @@ def predict_error_reduction(x, y, betas):
     ss_all = sigma_squared(x, y, betas)
     error_reduction = np.zeros(k, dtype=np.dtype(float))
 
+    # If there's only one predictor, use the ratio of explained variance
+    # to total variance (a model with zero predictors)
     if len(pp_idx) == 1:
         error_reduction[pp_idx] = 1 - (ss_all / np.var(y, ddof=1))
         return error_reduction
 
     for pp_i in range(len(pp_idx)):
         # Copy the index of predictors
-        leave_out = copy.copy(pp_idx)
+        leave_out = pp_idx.copy()
         # Pull off one of the predictors
         lost = leave_out.pop(pp_i)
 
-        # Reestimate betas for all the predictors except the one that we removed
+        # Reestimate betas for all the predictors except the one
+        # that we removed
         x_leaveout = x[:, leave_out]
+
+        # Do a standard solve holding out one of the predictors
         try:
             xt = x_leaveout.T
-            xtx = np.dot(xt, x_leaveout)
-            xty = np.dot(xt, y)
-            beta_hat = scipy.linalg.solve(xtx, xty, assume_a='sym')
+            beta_hat = scipy.linalg.solve(
+                np.dot(xt, x_leaveout),
+                np.dot(xt, y),
+                assume_a='sym'
+            )
+
+        # But if it fails use all zero coefficients
+        # it shouldn't fail at this stage though
         except np.linalg.LinAlgError:
             beta_hat = np.zeros(len(leave_out), dtype=np.dtype(float))
 
         # Calculate the variance of the residuals for the new estimated betas
         ss_leaveout = sigma_squared(x_leaveout, y, beta_hat)
 
-        # Check to make sure that the ss_all and ss_leaveout differences aren't just precision-related
-        if np.abs(ss_all - ss_leaveout) < np.finfo(float).eps * len(pp_idx):
+        # Check to make sure that the ss_all and ss_leaveout differences
+        # aren't just precision-related
+        _eps = np.finfo(float).eps * len(pp_idx)
+        if np.abs(ss_all - ss_leaveout) < _eps:
             error_reduction[lost] = 0.
+        elif ss_leaveout < _eps:
+            error_reduction[lost] = 1.
         else:
             error_reduction[lost] = 1 - (ss_all / ss_leaveout)
 
@@ -300,7 +349,13 @@ def predict_error_reduction(x, y, betas):
 
 
 def sigma_squared(x, y, betas):
-    return np.var(np.subtract(y, np.dot(x, betas).reshape(-1, 1)), ddof=1)
+    return np.var(
+        np.subtract(
+            y,
+            np.dot(x, betas).reshape(-1, 1)
+        ),
+        ddof=1
+    )
 
 
 def index_of_nonzeros(arr):

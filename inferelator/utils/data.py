@@ -227,9 +227,14 @@ def melt_and_reindex_dataframe(
     return data_frame
 
 
-def scale_vector(vec, ddof=1):
+def scale_vector(
+    vec,
+    ddof=1,
+    magnitude_limit=None
+):
     """
-    Take a vector and normalize it to a mean 0 and standard deviation 1 (z-score)
+    Take a vector and normalize it to a mean 0 and
+    standard deviation 1 (z-score)
 
     :param vec: A 1d vector to be normalized
     :type vec: np.ndarray, sp.sparse.spmatrix
@@ -247,9 +252,16 @@ def scale_vector(vec, ddof=1):
     if np.var(vec) == 0:
         return np.zeros(vec.shape, dtype=float)
 
+    z = scipy.stats.zscore(vec, axis=None, ddof=ddof)
+
     # Otherwise scale with scipy.stats.zscore
+    if magnitude_limit is None:
+        return z
+
     else:
-        return scipy.stats.zscore(vec, axis=None, ddof=ddof)
+        z[z > magnitude_limit] = magnitude_limit
+        z[z < (-1 * magnitude_limit)] = -1 * magnitude_limit
+        return z
 
 
 def apply_window_vector(
@@ -833,7 +845,7 @@ class InferelatorData(object):
         if zscore:
 
             # Z-score the values
-            z_x = np.subtract(x, self.obs_means.reshape(-1, 1))
+            z_x = scale_vector(x, self.obs_means.reshape(-1, 1))
             z_x = np.divide(z_x, self.obs_stdev.reshape(-1, 1))
 
             # Replace the x reference with the new values
@@ -1238,17 +1250,44 @@ class InferelatorData(object):
         else:
             raise ValueError("axis must be 0, 1 or None")
 
-    def zscore(self, axis=0, ddof=1):
+    def zscore(
+        self,
+        axis=0,
+        ddof=1,
+        limit=None
+    ):
+        """
+        Z-score the data in place and return a reference to the container
+
+        :param axis: Axis to z-score on, 0 scales on columns (features),
+            1 scales on rows (observations). Defaults to 0.
+        :type axis: int, optional
+        :param ddof: DDOF for variance calculation, defaults to 1
+        :type ddof: int, optional
+        :param limit: Magnitude limit for zscore, defaults to None
+        :type limit: numeric, optional
+        :return: Reference to self
+        :rtype: InferelatorData
+        """
 
         self.convert_to_float()
         self.to_dense()
 
         if axis == 0:
             for i in range(self.shape[1]):
-                self._data[:, i] = scale_vector(self._data[:, i], ddof=ddof)
+                self._data[:, i] = scale_vector(
+                    self._data[:, i],
+                    ddof=ddof,
+                    magnitude_limit=limit
+                )
+
         elif axis == 1:
             for i in range(self.shape[0]):
-                self._data[i, :] = scale_vector(self._data[i, :], ddof=ddof)
+                self._data[i, :] = scale_vector(
+                    self._data[i, :],
+                    ddof=ddof,
+                    magnitude_limit=limit
+                )
 
         return self
 

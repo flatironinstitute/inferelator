@@ -4,10 +4,16 @@ import itertools
 import functools
 
 from inferelator.distributed.inferelator_mp import MPControl
-from inferelator import utils
-from inferelator.utils import Validator as check
-from .base_regression import (_MultitaskRegressionWorkflowMixin,
-                              BaseRegression, PROGRESS_STR)
+from inferelator.utils import (
+    Debug,
+    Validator as check
+)
+from .base_regression import (
+    _MultitaskRegressionWorkflowMixin,
+    BaseRegression,
+    PreprocessData,
+    PROGRESS_STR
+)
 from .amusr_math import run_regression_EBIC
 
 DEFAULT_prior_weight = 1.0
@@ -57,7 +63,7 @@ class AMuSR_regression(BaseRegression):
                  tol=TOL,
                  rel_tol=REL_TOL,
                  use_numba=False
-        ):
+    ):
         """
         Set up a regression object for multitask regression
         :param X: Design activity data for each task
@@ -207,7 +213,7 @@ def _amusr_wrapper(
 
     y_data, gene = y_data_stack
 
-    utils.Debug.vprint(
+    Debug.vprint(
         PROGRESS_STR.format(gn=gene[0], i=j, total=nG),
         level=0 if j % 1000 == 0 else 2
     )
@@ -236,7 +242,14 @@ def _amusr_wrapper(
         tfs=tfs
     )
 
-    return run_regression_EBIC(x, y, tf_t, tasks, gene, prior, **kwargs)
+    return run_regression_EBIC(
+        x,
+        y,
+        tf_t,
+        tasks,
+        gene, prior,
+        **kwargs
+    )
 
 
 def _y_generator(y_data, genes):
@@ -389,7 +402,7 @@ def scale_list_of_data(X):
 
     assert check.argument_type(X, list)
 
-    return [xk.zscore(ddof=0) for xk in X]
+    return [PreprocessData.preprocess_design(xk) for xk in X]
 
 
 class AMUSRRegressionWorkflowMixin(_MultitaskRegressionWorkflowMixin):
@@ -536,6 +549,7 @@ def filter_genes_on_tasks(list_of_indexes, task_expression_filter):
         )
 
     return filtered_genes
+
 
 def genes_tasks(list_of_genes, list_of_data):
     """
