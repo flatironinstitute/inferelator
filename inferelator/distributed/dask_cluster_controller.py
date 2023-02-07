@@ -475,10 +475,11 @@ class DaskHPCClusterController(DaskAbstract):
 
         return (
             f"Dask cluster: Allocated {cls._job_n} jobs ({cls._job_n_workers} "
-            f"workers with {cls._job_mem} memory per job)"
-            f"SLURM: -p {cls._queue}, -A {cls._project}, "
+            f"workers with {cls._job_mem} memory per job) "
+            f"plus {cls._num_local_workers} local workers "
+            f"[SLURM]: -p {cls._queue}, -A {cls._project}, "
             f"{', '.join(cls._job_slurm_commands)} "
-            f"ENV: {', '.join(cls._job_extra_env_commands)}"
+            f"[ENV]: {', '.join(cls._job_extra_env_commands)}"
         )
 
     @classmethod
@@ -491,7 +492,8 @@ class DaskHPCClusterController(DaskAbstract):
     @classmethod
     def _scale_jobs(cls):
         """
-        Update the worker tracker. If an entire slurm job is dead, start a new one to replace it.
+        Update the worker tracker. If an entire slurm job is dead,
+        start a new one to replace it.
         """
         cls._tracker.update_lists(
             cls.local_cluster.observed,
@@ -499,9 +501,12 @@ class DaskHPCClusterController(DaskAbstract):
         )
 
         new_jobs = cls._job_n + cls._tracker.num_dead
+        max_jobs = cls._runaway_protection * cls._job_n
 
-        if cls._runaway_protection is not None and new_jobs > cls._runaway_protection * cls._job_n:
-            raise RuntimeError("Aborting excessive worker startups / Protecting against runaway job queueing")
+        if cls._runaway_protection is not None and new_jobs > max_jobs:
+            raise RuntimeError(
+                "Aborting excessive worker startups and "
+                "protecting against runaway job queueing")
         elif new_jobs > len(cls.local_cluster.worker_spec):
             cls.local_cluster.scale(jobs=new_jobs)
 
@@ -513,20 +518,29 @@ class DaskHPCClusterController(DaskAbstract):
         :param num_workers: The number of workers to start on this node
         :type num_workers: int
         """
-        check.argument_integer(num_workers, low=0, allow_none=True)
+        check.argument_integer(
+            num_workers,
+            low=0,
+            allow_none=True
+        )
 
         if num_workers is not None and num_workers > 0:
 
             # Build a dask-worker command
-            cmd = [cls._local_worker_command,
-                   str(cls.local_cluster.scheduler_address),
-                   "--nprocs", str(num_workers),
-                   "--nthreads", str(cls._worker_n_threads),
-                   "--memory-limit", "0",
-                   "--local-directory", str(cls._local_directory)]
+            cmd = [
+                cls._local_worker_command,
+                str(cls.local_cluster.scheduler_address),
+                "--nprocs", str(num_workers),
+                "--nthreads", str(cls._worker_n_threads),
+                "--memory-limit", "0",
+                "--local-directory", str(cls._local_directory)
+            ]
 
             # Execute it through the Popen ()
-            out_path = cls._log_directory if cls._log_directory is not None else "."
+            if cls._log_directory is not None:
+                out_path = cls._log_directory
+            else:
+                out_path = "."
 
             if not os.path.exists(out_path):
                 os.makedirs(out_path, exist_ok=True)
@@ -561,8 +575,8 @@ class DaskHPCClusterController(DaskAbstract):
         _total = cls._job_n_workers if cls._job_n_workers is not None else 0
         _total *= cls._job_n if cls._job_n is not None else 0
 
-        if include_local:
-            _total += cls._num_local_workers if cls._num_local_workers is not None else 0
+        if include_local and cls._num_local_workers is not None:
+            _total += cls._num_local_workers
 
         return _total
 
