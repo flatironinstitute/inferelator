@@ -65,13 +65,6 @@ class NormalizedExpressionPinvTFA(_Pinv_TFA_mixin, ActivityOnlyTFA):
             1d array of scaled data
         """
 
-        arr_scale = RobustScaler(
-            with_centering=False
-        ).fit_transform(array)
-
-        # Enforce positive values by setting the minimum value to zero
-        # if the original data was all positive
-        if np.nanmin(array, axis=0).min() >= 0:
-            arr_scale -= np.nanmin(arr_scale, axis=0)[None, :]
+        arr_scale = RobustScaler().fit_transform(array)
 
         return arr_scale
