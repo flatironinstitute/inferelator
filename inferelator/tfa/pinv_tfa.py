@@ -31,12 +31,15 @@ class _Pinv_TFA_mixin:
             cast=True
         )
 
+
 ### This is named `TFA` for backwards compatibility ###
 class TFA(_Pinv_TFA_mixin, ActivityExpressionTFA):
     pass
 
+
 class ActivityOnlyPinvTFA(_Pinv_TFA_mixin, ActivityOnlyTFA):
     pass
+
 
 class NormalizedExpressionPinvTFA(_Pinv_TFA_mixin, ActivityOnlyTFA):
 
@@ -45,9 +48,8 @@ class NormalizedExpressionPinvTFA(_Pinv_TFA_mixin, ActivityOnlyTFA):
 
         return _Pinv_TFA_mixin._calculate_activity(
             prior,
-            utils.safe_apply_to_array(
-                expression_data,
-                NormalizedExpressionPinvTFA._interval_normalize
+            NormalizedExpressionPinvTFA._interval_normalize(
+                expression_data
             )
         )
 
