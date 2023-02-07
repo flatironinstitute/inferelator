@@ -65,6 +65,8 @@ class NormalizedExpressionPinvTFA(_Pinv_TFA_mixin, ActivityOnlyTFA):
             1d array of scaled data
         """
 
-        arr_scale = RobustScaler().fit_transform(array)
+        arr_scale = RobustScaler(
+            with_centering=False
+        ).fit_transform(array)
 
         return arr_scale
