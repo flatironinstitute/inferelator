@@ -52,9 +52,10 @@ class NormalizedExpressionPinvTFA(_Pinv_TFA_mixin, ActivityOnlyTFA):
         )
 
     @staticmethod
-    def _interval_normalize(arr_vec):
+    def _interval_normalize(array):
         """
-        Takes a 1d array or vector and scale it to (0, 1)
+        Takes a 2d array and scale it with the RobustScaler
+        Enforce positive values
             or (-1, 1)
         :param arr_vec: np.ndarray
             1d array of data
@@ -62,18 +63,14 @@ class NormalizedExpressionPinvTFA(_Pinv_TFA_mixin, ActivityOnlyTFA):
             1d array of scaled data
         """
 
-        # Get array min and max
-        arr_min, arr_max = np.nanmin(arr_vec), np.nanmax(arr_vec)
-
-        # Short circuit if the variance is 0
-        if arr_min == arr_max:
-            return np.zeros_like(arr_vec)
-
-        arr_scale = RobustScaler(with_centering=False).fit_transform(arr_vec)
+        arr_scale = RobustScaler(
+            with_centering=False,
+            axis=0
+        ).fit_transform(array)
 
         # Enforce positive values by setting the minimum value to zero
         # if the original data was all positive
-        if arr_min >= 0:
-            arr_scale -= arr_scale.min()
+        if np.nanmin(array, axis=0).min() >= 0:
+            arr_scale -= np.nanmin(arr_scale, axis=0)[None, :]
 
         return arr_scale
