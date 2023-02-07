@@ -4,6 +4,7 @@ from .tfa_base import (
     ActivityOnlyTFA
 )
 from scipy import linalg
+from sklearn.preprocessing import RobustScaler
 import numpy as np
 
 
@@ -62,23 +63,17 @@ class NormalizedExpressionPinvTFA(_Pinv_TFA_mixin, ActivityOnlyTFA):
         """
 
         # Get array min and max
-        arr_min, arr_max = np.min(arr_vec), np.max(arr_vec)
+        arr_min, arr_max = np.nanmin(arr_vec), np.nanmax(arr_vec)
 
         # Short circuit if the variance is 0
         if arr_min == arr_max:
             return np.zeros_like(arr_vec)
 
-        # Symmetric around zero interval (-1 to 1)
-        if arr_min < 0 and arr_max > 0:
-            arr_max = max(abs(arr_min), abs(arr_max))
-            arr_min = -1 * arr_max
+        arr_scale = RobustScaler(with_centering=False).fit_transform(arr_vec)
 
-            arr_ret = (arr_vec - arr_min)
-            arr_ret /= (arr_max - arr_min) * 0.5
-            arr_ret -= 1
+        # Enforce positive values by setting the minimum value to zero
+        # if the original data was all positive
+        if arr_min >= 0:
+            arr_scale -= arr_scale.min()
 
-            return arr_ret
-
-        # Interval normalize
-        else:
-            return (arr_vec - arr_min) / (arr_max - arr_min)
+        return arr_scale
