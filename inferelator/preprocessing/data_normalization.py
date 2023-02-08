@@ -56,6 +56,7 @@ class PreprocessData:
                 )
 
             cls._design_func, cls._response_func = _PREPROCESS_METHODS[method]
+            cls.method = method
 
         if scale_limit != '':
             cls.scale_limit = scale_limit

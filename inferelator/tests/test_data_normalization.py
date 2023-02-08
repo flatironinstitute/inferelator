@@ -40,6 +40,37 @@ class TestNormalizationSetup(unittest.TestCase):
             scale_limit=None
         )
 
+    def test_set_values(self):
+        PreprocessData.set_preprocessing_method(
+            'raw',
+            scale_limit=None
+        )
+
+        self.assertEqual(PreprocessData.method, 'raw')
+        self.assertIsNone(PreprocessData.scale_limit)
+
+        PreprocessData.set_preprocessing_method(
+            'robustscaler',
+            scale_limit=10
+        )
+
+        self.assertEqual(PreprocessData.method, 'robustscaler')
+        self.assertEqual(PreprocessData.scale_limit, 10)
+
+        PreprocessData.set_preprocessing_method(
+            'zscore',
+            scale_limit=None
+        )
+
+        self.assertEqual(PreprocessData.method, 'zscore')
+        self.assertIsNone(PreprocessData.scale_limit)
+
+        with self.assertRaises(ValueError):
+            PreprocessData.set_preprocessing_method(
+                'rawscaler',
+                scale_limit=None
+            )
+
 
 class TestZScore(TestNormalizationSetup):
 
