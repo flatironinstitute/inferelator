@@ -4,9 +4,10 @@ import scipy.stats
 
 from inferelator.utils import (
     Debug,
-    Validator as check,
-    scale_vector
+    Validator as check
 )
+
+from inferelator.preprocessing.data_normalization import PreprocessData
 
 DEFAULT_CHUNK = 25
 PROGRESS_STR = "Regression on {gn} [{i} / {total}]"
@@ -124,39 +125,6 @@ class BaseRegression:
         b_avg = np.mean(np.sum(arr != 0, axis=1))
         null_m = np.sum(np.sum(arr != 0, axis=1) == 0)
         return d_len, b_avg, null_m
-
-
-class PreprocessData:
-
-    scale = True
-    scale_limit = None
-
-    @classmethod
-    def preprocess_design(cls, X):
-        """
-        Preprocess data for design matrix
-
-        :param X: Calculated activity matrix (from full prior) [N x K]
-        :type X: InferelatorData
-        """
-
-        return X.zscore(
-            limit=cls.scale_limit
-        )
-
-    @classmethod
-    def preprocess_response_vector(cls, y):
-        """
-        Preprocess data for design matrix
-
-        :param y: Design vector [N x K]
-        :type X: InferelatorData
-        """
-
-        return scale_vector(
-            y,
-            magnitude_limit=cls.scale_limit
-        )
 
 
 class _RegressionWorkflowMixin(object):

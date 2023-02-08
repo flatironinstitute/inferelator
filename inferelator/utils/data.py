@@ -1,37 +1,50 @@
-import copy as cp
 import gc
-import math
 import pandas as pd
 import numpy as np
-import scipy.sparse as sparse
-import scipy.stats
 import pandas.api.types as pat
+
 from sklearn.preprocessing import StandardScaler
-import scipy.io
 from anndata import AnnData
-from inferelator.utils import Debug
-from inferelator.utils import Validator as check
+
+from scipy import (
+    sparse,
+    io
+)
+
+from inferelator.utils import (
+    Debug,
+    Validator as check
+)
+
+from inferelator.preprocessing.data_normalization import (
+    scale_vector
+)
 
 
-def dot_product(a, b, dense=True, cast=True):
+def dot_product(
+    a,
+    b,
+    dense=True,
+    cast=True
+):
     """
     Dot product two matrices together.
     Allow either matrix (or both or neither) to be sparse.
 
-    :param a:
-    :param b:
-    :param dense:
-    :param cast:
-    :return:
+    :param a: Array A
+    :param b: Array B
+    :param dense: Always return a dense array
+    :param cast: Unused
+    :return: A @ B array
+    :rtype: np.ndarray, sp.sparse.csr_matrix
     """
     if sparse.isspmatrix(a) and sparse.isspmatrix(b):
         return a.dot(b).A if dense else a.dot(b)
     elif sparse.isspmatrix(a) and dense:
-        return a.dot(sparse.csr_matrix(b)).A
-    elif sparse.isspmatrix(a):
-        return a.dot(sparse.csr_matrix(b))
-    elif sparse.isspmatrix(b):
-        return np.dot(a, b.A)
+        _arr = a.dot(b)
+        return _arr.A if sparse.isspmatrix(_arr) else _arr
+    elif sparse.isspmatrix(a) or sparse.isspmatrix(b):
+        return a @ b
     else:
         return np.dot(a, b)
 
@@ -73,7 +86,7 @@ class DotProduct:
             # scipy/numpy functions instead
             except ImportError as err:
                 Debug.vprint(
-                    "Unable to load MKL with sparse_dot_mkl:\n" +
+                    "Unable to load MKL with sparse_dot_mkl: " +
                     str(err),
                     level=0
                 )
@@ -227,43 +240,6 @@ def melt_and_reindex_dataframe(
     return data_frame
 
 
-def scale_vector(
-    vec,
-    ddof=1,
-    magnitude_limit=None
-):
-    """
-    Take a vector and normalize it to a mean 0 and
-    standard deviation 1 (z-score)
-
-    :param vec: A 1d vector to be normalized
-    :type vec: np.ndarray, sp.sparse.spmatrix
-    :param ddof: The delta degrees of freedom for variance calculation
-    :type ddof: int
-    :return: A centered and scaled vector
-    :rtype: np.ndarray
-    """
-
-    # Convert a sparse vector to a dense vector
-    if sparse.isspmatrix(vec):
-        vec = vec.A
-
-    # Return 0s if the variance is 0
-    if np.var(vec) == 0:
-        return np.zeros(vec.shape, dtype=float)
-
-    z = scipy.stats.zscore(vec, axis=None, ddof=ddof)
-
-    # Otherwise scale with scipy.stats.zscore
-    if magnitude_limit is None:
-        return z
-
-    else:
-        z[z > magnitude_limit] = magnitude_limit
-        z[z < (-1 * magnitude_limit)] = -1 * magnitude_limit
-        return z
-
-
 def apply_window_vector(
     vec,
     window,
@@ -284,10 +260,11 @@ def apply_window_vector(
     :return:
     """
 
-    return np.array(
-        [func(vec[i * window:min((i + 1) * window, len(vec))])
-        for i in range(math.ceil(len(vec) / window))]
-    )
+    return np.array([
+        func(vec[i * window:min((i + 1) * window, len(vec))])
+        for i in range(int(np.ceil(len(vec) / window)))
+    ])
+
 
 def safe_apply_to_array(
     array,
@@ -964,22 +941,26 @@ class InferelatorData(object):
                 replace=False
             )
 
+        # Subset AnnData object
+        _new_adata = self._adata[keeper_ilocs, :]
+
+        if _new_adata.is_view:
+            _new_adata = _new_adata.copy()
+
+        # Check names and make unique if set
+        if with_replacement and fix_names:
+            _new_adata.obs_names_make_unique()
+
         # Change this instance's _adata (explicit copy allows the old data to
         # be dereferenced instead of held as view)
         if inplace:
-            self._adata = self._adata[keeper_ilocs, :].copy()
+            self._adata = _new_adata
             return_obj = self
             gc.collect()
 
         # Create a new InferelatorData instance with the _adata slice
         else:
-            return_obj = InferelatorData(
-                self._adata[keeper_ilocs, :].copy()
-            )
-
-        # Fix names
-        if with_replacement and fix_names:
-            return_obj._adata.obs_names_make_unique()
+            return_obj = InferelatorData(_new_adata)
 
         return return_obj
 
@@ -1028,7 +1009,7 @@ class InferelatorData(object):
     def to_csv(self, file_name, sep="\t"):
 
         if self.is_sparse:
-            scipy.io.mmwrite(file_name, self.values)
+            io.mmwrite(file_name, self.values)
         else:
             self._adata.to_df().to_csv(file_name, sep=sep)
 
@@ -1043,6 +1024,24 @@ class InferelatorData(object):
         memory_efficient=True,
         chunksize=1000
     ):
+        """
+        Apply a function to each nonzero value of a sparse matrix
+        or each value of a dense matrix
+
+        :param func: Function which takes a scalar or array input
+        :type func: callable
+        :param add_pseudocount: Add a pseudocount before applying function,
+            defaults to False
+        :type add_pseudocount: bool, optional
+        :param memory_efficient: Apply function to chunks of the data and
+            overwrite values in the existing array. Only works if the dtype
+            returned from the function is the same as the dtype of the array.
+            Defaults to True.
+        :type memory_efficient: bool, optional
+        :param chunksize: Number of observations to use as a chunk,
+            defaults to 1000
+        :type chunksize: int, optional
+        """
 
         # Add 1 to every non-zero value
         if add_pseudocount and self.is_sparse:
@@ -1067,7 +1066,7 @@ class InferelatorData(object):
         # the original data, overwriting the original
         elif memory_efficient and _type_match:
 
-            _n_chunks = math.ceil(self._adata.shape[0] / chunksize)
+            _n_chunks = int(np.ceil(self._adata.shape[0] / chunksize))
 
             for i in range(_n_chunks):
                 _start = i * chunksize
@@ -1078,6 +1077,27 @@ class InferelatorData(object):
         # by making a new data object
         else:
             self._data = func(self._data)
+
+    def apply(
+        self,
+        func,
+        **kwargs
+    ):
+        """
+        Apply a function that takes a 2d numpy array or sparse matrix to
+        the underlying data. Replaces the data in place.
+        Will pass any kwargs to the function.
+
+        :param func: Function which takes an array input
+        :type func: callable
+        """
+
+        self._adata.X = func(
+            self._adata.X,
+            **kwargs
+        )
+
+        return self
 
     def add(
         self,
@@ -1254,7 +1274,7 @@ class InferelatorData(object):
         self,
         axis=0,
         ddof=1,
-        limit=None
+        magnitude_limit=None
     ):
         """
         Z-score the data in place and return a reference to the container
@@ -1264,8 +1284,8 @@ class InferelatorData(object):
         :type axis: int, optional
         :param ddof: DDOF for variance calculation, defaults to 1
         :type ddof: int, optional
-        :param limit: Magnitude limit for zscore, defaults to None
-        :type limit: numeric, optional
+        :param magnitude_limit: Magnitude limit for zscore, defaults to None
+        :type magnitude_limit: numeric, optional
         :return: Reference to self
         :rtype: InferelatorData
         """
@@ -1278,7 +1298,7 @@ class InferelatorData(object):
                 self._data[:, i] = scale_vector(
                     self._data[:, i],
                     ddof=ddof,
-                    magnitude_limit=limit
+                    magnitude_limit=magnitude_limit
                 )
 
         elif axis == 1:
@@ -1286,7 +1306,7 @@ class InferelatorData(object):
                 self._data[i, :] = scale_vector(
                     self._data[i, :],
                     ddof=ddof,
-                    magnitude_limit=limit
+                    magnitude_limit=magnitude_limit
                 )
 
         return self
@@ -1301,7 +1321,7 @@ class InferelatorData(object):
 
         new_data._adata.var_names = self._adata.var_names.copy()
         new_data._adata.obs_names = self._adata.obs_names.copy()
-        new_data._adata.uns = cp.copy(self._adata.uns)
+        new_data._adata.uns = self._adata.uns.copy()
 
         return new_data
 
