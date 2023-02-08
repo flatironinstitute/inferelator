@@ -124,6 +124,33 @@ class TestZScore(TestNormalizationSetup):
             design_scipy
         )
 
+    def test_response_no_limit(self):
+        response = PreprocessData.preprocess_response_vector(
+            self.adata.get_gene_data(["gene1"], flatten=True)
+        )
+        response_scipy = stats.zscore(self.expr.iloc[:, 0], ddof=1)
+        npt.assert_almost_equal(
+            response,
+            response_scipy
+        )
+
+    def test_response_limit(self):
+        PreprocessData.set_preprocessing_method(
+            'zscore',
+            scale_limit=1
+        )
+        response = PreprocessData.preprocess_response_vector(
+            self.adata.get_gene_data(["gene1"], flatten=True)
+        )
+        response_scipy = stats.zscore(self.expr.iloc[:, 0], ddof=1)
+        response_scipy[response_scipy > 1] = 1
+        response_scipy[response_scipy < -1] = -1
+
+        npt.assert_almost_equal(
+            response,
+            response_scipy
+        )
+
 
 class TestRobustScaler(TestNormalizationSetup):
 
@@ -177,6 +204,36 @@ class TestRobustScaler(TestNormalizationSetup):
             design_sklearn
         )
 
+    def test_response_no_limit(self):
+        response = PreprocessData.preprocess_response_vector(
+            self.adata.get_gene_data(["gene1"], flatten=True)
+        )
+        response_scipy = RobustScaler(with_centering=False).fit_transform(
+            self.expr.iloc[:, 0].values.reshape(-1, 1)
+        ).ravel()
+        npt.assert_almost_equal(
+            response,
+            response_scipy
+        )
+
+    def test_response_limit(self):
+        PreprocessData.set_preprocessing_method(
+            scale_limit=1
+        )
+        response = PreprocessData.preprocess_response_vector(
+            self.adata.get_gene_data(["gene1"], flatten=True)
+        )
+        response_scipy = RobustScaler(with_centering=False).fit_transform(
+            self.expr.iloc[:, 0].values.reshape(-1, 1)
+        ).ravel()
+        response_scipy[response_scipy > 1] = 1
+        response_scipy[response_scipy < -1] = -1
+
+        npt.assert_almost_equal(
+            response,
+            response_scipy
+        )
+
 
 class TestNoScaler(TestNormalizationSetup):
 
@@ -218,4 +275,25 @@ class TestNoScaler(TestNormalizationSetup):
         npt.assert_almost_equal(
             design.values.A,
             self.expr
+        )
+
+    def test_response_no_limit(self):
+        response = PreprocessData.preprocess_response_vector(
+            self.adata.get_gene_data(["gene1"], flatten=True)
+        )
+        npt.assert_almost_equal(
+            response,
+            self.expr.iloc[:, 0].values
+        )
+
+    def test_response_limit(self):
+        PreprocessData.set_preprocessing_method(
+            scale_limit=1
+        )
+        response = PreprocessData.preprocess_response_vector(
+            self.adata.get_gene_data(["gene1"], flatten=True)
+        )
+        npt.assert_almost_equal(
+            response,
+            self.expr.iloc[:, 0].values
         )

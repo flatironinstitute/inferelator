@@ -7,6 +7,8 @@ from sklearn.preprocessing import (
     RobustScaler
 )
 
+from inferelator.utils.debug import Debug
+
 _PREPROCESS_METHODS = {
     'zscore': (
         lambda x, y: x.zscore(magnitude_limit=y),
@@ -14,11 +16,11 @@ _PREPROCESS_METHODS = {
     ),
     'robustscaler': (
         lambda x, y: x.apply(robust_scale_array, magnitude_limit=y),
-        lambda x, y: robust_scale_vector(magnitude_limit=y)
+        lambda x, y: robust_scale_vector(x, magnitude_limit=y)
     ),
     'raw': (
         lambda x, y: x,
-        lambda x, y: y
+        lambda x, y: x
     )
 }
 
@@ -60,6 +62,12 @@ class PreprocessData:
 
         if scale_limit != '':
             cls.scale_limit = scale_limit
+
+        Debug.vprint(
+            f"Preprocessing method {cls.method} selected "
+            f"[limit {cls.scale_limit}]" if cls.scale_limit is not None else "",
+            level=1
+        )
 
     @classmethod
     def preprocess_design(cls, X):
