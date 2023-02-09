@@ -6,8 +6,8 @@ import copy as cp
 import anndata
 import warnings
 
-from inferelator.utils.data import InferelatorData
-from inferelator.utils.debug import Debug
+from .inferelator_data import InferelatorData
+from .debug import Debug
 from inferelator.preprocessing.metadata_parser import MetadataHandler
 
 DEFAULT_PANDAS_TSV_SETTINGS = dict(sep="\t", index_col=0, header=0)

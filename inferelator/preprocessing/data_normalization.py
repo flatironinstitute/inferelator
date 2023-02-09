@@ -8,10 +8,11 @@ from sklearn.preprocessing import (
 )
 
 from inferelator.utils.debug import Debug
+from inferelator.utils.data import convert_array_to_float
 
 _PREPROCESS_METHODS = {
     'zscore': (
-        lambda x, y: x.zscore(magnitude_limit=y),
+        lambda x, y: x.apply(scale_array, magnitude_limit=y),
         lambda x, y: scale_vector(x, magnitude_limit=y)
     ),
     'robustscaler': (
@@ -29,12 +30,14 @@ class PreprocessData:
 
     method_predictors = 'zscore'
     method_response = 'zscore'
+    method_tfa = 'raw'
 
     scale_limit_predictors = None
     scale_limit_response = None
 
     _design_func = _PREPROCESS_METHODS['zscore'][0]
     _response_func = _PREPROCESS_METHODS['zscore'][1]
+    _tfa_func = _PREPROCESS_METHODS['raw'][0]
 
     @classmethod
     def set_preprocessing_method(
@@ -93,7 +96,7 @@ class PreprocessData:
 
         if method_response is not None:
             cls._check_method_arg(method_response)
-            cls._design_func = _PREPROCESS_METHODS[method_response][1]
+            cls._response_func = _PREPROCESS_METHODS[method_response][1]
             cls.method_response = method_response
 
         if scale_limit != '':
@@ -192,6 +195,43 @@ def robust_scale_array(
         return _magnitude_limit(z, magnitude_limit)
 
 
+def scale_array(
+    array,
+    ddof=1,
+    magnitude_limit=None
+):
+    """
+    Take a vector and normalize it to a mean 0 and
+    standard deviation 1 (z-score)
+
+    :param array: Array
+    :type array: np.ndarray, sp.sparse.spmatrix
+    :param ddof: The delta degrees of freedom for variance calculation
+    :type ddof: int
+    :param magnitude_limit: Absolute value limit,
+        defaults to None
+    :type magnitude_limit: numeric, optional
+    """
+
+    if sparse.isspmatrix(array):
+        out = np.empty(
+            shape=array.shape,
+            dtype=float
+        )
+    else:
+        array = convert_array_to_float(array)
+        out = array
+
+    for i in range(array.shape[1]):
+        out[:, i] = scale_vector(
+            array[:, i],
+            ddof=ddof,
+            magnitude_limit=magnitude_limit
+        )
+
+    return out
+
+
 def scale_vector(
     vec,
     ddof=1,
@@ -205,13 +245,13 @@ def scale_vector(
     :type vec: np.ndarray, sp.sparse.spmatrix
     :param ddof: The delta degrees of freedom for variance calculation
     :type ddof: int
-    :return: A centered and scaled vector
+    :return: A centered and scaled 1d vector
     :rtype: np.ndarray
     """
 
     # Convert a sparse vector to a dense vector
     if sparse.isspmatrix(vec):
-        vec = vec.A
+        vec = vec.A.ravel()
 
     # Return 0s if the variance is 0
     if np.var(vec) == 0:
@@ -228,7 +268,9 @@ def scale_vector(
 
 def _magnitude_limit(x, lim):
 
-    x[x > lim] = lim
-    x[x < (-1 * lim)] = -1 * lim
+    ref = x.data if sparse.isspmatrix(x) else x
+
+    np.minimum(ref, lim, out=ref)
+    np.maximum(ref, -1 * lim, out=ref)
 
     return x
