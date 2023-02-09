@@ -10,16 +10,21 @@ from sklearn.preprocessing import (
 from inferelator.utils.debug import Debug
 from inferelator.utils.data import convert_array_to_float
 
+# Dict keyed by method
+# Values are (design function, response function, pre-tfa function)
 _PREPROCESS_METHODS = {
     'zscore': (
         lambda x, y: x.apply(scale_array, magnitude_limit=y),
-        lambda x, y: scale_vector(x, magnitude_limit=y)
+        lambda x, y: scale_vector(x, magnitude_limit=y),
+        lambda x, y: scale_array(x, magnitude_limit=y)
     ),
     'robustscaler': (
         lambda x, y: x.apply(robust_scale_array, magnitude_limit=y),
-        lambda x, y: robust_scale_vector(x, magnitude_limit=y)
+        lambda x, y: robust_scale_vector(x, magnitude_limit=y),
+        lambda x, y: robust_scale_array(x, magnitude_limit=y)
     ),
     'raw': (
+        lambda x, y: x,
         lambda x, y: x,
         lambda x, y: x
     )
@@ -34,10 +39,11 @@ class PreprocessData:
 
     scale_limit_predictors = None
     scale_limit_response = None
+    scale_limit_tfa = None
 
     _design_func = _PREPROCESS_METHODS['zscore'][0]
     _response_func = _PREPROCESS_METHODS['zscore'][1]
-    _tfa_func = _PREPROCESS_METHODS['raw'][0]
+    _tfa_func = _PREPROCESS_METHODS['raw'][2]
 
     @classmethod
     def set_preprocessing_method(
@@ -45,9 +51,11 @@ class PreprocessData:
         method=None,
         method_predictors=None,
         method_response=None,
+        method_tfa=None,
         scale_limit='',
         scale_limit_predictors='',
-        scale_limit_response=''
+        scale_limit_response='',
+        scale_limit_tfa=''
     ):
         """
         Set preprocessing method.
@@ -85,7 +93,8 @@ class PreprocessData:
 
         if method is not None:
             cls._check_method_arg(method)
-            cls._design_func, cls._response_func = _PREPROCESS_METHODS[method]
+            cls._design_func = _PREPROCESS_METHODS[method][0]
+            cls._response_func = _PREPROCESS_METHODS[method][1]
             cls.method_predictors = method
             cls.method_response = method
 
@@ -99,6 +108,11 @@ class PreprocessData:
             cls._response_func = _PREPROCESS_METHODS[method_response][1]
             cls.method_response = method_response
 
+        if method_tfa is not None:
+            cls._check_method_arg(method_tfa)
+            cls._tfa_func = _PREPROCESS_METHODS[method_tfa][2]
+            cls.method_tfa = method_tfa
+
         if scale_limit != '':
             cls.scale_limit_response = scale_limit
             cls.scale_limit_predictors = scale_limit
@@ -109,12 +123,17 @@ class PreprocessData:
         if scale_limit_response != '':
             cls.scale_limit_response = scale_limit_response
 
+        if scale_limit_tfa != '':
+            cls.scale_limit_tfa = scale_limit_tfa
+
         Debug.vprint(
             "Preprocessing methods selected: "
             f"Predictor method {cls.method_predictors} "
             f"[limit {cls.scale_limit_predictors}] "
             f"Response method {cls.method_response} "
-            f"[limit {cls.scale_limit_response}] ",
+            f"[limit {cls.scale_limit_response}] "
+            f"Pre-TFA expression method {cls.method_tfa} "
+            f"[limit {cls.scale_limit_tfa}] ",
             level=1
         )
 
@@ -136,7 +155,7 @@ class PreprocessData:
     @classmethod
     def preprocess_response_vector(cls, y):
         """
-        Preprocess data for design matrix.
+        Preprocess data for response vector.
         Should not modify underlying data.
 
         :param y: Design vector [N x K]
@@ -146,6 +165,21 @@ class PreprocessData:
         return cls._response_func(
             y,
             cls.scale_limit_response
+        )
+
+    @classmethod
+    def preprocess_expression_array(cls, X):
+        """
+        Preprocess data for expression data matrix before TFA.
+        Returns a reference to existing data or a copy
+
+        :param X: Expression matrix [N x G]
+        :type X: np.ndarray, sp.spmatrix
+        """
+
+        return cls._tfa_func(
+            X,
+            cls.scale_limit_tfa
         )
 
     @staticmethod

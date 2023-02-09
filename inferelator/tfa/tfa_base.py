@@ -1,6 +1,15 @@
 from abc import abstractmethod
 import numpy as np
-from inferelator import utils
+
+from inferelator.utils import (
+    InferelatorData,
+    Debug,
+    df_set_diag
+)
+
+from inferelator.preprocessing import (
+    PreprocessData
+)
 
 class TFABase:
     """
@@ -27,7 +36,7 @@ class TFABase:
     ):
 
         if not keep_self:
-            prior = utils.df_set_diag(prior, 0)
+            prior = df_set_diag(prior, 0)
 
         activity_tfs, expr_tfs, drop_tfs = self._determine_tf_status(
             prior,
@@ -38,11 +47,12 @@ class TFABase:
             drop_tfs = drop_tfs.append(expr_tfs)
 
         if len(drop_tfs) > 0:
-            utils.Debug.vprint(
-                f"{len(drop_tfs)} TFs are removed from activity ",
+            Debug.vprint(
+                f"{len(drop_tfs)} TFs are removed from activity "
+                f"as they cannot be estimated",
                 level=0
             )
-            utils.Debug.vprint(" ".join(drop_tfs), level=1)
+            Debug.vprint(" ".join(drop_tfs), level=1)
 
         prior = prior.drop(drop_tfs, axis=1)
 
@@ -76,7 +86,8 @@ class TFABase:
 
         :param prior: Prior knowledge matrix
         :type prior: np.ndarray
-        :param expression_data: Gene expression data
+        :param expression_data: Gene expression data,
+            already normalized
         :type expression_data: np.ndarray, sp.spmatrix
         """
 
@@ -130,18 +141,20 @@ class ActivityExpressionTFA(TFABase):
 
             activity[:, a_cols] = self._calculate_activity(
                 trim_prior.loc[:, activity_tfs].values,
-                expr.values
+                PreprocessData.preprocess_expression_array(
+                    expr.values
+                )
             )
 
         # Use TF expression in place of activity for features
         # which don't have activity
         if len(expr_tfs) > 0:
-            activity[
-                :,
-                trim_prior.columns.isin(expr_tfs)
-            ] = expression_data.get_gene_data(
-                expr_tfs,
-                force_dense=True
+            e_cols = trim_prior.columns.isin(expr_tfs)
+            activity[:, e_cols] = PreprocessData.preprocess_expression_array(
+                expression_data.get_gene_data(
+                    expr_tfs,
+                    force_dense=True
+                )
             )
 
         if expression_data.name is None:
@@ -149,7 +162,7 @@ class ActivityExpressionTFA(TFABase):
         else:
             _data_name = f"{expression_data.name} Activity"
 
-        acti = utils.InferelatorData(
+        activity = InferelatorData(
             activity,
             gene_names=trim_prior.columns,
             sample_names=expression_data.sample_names,
@@ -157,11 +170,10 @@ class ActivityExpressionTFA(TFABase):
             name=_data_name
         )
 
-        acti.prior_data = prior.copy()
-        acti.tfa_prior_data = trim_prior.loc[:, activity_tfs].copy()
+        activity.prior_data = prior.copy()
+        activity.tfa_prior_data = trim_prior.loc[:, activity_tfs].copy()
 
-        return acti
-
+        return activity
 
 
 class ActivityOnlyTFA(TFABase):
@@ -185,7 +197,9 @@ class ActivityOnlyTFA(TFABase):
         if len(activity_tfs) > 0:
             activity = self._calculate_activity(
                 prior.loc[:, activity_tfs].values,
-                expression_data.values
+                PreprocessData.preprocess_expression_array(
+                    expression_data.values
+                )
             )
         else:
             raise ValueError(
@@ -197,13 +211,18 @@ class ActivityOnlyTFA(TFABase):
         else:
             _data_name = f"{expression_data.name} Activity"
 
-        return utils.InferelatorData(
+        activity = InferelatorData(
             activity,
             gene_names=activity_tfs,
             sample_names=expression_data.sample_names,
             meta_data=expression_data.meta_data,
             name=_data_name
         )
+
+        activity.prior_data = prior.copy()
+        activity.tfa_prior_data = prior.loc[:, activity_tfs].copy()
+
+        return activity
 
 
 class NoTFA(TFABase):
@@ -217,7 +236,7 @@ class NoTFA(TFABase):
         keep_self=False
     ):
 
-        utils.Debug.vprint(
+        Debug.vprint(
             "Setting Activity to Expression Values",
             level=1
         )
@@ -231,10 +250,12 @@ class NoTFA(TFABase):
         else:
             _data_name = f"{expression_data.name} Activity"
 
-        return utils.InferelatorData(
-            expression_data.get_gene_data(
-                tf_gene_overlap,
-                force_dense=True
+        return InferelatorData(
+            PreprocessData.preprocess_expression_array(
+                expression_data.get_gene_data(
+                    tf_gene_overlap,
+                    force_dense=True
+                )
             ),
             sample_names=expression_data.sample_names,
             meta_data=expression_data.meta_data,

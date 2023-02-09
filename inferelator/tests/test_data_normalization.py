@@ -36,8 +36,11 @@ class TestNormalizationSetup(unittest.TestCase):
 
     def tearDown(self):
         PreprocessData.set_preprocessing_method(
-            'zscore',
-            scale_limit=None
+            method_predictors='zscore',
+            method_response='zscore',
+            method_tfa='raw',
+            scale_limit=None,
+            scale_limit_tfa=None
         )
 
     def test_set_values_both(self):
@@ -120,6 +123,39 @@ class TestNormalizationSetup(unittest.TestCase):
         self.assertEqual(PreprocessData.method_predictors, 'raw')
         self.assertIsNone(PreprocessData.scale_limit_predictors)
         self.assertEqual(PreprocessData.scale_limit_response, 10)
+
+    def test_set_values_tfa(self):
+        PreprocessData.set_preprocessing_method(
+            method='raw',
+            scale_limit=None
+        )
+
+        self.assertEqual(PreprocessData.method_predictors, 'raw')
+        self.assertEqual(PreprocessData.method_response, 'raw')
+        self.assertEqual(PreprocessData.method_tfa, 'raw')
+        self.assertIsNone(PreprocessData.scale_limit_predictors)
+        self.assertIsNone(PreprocessData.scale_limit_response)
+        self.assertIsNone(PreprocessData.scale_limit_tfa)
+
+        PreprocessData.set_preprocessing_method(
+            scale_limit_tfa=10
+        )
+        self.assertEqual(PreprocessData.method_predictors, 'raw')
+        self.assertEqual(PreprocessData.method_response, 'raw')
+        self.assertEqual(PreprocessData.method_tfa, 'raw')
+        self.assertIsNone(PreprocessData.scale_limit_predictors)
+        self.assertIsNone(PreprocessData.scale_limit_response)
+        self.assertEqual(PreprocessData.scale_limit_tfa, 10)
+
+        PreprocessData.set_preprocessing_method(
+            method_tfa='zscore'
+        )
+        self.assertEqual(PreprocessData.method_predictors, 'raw')
+        self.assertEqual(PreprocessData.method_response, 'raw')
+        self.assertEqual(PreprocessData.method_tfa, 'zscore')
+        self.assertIsNone(PreprocessData.scale_limit_predictors)
+        self.assertIsNone(PreprocessData.scale_limit_response)
+        self.assertEqual(PreprocessData.scale_limit_tfa, 10)
 
 
 class TestZScore(TestNormalizationSetup):
