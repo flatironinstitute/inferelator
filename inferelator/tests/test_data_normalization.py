@@ -40,36 +40,86 @@ class TestNormalizationSetup(unittest.TestCase):
             scale_limit=None
         )
 
-    def test_set_values(self):
+    def test_set_values_both(self):
         PreprocessData.set_preprocessing_method(
             'raw',
             scale_limit=None
         )
 
-        self.assertEqual(PreprocessData.method, 'raw')
-        self.assertIsNone(PreprocessData.scale_limit)
+        self.assertEqual(PreprocessData.method_predictors, 'raw')
+        self.assertEqual(PreprocessData.method_response, 'raw')
+        self.assertIsNone(PreprocessData.scale_limit_predictors)
+        self.assertIsNone(PreprocessData.scale_limit_response)
 
         PreprocessData.set_preprocessing_method(
             'robustscaler',
             scale_limit=10
         )
 
-        self.assertEqual(PreprocessData.method, 'robustscaler')
-        self.assertEqual(PreprocessData.scale_limit, 10)
-
-        PreprocessData.set_preprocessing_method(
-            'zscore',
-            scale_limit=None
-        )
-
-        self.assertEqual(PreprocessData.method, 'zscore')
-        self.assertIsNone(PreprocessData.scale_limit)
+        self.assertEqual(PreprocessData.method_predictors, 'robustscaler')
+        self.assertEqual(PreprocessData.method_response, 'robustscaler')
+        self.assertEqual(PreprocessData.scale_limit_predictors, 10)
+        self.assertEqual(PreprocessData.scale_limit_response, 10)
 
         with self.assertRaises(ValueError):
             PreprocessData.set_preprocessing_method(
                 'rawscaler',
                 scale_limit=None
             )
+
+    def test_set_values_predictors(self):
+        PreprocessData.set_preprocessing_method(
+            'raw',
+            scale_limit=None
+        )
+
+        self.assertEqual(PreprocessData.method_predictors, 'raw')
+        self.assertEqual(PreprocessData.method_response, 'raw')
+        self.assertIsNone(PreprocessData.scale_limit_predictors)
+        self.assertIsNone(PreprocessData.scale_limit_response)
+
+        PreprocessData.set_preprocessing_method(
+            scale_limit_predictors=10
+        )
+        self.assertEqual(PreprocessData.method_predictors, 'raw')
+        self.assertEqual(PreprocessData.method_response, 'raw')
+        self.assertIsNone(PreprocessData.scale_limit_response)
+        self.assertEqual(PreprocessData.scale_limit_predictors, 10)
+
+        PreprocessData.set_preprocessing_method(
+            method_predictors='zscore'
+        )
+        self.assertEqual(PreprocessData.method_predictors, 'zscore')
+        self.assertEqual(PreprocessData.method_response, 'raw')
+        self.assertIsNone(PreprocessData.scale_limit_response)
+        self.assertEqual(PreprocessData.scale_limit_predictors, 10)
+
+    def test_set_values_response(self):
+        PreprocessData.set_preprocessing_method(
+            'raw',
+            scale_limit=None
+        )
+
+        self.assertEqual(PreprocessData.method_predictors, 'raw')
+        self.assertEqual(PreprocessData.method_response, 'raw')
+        self.assertIsNone(PreprocessData.scale_limit_predictors)
+        self.assertIsNone(PreprocessData.scale_limit_response)
+
+        PreprocessData.set_preprocessing_method(
+            scale_limit_response=10
+        )
+        self.assertEqual(PreprocessData.method_predictors, 'raw')
+        self.assertEqual(PreprocessData.method_response, 'raw')
+        self.assertIsNone(PreprocessData.scale_limit_predictors)
+        self.assertEqual(PreprocessData.scale_limit_response, 10)
+
+        PreprocessData.set_preprocessing_method(
+            method_response='zscore'
+        )
+        self.assertEqual(PreprocessData.method_response, 'zscore')
+        self.assertEqual(PreprocessData.method_predictors, 'raw')
+        self.assertIsNone(PreprocessData.scale_limit_predictors)
+        self.assertEqual(PreprocessData.scale_limit_response, 10)
 
 
 class TestZScore(TestNormalizationSetup):

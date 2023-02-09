@@ -27,8 +27,11 @@ _PREPROCESS_METHODS = {
 
 class PreprocessData:
 
-    method = 'zscore'
-    scale_limit = None
+    method_predictors = 'zscore'
+    method_response = 'zscore'
+
+    scale_limit_predictors = None
+    scale_limit_response = None
 
     _design_func = _PREPROCESS_METHODS['zscore'][0]
     _response_func = _PREPROCESS_METHODS['zscore'][1]
@@ -37,35 +40,78 @@ class PreprocessData:
     def set_preprocessing_method(
         cls,
         method=None,
-        scale_limit=''
+        method_predictors=None,
+        method_response=None,
+        scale_limit='',
+        scale_limit_predictors='',
+        scale_limit_response=''
     ):
         """
         Set preprocessing method.
 
-        :param method: Method. Support 'zscore', 'robustscaler', and 'raw'.
+        :param method: Normalization method before regression.
+            If passed, will set the normalization for both predictors and
+            response variables. Overridden by method_predictors and
+            method_response. Supports 'zscore', 'robustscaler', and 'raw'.
             Defaults to 'zscore'.
         :type method: str
+        :param method_predictors: Normalization method before regression.
+            If passed, will set the normalization for predictor variables.
+            Supports 'zscore', 'robustscaler', and 'raw'.
+            Defaults to 'zscore'.
+        :type method_predictors: str
+        :param method_response: Normalization method before regression.
+            If passed, will set the normalization for response variables.
+            Supports 'zscore', 'robustscaler', and 'raw'.
+            Defaults to 'zscore'.
+        :type method_response: str
+        :type method: str
         :param scale_limit: Absolute value limit for scaled values.
+            If passed, will set the magnitude limit for both predictors and
+            response variables. Overridden by scale_limit_predictors and
+            scale_limit_response.
             None disables. Defaults to None.
         :type scale_limit: numeric, None
+        :param scale_limit_predictors: Absolute value limit for scaled values
+            specific to predictors. None disables. Defaults to None.
+        :type scale_limit_predictors: numeric, None
+        :param scale_limit_response: Absolute value limit for scaled values
+            specific to response. None disables. Defaults to None.
+        :type scale_limit_response: numeric, None
         """
 
         if method is not None:
-            if method not in _PREPROCESS_METHODS.keys():
-                raise ValueError(
-                    f"{method} is not supported; options are "
-                    f"{list(_PREPROCESS_METHODS.keys())}"
-                )
-
+            cls._check_method_arg(method)
             cls._design_func, cls._response_func = _PREPROCESS_METHODS[method]
-            cls.method = method
+            cls.method_predictors = method
+            cls.method_response = method
+
+        if method_predictors is not None:
+            cls._check_method_arg(method_predictors)
+            cls._design_func = _PREPROCESS_METHODS[method_predictors][0]
+            cls.method_predictors = method_predictors
+
+        if method_response is not None:
+            cls._check_method_arg(method_response)
+            cls._design_func = _PREPROCESS_METHODS[method_response][1]
+            cls.method_response = method_response
 
         if scale_limit != '':
-            cls.scale_limit = scale_limit
+            cls.scale_limit_response = scale_limit
+            cls.scale_limit_predictors = scale_limit
+
+        if scale_limit_predictors != '':
+            cls.scale_limit_predictors = scale_limit_predictors
+
+        if scale_limit_response != '':
+            cls.scale_limit_response = scale_limit_response
 
         Debug.vprint(
-            f"Preprocessing method {cls.method} selected "
-            f"[limit {cls.scale_limit}]" if cls.scale_limit is not None else "",
+            "Preprocessing methods selected: "
+            f"Predictor method {cls.method_predictors} "
+            f"[limit {cls.scale_limit_predictors}] "
+            f"Response method {cls.method_response} "
+            f"[limit {cls.scale_limit_response}] ",
             level=1
         )
 
@@ -81,7 +127,7 @@ class PreprocessData:
 
         return cls._design_func(
             X,
-            cls.scale_limit
+            cls.scale_limit_predictors
         )
 
     @classmethod
@@ -96,8 +142,23 @@ class PreprocessData:
 
         return cls._response_func(
             y,
-            cls.scale_limit
+            cls.scale_limit_response
         )
+
+    @staticmethod
+    def _check_method_arg(method):
+        """
+        Check the method argument against supported values.
+
+        :param method: Method argument
+        :type method: str
+        :raises ValueError: Raise if method string isnt supported
+        """
+        if method not in _PREPROCESS_METHODS.keys():
+            raise ValueError(
+                f"{method} is not supported; options are "
+                f"{list(_PREPROCESS_METHODS.keys())}"
+            )
 
 
 def robust_scale_vector(
