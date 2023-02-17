@@ -5,6 +5,7 @@ import os
 import copy as cp
 import anndata
 import warnings
+from scipy import sparse
 
 from .inferelator_data import InferelatorData
 from .debug import Debug
@@ -16,6 +17,15 @@ DEFAULT_METADATA = "branching"
 _TENX_MTX = ("matrix.mtx.gz", "matrix.mtx")
 _TENX_BARCODES = ("barcodes.tsv.gz", "barcodes.tsv")
 _TENX_FEATURES = ("features.tsv.gz", "genes.tsv")
+
+_TENX_H5 = "filtered_feature_bc_matrix.h5"
+_TENX_H5_FEATURES_KEYS = [
+    'id',
+    'name',
+    'genome',
+    'interval',
+    'feature_type'
+]
 
 
 class InferelatorDataLoader(object):
@@ -269,6 +279,59 @@ class InferelatorDataLoader(object):
                 gene_data_file=gene_data_file,
                 gene_name_column=gene_name_column
             )
+
+    def load_data_tenx_h5(
+        self,
+        tenx_path,
+        filename=_TENX_H5
+    ):
+
+        import h5py
+
+        h5_file = h5py.File(
+            self.filename_path_join(tenx_path, filename)
+        )
+
+        _matrix = h5_file['matrix']
+        csc_matrix = sparse.csc_matrix(
+            ((
+                _matrix['data'][:],
+                _matrix['indices'][:],
+                _matrix['indptr'][:]
+            )),
+            shape=_matrix['shape'][:]
+        )
+
+        _barcodes = _matrix['barcodes'][:].astype(str)
+        _features = _matrix['features']
+
+        features_dataframe = pd.DataFrame({
+            tag: _features[tag][:].astype(str)
+            for tag in _TENX_H5_FEATURES_KEYS
+        })
+        features_dataframe = features_dataframe.set_index(
+            'name',
+            drop=True
+        )
+
+        # Extract interval data and embed it into new columns
+        _interval = features_dataframe['interval'].str.extract(
+            "([^:]*):([^-]*)-([^-]*)"
+        )
+        features_dataframe[['chrom', 'start', 'end']] = _interval
+
+        # Enforce integer data types
+        for c in ['start', 'end']:
+            features_dataframe[c] = features_dataframe[c].astype(float)
+            features_dataframe.loc[pd.isna(features_dataframe[c]), c] = 0.
+            features_dataframe[c] = features_dataframe[c].astype(int)
+
+        return InferelatorData(
+            csc_matrix.T,
+            gene_data=features_dataframe,
+            gene_names=features_dataframe.index,
+            sample_names=_barcodes
+        )
 
     def load_data_tsv(
         self,
