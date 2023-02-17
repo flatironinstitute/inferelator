@@ -1,4 +1,5 @@
 import numpy as np
+from scipy import sparse
 
 from inferelator.utils import (
     InferelatorData,
@@ -165,9 +166,9 @@ def _global_decay(
 
     # dx/dt + constant * X = f(A)
     return InferelatorData(
-        np.add(
+        _sparse_safe_add(
             velocity,
-            np.multiply(
+            _sparse_safe_multiply(
                 expression.values,
                 constant
             )
@@ -213,9 +214,9 @@ def _gene_constant_decay(
 
     # dx/dt + \lambda * X = f(A)
     return InferelatorData(
-        np.add(
+        _sparse_safe_add(
             velocity,
-            np.multiply(
+            _sparse_safe_multiply(
                 expression.values,
                 _decays[None, :]
             )
@@ -264,9 +265,9 @@ def _gene_variable_decay(
 
     # dx/dt + \lambda * X = f(A)
     return InferelatorData(
-        np.add(
+        _sparse_safe_add(
             velocity,
-            np.multiply(
+            _sparse_safe_multiply(
                 expression.values,
                 _decay
             )
@@ -275,3 +276,41 @@ def _gene_variable_decay(
         sample_names=expression.sample_names,
         meta_data=expression.meta_data
     )
+
+
+def _sparse_safe_multiply(x, y):
+    """
+    Sparse safe element-wise multiply
+
+    :param x: Array
+    :type x: np.ndarray, sp.spmatrix
+    :param y: Array
+    :type y: np.ndarray, sp.spmatrix
+    :return: x * y
+    :rtype: np.ndarray, sp.spmatrix
+    """
+
+    if sparse.isspmatrix(x):
+        return x.multiply(y)
+    elif sparse.isspmatrix(y):
+        return y.multiply(x)
+    else:
+        return np.multiply(x, y)
+
+
+def _sparse_safe_add(x, y):
+    """
+    Sparse safe element-wise add
+
+    :param x: Array
+    :type x: np.ndarray, sp.spmatrix
+    :param y: Array
+    :type y: np.ndarray, sp.spmatrix
+    :return: x + y
+    :rtype: np.ndarray
+    """
+
+    if sparse.isspmatrix(x) or sparse.isspmatrix(y):
+        return (x + y).A
+    else:
+        return np.add(x, y)
