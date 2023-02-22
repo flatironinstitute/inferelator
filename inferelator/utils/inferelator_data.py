@@ -66,7 +66,7 @@ class InferelatorData(object):
     @property
     def _data_mem_usage(self):
         if self.is_sparse:
-            return sum(
+            return np.sum(
                 self._adata.X.data.nbytes,
                 self._adata.X.indices.nbytes,
                 self._adata.X.indptr.nbytes
@@ -352,10 +352,18 @@ class InferelatorData(object):
                     inplace=True, axis=1
                 )
 
+            # If dtype is provided, use it
             if dtype is not None:
                 pass
-            elif all(map(lambda x: pat.is_integer_dtype(x), expression_data.dtypes)):
+
+            # If all dtypes are integer use int32
+            elif all(map(
+                lambda x: pat.is_integer_dtype(x),
+                expression_data.dtypes
+            )):
                 dtype = 'int32'
+
+            # Otherwise use floats
             else:
                 dtype = 'float64'
 
@@ -366,6 +374,7 @@ class InferelatorData(object):
                     X=expression_data.T,
                     dtype=dtype
                 )
+
             else:
                 self._adata = AnnData(
                     X=expression_data,
@@ -403,14 +412,16 @@ class InferelatorData(object):
         # Use gene_data as var
         if gene_data is not None:
 
-            if gene_data_idx_column is not None and gene_data_idx_column in gene_data:
-                gene_data.index = gene_data[gene_data_idx_column]
+            if gene_data_idx_column is not None:
 
-            elif gene_data_idx_column is not None:
-                raise ValueError(
-                    f"No gene_data column {gene_data_idx_column} "
-                    f"in {' '.join(gene_data.columns)}"
-                )
+                try:
+                    gene_data.index = gene_data[gene_data_idx_column]
+
+                except KeyError:
+                    raise ValueError(
+                        f"No gene_data column {gene_data_idx_column} "
+                        f"in {' '.join(gene_data.columns)}"
+                    )
 
             self._make_idx_str(gene_data)
             self.gene_data = gene_data
@@ -427,7 +438,8 @@ class InferelatorData(object):
 
     def trim_genes(self, remove_constant_genes=True, trim_gene_list=None):
         """
-        Remove genes (columns) that are unwanted from the data set. Do this in-place.
+        Remove genes (columns) that are unwanted from the data set.
+        Do this in-place.
 
         :param remove_constant_genes:
         :type remove_constant_genes: bool
@@ -438,9 +450,14 @@ class InferelatorData(object):
         keep_column_bool = np.ones((len(self._adata.var_names),), dtype=bool)
 
         if trim_gene_list is not None:
-            keep_column_bool &= self._adata.var_names.isin(trim_gene_list)
+            keep_column_bool &= self._adata.var_names.isin(
+                trim_gene_list
+            )
+
         if "trim_gene_list" in self._adata.uns:
-            keep_column_bool &= self._adata.var_names.isin(self._adata.uns["trim_gene_list"])
+            keep_column_bool &= self._adata.var_names.isin(
+                self._adata.uns["trim_gene_list"]
+            )
 
         list_trim = len(self._adata.var_names) - np.sum(keep_column_bool)
         comp = 0 if self._is_integer else np.finfo(self.values.dtype).eps * 10
@@ -488,7 +505,7 @@ class InferelatorData(object):
                 dtype=self._adata.X.dtype
             )
 
-            # Make sure that there's no hanging reference to the original object
+            # Make sure that there's no hanging reference to the original
             gc.collect()
 
     def get_gene_data(
@@ -989,7 +1006,12 @@ class InferelatorData(object):
     def to_df(self):
         return self._adata.to_df()
 
-    def replace_data(self, new_data, new_gene_names=None, new_gene_metadata=None):
+    def replace_data(
+            self,
+            new_data,
+            new_gene_names=None,
+            new_gene_metadata=None
+    ):
 
         if new_gene_metadata is None and new_gene_names is not None:
             new_gene_metadata = pd.DataFrame(index=new_gene_names)
@@ -1005,8 +1027,12 @@ class InferelatorData(object):
 
     @staticmethod
     def _make_idx_str(df):
-        df.index = df.index.astype(str) if not pat.is_string_dtype(df.index.dtype) else df.index
-        df.columns = df.columns.astype(str) if not pat.is_string_dtype(df.columns.dtype) else df.columns
+
+        if not pat.is_string_dtype(df.index.dtype):
+            df.index = df.index.astype(str)
+
+        if not pat.is_string_dtype(df.columns.dtype):
+            df.columns = df.columns.astype(str)
 
     def _counts(self, axis=None):
         if self.is_sparse:

@@ -447,7 +447,8 @@ class InferelatorDataLoader(object):
             return None
         elif gene_data_file is None or gene_name_column is None:
             raise ValueError(
-                "Gene_metadata_file and gene_name_column must both be set if either is"
+                "Gene_metadata_file and gene_name_column must both be set "
+                "if either is set"
             )
 
         Debug.vprint(

@@ -291,9 +291,9 @@ def _sparse_safe_multiply(x, y):
     """
 
     if sparse.isspmatrix(x):
-        return x.multiply(y)
+        return x.multiply(y).tocsr()
     elif sparse.isspmatrix(y):
-        return y.multiply(x)
+        return y.multiply(x).tocsr()
     else:
         return np.multiply(x, y)
 
