@@ -66,11 +66,11 @@ class InferelatorData(object):
     @property
     def _data_mem_usage(self):
         if self.is_sparse:
-            return np.sum(
+            return np.sum((
                 self._adata.X.data.nbytes,
                 self._adata.X.indices.nbytes,
                 self._adata.X.indptr.nbytes
-            )
+            ))
         else:
             return self._adata.X.nbytes
 
