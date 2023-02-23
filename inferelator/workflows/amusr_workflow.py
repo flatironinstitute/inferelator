@@ -5,9 +5,11 @@ import copy
 import gc
 import warnings
 import pandas as pd
-import functools
 
-from inferelator.utils import Debug
+from inferelator.utils import (
+    Debug,
+    join_pandas_index
+)
 from inferelator import workflow
 from inferelator.workflows import single_cell_workflow
 from inferelator.regression import amusr_regression
@@ -35,6 +37,7 @@ TASK_STR_ATTRS = [
     "priors_file",
     "gold_standard_file"
 ]
+
 
 class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
     """
@@ -132,13 +135,10 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
             return None
 
         # Intersect each task's tf indices
-        if len(task_ref) > 0:
-            return functools.reduce(
-                lambda x, y: x.intersection(y),
-                task_ref
-            )
-        else:
-            return None
+        return join_pandas_index(
+            *task_ref,
+            method='intersection'
+        )
 
     @property
     def _gene_names(self):
@@ -161,13 +161,10 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
             return None
 
         # Intersect each task's gene indices
-        if len(task_ref) > 0:
-            return functools.reduce(
-                lambda x, y: x.intersection(y),
-                task_ref
-            )
-        else:
-            return None
+        return join_pandas_index(
+            *task_ref,
+            method='intersection'
+        )
 
     def set_task_filters(
         self,
@@ -228,7 +225,8 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         """
         Process task data and priors.
 
-        This is called when `.startup()` is run. It is not necessary to call separately.
+        This is called when `.startup()` is run.
+        It is not necessary to call separately.
         """
 
         # Make sure tasks are set correctly
@@ -251,7 +249,8 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         **kwargs
     ):
         """
-        Create a task object and set any arguments to this function as attributes of that task object. TaskData objects
+        Create a task object and set any arguments to this function as
+        attributes of that task object. TaskData objects
         are stored internally in _task_objects.
 
         :param task_name: A descriptive name for this task
@@ -262,28 +261,36 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         :type expression_matrix_file: str
         :param meta_data_file: Path to the meta data
         :type meta_data_file: str, optional
-        :param tf_names_file: Path to a list of regulator names to include in the model
+        :param tf_names_file: Path to a list of regulator names to include
+            in the model
         :type tf_names_file: str
         :param priors_file: Path to a prior data file
         :type priors_file: str
         :param gene_metadata_file: Path to a genes annotation file
         :type gene_metadata_file: str, optional
-        :param gene_names_file: Path to a list of genes to include in the model (optional)
+        :param gene_names_file: Path to a list of genes to include in
+            the model (optional)
         :type gene_names_file: str, optional
         :param workflow_type: The type of workflow for data preprocessing.
             "tfa" uses the TFA workflow,
             "single-cell" uses the Single-Cell TFA workflow
         :type workflow_type: str, `inferelator.BaseWorkflow` subclass
-        :param kwargs: Any additional arguments are assigned to the task object.
-        :return: Returns a task reference which can be additionally modified by calling any valid Workflow function to
-            set task parameters
+        :param kwargs: Any additional arguments are assigned to thetask object
+        :return: Returns a task reference which can be additionally modified
+            by calling any valid Workflow function to set task parameters
         :rtype: TaskData instance
         """
 
-        # Create a TaskData object from a workflow and set the formal arguments into it
+        # Create a TaskData object from a workflow and set the
+        # formal arguments into it
         task_object = create_task_data_object(workflow_class=workflow_type)
         task_object.task_name = task_name
-        task_object.input_dir = input_dir if input_dir is not None else self.input_dir
+
+        if input_dir is not None:
+            task_object.input_dir = input_dir
+        else:
+            task_object.input_dir = self.input_dir
+
         task_object.expression_matrix_file = expression_matrix_file
         task_object.meta_data_file = meta_data_file
         task_object.tf_names_file = tf_names_file
@@ -293,19 +300,25 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         task_object.gold_standard_file = gold_standard_file
 
         # Warn if there is an attempt to set something that isn't supported
-        msg = "Task-specific {} is not supported. This setting will be ignored. Set this in the parent workflow."
         for bad in NON_TASK_ATTRIBUTES:
             if bad in kwargs:
                 del kwargs[bad]
-                warnings.warn(msg.format(bad))
+                warnings.warn(
+                    f"Task-specific {bad} is not supported. "
+                    "This setting will be ignored. "
+                    "Set this in the parent workflow."
+                )
 
-        # Pass forward any kwargs (raising errors if they're for attributes that don't exist)
+        # Pass forward any kwargs (raising errors if they're for
+        # attributes that don't exist)
         for attr, val in kwargs.items():
             if hasattr(task_object, attr):
                 setattr(task_object, attr, val)
                 task_object.str_attrs.append(attr)
             else:
-                raise ValueError(f"Argument {attr} cannot be set as an attribute")
+                raise ValueError(
+                    f"Argument {attr} cannot be set as an attribute"
+                )
 
         if self._task_objects is None:
             self._task_objects = [task_object]
@@ -324,10 +337,11 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
             raise ValueError("Tasks have not been created with .create_task()")
 
         for tobj in self._task_objects:
-            # Transfer attributes from parent if they haven't been set in the task
+            # Transfer attributes from parent if they haven't been
+            # set in the task
             for attr in TRANSFER_ATTRIBUTES:
                 try:
-                    if getattr(self, attr) is not None and getattr(tobj, attr) is None:
+                    if getattr(tobj, attr) is None:
                         setattr(tobj, attr, getattr(self, attr))
                 except AttributeError:
                     pass
@@ -340,7 +354,10 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
         self._task_objects = [tobj.get_data() for tobj in self._task_objects]
 
         # Flatten the list
-        self._task_objects = [tobj for tobj_list in self._task_objects for tobj in tobj_list]
+        self._task_objects = [
+            t for t_list in self._task_objects
+            for t in t_list
+        ]
         self._n_tasks = len(self._task_objects)
 
     def validate_data(self):
@@ -385,7 +402,8 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
 
     def _process_default_priors(self):
         """
-        Process the default priors in the parent workflow for crossvalidation or shuffling
+        Process the default priors in the parent workflow for
+        crossvalidation or shuffling
         """
 
         # Use priors if given to the MTL workflow
@@ -408,7 +426,8 @@ class MultitaskLearningWorkflow(single_cell_workflow.SingleCellWorkflow):
                 columns=self.tf_names
             )
 
-        # If there's no gold standard or use_no_prior isn't set, raise a RuntimeError
+        # If there's no gold standard or use_no_prior isn't set,
+        # raise a RuntimeError
         else:
             raise RuntimeError(
                 "No base prior or gold standard or TF list has been provided."
@@ -666,6 +685,16 @@ def create_task_data_object(workflow_class="single-cell"):
 
 
 def create_task_data_class(workflow_class="single-cell"):
+    """
+    Factory function for building task-specific workflows
+
+    :param workflow_class: Task workflow class to build,
+        defaults to "single-cell"
+    :type workflow_class: str, optional
+    :return: TaskData class built from the parent class
+    :rtype: TaskData
+    """
+
     task_parent = workflow._factory_build_inferelator(
         regression="base",
         workflow=workflow_class
@@ -673,7 +702,8 @@ def create_task_data_class(workflow_class="single-cell"):
 
     class TaskData(task_parent):
         """
-        TaskData is a workflow object which only loads and preprocesses data from files.
+        TaskData is a workflow object which only loads and preprocesses
+        data from files.
         """
 
         task_name = None
@@ -692,7 +722,8 @@ def create_task_data_class(workflow_class="single-cell"):
             :rtype: str
             """
 
-            task_str = f"{self.task_name}:\n\tWorkflow Class: {self.task_workflow_class}\n"
+            task_str = f"{self.task_name}:"
+            task_str += f"\n\tWorkflow Class: {self.task_workflow_class}\n"
             for attr in self.str_attrs:
                 task_str += f"\t{attr}: {getattr(self, attr, 'NA')}\n"
 
@@ -716,9 +747,14 @@ def create_task_data_class(workflow_class="single-cell"):
 
         def get_data(self):
             """
-            Load all the data and then return a list of references to TaskData objects
-            There will be multiple objects returned if tasks_from_metadata is set.
-            If tasks_from_metadata is not set, the list contains only this task (self)
+            Load all the data and then return a list of references
+            to TaskData objects
+
+            There will be multiple objects returned if
+            tasks_from_metadata is set.
+
+            If tasks_from_metadata is not set, the list contains
+            only this task (self)
 
             :return: List of TaskData objects with loaded data
             :rtype: list(TaskData)
@@ -746,8 +782,8 @@ def create_task_data_class(workflow_class="single-cell"):
             """
 
             warnings.warn(
-                "Task-specific `num_bootstraps` and `random_seed` is not supported."
-                "Set on parent workflow."
+                "Task-specific `num_bootstraps` and `random_seed` are not "
+                "supported; set on parent workflow."
             )
 
         def process_priors_and_gold_standard(
@@ -761,7 +797,8 @@ def create_task_data_class(workflow_class="single-cell"):
             """
             Make sure that the priors for this task are correct
 
-            This will remove circularity from the task priors based on the parent gold standard
+            This will remove circularity from the task priors based
+            on the parent gold standard
             """
 
             gold_standard = self.gold_standard if gold_standard is None else gold_standard

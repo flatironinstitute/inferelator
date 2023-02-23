@@ -182,6 +182,21 @@ class PreprocessData:
             cls.scale_limit_tfa
         )
 
+    @classmethod
+    def to_dict(cls):
+        """
+        Return preprocessing settings as a dict
+        """
+
+        return {
+            'method_predictors': cls.method_predictors,
+            'method_response': cls.method_response,
+            'method_tfa': cls.method_tfa,
+            'scale_limit_predictors': cls.scale_limit_predictors,
+            'scale_limit_response': cls.scale_limit_response,
+            'scale_limit_tfa': cls.scale_limit_tfa,
+        }
+
     @staticmethod
     def _check_method_arg(method):
         """

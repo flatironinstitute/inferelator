@@ -18,6 +18,7 @@ import numpy as np
 import os
 import tempfile
 import shutil
+import anndata as ad
 
 import logging
 logging.getLogger('matplotlib').setLevel(logging.ERROR)
@@ -102,6 +103,11 @@ class TestResults(unittest.TestCase):
                 full_model_var_exp=self.beta_resc
             )
 
+            if result.model_file_name is not None:
+                self.assertTrue(
+                    os.path.exists(os.path.join(td, result.model_file_name))
+                )
+
             if result.curve_data_file_name is not None:
                 self.assertTrue(
                     os.path.exists(os.path.join(td, result.curve_data_file_name))
@@ -126,6 +132,34 @@ class TestResults(unittest.TestCase):
                 self.assertTrue(
                     os.path.exists(os.path.join(td, result.threshold_file_name))
                 )
+
+    def test_model_h5_file(self):
+
+        with tempfile.TemporaryDirectory() as td:
+            rp = ResultsProcessor(
+                [self.beta],
+                [self.beta_resc],
+                metric=self.metric
+            )
+
+            result = rp.summarize_network(
+                td,
+                self.gold_standard,
+                self.prior,
+                full_model_betas=self.beta,
+                full_model_var_exp=self.beta_resc
+            )
+
+            adata = ad.read(os.path.join(
+                td, result.model_file_name
+            ))
+
+            self.assertEqual(adata.shape, self.beta.shape)
+            self.assertTrue('prior' in adata.layers)
+            self.assertTrue('gold_standard' in adata.layers)
+            self.assertTrue('preprocessing' in adata.uns)
+            self.assertTrue('scoring' in adata.uns)
+            self.assertTrue('network' in adata.uns)
 
     @staticmethod
     def make_PR_data(gs, confidences):
@@ -289,6 +323,9 @@ class TestRankSummary(TestResults):
         self.assertEqual(data.shape, filter_data.shape)
 
     def test_output_files(self):
+        pass
+
+    def test_model_h5_file(self):
         pass
 
 

@@ -23,12 +23,12 @@ from inferelator.postprocessing import (
 )
 
 FILTER_METHODS = ("overlap", "keep_all_gold_standard")
-DEFAULT_BOOTSTRAP_THRESHOLD = 0.5
 DEFAULT_FILTER_METHOD = "overlap"
 DEFAULT_METRIC = "precision-recall"
 
 
-class ResultsProcessor(object):
+class ResultsProcessor:
+
     # Data
     betas = None
     rescaled_betas = None
@@ -36,9 +36,6 @@ class ResultsProcessor(object):
 
     # Processed Network
     network_data = None
-
-    # Cutoffs
-    threshold = DEFAULT_BOOTSTRAP_THRESHOLD
 
     # Flag to write results
     write_results = True
@@ -63,9 +60,6 @@ class ResultsProcessor(object):
         :param rescaled_betas: A list of dataframes [G x K] with
             the variance explained by each parameter per bootstrap
         :type rescaled_betas: list(pd.DataFrame)
-        :param threshold: The proportion of bootstraps which an model
-            weight must be non-zero for inclusion in the network output
-        :type threshold: float
         :param filter_method: How to handle gold standard filtering.
             'overlap' filters to beta
             'keep_all_gold_standard' doesn't filter and uses the entire
@@ -187,7 +181,9 @@ class ResultsProcessor(object):
             rs_calc.all_confidences,
             rs_calc,
             betas_sign=beta_sign,
-            betas=self.betas
+            betas=self.betas,
+            priors=priors,
+            gold_standard=gold_standard
         )
 
         if self.write_results and output_dir is not None:

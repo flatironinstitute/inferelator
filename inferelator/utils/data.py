@@ -1,3 +1,4 @@
+import functools
 import pandas as pd
 import numpy as np
 from scipy import sparse
@@ -6,6 +7,8 @@ import pandas.api.types as pat
 from inferelator.utils import Debug
 
 
+# Numpy / scipy matrix math function
+# that's sparse-safe
 def dot_product(
     a,
     b,
@@ -93,7 +96,10 @@ class DotProduct:
         return cls._dot_func(*args, **kwargs)
 
 
-def df_from_tsv(file_like, has_index=True):
+def df_from_tsv(
+        file_like,
+        has_index=True
+):
     """
     Read a tsv file or buffer with headers
     and row ids into a pandas dataframe.
@@ -107,7 +113,11 @@ def df_from_tsv(file_like, has_index=True):
     )
 
 
-def df_set_diag(df, val, copy=True):
+def df_set_diag(
+        df,
+        val,
+        copy=True
+):
     """
     Sets the diagonal of a dataframe to a value.
     Diagonal in this case is anything where row label == column label.
@@ -139,7 +149,91 @@ def df_set_diag(df, val, copy=True):
         return len(isect)
 
 
-def array_set_diag(arr, val, row_labels, col_labels):
+def join_pandas_index(
+    *args,
+    method='union'
+):
+    """
+    Join together an arbitrary number of pandas indices
+
+    :param *args: Pandas indices or None
+    :type *args: pd.Index, None
+    :param method: Union or intersection join,
+        defaults to 'union'
+    :type method: str, optional
+    :returns: One pandas index joined with the method chosen
+    :rtype: pd.Index
+    """
+
+    idxs = [a for a in args if a is not None]
+
+    if len(idxs) == 0:
+        return None
+
+    elif len(idxs) == 1:
+        return idxs[0]
+
+    elif method == 'intersection':
+        return functools.reduce(
+            lambda x, y: x.intersection(y),
+            idxs
+        )
+
+    elif method == 'union':
+        return functools.reduce(
+            lambda x, y: x.union(y),
+            idxs
+        )
+
+    else:
+        raise ValueError(
+            'method must be "union" or "intersection"'
+        )
+
+
+def align_dataframe_fill(
+    df,
+    index=None,
+    columns=None,
+    fillna=None
+):
+    """
+    Align a dataframe and fill any NAs
+
+    :param df: DataFrame to align
+    :type df: pd.DataFrame
+    :param index: Index, defaults to None
+    :type index: pd.Index, optional
+    :param columns: Columns, defaults to None
+    :type columns: pd.Index, optional
+    :param fillna: Fill value, defaults to None
+    :type fillna: any, optional
+    :return: Aligned dataframe
+    :rtype: pd.DataFrame
+    """
+
+    if index is not None:
+        df = df.reindex(
+            index, axis=0
+        )
+
+    if columns is not None:
+        df = df.reindex(
+            columns, axis=1
+        )
+
+    if fillna is not None:
+        df = df.fillna(fillna)
+
+    return df
+
+
+def array_set_diag(
+    arr,
+    val,
+    row_labels,
+    col_labels
+):
     """
     Sets the diagonal of an 2D array to a value.
     Diagonal in this case is anything where row label == column label.

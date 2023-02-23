@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import numpy as np
 import gzip
+
 from inferelator import utils
 from inferelator.utils import Validator as check
 from inferelator.postprocessing import (
@@ -16,7 +17,7 @@ from inferelator.postprocessing import (
 )
 
 
-class RankSummingMetric(object):
+class RankSummingMetric:
     """
     This class takes a data set that has some rankable values and
     a gold standard for which elements of that data set

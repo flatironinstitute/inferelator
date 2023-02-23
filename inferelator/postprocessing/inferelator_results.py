@@ -1,8 +1,15 @@
 import pandas as pd
 import os
 import matplotlib.pyplot as plt
+import anndata as ad
 
-from inferelator.utils import Validator as check
+from inferelator.utils import (
+    Validator as check,
+    join_pandas_index,
+    align_dataframe_fill
+)
+
+from inferelator.preprocessing import PreprocessData
 
 _SERIALIZE_ATTRS = [
     "network",
@@ -63,6 +70,7 @@ class InferelatorResults:
     confidence_file_name = "combined_confidences.tsv.gz"
     threshold_file_name = "model_coefficients.tsv.gz"
     curve_file_name = "combined_metrics.pdf"
+    model_file_name = "inferelator_model.h5ad"
     curve_data_file_name = None
 
     # Performance metrics
@@ -81,7 +89,9 @@ class InferelatorResults:
         combined_confidences,
         metric_object,
         betas_sign=None,
-        betas=None
+        betas=None,
+        priors=None,
+        gold_standard=None
     ):
         self.network = network_data
         self.betas_stack = betas_stack
@@ -93,6 +103,8 @@ class InferelatorResults:
         self.all_scores = metric_object.all_scores()
         self.betas_sign = betas_sign
         self.betas = betas
+        self.priors = priors
+        self.gold_standard = gold_standard
 
     def new_metric(
         self,
@@ -199,6 +211,11 @@ class InferelatorResults:
             index=False
         )
 
+        self.save(
+            output_dir,
+            self.model_file_name
+        )
+
         # Write Metric Curve PDF
         if self.curve_file_name is not None:
             fig, ax = self.metric.output_curve_pdf(
@@ -210,15 +227,29 @@ class InferelatorResults:
 
     def clear_output_file_names(self):
         """
-        Reset the output file names (nothing will be output if this is called, unless new file names are set)
+        Reset the output file names.
+        Nothing will be output if this is called,
+        unless new file names are set
         """
 
-        self.network_file_name, self.confidence_file_name, self.threshold_file_name = None, None, None
-        self.curve_file_name, self.curve_data_file_name = None, None
+        for a in (
+            'network_file_name',
+            'confidence_file_name',
+            'threshold_file_name',
+            'curve_file_name',
+            'curve_data_file_name',
+            'model_file_name'
+        ):
+            setattr(self, a, None)
 
-    def save(self, output_dir, output_file_name):
+    def save(
+        self,
+        output_dir,
+        output_file_name
+    ):
         """
-        Save the InferelatorResults to an HDF5 file
+        Save the InferelatorResults to an AnnData format
+        H5 file
 
         :param output_dir:
         :param output_file_name:
@@ -227,38 +258,158 @@ class InferelatorResults:
         if output_dir is None or output_file_name is None:
             return None
 
-        with pd.HDFStore(os.path.join(output_dir, output_file_name)) as hdf5_store:
+        model_adata = self._pack_adata(
+            self.betas_stack,
+            self.priors,
+            self.gold_standard,
+            self.network,
+            self.all_scores
+        )
 
-            # Save object dataframes
-            for k in _SERIALIZE_ATTRS:
-                if getattr(self, k) is not None:
-                    hdf5_store.put(k, getattr(self, k))
+        if self.tasks is not None:
+            model_adata.uns['tasks'] = pd.Series(self.tasks.keys())
 
-            # If tasks exist, save task dataframes
-            if self.tasks is not None:
-                tasks = pd.Series(self.tasks.keys())
-                hdf5_store.put("tasks", tasks)
+            for t in model_adata.uns['tasks']:
+                self._pack_adata(
+                    self.tasks[t].betas_stack,
+                    self.tasks[t].priors,
+                    self.tasks[t].gold_standard,
+                    self.tasks[t].network,
+                    self.tasks[t].all_scores,
+                    model_adata=model_adata,
+                    prefix=str(t)
+                )
 
-                for t in tasks:
-                    for k in _SERIALIZE_ATTRS:
-                        if getattr(self.tasks[t], k) is not None:
-                            hdf5_store.put(str(t) + "_" + str(k), getattr(self.tasks[t], k))
+        model_adata.write(
+            os.path.join(output_dir, output_file_name)
+        )
 
     @staticmethod
-    def write_to_tsv(data_frame, output_dir, output_file_name, index=False, float_format='%.6f'):
+    def _pack_adata(
+        coefficients,
+        priors,
+        gold_standard,
+        network,
+        scores,
+        model_adata=None,
+        prefix=''
+    ):
+        """
+        Create a new AnnData object or put network information into
+        an existing AnnData object
+
+        :param coefficients: Model coefficients
+        :type coefficients: pd.DataFrame
+        :param priors: Model priors
+        :type priors: pd.DataFrame
+        :param gold_standard: Model gold standard
+        :type gold_standard: pd.DataFrame
+        :param network: Long network dataframe
+        :type network: pd.DataFrame
+        :param scores: Dict of scores, keyed by metric name
+        :type scores: _type_
+        :param model_adata: _description_, defaults to None
+        :type model_adata: _type_, optional
+        :param prefix: _description_, defaults to ''
+        :type prefix: str, optional
+        :return: _description_
+        :rtype: _type_
+        """
+
+        _targets = join_pandas_index(
+            *[
+                x.index if x is not None else x
+                for x in (coefficients, priors, gold_standard)
+            ],
+            method='union'
+        )
+
+        _regulators = join_pandas_index(
+            *[
+                x.columns if x is not None else x
+                for x in (coefficients, priors, gold_standard)
+            ],
+            method='union'
+        )
+
+        # Make sure the prefix has an underscore
+        if prefix != '' and not prefix.endswith("_"):
+            prefix += '_'
+
+        # Create a model output object
+        # this is a genes x TFs AnnData
+        if model_adata is None:
+            model_adata = ad.AnnData(
+                align_dataframe_fill(
+                    coefficients,
+                    index=_targets,
+                    columns=_regulators,
+                    fillna=0.0
+                ),
+                dtype=float
+            )
+
+            lref = model_adata.layers
+        else:
+            model_adata.uns[prefix + 'model'] = align_dataframe_fill(
+                coefficients,
+                index=_targets,
+                columns=_regulators,
+                fillna=0.0
+            )
+
+            lref = model_adata.uns
+
+        if priors is not None:
+            lref[prefix + 'prior'] = align_dataframe_fill(
+                priors,
+                index=_targets,
+                columns=_regulators,
+                fillna=0.0
+            ).astype(priors.dtypes.iloc[0])
+
+        if gold_standard is not None:
+            lref[prefix + 'gold_standard'] = align_dataframe_fill(
+                gold_standard,
+                index=_targets,
+                columns=_regulators,
+                fillna=0.0
+            ).astype(gold_standard.dtypes.iloc[0])
+
+        if network is not None:
+            model_adata.uns[prefix + 'network'] = network
+
+        if scores is not None:
+            model_adata.uns[prefix + 'scoring'] = scores
+
+        model_adata.uns['preprocessing'] = PreprocessData.to_dict()
+
+        return model_adata
+
+    @staticmethod
+    def write_to_tsv(
+        data_frame,
+        output_dir,
+        output_file_name,
+        index=False,
+        float_format='%.6f'
+    ):
         """
         Save a DataFrame to a TSV file
 
-        :param data_frame: pd.DataFrame
-            Data to write
-        :param output_dir: str
-            The path to the output file. If None, don't save anything
-        :param output_file_name: str
-            The output file name. If None, don't save anything
-        :param index: bool
-            Include the index in the output file
-        :param float_format: str
-            Reformat floats. Set to None to disable.
+        :param data_frame: Data to write
+        :type data_frame: pd.DataFrame
+        :param output_dir: The path to the output file.
+            If None, don't save anything
+        :type output_dir: str, None
+        :param output_file_name: The output file name.
+            If None, don't save anything
+        :type output_file_name: str, None
+        :param index: Include the index in the output file
+        :type index: bool
+        :param float_format: Sprintf float format to reformat floats.
+            Set to None to disable.
+        :type float_format: str, None
         """
 
         assert check.argument_type(data_frame, pd.DataFrame, allow_none=True)
@@ -266,6 +417,16 @@ class InferelatorResults:
         assert check.argument_type(output_file_name, str, allow_none=True)
 
         # Write output
-        if output_dir is not None and output_file_name is not None and data_frame is not None:
-            data_frame.to_csv(os.path.join(output_dir, output_file_name), sep="\t", index=index, header=True,
-                              float_format=float_format)
+        _write_output = all(map(
+            lambda x: x is not None,
+            (output_dir, output_file_name, data_frame)
+        ))
+
+        if _write_output:
+            data_frame.to_csv(
+                os.path.join(output_dir, output_file_name),
+                sep="\t",
+                index=index,
+                header=True,
+                float_format=float_format
+            )
