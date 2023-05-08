@@ -12,7 +12,17 @@ from sklearn.linear_model import (
     lasso_path
 )
 
-from inferelator.regression import base_regression
+from inferelator.regression.base_regression import (
+    BaseRegression,
+    PreprocessData,
+    _RegressionWorkflowMixin,
+    _MultitaskRegressionWorkflowMixin,
+    recalculate_betas_from_selected,
+    predict_error_reduction,
+    gene_data_generator,
+    PROGRESS_STR
+)
+
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator import utils
 
@@ -250,8 +260,8 @@ def stars_model_select(
     else:
         x = x[:, beta_nonzero]
         utils.make_array_2d(y)
-        betas = base_regression.recalculate_betas_from_selected(x, y)
-        betas_resc = base_regression.predict_error_reduction(x, y, betas)
+        betas = recalculate_betas_from_selected(x, y)
+        betas_resc = predict_error_reduction(x, y, betas)
 
         return dict(pp=beta_nonzero,
                     betas=betas,
@@ -294,7 +304,7 @@ def _make_subsample_idx(n, b, num_subsamples, random_seed=42):
     return subsample_index
 
 
-class StARS(base_regression.BaseRegression):
+class StARS(BaseRegression):
 
     def __init__(
         self,
@@ -331,7 +341,7 @@ class StARS(base_regression.BaseRegression):
         return MPControl.map(
             _stars_regression_wrapper,
             itertools.repeat(x, nG),
-            base_regression.gene_data_generator(self.Y, nG),
+            gene_data_generator(self.Y, nG),
             itertools.repeat(self.alphas, nG),
             range(nG),
             self.genes,
@@ -346,23 +356,23 @@ class StARS(base_regression.BaseRegression):
 
 def _stars_regression_wrapper(x, y, alphas, j, gene, nG, **kwargs):
 
-            utils.Debug.vprint(
-                base_regression.PROGRESS_STR.format(gn=gene, i=j, total=nG),
-                level=0 if j % 1000 == 0 else 2
-            )
+    utils.Debug.vprint(
+        PROGRESS_STR.format(gn=gene, i=j, total=nG),
+        level=0 if j % 1000 == 0 else 2
+    )
 
-            data = stars_model_select(
-                x,
-                utils.scale_vector(y),
-                alphas,
-                **kwargs
-            )
+    data = stars_model_select(
+        x,
+        PreprocessData.preprocess_response_vector(y),
+        alphas,
+        **kwargs
+    )
 
-            data['ind'] = j
-            return data
+    data['ind'] = j
+    return data
 
 
-class StARSWorkflowMixin(base_regression._RegressionWorkflowMixin):
+class StARSWorkflowMixin(_RegressionWorkflowMixin):
     """
     Stability Approach to Regularization Selection (StARS)-LASSO.
     StARS-Ridge is implemented on an experimental basis.
@@ -435,11 +445,11 @@ class StARSWorkflowMixin(base_regression._RegressionWorkflowMixin):
             parameters=self.sklearn_params
         ).run()
 
-        return [betas], [resc_betas]
+        return [betas], [resc_betas], betas, resc_betas
 
 
 class StARSWorkflowByTaskMixin(
-    base_regression._MultitaskRegressionWorkflowMixin,
+    _MultitaskRegressionWorkflowMixin,
     StARSWorkflowMixin
 ):
     """
@@ -450,21 +460,11 @@ class StARSWorkflowByTaskMixin(
     https://doi.org/10.1016/j.immuni.2019.06.001
     """
 
-    def run_bootstrap(self, bootstrap_idx):
+    def run_regression(self):
         betas, betas_resc = [], []
 
         # Run tasks individually
         for k in range(self._n_tasks):
-
-            # Select the appropriate bootstrap from each task
-            # and stash the data into X and Y
-            x = self._task_design[k].get_bootstrap(
-                self._task_bootstraps[k][bootstrap_idx]
-            )
-
-            y = self._task_response[k].get_bootstrap(
-                self._task_bootstraps[k][bootstrap_idx]
-            )
 
             utils.Debug.vprint(
                 f'Calculating task {k} betas using StARS',
@@ -472,8 +472,8 @@ class StARSWorkflowByTaskMixin(
             )
 
             t_beta, t_br = StARS(
-                x,
-                y,
+                self._task_design[k],
+                self._task_response[k],
                 self.random_seed,
                 alphas=self.alphas,
                 method=self.regress_method,
@@ -481,7 +481,10 @@ class StARSWorkflowByTaskMixin(
                 parameters=self.sklearn_params
             ).run()
 
-            betas.append(t_beta)
-            betas_resc.append(t_br)
+            betas.append([t_beta])
+            betas_resc.append([t_br])
 
-        return betas, betas_resc
+        _unpack_betas = [x[0] for x in betas]
+        _unpack_var_exp = [x[0] for x in betas_resc]
+
+        return betas, betas_resc, _unpack_betas, _unpack_var_exp

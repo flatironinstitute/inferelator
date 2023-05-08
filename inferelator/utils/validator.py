@@ -1,32 +1,35 @@
-from __future__ import print_function, unicode_literals, division
-
 import pandas as pd
 import pandas.api.types as pat
 import os
 import inspect
 
-# Python 2/3 compatible string checking
-try:
-    basestring
-except NameError:
-    basestring = str
 
-
-class Validator(object):
+class Validator:
     """
-    Validation module for function arguments. Each function here should return True or it should raise an exception
+    Validation module for function arguments. Each function here should return
+    True or it should raise an exception
     """
 
     @staticmethod
-    def argument_numeric(arg, low=None, high=None, allow_none=False, types=(int, float)):
+    def argument_numeric(
+        arg,
+        low=None,
+        high=None,
+        allow_none=False,
+        types=(int, float)
+    ):
         """
-        Validate an input argument as being numeric (either an int or a float). Also check bounds if set.
+        Validate an input argument as being numeric (either an int or a float).
+        Also check bounds if set.
+
         :param arg:
             Argument to validate
         :param low: numeric
-            Lowest (inclusive) acceptable value of the argument; ignore this if it's None
+            Lowest (inclusive) acceptable value of the argument;
+            ignore this if it's None
         :param high: numeric
-            Lowest (inclusive) acceptable value of the argument; ignore this if it's None
+            Lowest (inclusive) acceptable value of the argument;
+            ignore this if it's None
         :param allow_none: bool
             Allow arg to be None if true
         :return:
@@ -36,12 +39,18 @@ class Validator(object):
             return True
 
         if not isinstance(arg, types):
-            raise ValueError("Argument must be numeric ({arg}, {typ} provided) ".format(arg=arg, typ=type(arg)))
+            raise ValueError(
+                f"Argument must be numeric ({arg}, {type(arg)} provided)"
+            )
 
-        if low is not None and Validator.argument_numeric(low) and arg < low:
-            raise ValueError("Argument must be at least {low}".format(low=low))
-        if high is not None and Validator.argument_numeric(high) and arg > high:
-            raise ValueError("Argument must be no more than {high}".format(high=high))
+        if low is not None and arg < low:
+            raise ValueError(
+                f"Argument must be at least {low}, {arg} provided"
+            )
+        if high is not None and arg > high:
+            raise ValueError(
+                f"Argument must be no more than {high}, {arg} provided"
+            )
 
         return True
 
@@ -145,18 +154,26 @@ class Validator(object):
             raise ValueError("Path {a} is not a subpath of path {b}".format(a=arg, b=is_subpath_of))
 
     @staticmethod
-    def argument_type(arg, arg_type, allow_none=False):
+    def argument_type(
+        arg,
+        arg_type,
+        allow_none=False
+    ):
+
         if allow_none and arg is None:
             return True
 
         if isinstance(arg, arg_type):
             return True
         else:
-            raise ValueError("Argument {arg} must be of type {typ}".format(arg=arg, typ=arg_type))
+            raise ValueError(
+                f"Argument {arg} must be of type {arg_type} "
+                f"({type(arg)} provided)"
+            )
 
     @staticmethod
     def argument_string(arg, allow_none=False):
-        return Validator.argument_type(arg, basestring, allow_none=allow_none)
+        return Validator.argument_type(arg, str, allow_none=allow_none)
 
     @staticmethod
     def argument_list_type(arg, arg_type, allow_none=False):
@@ -339,4 +356,4 @@ def is_string(arg):
     :param arg:
     :return:
     """
-    return isinstance(arg, basestring)
+    return isinstance(arg, str)

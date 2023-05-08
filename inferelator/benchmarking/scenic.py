@@ -193,13 +193,13 @@ class SCENICRegression(_RegressionWorkflowMixin):
             mat = mat.groupby(mat.index).agg('max')
             mat = mat.reindex(prior_data.columns, axis=1).reindex(prior_data.index, axis=0).fillna(0)
     
-        return [mat], [mat.copy()]
+        return [mat], [mat.copy()], mat.copy(), mat.copy()
 
     @staticmethod
     def reprocess_adj_to_inferelator_results(adj):
         mat = adj.pivot(index='target', columns='TF', values='importance').fillna(0.)
 
-        return [mat], [mat.copy()]
+        return [mat], [mat.copy()], mat.copy(), mat.copy()
 
 # This code is lifted from https://github.com/aertslab/create_cisTarget_databases/cistarget_db.py
 # It is not reimplemented in order to ensure that the methodology for ranking is identical

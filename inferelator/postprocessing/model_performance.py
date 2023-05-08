@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import numpy as np
 import gzip
+
 from inferelator import utils
 from inferelator.utils import Validator as check
 from inferelator.postprocessing import (
@@ -16,7 +17,7 @@ from inferelator.postprocessing import (
 )
 
 
-class RankSummingMetric(object):
+class RankSummingMetric:
     """
     This class takes a data set that has some rankable values and
     a gold standard for which elements of that data set
@@ -110,8 +111,9 @@ class RankSummingMetric(object):
         # Filter the gold standard and confidences down to a format
         # that can be directly compared
         utils.Debug.vprint(
-            f"GS: {gold_standard.shape[0]} edges; "
-            f"Confidences: {confidence_data.shape[0]} edges",
+            f"GS: {gold_standard.sum().sum()} edges; "
+            f"Confidences: {(confidence_data[CONFIDENCE_COLUMN] > 0).sum()} "
+            "edges",
             level=0
         )
 
@@ -122,7 +124,8 @@ class RankSummingMetric(object):
         ).copy()
 
         utils.Debug.vprint(
-            f"Filtered data to {self.filtered_data.shape[0]} edges",
+            "Filtered network data to "
+            f"{(self.filtered_data[CONFIDENCE_COLUMN] > 0).sum()} edges",
             level=1
         )
 

@@ -139,7 +139,7 @@ class TestHomologyMap(unittest.TestCase):
 
     def test_regression(self):
 
-        beta, resc_beta = self.workflow.run_regression()
+        beta, resc_beta, _, _ = self.workflow.run_regression()
 
         pdt.assert_frame_equal(
             beta[0][0],

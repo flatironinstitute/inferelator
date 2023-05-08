@@ -2,7 +2,7 @@ import os
 from setuptools import setup, find_packages
 
 # Current Inferelator Version Number
-version = "0.6.1"
+version = "0.6.2"
 
 
 # Description from README.md
@@ -16,7 +16,7 @@ requires = [
     "pandas >=0.24.0",
     "scikit-learn",
     "matplotlib >=1.5.1",
-    "anndata >=0.7.4"
+    "anndata >=0.9.0 "
 ]
 
 setup(

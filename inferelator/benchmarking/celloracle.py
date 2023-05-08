@@ -84,10 +84,25 @@ class CellOracleWorkflow(SingleCellWorkflow):
     @staticmethod
     def reprocess_co_output_to_inferelator_results(co_out):
 
-        betas = [r.pivot(index='target', columns='source', values='coef_mean').fillna(0) for k, r in co_out.items()]
-        rankers = [r.pivot(index='target', columns='source', values='-logp').fillna(0) for k, r in co_out.items()]
+        betas = [
+            r.pivot(
+                index='target',
+                columns='source',
+                values='coef_mean'
+            ).fillna(0)
+            for k, r in co_out.items()
+        ]
 
-        return betas, rankers
+        rankers = [
+            r.pivot(
+                index='target',
+                columns='source',
+                values='-logp'
+            ).fillna(0)
+            for k, r in co_out.items()
+        ]
+
+        return betas, rankers, betas[0], rankers[0]
 
 
 class CellOracleRegression(_RegressionWorkflowMixin):
@@ -108,14 +123,23 @@ class CellOracleRegression(_RegressionWorkflowMixin):
         oracle.perform_PCA(100)
 
         # Add prior
-        oracle.addTFinfo_dictionary(self.reprocess_prior_to_base_GRN(self.priors_data))
+        oracle.addTFinfo_dictionary(
+            self.reprocess_prior_to_base_GRN(self.priors_data)
+        )
 
         utils.Debug.vprint("Imputation Preprocessing")
 
         if self.oracle_imputation:
 
             # Heuristics from Celloracle documentation
-            n_comps = np.where(np.diff(np.diff(np.cumsum(oracle.pca.explained_variance_ratio_))>0.002))[0][0]
+            n_comps = np.where(
+                np.diff(
+                    np.diff(
+                        np.cumsum(oracle.pca.explained_variance_ratio_)
+                    ) > 0.002
+                )
+            )[0][0]
+
             k = int(0.025 * oracle.adata.shape[0])
 
             # Make sure n_comps is between 10 and 50
@@ -125,15 +149,20 @@ class CellOracleRegression(_RegressionWorkflowMixin):
             # Make sure k is at least 25 too I guess
             k = max(k, 25)
 
-            oracle.knn_imputation(n_pca_dims=n_comps, k=k, balanced=True, b_sight=k*8,
-                                b_maxl=k*4, n_jobs=4)
+            oracle.knn_imputation(
+                n_pca_dims=n_comps,
+                k=k, balanced=True,
+                b_sight=k*8,
+                b_maxl=k*4,
+                n_jobs=4
+            )
 
         # Pretend to do imputation
         else:
             oracle.adata.layers["imputed_count"] = oracle.adata.layers["normalized_count"].copy()
 
         utils.Debug.vprint("CellOracle GRN inference")
-        
+
         # Call GRN inference
         links = oracle.get_links(cluster_name_for_GRN_unit="louvain", alpha=10,
                                  verbose_level=0, test_mode=False)

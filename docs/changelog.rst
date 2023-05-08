@@ -1,6 +1,27 @@
 Change Log
 ==========
 
+Inferelator v0.6.2 `May 8, 2023`
+----------------------------------------
+
+New Functionality:
+
+- Generates & reports non-bootstrap model weights as part of results
+- Saves full model information into an h5ad file
+- Added new experimental prediction modules
+- Added new preprocessing & normalization options
+
+Code Refactoring:
+
+- Logging messages now use logging module
+
+Bug Fixes:
+
+- Fixed several errors when sparse data was passed unexpectedly
+- Corrected several deprecated numpy calls
+- Updated calls and version requirement to anndata
+
+
 Inferelator v0.6.1 `January 3, 2023`
 ----------------------------------------
 

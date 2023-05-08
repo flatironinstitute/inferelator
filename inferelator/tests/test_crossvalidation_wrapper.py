@@ -7,7 +7,7 @@ import os
 
 from inferelator import crossvalidation_workflow
 from inferelator.workflow import WorkflowBase
-from inferelator.utils.data import InferelatorData
+from inferelator.utils.inferelator_data import InferelatorData
 
 from numpy.random import default_rng
 

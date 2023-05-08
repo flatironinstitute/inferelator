@@ -2,10 +2,21 @@ import pandas as pd
 import numpy as np
 import itertools
 
-from inferelator import utils
+from inferelator.utils import (
+    df_set_diag,
+    Debug
+)
 from inferelator.regression import bayes_stats
-from inferelator.regression import base_regression
-from inferelator.regression import mi
+from inferelator.regression.base_regression import (
+    BaseRegression,
+    PreprocessData,
+    _RegressionWorkflowMixin,
+    gene_data_generator,
+    PROGRESS_STR
+)
+from inferelator.regression.mi import (
+    MIDriver
+)
 from inferelator.distributed.inferelator_mp import MPControl
 
 # Default number of predictors to include in the model
@@ -13,16 +24,18 @@ DEFAULT_nS = 10
 
 # Default weight for priors & Non-priors
 # If prior_weight is the same as no_prior_weight:
-#   Priors will be included in the pp matrix before the number of predictors is reduced to nS
-#   They won't get special treatment in the model though
+# Priors will be included in the pp matrix before the number of
+# predictors is reduced to nS
+# They won't get special treatment in the model though
 DEFAULT_prior_weight = 1
 DEFAULT_no_prior_weight = 1
 
-# Throw away the priors which have a CLR that is 0 before the number of predictors is reduced by BIC
+# Throw away the priors which have a CLR that is 0 before
+# the number of predictors is reduced by BIC
 DEFAULT_filter_priors_for_clr = False
 
 
-class BBSR(base_regression.BaseRegression):
+class BBSR(BaseRegression):
     # Bayseian correlation measurements
 
     # Priors Data
@@ -40,8 +53,17 @@ class BBSR(base_regression.BaseRegression):
 
     ols_only = False
 
-    def __init__(self, X, Y, clr_mat, prior_mat, nS=DEFAULT_nS, prior_weight=DEFAULT_prior_weight,
-                 no_prior_weight=DEFAULT_no_prior_weight, ordinary_least_squares=False):
+    def __init__(
+        self,
+        X,
+        Y,
+        clr_mat,
+        prior_mat,
+        nS=DEFAULT_nS,
+        prior_weight=DEFAULT_prior_weight,
+        no_prior_weight=DEFAULT_no_prior_weight,
+        ordinary_least_squares=False
+    ):
         """
         Create a Regression object for Bayes Best Subset Regression
 
@@ -70,15 +92,24 @@ class BBSR(base_regression.BaseRegression):
         # Calculate the weight matrix
         self.prior_weight = prior_weight
         self.no_prior_weight = no_prior_weight
-        weights_mat = self._calculate_weight_matrix(prior_mat, p_weight=prior_weight, no_p_weight=no_prior_weight)
-        utils.Debug.vprint("Weight matrix {} construction complete".format(weights_mat.shape))
+        weights_mat = self._calculate_weight_matrix(
+            prior_mat,
+            p_weight=prior_weight,
+            no_p_weight=no_prior_weight
+        )
 
-        # Rebuild weights, priors, and the CLR matrix for the features that are in this bootstrap
+        Debug.vprint(
+            f"Weight matrix {weights_mat.shape} construction complete"
+        )
+
+        # Rebuild weights, priors, and the CLR matrix for the features
+        # that are in this bootstrap
         self.weights_mat = weights_mat.loc[self.genes, self.tfs]
         self.prior_mat = prior_mat.loc[self.genes, self.tfs]
         self.clr_mat = clr_mat.loc[self.genes, self.tfs]
 
-        # Build a boolean matrix indicating which tfs should be used as predictors for regression for each gene
+        # Build a boolean matrix indicating which tfs should be
+        # used as predictors for regression for each gene
         self.pp = self._build_pp_matrix()
 
     def regress(self):
@@ -86,8 +117,7 @@ class BBSR(base_regression.BaseRegression):
         Execute BBSR
 
         :return: pd.DataFrame [G x K], pd.DataFrame [G x K]
-            Returns the regression betas and beta error reductions for all threads if this is the master thread (rank 0)
-            Returns None, None if it's a subordinate thread
+            Returns the regression betas and beta error reductions
         """
 
         nG = self.G
@@ -96,7 +126,7 @@ class BBSR(base_regression.BaseRegression):
         return MPControl.map(
             _bbsr_regression_wrapper,
             itertools.repeat(X, nG),
-            base_regression.gene_data_generator(self.Y, nG),
+            gene_data_generator(self.Y, nG),
             itertools.repeat(self.pp, nG),
             itertools.repeat(self.weights_mat, nG),
             itertools.repeat(self.nS, nG),
@@ -109,13 +139,19 @@ class BBSR(base_regression.BaseRegression):
 
     def _build_pp_matrix(self):
         """
-        From priors and context likelihood of relatedness, determine which predictors should be included in the model
-        :return pp: pd.DataFrame [G x K]
-            Boolean matrix indicating which predictor variables should be included in BBSR for each response variable
+        From priors and context likelihood of relatedness,
+        determine which predictors should be included in the BSR
+
+        :return pp: Boolean matrix [G x K] indicating which predictor
+            variables should be included in BBSR for each response variable
+        :rtype: pd.DataFrame
         """
 
         # Create a predictor boolean array from priors
-        pp = np.logical_or(self.prior_mat != 0, self.weights_mat != self.no_prior_weight)
+        pp = np.logical_or(
+            self.prior_mat != 0,
+            self.weights_mat != self.no_prior_weight
+        )
 
         pp_idx = pp.index
         pp_col = pp.columns
@@ -126,50 +162,93 @@ class BBSR(base_regression.BaseRegression):
         else:
             pp = pp.values
 
-        # Mark the nS predictors with the highest CLR true (Do not include anything with a CLR of 0)
-        mask = np.logical_or(self.clr_mat == 0, ~np.isfinite(self.clr_mat)).values
-        masked_clr = np.ma.array(self.clr_mat.values, mask=mask)
+        # Mark the nS predictors with the highest CLR true
+        # (Do not include anything with a CLR of 0)
+        mask = np.logical_or(
+            self.clr_mat == 0,
+            ~np.isfinite(self.clr_mat)
+        ).values
+
+        masked_clr = np.ma.array(
+            self.clr_mat.values,
+            mask=mask
+        )
+
         for i in range(self.G):
-            n_to_keep = min(self.nS, self.K, mask.shape[1] - np.sum(mask[i, :]))
+            n_to_keep = min(
+                self.nS,
+                self.K,
+                mask.shape[1] - np.sum(mask[i, :])
+            )
+
             if n_to_keep == 0:
                 continue
-            clrs = np.ma.argsort(masked_clr[i, :], endwith=False)[-1 * n_to_keep:]
+
+            clrs = np.ma.argsort(
+                masked_clr[i, :],
+                endwith=False
+            )[-1 * n_to_keep:]
+
             pp[i, clrs] = True
 
         # Rebuild into a DataFrame and set autoregulation to 0
-        pp = pd.DataFrame(pp, index=pp_idx, columns=pp_col, dtype=np.dtype(bool))
-        pp = utils.df_set_diag(pp, False)
+        pp = pd.DataFrame(
+            pp,
+            index=pp_idx,
+            columns=pp_col,
+            dtype=np.dtype(bool)
+        )
+        pp = df_set_diag(pp, False)
 
         return pp
 
     @staticmethod
-    def _calculate_weight_matrix(p_matrix, no_p_weight=DEFAULT_no_prior_weight,
-                                 p_weight=DEFAULT_prior_weight):
+    def _calculate_weight_matrix(
+        p_matrix,
+        no_p_weight=DEFAULT_no_prior_weight,
+        p_weight=DEFAULT_prior_weight
+    ):
         """
-        Create a weights matrix. Everywhere p_matrix is not set to 0, the weights matrix will have p_weight. Everywhere
+        Create a weights matrix. Everywhere p_matrix is not set to 0,
+        the weights matrix will have p_weight. Everywhere
         p_matrix is set to 0, the weights matrix will have no_p_weight
-        :param p_matrix: pd.DataFrame [G x K]
-        :param no_p_weight: int
-            Weight of something which doesn't have a prior
-        :param p_weight: int
-            Weight of something which does have a prior
+
+        :param p_matrix: Predictor matrix [G x K]
+        :type p_matrix: pd.DataFrame
+        :param no_p_weight: Weight of something which doesn't have an existing
+            edge in the predictor matrix
+        :type no_p_weight: numeric
+        :param p_weight: Weight of something which does have an existing
+            edge in the predictor matrix
+        :param p_weight: numeric
         :return weights_mat: pd.DataFrame [G x K]
         """
+
         weights_mat = p_matrix * 0 + no_p_weight
         return weights_mat.mask(p_matrix != 0, other=p_weight)
 
 
-def _bbsr_regression_wrapper(X, y, pp, weights, nS, genes, nG, j, ols_only=False):
+def _bbsr_regression_wrapper(
+    X,
+    y,
+    pp,
+    weights,
+    nS,
+    genes,
+    nG,
+    j,
+    ols_only=False
+):
     """ Wrapper for multiprocessing BBSR """
 
-    utils.Debug.vprint(
-        base_regression.PROGRESS_STR.format(gn=genes[j], i=j, total=nG),
+    Debug.vprint(
+        PROGRESS_STR.format(gn=genes[j], i=j, total=nG),
         level=0 if j % 1000 == 0 else 2
     )
 
     data = bayes_stats.bbsr(
         X,
-        utils.scale_vector(y),
+        PreprocessData.preprocess_response_vector(y),
         pp.iloc[j, :].values.flatten(),
         weights.iloc[j, :].values.flatten(),
         nS,
@@ -180,14 +259,14 @@ def _bbsr_regression_wrapper(X, y, pp, weights, nS, genes, nG, j, ols_only=False
     return data
 
 
-class BBSRRegressionWorkflowMixin(base_regression._RegressionWorkflowMixin):
+class BBSRRegressionWorkflowMixin(_RegressionWorkflowMixin):
     """
     Bayesian Best Subset Regression (BBSR)
 
     https://doi.org/10.15252/msb.20156236
     """
 
-    mi_driver = mi.MIDriver
+    mi_driver = MIDriver
     mi_sync_path = None
 
     prior_weight = DEFAULT_prior_weight
@@ -234,19 +313,28 @@ class BBSRRegressionWorkflowMixin(base_regression._RegressionWorkflowMixin):
         X = self.design.get_bootstrap(bootstrap)
         Y = self.response.get_bootstrap(bootstrap)
 
-        utils.Debug.vprint(
-            'Calculating MI, Background MI, and CLR Matrix',
+        Debug.vprint(
+            'Calculating Mutual Information, '
+            'Background Mutual Information, '
+            'and the Context Likelihood of Relatedness (CLR) Matrix',
             level=0
         )
+
         clr_matrix, _ = self.mi_driver().run(Y, X, return_mi=False)
 
-        utils.Debug.vprint(
+        Debug.vprint(
             'Calculating betas using BBSR',
             level=0
         )
 
         # Create a mock prior with no information if clr_only is set
         if self.clr_only:
+            Debug.vprint(
+                'Using Context Likelihood of Relatedness (CLR) '
+                'exclusively to identify predictors for BSR',
+                level=0
+            )
+
             priors = pd.DataFrame(
                 0,
                 index=self.priors_data.index,

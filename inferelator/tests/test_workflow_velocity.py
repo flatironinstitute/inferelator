@@ -5,7 +5,7 @@ import numpy.testing as npt
 
 from inferelator.workflow import inferelator_workflow
 from inferelator.workflows.velocity_workflow import VelocityWorkflow
-from inferelator.utils.data import InferelatorData
+from inferelator.utils.inferelator_data import InferelatorData
 
 # Start, f(A), DC
 GENE_DATA = [

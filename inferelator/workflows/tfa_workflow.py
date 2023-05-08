@@ -164,14 +164,16 @@ class TFAWorkFlow(workflow.WorkflowBase):
         self.startup()
 
         # Run regression after startup
-        betas, rescaled_betas = self.run_regression()
+        betas, rescaled_betas, full_betas, full_rescale = self.run_regression()
 
         # Write the results out to a file
         return self.emit_results(
             betas,
             rescaled_betas,
             self.gold_standard,
-            self.priors_data
+            self.priors_data,
+            full_model=full_betas,
+            full_exp_var=full_rescale
         )
 
     def startup_run(self):
@@ -274,7 +276,15 @@ class TFAWorkFlow(workflow.WorkflowBase):
             [self.design.sample_names, self.response.sample_names]
         )
 
-    def emit_results(self, betas, rescaled_betas, gold_standard, priors):
+    def emit_results(
+        self,
+        betas,
+        rescaled_betas,
+        gold_standard,
+        priors,
+        full_model=None,
+        full_exp_var=None
+    ):
         """
         Output result report(s) for workflow run.
         """
@@ -290,7 +300,10 @@ class TFAWorkFlow(workflow.WorkflowBase):
 
         self.results = rp.summarize_network(
             self.output_dir,
-            gold_standard, priors
+            gold_standard,
+            priors,
+            full_model_betas=full_model,
+            full_model_var_exp=full_exp_var
         )
 
         return self.results

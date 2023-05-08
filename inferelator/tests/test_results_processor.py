@@ -1,17 +1,24 @@
-from __future__ import division
-
 import unittest
 from inferelator import utils
-from inferelator.postprocessing import GOLD_STANDARD_COLUMN, CONFIDENCE_COLUMN, TARGET_COLUMN, REGULATOR_COLUMN
+from inferelator.postprocessing import (
+    GOLD_STANDARD_COLUMN,
+    CONFIDENCE_COLUMN,
+    TARGET_COLUMN,
+    REGULATOR_COLUMN
+)
+
 from inferelator.postprocessing import results_processor
 from inferelator.postprocessing import results_processor_mtl
 from inferelator.postprocessing import MetricHandler, RankSummingMetric
+from inferelator.postprocessing.results_processor import ResultsProcessor
+
 import pandas as pd
 import pandas.testing as pdt
 import numpy as np
 import os
 import tempfile
 import shutil
+import anndata as ad
 
 import logging
 logging.getLogger('matplotlib').setLevel(logging.ERROR)
@@ -21,98 +28,187 @@ import matplotlib.pyplot as plt
 class TestResults(unittest.TestCase):
 
     def setUp(self):
-        # Data was taken from a subset of row 42 of Bacillus subtilis run results
-        self.beta1 = pd.DataFrame(np.array([[-0.2841755, 0, 0.2280624, -0.3852462, 0.2545609]]), ['gene1'],
-                                  ['tf1', 'tf2', 'tf3', 'tf4', 'tf5'])
-        self.rescaled_beta1 = pd.DataFrame(np.array([[0.09488207, 0, 0.07380172, 0.15597205, 0.07595131]]), ['gene1'],
-                                           ['tf1', 'tf2', 'tf3', 'tf4', 'tf5'])
-        self.beta2 = pd.DataFrame(np.array([[0, 0.2612011, 0.1922999, 0.00000000, 0.19183277]]), ['gene1'],
-                                  ['tf1', 'tf2', 'tf3', 'tf4', 'tf5'])
-        self.rescaled_beta2 = pd.DataFrame(np.array([[0, 0.09109101, 0.05830292, 0.00000000, 0.3675702]]), ['gene1'],
-                                           ['tf1', 'tf2', 'tf3', 'tf4', 'tf5'])
+
+        # Data was taken from a subset of row 42 of
+        # Bacillus subtilis run results
+        self.beta1 = pd.DataFrame(
+            np.array([[-0.2841755, 0, 0.2280624, -0.3852462, 0.2545609]]),
+            index=['gene1'],
+            columns=['tf1', 'tf2', 'tf3', 'tf4', 'tf5']
+        )
+
+        self.rescaled_beta1 = pd.DataFrame(
+            np.array([[0.09488207, 0, 0.07380172, 0.15597205, 0.07595131]]),
+            index=['gene1'],
+            columns=['tf1', 'tf2', 'tf3', 'tf4', 'tf5'])
+
+        self.beta2 = pd.DataFrame(
+            np.array([[0, 0.2612011, 0.1922999, 0.00000000, 0.19183277]]),
+            index=['gene1'],
+            columns=['tf1', 'tf2', 'tf3', 'tf4', 'tf5'])
+
+        self.rescaled_beta2 = pd.DataFrame(
+            np.array([[0, 0.09109101, 0.05830292, 0.00000000, 0.3675702]]),
+            index=['gene1'],
+            columns=['tf1', 'tf2', 'tf3', 'tf4', 'tf5']
+        )
 
         # Toy data
-        self.beta = pd.DataFrame(np.array([[0, 1], [0.5, 0.05]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        self.beta_resc = pd.DataFrame(np.array([[0, 1.1], [1, 0.05]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        self.prior = pd.DataFrame([[0, 1], [1, 0]], ['gene1', 'gene2'], ['tf1', 'tf2'])
+        self.beta = pd.DataFrame(
+            np.array([[0, 1], [0.5, 0.05]]),
+            index=['gene1', 'gene2'],
+            columns=['tf1', 'tf2']
+        )
 
-        self.gold_standard = pd.DataFrame([[0, 1], [1, 0]], ['gene1', 'gene2'], ['tf1', 'tf2'])
-        self.gold_standard_unaligned = pd.DataFrame([[0, 1], [0, 0]], ['gene1', 'gene3'], ['tf1', 'tf2'])
+        self.beta_resc = pd.DataFrame(
+            np.array([[0, 1.1], [1, 0.05]]),
+            index=['gene1', 'gene2'],
+            columns=['tf1', 'tf2']
+        )
+
+        self.prior = pd.DataFrame(
+            [[0, 1], [1, 0]],
+            index=['gene1', 'gene2'],
+            columns=['tf1', 'tf2']
+        )
+
+        self.gold_standard = pd.DataFrame(
+            [[0, 1], [1, 0]],
+            index=['gene1', 'gene2'],
+            columns=['tf1', 'tf2']
+        )
+
+        self.gold_standard_unaligned = pd.DataFrame(
+            [[0, 1], [0, 0]],
+            index=['gene1', 'gene3'],
+            columns=['tf1', 'tf2']
+        )
+
         self.metric = MetricHandler.get_metric("combined")
 
     def test_output_files(self):
 
         with tempfile.TemporaryDirectory() as td:
-            rp = results_processor.ResultsProcessor([self.beta], [self.beta_resc], metric=self.metric)
-            result = rp.summarize_network(td, self.gold_standard, self.prior)
+            rp = ResultsProcessor(
+                [self.beta],
+                [self.beta_resc],
+                metric=self.metric
+            )
+
+            result = rp.summarize_network(
+                td,
+                self.gold_standard,
+                self.prior,
+                full_model_betas=self.beta,
+                full_model_var_exp=self.beta_resc
+            )
+
+            if result.model_file_name is not None:
+                self.assertTrue(
+                    os.path.exists(os.path.join(td, result.model_file_name))
+                )
 
             if result.curve_data_file_name is not None:
-                self.assertTrue(os.path.exists(os.path.join(td, result.curve_data_file_name)))
-            if result.curve_file_name is not None:
-                self.assertTrue(os.path.exists(os.path.join(td, result.curve_file_name)))
-            if result.network_file_name is not None:
-                self.assertTrue(os.path.exists(os.path.join(td, result.network_file_name)))
-            if result.confidence_file_name is not None:
-                self.assertTrue(os.path.exists(os.path.join(td, result.confidence_file_name)))
-            if result.threshold_file_name is not None:
-                self.assertTrue(os.path.exists(os.path.join(td, result.threshold_file_name)))
+                self.assertTrue(
+                    os.path.exists(os.path.join(td, result.curve_data_file_name))
+                )
 
+            if result.curve_file_name is not None:
+                self.assertTrue(
+                    os.path.exists(os.path.join(td, result.curve_file_name))
+                )
+
+            if result.network_file_name is not None:
+                self.assertTrue(
+                    os.path.exists(os.path.join(td, result.network_file_name))
+                )
+
+            if result.confidence_file_name is not None:
+                self.assertTrue(
+                    os.path.exists(os.path.join(td, result.confidence_file_name))
+                )
+
+            if result.threshold_file_name is not None:
+                self.assertTrue(
+                    os.path.exists(os.path.join(td, result.threshold_file_name))
+                )
+
+    def test_model_h5_file(self):
+
+        with tempfile.TemporaryDirectory() as td:
+            rp = ResultsProcessor(
+                [self.beta],
+                [self.beta_resc],
+                metric=self.metric
+            )
+
+            result = rp.summarize_network(
+                td,
+                self.gold_standard,
+                self.prior,
+                full_model_betas=self.beta,
+                full_model_var_exp=self.beta_resc
+            )
+
+            adata = ad.read(os.path.join(
+                td, result.model_file_name
+            ))
+
+            self.assertEqual(adata.shape, self.beta.shape)
+            self.assertTrue('prior' in adata.layers)
+            self.assertTrue('gold_standard' in adata.layers)
+            self.assertTrue('preprocessing' in adata.uns)
+            self.assertTrue('scoring' in adata.uns)
+            self.assertTrue('network' in adata.uns)
 
     @staticmethod
     def make_PR_data(gs, confidences):
-        data = utils.melt_and_reindex_dataframe(confidences, value_name=CONFIDENCE_COLUMN).reset_index()
-        data = data.join(utils.melt_and_reindex_dataframe(gs, value_name=GOLD_STANDARD_COLUMN),
-                         on=[TARGET_COLUMN, REGULATOR_COLUMN], how='outer')
+        data = utils.melt_and_reindex_dataframe(
+            confidences,
+            value_name=CONFIDENCE_COLUMN
+        ).reset_index()
+
+        data = data.join(
+            utils.melt_and_reindex_dataframe(
+                gs,
+                value_name=GOLD_STANDARD_COLUMN
+            ),
+            on=[TARGET_COLUMN, REGULATOR_COLUMN],
+            how='outer'
+        )
+
         return data
 
 
 class TestResultsProcessor(TestResults):
 
     def test_full_stack(self):
-        rp = results_processor.ResultsProcessor([self.beta], [self.beta_resc])
+        rp = ResultsProcessor([self.beta], [self.beta_resc])
         result = rp.summarize_network(None, self.gold_standard, self.prior)
         self.assertEqual(result.score, 1)
 
     def test_combining_confidences_two_betas_negative_values_assert_nonzero_betas(self):
-        _, _, betas_non_zero = results_processor.ResultsProcessor.threshold_and_summarize([self.beta1, self.beta2], 0.5)
+        _, betas_non_zero = ResultsProcessor.summarize([self.beta1, self.beta2])
         np.testing.assert_equal(betas_non_zero, np.array([[1, 1, 2, 1, 2]]))
 
     def test_combining_confidences_two_betas_negative_values_assert_sign_betas(self):
-        _, betas_sign, _ = results_processor.ResultsProcessor.threshold_and_summarize([self.beta1, self.beta2], 0.5)
+        betas_sign, _ = ResultsProcessor.summarize([self.beta1, self.beta2])
         np.testing.assert_equal(betas_sign, np.array([[-1, 1, 2, -1, 2]]))
 
-    def test_threshold_and_summarize_one_beta(self):
-        beta1 = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        thresholded_mat, _, _ = results_processor.ResultsProcessor.threshold_and_summarize([beta1], 0.5)
-        np.testing.assert_equal(thresholded_mat.values, np.array([[1, 0], [1, 0]]))
-
-    def test_threshold_and_summarize_two_betas(self):
-        beta1 = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        beta2 = pd.DataFrame(np.array([[0, 0], [0.5, 1]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        thresholded_mat, _, _ = results_processor.ResultsProcessor.threshold_and_summarize([beta1, beta2], 0.5)
-        np.testing.assert_equal(thresholded_mat.values,
-                                np.array([[1, 0], [1, 1]]))
-
-    def test_threshold_and_summarize_three_betas(self):
-        beta1 = pd.DataFrame(np.array([[1, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        beta2 = pd.DataFrame(np.array([[0, 0], [0.5, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        beta3 = pd.DataFrame(np.array([[0.5, 0.2], [0.5, 0.1]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        thresholded_mat, _, _ = results_processor.ResultsProcessor.threshold_and_summarize([beta1, beta2, beta3], 0.5)
-        np.testing.assert_equal(thresholded_mat.values,
-                                np.array([[1, 0], [1, 0]]))
-
-    def test_threshold_and_summarize_three_betas_negative_values(self):
-        beta1 = pd.DataFrame(np.array([[1, 0], [-0.5, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        beta2 = pd.DataFrame(np.array([[0, 0], [-0.5, 1]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        beta3 = pd.DataFrame(np.array([[-0.5, 0.2], [-0.5, 0.1]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        thresholded_mat, _, _ = results_processor.ResultsProcessor.threshold_and_summarize([beta1, beta2, beta3], 0.5)
-        np.testing.assert_equal(thresholded_mat.values,
-                                np.array([[1, 0], [1, 1]]))
-
     def test_mean_and_median(self):
-        beta1 = pd.DataFrame(np.array([[1, 1], [1, 1]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        beta2 = pd.DataFrame(np.array([[2, 2], [2, 2]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
-        mean, median = results_processor.ResultsProcessor.mean_and_median([beta1, beta2])
+        beta = [
+            pd.DataFrame(
+                np.array([[1, 1], [1, 1]]),
+                index=['gene1', 'gene2'],
+                columns=['tf1', 'tf2']
+            ),
+            pd.DataFrame(
+                np.array([[2, 2], [2, 2]]),
+                index=['gene1', 'gene2'],
+                columns=['tf1', 'tf2']
+            )
+        ]
+        mean, median = ResultsProcessor.mean_and_median(beta)
         np.testing.assert_equal(mean, np.array([[1.5, 1.5], [1.5, 1.5]]))
         np.testing.assert_equal(median, np.array([[1.5, 1.5], [1.5, 1.5]]))
 
@@ -124,29 +220,54 @@ class TestNetworkCreator(TestResults):
         self.metric = MetricHandler.get_metric("aupr")
         self.pr_calc = self.metric([self.rescaled_beta1, self.rescaled_beta2], self.gold_standard,
                                    "keep_all_gold_standard")
-        self.beta_sign, self.beta_nonzero = results_processor.ResultsProcessor.summarize([self.beta1, self.beta2])
-        self.beta_threshold = results_processor.ResultsProcessor.passes_threshold(self.beta_nonzero, 2, 0.5)
+        self.beta_sign, self.beta_nonzero = ResultsProcessor.summarize([self.beta1, self.beta2])
 
     def test_process_network(self):
-        net = results_processor.ResultsProcessor.process_network(self.pr_calc, self.prior,
-                                                                 beta_threshold=self.beta_threshold)
+        net = ResultsProcessor.process_network(
+            self.pr_calc,
+            self.prior
+        )
+
         self.assertListEqual(net['regulator'].tolist(), ['tf5', 'tf4', 'tf1'])
         self.assertListEqual(net['target'].tolist(), ['gene1'] * 3)
         self.assertListEqual(net['combined_confidences'].tolist(), [0.6, 0.3, 0.1])
 
     def test_network_summary(self):
-        temp_dir = tempfile.mkdtemp()
-        net = results_processor.ResultsProcessor.process_network(self.pr_calc, self.prior,
-                                                                 beta_threshold=self.beta_threshold)
-        result = results_processor.InferelatorResults(net, self.beta_threshold, self.pr_calc.all_confidences,
-                                                      self.pr_calc)
-        result.write_result_files(temp_dir)
-        processed_data = pd.read_csv(os.path.join(temp_dir, "network.tsv.gz"), sep="\t", index_col=None, header=0)
-        self.assertEqual(processed_data.shape[0], 3)
-        self.assertListEqual(processed_data['regulator'].tolist(), ['tf5', 'tf4', 'tf1'])
-        self.assertListEqual(processed_data['target'].tolist(), ['gene1'] * 3)
-        self.assertListEqual(processed_data['combined_confidences'].tolist(), [0.6, 0.3, 0.1])
-        shutil.rmtree(temp_dir)
+        with tempfile.TemporaryDirectory() as temp_dir:
+
+            net = ResultsProcessor.process_network(
+                self.pr_calc,
+                self.prior,
+            )
+
+            result = results_processor.InferelatorResults(
+                net, self.beta,
+                self.pr_calc.all_confidences,
+                self.pr_calc
+            )
+
+            result.write_result_files(temp_dir)
+
+            processed_data = pd.read_csv(
+                os.path.join(temp_dir, "network.tsv.gz"),
+                sep="\t",
+                index_col=None,
+                header=0
+            )
+
+            self.assertEqual(processed_data.shape[0], 3)
+            self.assertListEqual(
+                processed_data['regulator'].tolist(),
+                ['tf5', 'tf4', 'tf1']
+            )
+            self.assertListEqual(
+                processed_data['target'].tolist(),
+                ['gene1'] * 3
+            )
+            self.assertListEqual(
+                processed_data['combined_confidences'].tolist(),
+                [0.6, 0.3, 0.1]
+            )
 
 
 class TestRankSummary(TestResults):
@@ -203,7 +324,10 @@ class TestRankSummary(TestResults):
 
     def test_output_files(self):
         pass
-    
+
+    def test_model_h5_file(self):
+        pass
+
 
 class TestPrecisionRecallMetric(TestResults):
 

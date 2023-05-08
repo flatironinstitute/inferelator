@@ -5,9 +5,10 @@ import os
 import copy as cp
 import anndata
 import warnings
+from scipy import sparse
 
-from inferelator.utils.data import InferelatorData
-from inferelator.utils.debug import Debug
+from .inferelator_data import InferelatorData
+from .debug import Debug
 from inferelator.preprocessing.metadata_parser import MetadataHandler
 
 DEFAULT_PANDAS_TSV_SETTINGS = dict(sep="\t", index_col=0, header=0)
@@ -16,6 +17,15 @@ DEFAULT_METADATA = "branching"
 _TENX_MTX = ("matrix.mtx.gz", "matrix.mtx")
 _TENX_BARCODES = ("barcodes.tsv.gz", "barcodes.tsv")
 _TENX_FEATURES = ("features.tsv.gz", "genes.tsv")
+
+_TENX_H5 = "filtered_feature_bc_matrix.h5"
+_TENX_H5_FEATURES_KEYS = [
+    'id',
+    'name',
+    'genome',
+    'interval',
+    'feature_type'
+]
 
 
 class InferelatorDataLoader(object):
@@ -69,7 +79,8 @@ class InferelatorDataLoader(object):
 
         # Read H5AD file
         Debug.vprint(
-            f"Loading AnnData file {h5ad_file}",
+            f"Loading AnnData file {h5ad_file} "
+            f"(Layer: {use_layer if use_layer is not None else 'X'})",
             level=0
         )
 
@@ -131,7 +142,7 @@ class InferelatorDataLoader(object):
         _safe_dataframe_decoder(data.gene_data)
         _safe_dataframe_decoder(data.meta_data)
 
-        self._check_loaded_data(data, filename=h5ad_file)
+        self._check_loaded_data(data)
 
         return data
 
@@ -269,6 +280,59 @@ class InferelatorDataLoader(object):
                 gene_name_column=gene_name_column
             )
 
+    def load_data_tenx_h5(
+        self,
+        tenx_path,
+        filename=_TENX_H5
+    ):
+
+        import h5py
+
+        h5_file = h5py.File(
+            self.filename_path_join(tenx_path, filename)
+        )
+
+        _matrix = h5_file['matrix']
+        csc_matrix = sparse.csc_matrix(
+            ((
+                _matrix['data'][:],
+                _matrix['indices'][:],
+                _matrix['indptr'][:]
+            )),
+            shape=_matrix['shape'][:]
+        )
+
+        _barcodes = _matrix['barcodes'][:].astype(str)
+        _features = _matrix['features']
+
+        features_dataframe = pd.DataFrame({
+            tag: _features[tag][:].astype(str)
+            for tag in _TENX_H5_FEATURES_KEYS
+        })
+        features_dataframe = features_dataframe.set_index(
+            'name',
+            drop=True
+        )
+
+        # Extract interval data and embed it into new columns
+        _interval = features_dataframe['interval'].str.extract(
+            "([^:]*):([^-]*)-([^-]*)"
+        )
+        features_dataframe[['chrom', 'start', 'end']] = _interval
+
+        # Enforce integer data types
+        for c in ['start', 'end']:
+            features_dataframe[c] = features_dataframe[c].astype(float)
+            features_dataframe.loc[pd.isna(features_dataframe[c]), c] = 0.
+            features_dataframe[c] = features_dataframe[c].astype(int)
+
+        return InferelatorData(
+            csc_matrix.T,
+            gene_data=features_dataframe,
+            gene_names=features_dataframe.index,
+            sample_names=_barcodes
+        )
+
     def load_data_tsv(
         self,
         tsv_matrix_file,
@@ -322,7 +386,7 @@ class InferelatorDataLoader(object):
             gene_data=gene_metadata
         )
 
-        self._check_loaded_data(data, filename=tsv_matrix_file)
+        self._check_loaded_data(data)
 
         return data
 
@@ -383,7 +447,8 @@ class InferelatorDataLoader(object):
             return None
         elif gene_data_file is None or gene_name_column is None:
             raise ValueError(
-                "Gene_metadata_file and gene_name_column must both be set if either is"
+                "Gene_metadata_file and gene_name_column must both be set "
+                "if either is set"
             )
 
         Debug.vprint(
@@ -472,22 +537,22 @@ class InferelatorDataLoader(object):
         )[0].tolist()
 
     @staticmethod
-    def _check_loaded_data(data, filename=None):
-        msg = f"Loaded {filename if filename is not None else ''}:\n"
+    def _check_loaded_data(data):
+        msg = ""
 
         nnf, non_finite_genes = data.non_finite
 
         if nnf > 0:
             msg += f"\t{nnf} genes with non-finite expression "
-            msg += f"({' '.join(non_finite_genes)})\n"
+            msg += f"({' '.join(non_finite_genes)})"
 
         if not data.gene_names.is_unique:
             _repeated = data.gene_names[data.gene_names.duplicated()]
 
             msg += f"\t{len(_repeated)} genes are duplicated "
-            msg += f"({' '.join(_repeated)})\n"
+            msg += f"({' '.join(_repeated)})"
 
-        msg += "Data loaded: {dt}".format(dt=str(data))
+        msg += f"Data loaded: {str(data)}"
 
         Debug.vprint(msg, level=0)
 

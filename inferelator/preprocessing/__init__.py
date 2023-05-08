@@ -1,2 +1,3 @@
-from inferelator.preprocessing.priors import ManagePriors
-from inferelator.preprocessing.simulate_data import make_data_noisy
+from .priors import ManagePriors
+from .simulate_data import make_data_noisy
+from .data_normalization import PreprocessData
