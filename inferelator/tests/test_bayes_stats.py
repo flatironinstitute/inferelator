@@ -1,4 +1,6 @@
 import unittest
+import warnings
+
 from inferelator.regression import bayes_stats
 import numpy as np
 import scipy.stats
@@ -129,8 +131,8 @@ class TestBayesStats(unittest.TestCase):
         x = np.array([[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]])
         y = np.array([0, 0, 0, 0, 0])
         gprior = np.array([[0, 0, 0, 0]])
-        with np.warnings.catch_warnings():
-            np.warnings.filterwarnings('ignore')
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore')
             result = bayes_stats.best_subset_regression(x, y, gprior)
         np.testing.assert_array_almost_equal(result, np.array([0.0, 0.0, 0.0, 0.0], dtype=np.dtype(float)))
 

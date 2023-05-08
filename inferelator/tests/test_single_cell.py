@@ -1,4 +1,6 @@
 import unittest
+import warnings
+
 from inferelator.workflows.single_cell_workflow import SingleCellWorkflow
 from inferelator.preprocessing import single_cell, metadata_parser
 from inferelator.tests.artifacts.test_stubs import TestDataSingleCellLike, create_puppet_workflow, TEST_DATA
@@ -160,7 +162,7 @@ class TestSingleCellWorkflow(unittest.TestCase):
         self.workflow.data = TEST_DATA.copy()
         self.workflow.data._adata.X -= 3
         self.workflow.add_preprocess_step(single_cell.log2_data)
-        with np.warnings.catch_warnings():
-            np.warnings.filterwarnings('ignore')
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore')
             with self.assertRaises(ValueError):
                 self.workflow.single_cell_normalize()
