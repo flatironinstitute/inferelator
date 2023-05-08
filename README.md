@@ -17,7 +17,7 @@ elements of [InfereCLaDR](https://github.com/simonsfoundation/inferelator_ng/tre
 and single-cell workflows [(Jackson et al 2020)](https://elifesciences.org/articles/51254).
 
 We recommend installing this package from PyPi using `python -m pip install inferelator`. 
-If running locally, also install `pathos` by `python -m pip install pathos` for parallelization.
+If running locally, also install `joblib` by `python -m pip install joblib` for parallelization.
 If running on a cluster, also install `dask` by `python -m pip install dask[complete] dask_jobqueue` for dask-based parallelization.
 
 This package can also be installed from the github repository. 
