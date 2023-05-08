@@ -332,7 +332,7 @@ class InferelatorData(object):
 
         # Empty anndata object
         if expression_data is None:
-            self._adata = AnnData(dtype=dtype)
+            self._adata = AnnData()
 
         # Convert a dataframe to an anndata object
         elif isinstance(expression_data, pd.DataFrame):
@@ -371,15 +371,17 @@ class InferelatorData(object):
 
             if transpose_expression:
                 self._adata = AnnData(
-                    X=expression_data.T,
-                    dtype=dtype
+                    X=expression_data.T.values.astype(dtype)
                 )
+                self._adata.obs_names = expression_data.columns
+                self._adata.var_names = expression_data.index
 
             else:
                 self._adata = AnnData(
-                    X=expression_data,
-                    dtype=dtype
+                    X=expression_data.values.astype(dtype)
                 )
+                self._adata.obs_names = expression_data.index
+                self._adata.var_names = expression_data.columns
 
         # Use an anndata object that already exists
         elif isinstance(expression_data, AnnData):
@@ -392,8 +394,7 @@ class InferelatorData(object):
                 expression_data = expression_data.T
 
             self._adata = AnnData(
-                X=expression_data,
-                dtype=expression_data.dtype
+                X=expression_data
             )
 
         # Use gene_names as var_names
@@ -501,8 +502,7 @@ class InferelatorData(object):
             self._adata = AnnData(
                 self._adata.X[:, keep_column_bool],
                 obs=self._adata.obs.copy(),
-                var=self._adata.var.loc[keep_column_bool, :].copy(),
-                dtype=self._adata.X.dtype
+                var=self._adata.var.loc[keep_column_bool, :].copy()
             )
 
             # Make sure that there's no hanging reference to the original
@@ -1018,7 +1018,6 @@ class InferelatorData(object):
 
         self._adata = AnnData(
             X=new_data,
-            dtype=new_data.dtype,
             var=new_gene_metadata,
             obs=self._adata.obs
         )

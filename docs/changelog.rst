@@ -19,6 +19,7 @@ Bug Fixes:
 
 - Fixed several errors when sparse data was passed unexpectedly
 - Corrected several deprecated numpy calls
+- Updated calls and version requirement to anndata
 
 
 Inferelator v0.6.1 `January 3, 2023`

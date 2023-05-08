@@ -249,7 +249,9 @@ class InferelatorResults:
     ):
         """
         Save the InferelatorResults to an AnnData format
-        H5 file
+        H5 file.
+
+        Skip if either output_dir or output_file_name is None
 
         :param output_dir:
         :param output_file_name:
@@ -307,13 +309,16 @@ class InferelatorResults:
         :param network: Long network dataframe
         :type network: pd.DataFrame
         :param scores: Dict of scores, keyed by metric name
-        :type scores: _type_
-        :param model_adata: _description_, defaults to None
-        :type model_adata: _type_, optional
-        :param prefix: _description_, defaults to ''
+        :type scores: dict
+        :param model_adata: Existing model object,
+            create a new object if None,
+            defaults to None
+        :type model_adata: ad.AnnData, optional
+        :param prefix: String prefix to identify tasks,
+            defaults to ''
         :type prefix: str, optional
-        :return: _description_
-        :rtype: _type_
+        :return: AnnData object with inferelator model results
+        :rtype: ad.AnnData
         """
 
         _targets = join_pandas_index(
@@ -345,8 +350,7 @@ class InferelatorResults:
                     index=_targets,
                     columns=_regulators,
                     fillna=0.0
-                ),
-                dtype=float
+                )
             )
 
             lref = model_adata.layers
