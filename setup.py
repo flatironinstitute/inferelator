@@ -2,7 +2,7 @@ import os
 from setuptools import setup, find_packages
 
 # Current Inferelator Version Number
-version = "0.6.1"
+version = "0.6.2"
 
 
 # Description from README.md
