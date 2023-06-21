@@ -114,6 +114,17 @@ def inferelator_verbose_level(
         Debug.log_to_stderr(log_to_stderr)
 
 
+def vprint(
+    *args,
+    **kwargs
+):
+
+    Debug.vprint(
+        *args,
+        **kwargs
+    )
+
+
 def slurm_envs(
     var_names=None
 ):

@@ -7,8 +7,10 @@ from dask import distributed
 from dask_jobqueue import SLURMCluster
 from dask_jobqueue.slurm import SLURMJob
 
-from inferelator import utils
-from inferelator.utils import Validator as check
+from inferelator.utils import (
+    Validator as check,
+    vprint
+)
 from inferelator.distributed.dask import DaskAbstract
 
 
@@ -26,7 +28,7 @@ _DEFAULT_ENV_EXTRA = [
 _THREAD_CONTROL_ENV = [
     'export MKL_NUM_THREADS={t}',
     'export OPENBLAS_NUM_THREADS={t}',
-     'export NUMEXPR_NUM_THREADS={t}'
+    'export NUMEXPR_NUM_THREADS={t}'
     ]
 
 _DEFAULT_CONTROLLER_EXTRA = [
@@ -98,10 +100,12 @@ except KeyError:
 # This is the worst thing I've ever written
 def memory_limit_0(command_template):
     return "--".join(
-        ["memory-limit 0 "
-        if c.startswith("memory-limit")
-        else c
-        for c in command_template.split("--")]
+        [
+            "memory-limit 0 "
+            if c.startswith("memory-limit")
+            else c
+            for c in command_template.split("--")
+        ]
     )
 
 
@@ -182,7 +186,7 @@ class DaskHPCClusterController(DaskAbstract):
 
         if cls.client is None:
 
-        # Create a slurm cluster with all the various class settings
+            # Create a slurm cluster with all the various class settings
             cls.local_cluster = cls._cluster_controller_class(
                 queue=cls._queue,
                 project=cls._project,
@@ -208,7 +212,7 @@ class DaskHPCClusterController(DaskAbstract):
             cls._add_local_node_workers(cls._num_local_workers)
             cls._tracker = WorkerTracker()
 
-            utils.Debug.vprint(
+            vprint(
                 f"Dask dashboard active: {cls.client.dashboard_link}",
                 level=0
             )
@@ -254,7 +258,7 @@ class DaskHPCClusterController(DaskAbstract):
                 f"Configuration {known_config} is unknown"
             )
 
-        utils.Debug.vprint(cls._config_str(), level=1)
+        vprint(cls._config_str(), level=1)
 
     @classmethod
     def set_job_size_params(
@@ -323,8 +327,8 @@ class DaskHPCClusterController(DaskAbstract):
         :param project: The name of the project for each job.
             If None, do not specify a project. Defaults to None.
         :type project: str
-        :param interface: A string that identifies the network interface to use.
-            Possible options may include 'eth0' or 'ib0'.
+        :param interface: A string that identifies the network
+            interface to use. Possible options may include 'eth0' or 'ib0'.
         :type interface: str
         :param local_workers: The number of local workers to start
             on the same node as the main scheduler
@@ -346,7 +350,7 @@ class DaskHPCClusterController(DaskAbstract):
         check.argument_integer(process_count, low=1)
         cls._job_n = math.ceil(process_count / cls._job_n_workers)
 
-        utils.Debug.vprint(
+        vprint(
             "Using `set_processes` is not advised for the "
             "DASK CLUSTER configuration, Using `set_job_size_params` "
             f"is highly preferred. Configured {cls._job_n} jobs with "
@@ -402,7 +406,7 @@ class DaskHPCClusterController(DaskAbstract):
             cmd = "source " + cmd + " " + (env if env is not None else "")
 
         elif env is not None:
-            utils.Debug.vprint(
+            vprint(
                 "The `env` argument to `add_worker_conda` is ignored "
                 "when `cmd` is passed",
                 level=0
@@ -468,7 +472,6 @@ class DaskHPCClusterController(DaskAbstract):
         )
 
         cls._await_complete = True
-
 
     @classmethod
     def _config_str(cls):
@@ -545,6 +548,12 @@ class DaskHPCClusterController(DaskAbstract):
             if not os.path.exists(out_path):
                 os.makedirs(out_path, exist_ok=True)
 
+            vprint(
+                f"Starting local dask workers with command "
+                f"{' '.join(cmd)}",
+                level=2
+            )
+
             subprocess.Popen(
                 cmd,
                 stdout=open(
@@ -560,7 +569,7 @@ class DaskHPCClusterController(DaskAbstract):
     @classmethod
     def _total_workers(
         cls,
-        include_local = True
+        include_local=True
     ):
         """
         Get the total number of workers requested
