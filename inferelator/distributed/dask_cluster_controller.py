@@ -533,7 +533,7 @@ class DaskHPCClusterController(DaskAbstract):
             cmd = [
                 cls._local_worker_command,
                 str(cls.local_cluster.scheduler_address),
-                "--nprocs", str(num_workers),
+                "--nworkers", str(num_workers),
                 "--nthreads", str(cls._worker_n_threads),
                 "--memory-limit", "0",
                 "--local-directory", str(cls._local_directory)
