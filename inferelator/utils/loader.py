@@ -104,8 +104,11 @@ class InferelatorDataLoader(object):
             gene_name_column
         )
 
+        if use_layer is None:
+            use_layer = "X"
+
         # Make sure layer is in the anndata object
-        if use_layer is not None and use_layer not in data.layers:
+        if use_layer != "X" and use_layer not in data.layers:
             raise ValueError(
                 f"Layer {use_layer} is not in {h5ad_file}"
             )
