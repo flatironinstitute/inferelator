@@ -67,6 +67,9 @@ class SCENICWorkflow(SingleCellWorkflow):
 
     do_scenic = True
 
+    _do_preprocessing = True
+    _do_scaling = True
+
     dask_temp_path = None
     _tmp_handle = None
 
@@ -119,7 +122,8 @@ class SCENICWorkflow(SingleCellWorkflow):
 
             sc.pp.log1p(self.data._adata)
 
-        sc.pp.scale(self.data._adata, max_value=10)
+        if self._do_scaling:
+            sc.pp.scale(self.data._adata, max_value=10)
 
     def create_feather_file_from_prior(self):
 

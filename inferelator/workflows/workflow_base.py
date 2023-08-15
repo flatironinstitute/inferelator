@@ -275,7 +275,7 @@ class WorkflowBaseLoader(object):
             self._expression_loader = _HDF5
             self._h5_layer = h5_layer
         elif h5ad is not None:
-            self._set_file_name("expression_matrix_file", h5ad)
+            self._set_expression("expression_matrix_file", h5ad)
             self._expression_loader = _H5AD
             self._h5_layer = h5_layer
         elif mtx is not None:
@@ -488,7 +488,7 @@ class WorkflowBaseLoader(object):
         """
 
         if file_name is None:
-            return
+            return None
 
         if file_name not in self._file_format_settings:
             self._file_format_settings[file_name] = copy.copy(
@@ -497,6 +497,27 @@ class WorkflowBaseLoader(object):
 
         self._check_file_exists(file_name)
         self._set_with_warning(attr_name, file_name)
+
+    def _set_expression(
+        self,
+        attr_name,
+        file_or_object
+    ):
+
+        if file_or_object is None:
+            return None
+
+        if isinstance(file_or_object, str):
+            self._set_file_name(
+                attr_name,
+                file_or_object
+            )
+
+        else:
+            self._set_with_warning(
+                attr_name,
+                file_or_object
+            )
 
     def _check_file_exists(
         self,
