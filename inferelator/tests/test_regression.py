@@ -8,14 +8,22 @@ from inferelator.distributed.inferelator_mp import MPControl
 
 from inferelator.workflows import tfa_workflow
 from inferelator import workflow
-from inferelator.tests.artifacts.test_data import TestDataSingleCellLike, TEST_DATA, TEST_DATA_SPARSE
-from inferelator.tests.artifacts.test_stubs import TaskDataStub, create_puppet_workflow
+from inferelator.tests.artifacts.test_data import (
+    TestDataSingleCellLike,
+    TEST_DATA,
+    TEST_DATA_SPARSE
+)
+from inferelator.tests.artifacts.test_stubs import (
+    TaskDataStub,
+    create_puppet_workflow
+)
 from inferelator.utils import DotProduct
 from inferelator.preprocessing.metadata_parser import MetadataHandler
 
 
 """
-These are full-stack integration tests covering the post-loading regression workflows
+These are full-stack integration tests covering
+the post-loading regression workflows
 """
 
 import sys
@@ -39,10 +47,12 @@ RNG = np.random.default_rng(200)
 LASSO_TEST_DATA.add(
     np.abs(
         np.hstack(
-            list(RNG.standard_normal(
-                size=(LASSO_TEST_DATA.values.shape[0], 1)
-            ) * np.std(LASSO_TEST_DATA.values[:, i])
-            for i in range(LASSO_TEST_DATA.shape[1]))
+            list(
+                RNG.standard_normal(
+                    size=(LASSO_TEST_DATA.values.shape[0], 1)
+                ) * np.std(LASSO_TEST_DATA.values[:, i])
+                for i in range(LASSO_TEST_DATA.shape[1])
+            )
         )
     )
 )
@@ -67,6 +77,7 @@ class SetUpLassoData(SetUpDenseData):
     def setUp(self):
         super().setUp()
         self.data = LASSO_TEST_DATA.copy()
+
 
 class SetUpSparseData(unittest.TestCase):
 
@@ -102,7 +113,10 @@ class SetUpDenseLassoDataMTL(SetUpLassoData):
 
     def setUp(self):
         super().setUp()
-        self._task_objects = [TaskDataStub(), TaskDataStub()]
+        self._task_objects = [
+            TaskDataStub(),
+            TaskDataStub()
+        ]
         self._task_objects[0].tasks_from_metadata = False
         self._task_objects[1].tasks_from_metadata = False
         self._task_objects[0].data = self.data.copy()
@@ -113,7 +127,10 @@ class SetUpSparseDataMTL(SetUpSparseData):
 
     def setUp(self):
         super().setUp()
-        self._task_objects = [TaskDataStub(sparse=True), TaskDataStub(sparse=True)]
+        self._task_objects = [
+            TaskDataStub(sparse=True),
+            TaskDataStub(sparse=True)
+        ]
         self._task_objects[0].tasks_from_metadata = False
         self._task_objects[1].tasks_from_metadata = False
 
@@ -183,6 +200,22 @@ class TestSingleTaskRegressionFactory(SetUpDenseData):
             self.workflow.run()
 
         self.assertEqual(self.workflow.results.score, 1)
+
+
+class TestSingleTaskNoPriors(SetUpDenseData):
+
+    def test_bbsr(self):
+        self.workflow = create_puppet_workflow(base_class="tfa", regression_class="bbsr")
+        self.workflow = self.workflow(self.data, None, None)
+        self.workflow.tf_names = self.tf_names
+        self.workflow.set_network_data_flags(
+            use_no_prior=True,
+            use_no_gold_standard=True
+        )
+        self.workflow.validate_data()
+        self.workflow.run()
+
+        self.assertTrue(np.isnan(self.workflow.results.score))
 
 
 class TestSingleTaskStabilityRegressionFactory(SetUpLassoData):
