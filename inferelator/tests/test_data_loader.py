@@ -3,6 +3,7 @@ import shutil
 import os
 import tempfile
 import pandas as pd
+import anndata as ad
 import numpy as np
 import numpy.testing as npt
 import pandas.testing as pdt
@@ -31,6 +32,14 @@ class TestExpressionLoader(unittest.TestCase):
         file, data = test_prebuilt.counts_yeast_single_cell_chr01(filetype='h5ad')
 
         self.worker.set_expression_file(h5ad=file)
+        self.worker.read_expression()
+
+        npt.assert_array_almost_equal(data.values, self.worker.data.expression_data)
+
+    def test_h5ad_obj(self):
+        _, data = test_prebuilt.counts_yeast_single_cell_chr01(filetype='h5ad')
+
+        self.worker.set_expression_file(h5ad=ad.AnnData(data))
         self.worker.read_expression()
 
         npt.assert_array_almost_equal(data.values, self.worker.data.expression_data)

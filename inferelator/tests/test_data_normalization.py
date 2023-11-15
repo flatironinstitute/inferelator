@@ -3,7 +3,7 @@ import numpy as np
 import numpy.testing as npt
 
 from scipy import sparse, stats
-from sklearn.preprocessing import RobustScaler
+from sklearn.preprocessing import RobustScaler, StandardScaler
 
 from inferelator.tests.artifacts.test_data import (
     TestDataSingleCellLike
@@ -247,6 +247,7 @@ class TestRobustScaler(TestNormalizationSetup):
         return super().setUp()
 
     def test_no_limit_d(self):
+
         design = PreprocessData.preprocess_design(self.adata)
         design_sklearn = RobustScaler(with_centering=False).fit_transform(self.expr)
         npt.assert_almost_equal(
@@ -255,6 +256,7 @@ class TestRobustScaler(TestNormalizationSetup):
         )
 
     def test_no_limit_s(self):
+
         design = PreprocessData.preprocess_design(self.adata_sparse)
         design_sklearn = RobustScaler(with_centering=False).fit_transform(self.expr)
         npt.assert_almost_equal(
@@ -383,3 +385,120 @@ class TestNoScaler(TestNormalizationSetup):
             response,
             self.expr.iloc[:, 0].values
         )
+
+
+class TestTruncRobustScaler(TestNormalizationSetup):
+
+    def setUp(self):
+        PreprocessData.set_preprocessing_method(
+            'truncrobustscaler',
+            scale_limit=None
+        )
+        return super().setUp()
+
+    def _right_answer(self, x):
+
+        print(np.var(x, axis=0))
+
+        x = RobustScaler(with_centering=False).fit_transform(x)
+
+        ss = StandardScaler(with_mean=False).fit(x)
+
+        print(ss.var_)
+        x[:, ss.var_ > 1] = ss.transform(x)[:, ss.var_ > 1]
+
+        return x
+
+    def test_no_limit_d(self):
+        design = PreprocessData.preprocess_design(self.adata)
+        design_sklearn = self._right_answer(self.expr)
+        npt.assert_almost_equal(
+            design.values,
+            design_sklearn
+        )
+
+    def test_no_limit_s(self):
+        design = PreprocessData.preprocess_design(self.adata_sparse)
+        design_sklearn = self._right_answer(self.expr)
+        npt.assert_almost_equal(
+            design.values.A,
+            design_sklearn
+        )
+
+    def test_limit_d(self):
+        PreprocessData.set_preprocessing_method(
+            scale_limit=1
+        )
+        design = PreprocessData.preprocess_design(self.adata)
+        design_sklearn = self._right_answer(self.expr)
+        design_sklearn[design_sklearn > 1] = 1
+        design_sklearn[design_sklearn < -1] = -1
+
+        npt.assert_almost_equal(
+            design.values,
+            design_sklearn
+        )
+
+    def test_limit_s(self):
+        PreprocessData.set_preprocessing_method(
+            scale_limit=1
+        )
+        design = PreprocessData.preprocess_design(self.adata_sparse)
+        design_sklearn = self._right_answer(self.expr)
+        design_sklearn[design_sklearn > 1] = 1
+        design_sklearn[design_sklearn < -1] = -1
+
+        npt.assert_almost_equal(
+            design.values.A,
+            design_sklearn
+        )
+
+    def test_response_no_limit(self):
+        response = PreprocessData.preprocess_response_vector(
+            self.adata.get_gene_data(["gene1"], flatten=True)
+        )
+        response_scipy = self._right_answer(
+            self.expr.iloc[:, 0].values.reshape(-1, 1)
+        ).ravel()
+        npt.assert_almost_equal(
+            response,
+            response_scipy
+        )
+
+    def test_response_limit(self):
+        PreprocessData.set_preprocessing_method(
+            scale_limit=1
+        )
+        response = PreprocessData.preprocess_response_vector(
+            self.adata.get_gene_data(["gene1"], flatten=True)
+        )
+        response_scipy = self._right_answer(
+            self.expr.iloc[:, 0].values.reshape(-1, 1)
+        ).ravel()
+        response_scipy[response_scipy > 1] = 1
+        response_scipy[response_scipy < -1] = -1
+
+        npt.assert_almost_equal(
+            response,
+            response_scipy
+        )
+
+    def test_truncation(self):
+
+        self.adata._adata.X[:, 0] = np.zeros_like(self.adata._adata.X[:, 0])
+        self.adata._adata.X[0, 0] = 1e7
+
+        original = self.adata._adata.X.copy()
+
+        design_sklearn = self._right_answer(original)
+        design = PreprocessData.preprocess_design(self.adata)
+        npt.assert_almost_equal(
+            design.values,
+            design_sklearn
+        )
+
+        with self.assertRaises(AssertionError):
+            npt.assert_almost_equal(
+                self.adata._adata.X,
+                original
+            )

@@ -34,6 +34,7 @@ _MTX = "mtx"
 
 _VALID_FILE_TYPES = [_TSV, _H5AD, _HDF5, _MTX, _TENX]
 
+
 class WorkflowBaseLoader(object):
     """
     WorkflowBaseLoader is the class to load raw data.
@@ -251,7 +252,13 @@ class WorkflowBaseLoader(object):
         :type h5_layer: str, optional
         """
 
-        nones = [tsv is None, hdf5 is None, h5ad is None, tenx_path is None, mtx is None]
+        nones = [
+            tsv is None,
+            hdf5 is None,
+            h5ad is None,
+            tenx_path is None,
+            mtx is None
+        ]
 
         if all(nones):
             Debug.vprint("No file provided", level=0)
@@ -268,7 +275,7 @@ class WorkflowBaseLoader(object):
             self._expression_loader = _HDF5
             self._h5_layer = h5_layer
         elif h5ad is not None:
-            self._set_file_name("expression_matrix_file", h5ad)
+            self._set_expression("expression_matrix_file", h5ad)
             self._expression_loader = _H5AD
             self._h5_layer = h5_layer
         elif mtx is not None:
@@ -481,7 +488,7 @@ class WorkflowBaseLoader(object):
         """
 
         if file_name is None:
-            return
+            return None
 
         if file_name not in self._file_format_settings:
             self._file_format_settings[file_name] = copy.copy(
@@ -490,6 +497,27 @@ class WorkflowBaseLoader(object):
 
         self._check_file_exists(file_name)
         self._set_with_warning(attr_name, file_name)
+
+    def _set_expression(
+        self,
+        attr_name,
+        file_or_object
+    ):
+
+        if file_or_object is None:
+            return None
+
+        if isinstance(file_or_object, str):
+            self._set_file_name(
+                attr_name,
+                file_or_object
+            )
+
+        else:
+            self._set_with_warning(
+                attr_name,
+                file_or_object
+            )
 
     def _check_file_exists(
         self,
@@ -570,9 +598,11 @@ class WorkflowBaseLoader(object):
         """
         Add a string to an existing path variable
 
-        :param var_name: The name of the path variable (`input_dir` or `output_dir`)
+        :param var_name: The name of the path variable
+            (`input_dir` or `output_dir`)
         :type var_name: str
-        :param to_append: The path to join to the end of the existing path variable
+        :param to_append: The path to join to the end of
+            the existing path variable
         :type to_append: str
 
         """
@@ -756,7 +786,7 @@ class WorkflowBaseLoader(object):
             assert genes.shape[1] == 1
             self.gene_names = genes.values.flatten().tolist()
 
-        # Use the gene names in the data file if no restrictive list is provided
+        # Use the gene names in the data file if no list is provided
         if self.gene_names is None and self.data is not None:
             self.gene_names = self.data.gene_names.copy()
 
@@ -1119,8 +1149,8 @@ class WorkflowBase(WorkflowBaseLoader):
 
             if not self.split_gold_standard_for_crossvalidation:
                 warnings.warn(
-                    "The split_gold_standard_for_crossvalidation flag is not set. "
-                    "Other options may be ignored"
+                    "The split_gold_standard_for_crossvalidation "
+                    "flag is not set. Other options may be ignored."
                 )
 
     def set_shuffle_parameters(
@@ -1194,10 +1224,12 @@ class WorkflowBase(WorkflowBaseLoader):
         confidence_file_name="",
         nonzero_coefficient_file_name="",
         pdf_curve_file_name="",
-        curve_data_file_name=""
+        curve_data_file_name="",
+        model_h5_file_name=""
     ):
         """
         Set output file names. File names that end in '.gz' will be gzipped.
+        Set any file name to None to prevent it from being generated
 
         :param network_file_name: Long-format network TSV file with
             TF->Gene edge information.
@@ -1217,6 +1249,9 @@ class WorkflowBase(WorkflowBaseLoader):
         :param curve_data_file_name: TSV file with the data used to plot
             curves. Default is None (this file is not produced).
         :type curve_data_file_name: str
+        :param model_h5_file_name: H5 file with model priors, coefficients,
+            and run parameters saved
+        :type model_h5_file_name: str
         """
 
         if network_file_name != "":
@@ -1229,6 +1264,8 @@ class WorkflowBase(WorkflowBaseLoader):
             IR.curve_file_name = pdf_curve_file_name
         if curve_data_file_name != "":
             IR.curve_data_file_name = curve_data_file_name
+        if model_h5_file_name != "":
+            IR.model_file_name = model_h5_file_name
 
     def set_run_parameters(
         self,

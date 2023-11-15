@@ -4,6 +4,7 @@ from .validator import (
 )
 from .debug import (
     Debug,
+    vprint,
     slurm_envs,
     inferelator_verbose_level
 )

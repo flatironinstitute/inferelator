@@ -1,5 +1,6 @@
 """
-Construct inferelator workflows from preprocessing, postprocessing, and regression modules
+Construct inferelator workflows from preprocessing,
+postprocessing, and regression modules
 """
 
 import inspect
@@ -7,7 +8,6 @@ import inspect
 from inferelator.utils import is_string
 from inferelator.workflows.workflow_base import (
     WorkflowBase,
-    WorkflowBaseLoader
 )
 from inferelator.regression.base_regression import _RegressionWorkflowMixin
 
@@ -150,7 +150,6 @@ def _factory_build_inferelator(
             )
 
             regression_class = AMUSRRegressionWorkflowMixin
-
 
         elif regression == "stars":
 
