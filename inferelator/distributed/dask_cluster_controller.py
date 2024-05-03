@@ -29,7 +29,7 @@ _THREAD_CONTROL_ENV = [
     'export MKL_NUM_THREADS={t}',
     'export OPENBLAS_NUM_THREADS={t}',
     'export NUMEXPR_NUM_THREADS={t}'
-    ]
+]
 
 _DEFAULT_CONTROLLER_EXTRA = [
     '--nodes 1',
