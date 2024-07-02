@@ -152,9 +152,9 @@ class ManagePriors:
         Debug.vprint(
             f"Gold standard {_gs_shape} split on axis {cv_split_axis}. "
             f"Prior knowledge network {priors_data.shape} "
-            f"[{np.sum(np.sum(priors_data != 0))} edges] used for activity "
+            f"[{(priors_data != 0).sum(0).sum()} edges] used for activity "
             f"and gold standard network {gold_standard.shape} "
-            f"[{np.sum(np.sum(gold_standard != 0))} edges] used for testing.",
+            f"[{(gold_standard != 0).sum(0).sum()} edges] used for testing.",
             level=0
         )
 
@@ -437,7 +437,6 @@ class ManagePriors:
         )
 
         return priors_data
-
 
     @staticmethod
     def _split_for_cv(

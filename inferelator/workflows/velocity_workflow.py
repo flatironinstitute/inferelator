@@ -215,7 +215,8 @@ class VelocityWorkflow(SingleCellWorkflow):
             if self._decay_constant_var_col not in self.data.gene_data.columns:
                 raise ValueError(
                     f"Column {self._decay_constant_var_col} not in "
-                    f"gene metadata columns {self.data.gene_data.columns.tolist()}"
+                    f"gene metadata columns "
+                    f"{self.data.gene_data.columns.tolist()}"
                 )
 
             Debug.vprint(
@@ -341,8 +342,10 @@ class VelocityWorkflow(SingleCellWorkflow):
         Check for negative decay parameters
         """
 
-        if (self._global_decay_constant is not None
-            and self._global_decay_constant < 0):
+        if (
+            self._global_decay_constant is not None
+            and self._global_decay_constant < 0
+        ):
 
             warnings.warn(
                 f"Decay constant is negative ({self._global_decay_constant})"

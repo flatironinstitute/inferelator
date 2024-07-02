@@ -64,7 +64,7 @@ class PythonDRDriver(object):
         (k, n) = exp_data.shape
         processor = MetadataHandler.get_handler(self.metadata_handler)
 
-        # Turn NA in the dataframe into np.NaN
+        # Turn NA in the dataframe into np.nan
         meta_data = processor.fix_NAs(meta_data)
 
         # Validate metadata alignment to expression

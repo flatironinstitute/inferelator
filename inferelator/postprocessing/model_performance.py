@@ -307,7 +307,7 @@ class RankSummingMetric:
 
         # Stick confusion results back onto the data and return it
         for col in [TP, FP, TN, FN]:
-            data[col] = np.NaN
+            data[col] = np.nan
             data.loc[valid_gs_idx, col] = df[col].astype(data[col].dtype)
 
         if _reindex is not None:

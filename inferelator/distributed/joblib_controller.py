@@ -53,9 +53,14 @@ class JoblibController(AbstractController):
         check.argument_callable(func)
         check.argument_list_type(args, collections.abc.Iterable)
 
-        return [r for r in joblib.Parallel(n_jobs=cls.processes)(
-            joblib.delayed(func)(*a, **kwargs) for a in zip(*args)
-        )]
+        with joblib.parallel_config(
+            backend="loky",
+            inner_max_num_threads=1
+        ):
+
+            return [r for r in joblib.Parallel(n_jobs=cls.processes)(
+                joblib.delayed(func)(*a, **kwargs) for a in zip(*args)
+            )]
 
     @classmethod
     def shutdown(cls):

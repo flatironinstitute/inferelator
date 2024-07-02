@@ -277,7 +277,6 @@ class TestWorkflowLoadData(unittest.TestCase):
             self.workflow.use_no_gold_standard = True
             self.workflow.validate_data()
 
-
     def test_load_to_h5ad(self):
 
         with tempfile.TemporaryDirectory() as tmpdir:

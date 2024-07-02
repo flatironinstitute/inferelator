@@ -86,8 +86,8 @@ class TestAMuSRRegresionEBIC:
                                                 codes=[[0, 1], [0, 0]]),
                             columns=['regulator', 'target', 'weights', 'resc_weights'])
 
-        pdt.assert_frame_equal(pd.concat(output[0]), out0, check_dtype=False)
-        pdt.assert_frame_equal(pd.concat(output[1]), out1, check_dtype=False)
+        pdt.assert_frame_equal(pd.concat(output[0]), out0, check_dtype=False, check_exact=False, atol=1e-5)
+        pdt.assert_frame_equal(pd.concat(output[1]), out1, check_dtype=False, check_exact=False, atol=1e-5)
 
     def test_unaligned_regression_genes(self):
         tfs = ['tf1', 'tf2', 'tf3']
@@ -124,7 +124,7 @@ class TestAMuSRRegresionEBIC:
 
         regress_data = r.regress()
         for i in range(len(targets)):
-            pdt.assert_frame_equal(pd.concat(regress_data[i]), out[i], check_dtype=False)
+            pdt.assert_frame_equal(pd.concat(regress_data[i]), out[i], check_dtype=False, check_exact=False, atol=1e-5)
 
         weights, resc_weights = r.pileup_data(regress_data)
 

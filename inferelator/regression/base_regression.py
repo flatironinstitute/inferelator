@@ -241,7 +241,7 @@ def recalculate_betas_from_selected(x, y, idx=None):
     # Solve for beta-hat with LAPACK or return a null model if xTx is singular
     xtx = np.dot(x.T, x)
     if np.linalg.matrix_rank(xtx) == xtx.shape[1]:
-        beta_hat = np.linalg.solve(np.dot(x.T, x), np.dot(x.T, y))
+        beta_hat = np.linalg.solve(np.dot(x.T, x), np.dot(x.T, y)).ravel()
     else:
         beta_hat = np.zeros(len(idx), dtype=np.dtype(float))
 
@@ -250,6 +250,7 @@ def recalculate_betas_from_selected(x, y, idx=None):
     # (even if x is subset with an index)
     for i, j in enumerate(idx):
         best_betas[j] = beta_hat[i]
+
     return best_betas
 
 

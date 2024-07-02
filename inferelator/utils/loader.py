@@ -28,6 +28,14 @@ _TENX_H5_FEATURES_KEYS = [
 ]
 
 
+def _is_categorical(obj):
+
+    if hasattr(obj, 'dtype'):
+        obj = obj.dtype
+
+    return isinstance(obj, pd.CategoricalDtype)
+
+
 class InferelatorDataLoader(object):
     input_dir = None
     _file_format_settings = None
@@ -635,7 +643,7 @@ def _safe_dataframe_decoder(data_frame, encoding='utf-8'):
 def _is_dtype_object(dtype):
     if pat.is_object_dtype(dtype):
         return True
-    elif pat.is_categorical_dtype(dtype):
+    elif _is_categorical(dtype):
         return pat.is_object_dtype(dtype.categories.dtype)
     else:
         return False
@@ -650,7 +658,7 @@ def _decode_series(series, encoding):
     :return: pd.Series, pd.Index
     """
 
-    if pat.is_categorical_dtype(series):
+    if _is_categorical(series):
 
         return series.cat.rename_categories(
             _decode_series(

@@ -208,10 +208,12 @@ class TestSingleTaskNoPriors(SetUpDenseData):
         self.workflow = create_puppet_workflow(base_class="tfa", regression_class="bbsr")
         self.workflow = self.workflow(self.data, None, None)
         self.workflow.tf_names = self.tf_names
-        self.workflow.set_network_data_flags(
-            use_no_prior=True,
-            use_no_gold_standard=True
-        )
+
+        with self.assertWarns(UserWarning):
+            self.workflow.set_network_data_flags(
+                use_no_prior=True,
+                use_no_gold_standard=True
+            )
         self.workflow.validate_data()
         self.workflow.run()
 
