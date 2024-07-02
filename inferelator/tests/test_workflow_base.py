@@ -182,24 +182,29 @@ class TestWorkflowLoadData(unittest.TestCase):
 
     def test_extract_metadata(self):
         self.workflow.read_expression()
-        tmpdir = tempfile.mkdtemp()
+        tmpdir = tempfile.TemporaryDirectory()
 
-        try:
-            merged_file = os.path.abspath(os.path.join(tmpdir, "expression.tsv"))
-            meta_data = MetadataParserBranching.create_default_meta_data(self.workflow.data.sample_names)
-            gene_list = self.workflow.data.gene_names
-            test_data = pd.concat([self.workflow.data.to_df(), meta_data], axis=1)
-            test_data.to_csv(merged_file, sep="\t")
-            self.workflow.expression_matrix_file = merged_file
-            self.workflow.meta_data_file = None
-            self.workflow.expression_matrix_metadata = meta_data.columns.tolist()
-            self.workflow.expression_matrix_columns_are_genes = True
-            self.workflow.read_expression()
+        merged_file = os.path.abspath(os.path.join(tmpdir.name, "expression.tsv"))
+        meta_data = MetadataParserBranching.create_default_meta_data(self.workflow.data.sample_names)
+        gene_list = self.workflow.data.gene_names
+        test_data = pd.concat([self.workflow.data.to_df(), meta_data], axis=1)
+        test_data.to_csv(merged_file, sep="\t")
+        self.workflow.expression_matrix_file = merged_file
+        self.workflow.meta_data_file = None
+        self.workflow.expression_matrix_metadata = meta_data.columns.tolist()
+        self.workflow.expression_matrix_columns_are_genes = True
+        self.workflow.read_expression()
 
-            pdt.assert_frame_equal(self.workflow.data.meta_data, MetadataParserBranching.fix_NAs(meta_data))
-            self.assertListEqual(self.workflow.data.gene_names.tolist(), gene_list.tolist())
-        finally:
-            shutil.rmtree(tmpdir)
+        pdt.assert_frame_equal(
+            self.workflow.data.meta_data,
+            MetadataParserBranching.fix_NAs(meta_data)
+        )
+        self.assertListEqual(
+            self.workflow.data.gene_names.tolist(),
+            gene_list.tolist()
+        )
+
+        tmpdir.cleanup()
 
     def test_load_gene_metadata(self):
 

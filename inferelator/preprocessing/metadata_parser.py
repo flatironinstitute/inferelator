@@ -98,7 +98,35 @@ class MetadataParser(object):
         :param data_frame: pd.DataFrame
         :return: pd.DataFrame
         """
-        return data_frame.replace('NA', pd.NA, regex=False)
+
+        with pd.option_context('future.no_silent_downcasting', True):
+
+            data_frame = data_frame.copy()
+
+            for col in data_frame.columns:
+                if data_frame[col].dtype == np.float_:
+                    continue
+
+                elif data_frame[col].dtype == np.object_:
+                    data_frame[col] = data_frame[col].replace(
+                        'NA',
+                        np.nan,
+                        regex=False
+                    )
+                else:
+                    continue
+
+                if col in [
+                    TIME_COLUMN_NAME,
+                    DELT_COLUMN_NAME,
+                    PREV_COLUMN_NAME
+                ]:
+                    try:
+                        data_frame[col] = data_frame[col].astype(float)
+                    except ValueError:
+                        pass
+
+        return data_frame
 
 
 class MetadataParserBranching(MetadataParser):

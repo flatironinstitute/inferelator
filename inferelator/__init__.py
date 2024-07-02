@@ -1,3 +1,5 @@
+__version__ = '0.6.3'
+
 from inferelator.workflow import inferelator_workflow
 from inferelator.crossvalidation_workflow import CrossValidationManager
 from inferelator.utils import inferelator_verbose_level

@@ -15,19 +15,7 @@ from inferelator.postprocessing.column_names import (
 from inferelator.utils import is_string
 import os
 
-import matplotlib
-
-# If matplotlib is being an idiot and trying to set a tkinter backend,
-# switch to agg
-if matplotlib.get_backend() in (
-    i
-    for i in matplotlib.backends.backend_registry.list_builtin(
-        matplotlib.backends.BackendFilter.INTERACTIVE
-    )
-):
-    matplotlib.use('agg')
-
-import matplotlib.pyplot as plt
+from ._plot_fix import plt
 
 
 class MetricHandler(object):
