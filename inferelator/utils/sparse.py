@@ -9,7 +9,7 @@ def todense(sarr):
     ):
 
         try:
-            sarr = sarr.todense()
+            sarr = sarr.toarray()
         except AttributeError:
             pass
 
