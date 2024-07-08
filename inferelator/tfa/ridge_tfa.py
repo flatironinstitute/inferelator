@@ -1,6 +1,7 @@
 from .tfa_base import ActivityOnlyTFA
 from sklearn.linear_model import Ridge
-from scipy.sparse import issparse
+from inferelator.utils.sparse import todense
+
 
 class _Ridge_TFA_mixin:
     """
@@ -23,18 +24,13 @@ class _Ridge_TFA_mixin:
             positive=True
         )
 
-        if issparse(expression_data):
-            ridge_regressor.fit(
-                prior,
-                expression_data.A.T
-            )
-        else:
-            ridge_regressor.fit(
-                prior,
-                expression_data.T
-            )
+        ridge_regressor.fit(
+            prior,
+            todense(expression_data).T
+        )
 
         return ridge_regressor.coef_.copy()
+
 
 class RidgeTFA(_Ridge_TFA_mixin, ActivityOnlyTFA):
     pass

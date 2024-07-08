@@ -312,6 +312,6 @@ def _sparse_safe_add(x, y):
     """
 
     if sparse.issparse(x) or sparse.issparse(y):
-        return todense(x + y).A
+        return todense(x + y)
     else:
         return np.add(x, y)
