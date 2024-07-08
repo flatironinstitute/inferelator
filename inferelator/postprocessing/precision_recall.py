@@ -1,20 +1,19 @@
 import numpy as np
 import pandas as pd
-import os
 
 from inferelator import utils
 from inferelator.utils import Validator as check
 from inferelator.postprocessing.model_performance import RankSummingMetric
-from inferelator.postprocessing import (TARGET_COLUMN, REGULATOR_COLUMN, PRECISION_COLUMN, RECALL_COLUMN,
-                                        CONFIDENCE_COLUMN, GOLD_STANDARD_COLUMN)
+from inferelator.postprocessing import (
+    TARGET_COLUMN,
+    REGULATOR_COLUMN,
+    PRECISION_COLUMN,
+    RECALL_COLUMN,
+    CONFIDENCE_COLUMN,
+    GOLD_STANDARD_COLUMN
+)
 
-import matplotlib
-
-# If matplotlib is being an idiot and trying to set a tkinter backend, switch to agg
-if matplotlib.get_backend() in (i for i in matplotlib.rcsetup.interactive_bk):
-    matplotlib.use('agg')
-
-import matplotlib.pyplot as plt
+from ._plot_fix import plt
 
 
 class RankSummaryPR(RankSummingMetric):
@@ -30,17 +29,36 @@ class RankSummaryPR(RankSummingMetric):
     def aupr(self):
         return self.calculate_aupr(self.filtered_data)
 
-    def __init__(self, rankable_data, gold_standard, filter_method='keep_all_gold_standard'):
+    def __init__(
+        self,
+        rankable_data,
+        gold_standard,
+        filter_method='keep_all_gold_standard'
+    ):
 
-        super(RankSummaryPR, self).__init__(rankable_data, gold_standard, filter_method=filter_method)
+        super(RankSummaryPR, self).__init__(
+            rankable_data,
+            gold_standard,
+            filter_method=filter_method
+        )
 
-        # Calculate the precision and recall and store them with confidence data
-        self.filtered_data = self.calculate_precision_recall(self.filtered_data.copy())
+        # Calculate the precision and recall and store them with confidence
+        # data
+        self.filtered_data = self.calculate_precision_recall(
+            self.filtered_data.copy()
+        )
 
         # Join the filtered precision/recall onto the full confidences
-        join_data = self.filtered_data.loc[:, [TARGET_COLUMN, REGULATOR_COLUMN, PRECISION_COLUMN, RECALL_COLUMN]]
-        join_data = join_data.set_index([TARGET_COLUMN, REGULATOR_COLUMN])
-        self.confidence_data = self.confidence_data.join(join_data, on=[TARGET_COLUMN, REGULATOR_COLUMN])
+        join_data = self.filtered_data.loc[
+            :,
+            [TARGET_COLUMN, REGULATOR_COLUMN, PRECISION_COLUMN, RECALL_COLUMN]
+        ].set_index(
+            [TARGET_COLUMN, REGULATOR_COLUMN]
+        )
+        self.confidence_data = self.confidence_data.join(
+            join_data,
+            on=[TARGET_COLUMN, REGULATOR_COLUMN]
+        )
 
     def score(self):
 
@@ -77,15 +95,25 @@ class RankSummaryPR(RankSummingMetric):
         ax.set_ylim(0, 1)
 
         # Add the AUPR as an annotation
-        ax.annotate("aupr = {aupr:.5f}".format(aupr=aupr), xy=(0.4, 0.05), xycoords='axes fraction')
+        ax.annotate(
+            f"aupr = {aupr:.5f}",
+            xy=(0.4, 0.05),
+            xycoords='axes fraction'
+        )
 
         return ax
 
     def num_over_precision_threshold(self, threshold):
-        return np.sum(self.confidence_data[CONFIDENCE_COLUMN] >= self.find_threshold(PRECISION_COLUMN, threshold))
+        return np.sum(
+            self.confidence_data[CONFIDENCE_COLUMN] >=
+            self.find_threshold(PRECISION_COLUMN, threshold)
+        )
 
     def num_over_recall_threshold(self, threshold):
-        return np.sum(self.confidence_data[CONFIDENCE_COLUMN] >= self.find_threshold(PRECISION_COLUMN, threshold))
+        return np.sum(
+            self.confidence_data[CONFIDENCE_COLUMN] >=
+            self.find_threshold(PRECISION_COLUMN, threshold)
+        )
 
     def num_over_conf_threshold(self, threshold):
         return np.sum(self.confidence_data[CONFIDENCE_COLUMN] >= threshold)
@@ -100,21 +128,33 @@ class RankSummaryPR(RankSummingMetric):
         if np.sum(threshold_index) == 0:
             return np.inf
         else:
-            return self.confidence_data.loc[threshold_index, CONFIDENCE_COLUMN].min()
+            return self.confidence_data.loc[
+                threshold_index,
+                CONFIDENCE_COLUMN
+            ].min()
 
     @staticmethod
     def calculate_precision_recall(data, transform_ties=None):
         """
-        Calculate the precision & recall based on the confidence scores and gold standard
+        Calculate the precision & recall based on the confidence
+        scores and gold standard
+
         :param data: pd.DataFrame
-            Dataframe with a gold standard and confidence column, sorted on confidence column
+            Dataframe with a gold standard and confidence column,
+            sorted on confidence column
         :return data: pd.DataFrame
             Sorted dataframe with additional precision and recall columns
         """
 
         # Make sure data is sorted
-        if not data.loc[~pd.isnull(data[CONFIDENCE_COLUMN]), CONFIDENCE_COLUMN].is_monotonic_decreasing:
-            data = data.sort_values(by=CONFIDENCE_COLUMN, ascending=False, na_position='last')
+        if not data.loc[
+            ~pd.isnull(data[CONFIDENCE_COLUMN]), CONFIDENCE_COLUMN
+        ].is_monotonic_decreasing:
+            data = data.sort_values(
+                by=CONFIDENCE_COLUMN,
+                ascending=False,
+                na_position='last'
+            )
             data = data.reset_index()
             utils.Debug.vprint("Resorting confidences for PR", level=0)
 
@@ -122,7 +162,9 @@ class RankSummaryPR(RankSummingMetric):
         valid_gs_idx = ~pd.isnull(data[GOLD_STANDARD_COLUMN])
 
         # Find the edges that are in the gold standard
-        valid_gs = (data.loc[valid_gs_idx, GOLD_STANDARD_COLUMN] != 0).astype(int)
+        valid_gs = (
+            data.loc[valid_gs_idx, GOLD_STANDARD_COLUMN] != 0
+        ).astype(int)
 
         # the following mimics the R function ChristophsPR
         # Add nan columns
@@ -130,29 +172,53 @@ class RankSummaryPR(RankSummingMetric):
         data[RECALL_COLUMN] = np.nan
 
         # Calculate precision [TP / (TP + FP)]
-        data.loc[valid_gs_idx, PRECISION_COLUMN] = np.cumsum(valid_gs).astype(float) / np.arange(1, len(valid_gs)+1, 1)
+        data.loc[
+            valid_gs_idx,
+            PRECISION_COLUMN
+        ] = np.cumsum(valid_gs).astype(float) / np.arange(1, len(valid_gs)+1)
 
         # Calculate recall [TP / (TP + FN)]
-        data.loc[valid_gs_idx, RECALL_COLUMN] = np.cumsum(valid_gs).astype(float) / sum(valid_gs)
+        data.loc[
+            valid_gs_idx,
+            RECALL_COLUMN
+        ] = np.cumsum(valid_gs).astype(float) / sum(valid_gs)
 
         if transform_ties is not None:
-            RankSummingMetric.transform_column(data, CONFIDENCE_COLUMN, PRECISION_COLUMN, transform_ties)
-            RankSummingMetric.transform_column(data, CONFIDENCE_COLUMN, RECALL_COLUMN, transform_ties)
+            RankSummingMetric.transform_column(
+                data,
+                CONFIDENCE_COLUMN,
+                PRECISION_COLUMN,
+                transform_ties
+            )
+            RankSummingMetric.transform_column(
+                data,
+                CONFIDENCE_COLUMN,
+                RECALL_COLUMN,
+                transform_ties
+            )
 
         else:
             # Overwrite the precision of no-confidence with the mean value
             zero_confidence = data[CONFIDENCE_COLUMN] == 0
             zero_confidence_precision_idx = zero_confidence & valid_gs_idx
 
-            zero_confidence_precision_val = data.loc[zero_confidence_precision_idx, PRECISION_COLUMN].mean()
-            data.loc[zero_confidence_precision_idx, PRECISION_COLUMN] = zero_confidence_precision_val
+            zero_confidence_precision_val = data.loc[
+                zero_confidence_precision_idx,
+                PRECISION_COLUMN
+            ].mean()
+            data.loc[
+                zero_confidence_precision_idx,
+                PRECISION_COLUMN
+            ] = zero_confidence_precision_val
 
         return data
 
     @staticmethod
     def modify_pr(data):
         """
-        Inserts values into the precision and recall to allow for plotting & calculations of area
+        Inserts values into the precision and recall to allow for plotting
+        & calculations of area
+
         :param data: pd.DataFrame
             Sorted confidences with a PRECISION and a RECALL column
         :return precision: np.ndarray
@@ -162,7 +228,11 @@ class RankSummaryPR(RankSummingMetric):
         """
 
         data = data.loc[~pd.isnull(data[PRECISION_COLUMN]), :]
-        precision = np.insert(data[PRECISION_COLUMN].values, 0, data[PRECISION_COLUMN].iloc[0])
+        precision = np.insert(
+            data[PRECISION_COLUMN].values,
+            0,
+            data[PRECISION_COLUMN].iloc[0]
+        )
         recall = np.insert(data[RECALL_COLUMN].values, 0, 0)
         return recall, precision
 

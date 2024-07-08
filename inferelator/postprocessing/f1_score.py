@@ -1,21 +1,21 @@
 import numpy as np
 
 from inferelator.postprocessing.precision_recall import RankSummaryPR
-from inferelator.postprocessing import (TARGET_COLUMN, REGULATOR_COLUMN, CONFIDENCE_COLUMN,
-                                        F1_COLUMN, PRECISION_COLUMN, RECALL_COLUMN)
+from inferelator.postprocessing import (
+    TARGET_COLUMN,
+    REGULATOR_COLUMN,
+    CONFIDENCE_COLUMN,
+    F1_COLUMN,
+    PRECISION_COLUMN,
+    RECALL_COLUMN
+)
 
-import matplotlib
-
-# If matplotlib is being an idiot and trying to set a tkinter backend, switch to agg
-if matplotlib.get_backend() in (i for i in matplotlib.rcsetup.interactive_bk):
-    matplotlib.use('agg')
-
-import matplotlib.pyplot as plt
+from ._plot_fix import plt
 
 
 class RankSummaryF1(RankSummaryPR):
     """
-    This class extends RankSumming and calculates Matthews correlation coefficient
+    This class extends RankSumming and calculates F1 score
     """
 
     name = "F1"
@@ -34,17 +34,37 @@ class RankSummaryF1(RankSummaryPR):
     def maxf1(self):
         return self.calculate_opt_f1(self.filtered_data)
 
-    def __init__(self, rankable_data, gold_standard, filter_method='keep_all_gold_standard'):
-        super(RankSummaryPR, self).__init__(rankable_data, gold_standard, filter_method=filter_method)
+    def __init__(
+        self,
+        rankable_data,
+        gold_standard,
+        filter_method='keep_all_gold_standard'
+    ):
+        super(RankSummaryPR, self).__init__(
+            rankable_data,
+            gold_standard,
+            filter_method=filter_method
+        )
 
-        # Calculate the precision and recall and store them with confidence data
-        self.filtered_data = self.calculate_precision_recall(self.filtered_data.copy(), transform_ties='mean')
+        # Calculate the precision and recall and store them with confidence
+        # data
+        self.filtered_data = self.calculate_precision_recall(
+            self.filtered_data.copy(),
+            transform_ties='mean'
+        )
         self.filtered_data = self.calculate_f1(self.filtered_data.copy())
 
         # Join the filtered F1 score onto the full confidences
-        join_data = self.filtered_data.loc[:, [TARGET_COLUMN, REGULATOR_COLUMN, F1_COLUMN]]
-        join_data = join_data.set_index([TARGET_COLUMN, REGULATOR_COLUMN])
-        self.confidence_data = self.confidence_data.join(join_data, on=[TARGET_COLUMN, REGULATOR_COLUMN])
+        join_data = self.filtered_data.loc[
+            :,
+            [TARGET_COLUMN, REGULATOR_COLUMN, F1_COLUMN]
+        ].set_index(
+            [TARGET_COLUMN, REGULATOR_COLUMN]
+        )
+        self.confidence_data = self.confidence_data.join(
+            join_data,
+            on=[TARGET_COLUMN, REGULATOR_COLUMN]
+        )
 
     def score(self):
         return self.name, self.maxf1
@@ -59,8 +79,15 @@ class RankSummaryF1(RankSummaryPR):
 
         # Extract the recall and precision data
         curve = self.curve_dataframe()
-        self.plot_f1_conf(curve[F1_COLUMN].values, curve[CONFIDENCE_COLUMN].values, self.maxf1, self.optconff1, ax,
-                          num_edges=(self.confidence_data[CONFIDENCE_COLUMN] >= self.optconff1).sum())
+        self.plot_f1_conf(
+            curve[F1_COLUMN].values,
+            curve[CONFIDENCE_COLUMN].values,
+            self.maxf1,
+            self.optconff1,
+            ax,
+            num_edges=(
+                self.confidence_data[CONFIDENCE_COLUMN] >= self.optconff1
+            ).sum())
 
         return ax
 
@@ -75,12 +102,22 @@ class RankSummaryF1(RankSummaryPR):
         ax.set_xlim(1, 0)
         ax.set_ylim(0, 1)
         ax.set_ylabel('F1')
-        ax.vlines(float(optconf), 0, 1, transform=ax.get_xaxis_transform(), colors='r', linestyles='dashed')
+        ax.vlines(
+            float(optconf),
+            0,
+            1,
+            transform=ax.get_xaxis_transform(),
+            colors='r',
+            linestyles='dashed'
+        )
 
-        _msg = "max F1 = {optf1:.4f}\noptimal conf = {optconf:.4f}\nnum_edges = {n}".format(optf1=optf1,
-                                                                                            optconf=optconf,
-                                                                                            n=num_edges)
-        ax.annotate(_msg, xy=(0.4, 0.075), xycoords='axes fraction')
+        ax.annotate(
+            f"max F1 = {optf1:.4f}\n"
+            f"optimal conf = {optconf:.4f}\n"
+            f"num_edges = {num_edges}",
+            xy=(0.4, 0.075),
+            xycoords='axes fraction'
+        )
 
         return ax
 
@@ -92,12 +129,18 @@ class RankSummaryF1(RankSummaryPR):
     @staticmethod
     def calculate_opt_conf_f1(data):
 
-        return data.loc[data[F1_COLUMN] >= np.max(data[F1_COLUMN]), CONFIDENCE_COLUMN].min()
+        return data.loc[
+            data[F1_COLUMN] >= np.max(data[F1_COLUMN]),
+            CONFIDENCE_COLUMN
+        ].min()
 
     @staticmethod
     def calculate_f1(data):
 
-        data[F1_COLUMN] = RankSummaryF1.pr_to_f1(data[PRECISION_COLUMN], data[RECALL_COLUMN])
+        data[F1_COLUMN] = RankSummaryF1.pr_to_f1(
+            data[PRECISION_COLUMN],
+            data[RECALL_COLUMN]
+        )
         return data
 
     @staticmethod

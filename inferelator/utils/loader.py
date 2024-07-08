@@ -28,6 +28,14 @@ _TENX_H5_FEATURES_KEYS = [
 ]
 
 
+def _is_categorical(obj):
+
+    if hasattr(obj, 'dtype'):
+        obj = obj.dtype
+
+    return isinstance(obj, pd.CategoricalDtype)
+
+
 class InferelatorDataLoader(object):
     input_dir = None
     _file_format_settings = None
@@ -77,16 +85,25 @@ class InferelatorDataLoader(object):
         :rtype: InferelatorData
         """
 
-        # Read H5AD file
-        Debug.vprint(
-            f"Loading AnnData file {h5ad_file} "
-            f"(Layer: {use_layer if use_layer is not None else 'X'})",
-            level=0
-        )
+        if isinstance(h5ad_file, anndata.AnnData):
+            data = h5ad_file
+            Debug.vprint(
+                f"Using AnnData object {data.shape} "
+                f"(Layer: {use_layer if use_layer is not None else 'X'})",
+                level=0
+            )
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", anndata.OldFormatWarning)
-            data = anndata.read_h5ad(self.input_path(h5ad_file))
+        # Read H5AD file
+        else:
+            Debug.vprint(
+                f"Loading AnnData file {h5ad_file} "
+                f"(Layer: {use_layer if use_layer is not None else 'X'})",
+                level=0
+            )
+
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", anndata.OldFormatWarning)
+                data = anndata.read_h5ad(self.input_path(h5ad_file))
 
         # Read in meta data
         if meta_data_file is None and data.obs.shape[1] > 0:
@@ -104,34 +121,33 @@ class InferelatorDataLoader(object):
             gene_name_column
         )
 
+        if use_layer is None:
+            use_layer = "X"
+
         # Make sure layer is in the anndata object
-        if use_layer is not None and use_layer not in data.layers:
+        if use_layer != "X" and use_layer not in data.layers:
             raise ValueError(
                 f"Layer {use_layer} is not in {h5ad_file}"
             )
 
-        # Build an InferelatorData object from a layer
-        elif use_layer is not None:
-            data = InferelatorData(
-                data.layers[use_layer].copy() if use_layer != "X" else data.X,
-                gene_names=data.var_names.copy(),
-                sample_names=data.obs_names.copy(),
-                meta_data=pd.concat((data.obs, meta_data), axis=1),
-                gene_data=pd.concat((data.var, gene_metadata), axis=1)
-            )
+        if use_layer != "X":
+            data_ref = data.layers[use_layer]
+        else:
+            data_ref = data.X
 
         # Build an InferelatorData object from everything
-        elif keep_other_data:
+        if keep_other_data:
+            data.X = data_ref
             data = InferelatorData(
                 data,
                 meta_data=meta_data,
                 gene_data=gene_metadata
             )
 
-        # Build an InferelatorData object from only the `X` data
+        # Build an InferelatorData object from a layer
         else:
             data = InferelatorData(
-                data.X.copy(),
+                data_ref.copy(),
                 gene_names=data.var_names.copy(),
                 sample_names=data.obs_names.copy(),
                 meta_data=pd.concat((data.obs, meta_data), axis=1),
@@ -627,7 +643,7 @@ def _safe_dataframe_decoder(data_frame, encoding='utf-8'):
 def _is_dtype_object(dtype):
     if pat.is_object_dtype(dtype):
         return True
-    elif pat.is_categorical_dtype(dtype):
+    elif _is_categorical(dtype):
         return pat.is_object_dtype(dtype.categories.dtype)
     else:
         return False
@@ -642,7 +658,7 @@ def _decode_series(series, encoding):
     :return: pd.Series, pd.Index
     """
 
-    if pat.is_categorical_dtype(series):
+    if _is_categorical(series):
 
         return series.cat.rename_categories(
             _decode_series(

@@ -61,7 +61,7 @@ class InferelatorStaticEstimator(BaseEstimator):
         if isinstance(model, ad.AnnData):
             self.model = model.copy()
         else:
-            self.model = ad.read(model)
+            self.model = ad.read_h5ad(model)
 
         self._extract_model_values()
         PreprocessData.set_preprocessing_method(

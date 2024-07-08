@@ -1,9 +1,11 @@
+from .sparse import todense
 from .validator import (
     Validator,
     is_string
 )
 from .debug import (
     Debug,
+    vprint,
     slurm_envs,
     inferelator_verbose_level
 )

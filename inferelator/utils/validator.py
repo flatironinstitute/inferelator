@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import pandas.api.types as pat
 import os
 import inspect
@@ -55,20 +56,35 @@ class Validator:
         return True
 
     @staticmethod
-    def argument_integer(arg, low=None, high=None, allow_none=False):
+    def argument_integer(
+        arg,
+        low=None,
+        high=None,
+        allow_none=False
+    ):
         """
         Wrapper for argument_numeric which forces only integers
         """
-        return Validator.argument_numeric(arg, low=low, high=high, allow_none=allow_none, types=int)
+        return Validator.argument_numeric(
+            arg,
+            low=low,
+            high=high,
+            allow_none=allow_none,
+            types=int
+        )
 
     @staticmethod
     def argument_enum(arg, enum_list, allow_none=False):
         """
-        Validate an input argument as being present in an list of acceptable values
+        Validate an input argument as being present in an list of
+        acceptable values
+
         :param arg:
-            Argument to validate. If arg is a list or tuple, validate that each element is acceptable
+            Argument to validate. If arg is a list or tuple,
+            validate that each element is acceptable
         :param enum_list:
-            A list or tuple (or anything that you can use 'in' with; like an index) of valid arguments
+            A list or tuple (or anything that you can use 'in' with;
+            like an index) of valid arguments
         :param allow_none: bool
             Allow arg to be None if true
         :return:
@@ -83,12 +99,19 @@ class Validator:
                 Validator.argument_enum(a, enum_list, allow_none=allow_none)
             return True
         elif arg not in enum_list:
-            raise ValueError("Argument {arg} must be one of: {enum}".format(arg=arg, enum=",".join(enum_list)))
+            raise ValueError(
+                f"Argument {arg} must be one of: {','.join(enum_list)}"
+            )
         else:
             return True
 
     @staticmethod
-    def argument_path(arg, allow_none=False, create_if_needed=False, access=None):
+    def argument_path(
+        arg,
+        allow_none=False,
+        create_if_needed=False,
+        access=None
+    ):
         """
         Check to see if a path exists
         :param arg: str
@@ -110,16 +133,23 @@ class Validator:
             try:
                 os.makedirs(arg)
             except OSError as err:
-                raise ValueError("Path {arg} does not exist and cant be created:\n{err}".format(arg=arg, err=str(err)))
+                raise ValueError(
+                    f"Path {arg} does not exist and cant be created:\n{err}"
+                )
         elif not os.path.exists(arg):
-            raise ValueError("Argument {arg} must be an existing path".format(arg=arg))
+            raise ValueError(
+                f"Argument {arg} must be an existing path"
+            )
 
-        # If access is set, check and see if the permissions are OK and raise ValueError if not
+        # If access is set, check and see if the permissions are OK
+        # and raise ValueError if not
         if access is not None:
             if os.access(arg, access):
                 return True
             else:
-                raise ValueError("Path {arg} does not have permission {per}".format(arg=arg, per=access))
+                raise ValueError(
+                    f"Path {arg} does not have permission {access}"
+                )
         else:
             return True
 
@@ -139,7 +169,10 @@ class Validator:
         if allow_none and arg is None:
             return True
         elif arg is None or is_subpath_of is None:
-            raise ValueError("Path argument {a} cannot be compared to path {b}".format(a=arg, b=is_subpath_of))
+            raise ValueError(
+                f"Path argument {arg} cannot be compared to path "
+                f"{is_subpath_of}"
+            )
 
         arg = os.path.abspath(os.path.expanduser(arg))
         is_subpath_of = os.path.abspath(os.path.expanduser(is_subpath_of))
@@ -151,7 +184,9 @@ class Validator:
         elif arg.startswith(is_subpath_of + os.sep):
             return True
         else:
-            raise ValueError("Path {a} is not a subpath of path {b}".format(a=arg, b=is_subpath_of))
+            raise ValueError(
+                f"Path {arg} is not a subpath of path {is_subpath_of}"
+            )
 
     @staticmethod
     def argument_type(
@@ -190,20 +225,22 @@ class Validator:
         elif callable(arg):
             return True
         else:
-            raise ValueError("Argument {arg} must be callable".format(arg=arg))
+            raise ValueError(f"Argument {arg} must be callable")
 
     @staticmethod
     def dataframes_align(frame_iterable, allow_none=False, check_order=True):
 
         is_none = [f is None for f in frame_iterable]
         if any(is_none) and allow_none:
-            # If None is an allowed value, remove the Nones and check the remaining dataframes
+            # If None is an allowed value, remove the Nones and
+            # check the remaining dataframes
             new_frame_iterable = []
             for frame in frame_iterable:
                 if frame is not None:
                     new_frame_iterable.append(frame)
 
-            # If there are any non-None dataframes, check them for alignment. Otherwise return True
+            # If there are any non-None dataframes, check them for alignment.
+            # Otherwise return True
             if len(new_frame_iterable) > 0:
                 frame_iterable = new_frame_iterable
             else:
@@ -213,14 +250,22 @@ class Validator:
             raise ValueError("None values are present in dataframe list")
 
         try:
-            Validator.indexes_align([f.index for f in frame_iterable], allow_none=allow_none, check_order=check_order)
+            Validator.indexes_align(
+                [f.index for f in frame_iterable],
+                allow_none=allow_none,
+                check_order=check_order
+            )
         except ValueError as ve:
-            raise ValueError("Dataframes are not aligned on indexes: {err}".format(err=str(ve)))
+            raise ValueError(f"Dataframes are not aligned on indexes: {ve}")
 
         try:
-            Validator.indexes_align([f.columns for f in frame_iterable], allow_none=allow_none, check_order=check_order)
+            Validator.indexes_align(
+                [f.columns for f in frame_iterable],
+                allow_none=allow_none,
+                check_order=check_order
+            )
         except ValueError as ve:
-            raise ValueError("Dataframes are not aligned on columns: {err}".format(err=str(ve)))
+            raise ValueError(f"Dataframes are not aligned on columns: {ve}")
 
         return True
 
@@ -229,11 +274,15 @@ class Validator:
         if allow_none and frame is None:
             return True
 
-        non_numeric = pd.Index([not pat.is_numeric_dtype(x) for x in frame.dtypes])
+        non_numeric = pd.Index(
+            [not pat.is_numeric_dtype(x) for x in frame.dtypes]
+        )
 
         if non_numeric.any():
-            bad_features = "\t".join(map(str, frame.columns[non_numeric].tolist()))
-            raise ValueError("Dataframe has non-numeric features: {f}".format(f=bad_features))
+            raise ValueError(
+                f"Dataframe has non-numeric features: "
+                f"{' '.join(map(str, frame.columns[non_numeric].tolist()))}"
+            )
         else:
             return True
 
@@ -242,29 +291,41 @@ class Validator:
         if allow_none and frame is None:
             return True
 
-        with pd.option_context('mode.use_inf_as_na', True):
-            non_finites = frame.apply(lambda x: pd.isnull(x).sum()) > 0
-            if non_finites.any():
-                bad_features = "\t".join(map(str, frame.columns[non_finites].tolist()))
-                raise ValueError("Dataframe has non-finite features: {f}".format(f=bad_features))
-            elif check_index and pd.isnull(frame.index).any():
-                raise ValueError("NaN values are present in frame index")
-            elif check_index and pd.isnull(frame.columns).any():
-                raise ValueError("NaN values are present in frame column")
-            else:
-                return True
+        non_finites = frame.apply(lambda x: pd.isnull(x).sum()) > 0
+        non_finites |= frame.apply(lambda x: (x == np.inf).sum()) > 0
+        non_finites |= frame.apply(lambda x: (x == -np.inf).sum()) > 0
+
+        if non_finites.any():
+            bad_features = " ".join(
+                map(str, frame.columns[non_finites].tolist())
+            )
+            raise ValueError(
+                f"Dataframe has non-finite features: {bad_features}"
+            )
+        elif check_index and pd.isnull(frame.index).any():
+            raise ValueError(
+                "NaN values are present in frame index"
+            )
+        elif check_index and pd.isnull(frame.columns).any():
+            raise ValueError(
+                "NaN values are present in frame column"
+            )
+        else:
+            return True
 
     @staticmethod
     def indexes_align(index_iterable, allow_none=False, check_order=True):
         is_none = [f is None for f in index_iterable]
         if any(is_none) and allow_none:
-            # If None is an allowed value, remove the Nones and check the remaining dataframes
+            # If None is an allowed value, remove the Nones and check the
+            # remaining dataframes
             new_index_iterable = []
             for index in index_iterable:
                 if index is not None:
                     new_index_iterable.append(index)
 
-            # If there are any non-None dataframes, check them for alignment. Otherwise return True
+            # If there are any non-None dataframes, check them for alignment.
+            # Otherwise return True
             if len(new_index_iterable) > 0:
                 index_iterable = new_index_iterable
             else:
@@ -277,12 +338,17 @@ class Validator:
         zindex = index_iterable[0]
         for ind in index_iterable:
             if len(zindex.difference(ind)) > 0:
-                raise ValueError("Indexes have mismatching labels: "+"\t".join(map(str, zindex.difference(ind))))
+                raise ValueError(
+                    "Indexes have mismatching labels: "
+                    f"{' '.join(map(str, zindex.difference(ind)))}"
+                )
             elif check_order and any(zindex != ind):
                 order_flag = True
 
         if order_flag:
-            raise ValueError("Indexes have matching labels but mismatching order")
+            raise ValueError(
+                "Indexes have matching labels but mismatching order"
+            )
 
         return True
 
@@ -300,7 +366,9 @@ class Validator:
             raise ValueError("None is not an acceptable argument")
         elif index.duplicated().sum() > 0:
             dupes = index[index.duplicated()].tolist()
-            raise ValueError("Duplicate value(s) present in index: {dupes}".format(dupes=" ".join(dupes)))
+            raise ValueError(
+                f"Duplicate value(s) present in index: {' '.join(dupes)}"
+            )
         else:
             return True
 
@@ -310,7 +378,8 @@ class Validator:
         :param args:
             Tuple of arguments to check
         :param num_none: int
-            The number of arguments which should not be None (so 1 means exactly 1 argument should be not None)
+            The number of arguments which should not be None (so 1 means
+            exactly 1 argument should be not None)
             If None, all arguments should not be None
         """
         n_not_none = 0
@@ -318,10 +387,15 @@ class Validator:
             n_not_none += 0 if ar is None else 1
 
         if num_none is None and n_not_none != len(args):
-            raise ValueError("One of these arguments is None; None is not an acceptable argument")
+            raise ValueError(
+                "One of these arguments is None; "
+                "None is not an acceptable argument"
+            )
         elif num_none is not None and n_not_none != num_none:
-            raise ValueError("{num} arguments are not None; only {nnum} are allowed".format(num=n_not_none,
-                                                                                            nnum=num_none))
+            raise ValueError(
+                f"{n_not_none} arguments are not None; "
+                f"only {num_none} are allowed"
+            )
         return True
 
     @staticmethod
@@ -343,9 +417,13 @@ class Validator:
             arg = type(arg)
 
         if not inspect.isclass(subclass):
-            raise ValueError("Subclass to test argument is itself not a class")
+            raise ValueError(
+                "Subclass to test argument is itself not a class"
+            )
         elif not issubclass(arg, subclass):
-            raise ValueError("Argument is not a subclass of {sc}".format(sc=str(subclass)))
+            raise ValueError(
+                f"Argument is not a subclass of {str(subclass)}"
+            )
         else:
             return True
 

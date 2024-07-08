@@ -1,9 +1,9 @@
 """
-This is a manager which will take an Inferelator workflow and repeatedly run it with different parameters.
-This is implemented using deep copies; it is therefore memory-intensive.
+This is a manager which will take an Inferelator workflow and repeatedly
+run it with different parameters.
+This is implemented using deep copies;
+it is therefore memory-intensive.
 """
-
-from __future__ import print_function
 
 # I hate py2 now
 try:
@@ -20,8 +20,6 @@ import itertools
 import numpy as np
 import pandas as pd
 
-
-from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.utils import Validator as check
 from inferelator import utils
 from inferelator import workflow
@@ -102,7 +100,11 @@ class CrossValidationManager(object):
 
     @workflow.setter
     def workflow(self, wkf):
-        assert check.argument_is_subclass(wkf, workflow.WorkflowBase, allow_none=True)
+        assert check.argument_is_subclass(
+            wkf,
+            workflow.WorkflowBase,
+            allow_none=True
+        )
         if self._baseline_workflow is not None:
             warnings.warn("Replacing stored workflow with a new workflow")
         self._baseline_workflow = wkf

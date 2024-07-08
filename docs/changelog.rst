@@ -1,6 +1,17 @@
 Change Log
 ==========
 
+Inferelator v0.6.3 `August 15, 2023`
+----------------------------------------
+
+New Functionality:
+
+- Accepts h5ad objects directly into the constructor
+
+Bug Fixes:
+
+- Fixed several deprecated arguments in dependencies
+
 Inferelator v0.6.2 `May 8, 2023`
 ----------------------------------------
 

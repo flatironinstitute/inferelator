@@ -49,7 +49,7 @@ def _lasso_path(
     if np.sum(_alpha0) > 0:
         _coefs[:, _alpha0] = _LinearRegression(
             fit_intercept=False
-        ).fit(x, y).coef_[:, None]
+        ).fit(x, y).coef_.reshape(-1, 1)
 
     _, _lp_coef, _ = lasso_path(
         x,
@@ -132,6 +132,7 @@ def _regress_all_alphas(
 
     return alphas, _regression_coefs
 
+
 # Wrapper for a single alpha value
 def _regress(
     x,
@@ -167,6 +168,7 @@ def _regress(
             "regression must be 'lasso' or 'ridge'"
         )
 
+
 def stars_model_select(
     x,
     y,
@@ -178,7 +180,8 @@ def stars_model_select(
     **kwargs
 ):
     """
-    Model using StARS (Stability Approach to Regularization Selection) for model selection
+    Model using StARS (Stability Approach to Regularization Selection)
+    for model selection
 
     :param x:
     :param y:
@@ -193,6 +196,8 @@ def stars_model_select(
 
     # Number of obs
     n, k = x.shape
+
+    kwargs['random_state'] = kwargs.get('random_state', random_seed)
 
     # Sort alphas
     alphas = np.sort(alphas)[::-1]
@@ -241,7 +246,11 @@ def stars_model_select(
     )
 
     threshold_alphas = np.array(alphas)[total_instability < threshold]
-    selected_alpha = np.min(threshold_alphas) if len(threshold_alphas) > 0 else alphas[0]
+
+    if len(threshold_alphas) > 0:
+        selected_alpha = np.min(threshold_alphas)
+    else:
+        selected_alpha = alphas[0]
 
     refit_betas = _regress(
         x,
@@ -254,18 +263,24 @@ def stars_model_select(
     beta_nonzero = _make_bool_matrix(refit_betas)
 
     if beta_nonzero.sum() == 0:
-        return dict(pp=np.repeat(True, k).tolist(),
-                    betas=np.zeros(k),
-                    betas_resc=np.zeros(k))
+        return dict(
+            pp=np.repeat(True, k).tolist(),
+            betas=np.zeros(k),
+            betas_resc=np.zeros(k),
+            selected_alpha=selected_alpha
+        )
     else:
         x = x[:, beta_nonzero]
         utils.make_array_2d(y)
         betas = recalculate_betas_from_selected(x, y)
         betas_resc = predict_error_reduction(x, y, betas)
 
-        return dict(pp=beta_nonzero,
-                    betas=betas,
-                    betas_resc=betas_resc)
+        return dict(
+            pp=beta_nonzero,
+            betas=betas,
+            betas_resc=betas_resc,
+            selected_alpha=selected_alpha
+        )
 
 
 def _calculate_stability(edges):
@@ -297,7 +312,7 @@ def _make_subsample_idx(n, b, num_subsamples, random_seed=42):
     subsample_index = np.zeros((n,), dtype=np.int8)
     for i in range(b):
         start, stop = i * num_subsamples, min((i + 1) * num_subsamples, n)
-        subsample_index[start:stop] = list(range(num_subsamples))[0:stop - start]
+        subsample_index[start:stop] = list(range(stop - start))
 
     np.random.RandomState(random_seed).shuffle(subsample_index)
 

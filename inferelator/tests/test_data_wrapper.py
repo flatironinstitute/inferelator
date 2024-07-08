@@ -9,7 +9,7 @@ from inferelator.tests.artifacts.test_data import (
     CORRECT_GENES_INTERSECT,
     CORRECT_GENES_NZ_VAR
 )
-from inferelator.utils import InferelatorData
+from inferelator.utils import InferelatorData, todense
 
 
 class TestWrapperSetup(unittest.TestCase):
@@ -214,7 +214,7 @@ class TestFunctions(TestWrapperSetup):
 
     def test_transform_log2_s(self):
         self.adata_sparse.transform(np.log2, add_pseudocount=True)
-        npt.assert_array_almost_equal(self.adata_sparse.expression_data.A,
+        npt.assert_array_almost_equal(todense(self.adata_sparse.expression_data),
                                       np.log2(self.expr.loc[:, self.adata.gene_names].values + 1))
 
     def test_apply_log2_d(self):
@@ -240,7 +240,7 @@ class TestFunctions(TestWrapperSetup):
             lambda x: StandardScaler(with_mean=False).fit_transform(x)
         )
         npt.assert_array_almost_equal(
-            self.adata_sparse.expression_data.A,
+            todense(self.adata_sparse.expression_data),
             StandardScaler(with_mean=False).fit_transform(
                 self.expr.loc[:, self.adata.gene_names].values
             )
@@ -260,24 +260,30 @@ class TestFunctions(TestWrapperSetup):
         npt.assert_array_almost_equal(dot3, eye_expr)
 
     def test_dot_sparse(self):
-        inv_expr = np.asarray(linalg.pinv(self.adata_sparse.expression_data.A), order="C")
+        inv_expr = np.asarray(linalg.pinv(todense(self.adata_sparse.expression_data)), order="C")
         eye_expr = np.eye(self.adata_sparse.shape[1])
 
         sdot1a = self.adata_sparse.dot(eye_expr)
-        sdot1b = self.adata_sparse.dot(sparse.csr_matrix(eye_expr)).A
+        sdot1b = todense(self.adata_sparse.dot(sparse.csr_matrix(eye_expr)))
         npt.assert_array_almost_equal(sdot1a, sdot1b)
 
-        original_data = self.expr_sparse[:, TestDataSingleCellLike.expression_matrix.index.isin(CORRECT_GENES_NZ_VAR)].A
-        npt.assert_array_almost_equal(self.adata_sparse.expression_data.A, original_data)
+        original_data = todense(
+            self.expr_sparse[
+                :,
+                TestDataSingleCellLike.expression_matrix.index.isin(CORRECT_GENES_NZ_VAR)]
+        )
+        npt.assert_array_almost_equal(todense(self.adata_sparse.expression_data), original_data)
         npt.assert_array_almost_equal(sdot1b, original_data)
 
         sdot2a = self.adata_sparse.dot(inv_expr, other_is_right_side=False)
-        sdot2b = self.adata_sparse.dot(sparse.csr_matrix(inv_expr), other_is_right_side=False).A
+        sdot2b = todense(
+            self.adata_sparse.dot(sparse.csr_matrix(inv_expr), other_is_right_side=False)
+        )
         npt.assert_array_almost_equal(sdot2a, sdot2b)
         npt.assert_array_almost_equal(sdot2b, eye_expr)
 
     def test_dot_force_dense(self):
-        inv_expr = np.asarray(linalg.pinv(self.adata_sparse.expression_data.A), order="C")
+        inv_expr = np.asarray(linalg.pinv(todense(self.adata_sparse.expression_data)), order="C")
         eye_expr = np.eye(self.adata_sparse.shape[1])
 
         sdot1 = self.adata_sparse.dot(inv_expr, other_is_right_side=False, force_dense=True)
@@ -336,12 +342,12 @@ class TestFunctions(TestWrapperSetup):
 
     def test_divide_sparse(self):
         self.adata_sparse.divide(0.5, axis=None)
-        npt.assert_array_almost_equal(self.adata_sparse.expression_data.A,
+        npt.assert_array_almost_equal(todense(self.adata_sparse.expression_data),
                                       self.expr.loc[:, self.adata_sparse.gene_names].values.astype(float) * 2)
 
         self.adata_sparse.divide(self.adata_sparse.sample_counts, axis=1)
 
-        npt.assert_array_almost_equal(np.sum(self.adata_sparse.expression_data.A, axis=1),
+        npt.assert_array_almost_equal(np.sum(todense(self.adata_sparse.expression_data), axis=1),
                                       np.ones(self.adata_sparse.num_obs, dtype=float))
 
         with self.assertRaises(ValueError):
@@ -364,12 +370,12 @@ class TestFunctions(TestWrapperSetup):
 
     def test_multiply_sparse(self):
         self.adata_sparse.multiply(2, axis=None)
-        npt.assert_array_almost_equal(self.adata_sparse.expression_data.A,
+        npt.assert_array_almost_equal(todense(self.adata_sparse.expression_data),
                                       self.expr.loc[:, self.adata_sparse.gene_names].values.astype(float) / 0.5)
 
         self.adata_sparse.multiply(1 / self.adata_sparse.sample_counts, axis=1)
 
-        npt.assert_array_almost_equal(np.sum(self.adata_sparse.expression_data.A, axis=1),
+        npt.assert_array_almost_equal(np.sum(todense(self.adata_sparse.expression_data), axis=1),
                                       np.ones(self.adata_sparse.num_obs, dtype=float))
 
         with self.assertRaises(ValueError):

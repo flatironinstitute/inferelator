@@ -17,6 +17,7 @@ from inferelator import workflow
 from inferelator.regression.base_regression import _RegressionWorkflowMixin
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.preprocessing.metadata_parser import MetadataParserBranching
+from inferelator.utils import todense
 
 my_dir = os.path.dirname(__file__)
 
@@ -182,24 +183,29 @@ class TestWorkflowLoadData(unittest.TestCase):
 
     def test_extract_metadata(self):
         self.workflow.read_expression()
-        tmpdir = tempfile.mkdtemp()
+        tmpdir = tempfile.TemporaryDirectory()
 
-        try:
-            merged_file = os.path.abspath(os.path.join(tmpdir, "expression.tsv"))
-            meta_data = MetadataParserBranching.create_default_meta_data(self.workflow.data.sample_names)
-            gene_list = self.workflow.data.gene_names
-            test_data = pd.concat([self.workflow.data.to_df(), meta_data], axis=1)
-            test_data.to_csv(merged_file, sep="\t")
-            self.workflow.expression_matrix_file = merged_file
-            self.workflow.meta_data_file = None
-            self.workflow.expression_matrix_metadata = meta_data.columns.tolist()
-            self.workflow.expression_matrix_columns_are_genes = True
-            self.workflow.read_expression()
+        merged_file = os.path.abspath(os.path.join(tmpdir.name, "expression.tsv"))
+        meta_data = MetadataParserBranching.create_default_meta_data(self.workflow.data.sample_names)
+        gene_list = self.workflow.data.gene_names
+        test_data = pd.concat([self.workflow.data.to_df(), meta_data], axis=1)
+        test_data.to_csv(merged_file, sep="\t")
+        self.workflow.expression_matrix_file = merged_file
+        self.workflow.meta_data_file = None
+        self.workflow.expression_matrix_metadata = meta_data.columns.tolist()
+        self.workflow.expression_matrix_columns_are_genes = True
+        self.workflow.read_expression()
 
-            pdt.assert_frame_equal(self.workflow.data.meta_data, MetadataParserBranching.fix_NAs(meta_data))
-            self.assertListEqual(self.workflow.data.gene_names.tolist(), gene_list.tolist())
-        finally:
-            shutil.rmtree(tmpdir)
+        pdt.assert_frame_equal(
+            self.workflow.data.meta_data,
+            MetadataParserBranching.fix_NAs(meta_data)
+        )
+        self.assertListEqual(
+            self.workflow.data.gene_names.tolist(),
+            gene_list.tolist()
+        )
+
+        tmpdir.cleanup()
 
     def test_load_gene_metadata(self):
 
@@ -277,7 +283,6 @@ class TestWorkflowLoadData(unittest.TestCase):
             self.workflow.use_no_gold_standard = True
             self.workflow.validate_data()
 
-
     def test_load_to_h5ad(self):
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -296,7 +301,10 @@ class TestWorkflowLoadData(unittest.TestCase):
 
             data = ad.read_h5ad(sname)
             self.assertTrue(sps.isspmatrix_csr(data.X))
-            npt.assert_array_almost_equal_nulp(data.X.A, self.workflow.data.values.A)
+            npt.assert_array_almost_equal_nulp(
+                todense(data.X),
+                todense(self.workflow.data.values)
+            )
             os.remove(sname)
 
 

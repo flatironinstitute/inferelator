@@ -2,12 +2,13 @@ import os
 from setuptools import setup, find_packages
 
 # Current Inferelator Version Number
-version = "0.6.2"
-
+version = "0.6.3"
 
 # Description from README.md
 base_dir = os.path.dirname(os.path.abspath(__file__))
-long_description = "\n\n".join([open(os.path.join(base_dir, "README.md"), "r").read()])
+long_description = "\n\n".join(
+    [open(os.path.join(base_dir, "README.md"), "r").read()]
+)
 
 # Required packages
 requires = [
@@ -33,10 +34,13 @@ setup(
     author_email="cj59@nyu.edu",
     maintainer="Chris Jackson",
     maintainer_email="cj59@nyu.edu",
-    packages=find_packages(include=["inferelator", "inferelator.*"], exclude=["tests", "*.tests"]),
+    packages=find_packages(
+        include=["inferelator", "inferelator.*"],
+        exclude=["tests", "*.tests"]
+    ),
     zip_safe=False,
     install_requires=requires,
-    python_requires=">=3.5",
+    python_requires=">=3.8",
     tests_require=["coverage", "pytest", "bio-test-artifacts", "tables"],
     classifiers=[
         "Programming Language :: Python :: 3",

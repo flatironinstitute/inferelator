@@ -4,11 +4,33 @@ from scipy import (
     stats
 )
 from sklearn.preprocessing import (
-    RobustScaler
+    RobustScaler,
+    StandardScaler
 )
 
 from inferelator.utils.debug import Debug
 from inferelator.utils.data import convert_array_to_float
+from inferelator.utils.sparse import todense
+
+
+class TruncRobustScaler(RobustScaler):
+
+    def fit(self, X, y=None):
+        super().fit(X, y)
+
+        # Use StandardScaler to deal with sparse & dense easily
+        _std_scale = StandardScaler(with_mean=False).fit(X)
+
+        _post_robust_var = _std_scale.var_ / (self.scale_ ** 2)
+        _rescale_idx = _post_robust_var > 1
+
+        _scale_mod = np.ones_like(self.scale_)
+        _scale_mod[_rescale_idx] = np.sqrt(_post_robust_var[_rescale_idx])
+
+        self.scale_ *= _scale_mod
+
+        return self
+
 
 # Dict keyed by method
 # Values are (design function, response function, pre-tfa function)
@@ -22,6 +44,23 @@ _PREPROCESS_METHODS = {
         lambda x, y: x.apply(robust_scale_array, magnitude_limit=y),
         lambda x, y: robust_scale_vector(x, magnitude_limit=y),
         lambda x, y: robust_scale_array(x, magnitude_limit=y)
+    ),
+    'truncrobustscaler': (
+        lambda x, y: x.apply(
+            robust_scale_array,
+            magnitude_limit=y,
+            robustscaleclass=TruncRobustScaler
+        ),
+        lambda x, y: robust_scale_vector(
+            x,
+            magnitude_limit=y,
+            robustscaleclass=TruncRobustScaler
+        ),
+        lambda x, y: robust_scale_array(
+            x,
+            magnitude_limit=y,
+            robustscaleclass=TruncRobustScaler
+        )
     ),
     'raw': (
         lambda x, y: x,
@@ -215,7 +254,8 @@ class PreprocessData:
 
 def robust_scale_vector(
     vec,
-    magnitude_limit=None
+    magnitude_limit=None,
+    robustscaleclass=RobustScaler
 ):
 
     if vec.ndim == 1:
@@ -223,16 +263,18 @@ def robust_scale_vector(
 
     return robust_scale_array(
         vec,
-        magnitude_limit=magnitude_limit
+        magnitude_limit=magnitude_limit,
+        robustscaleclass=robustscaleclass
     ).ravel()
 
 
 def robust_scale_array(
     arr,
-    magnitude_limit=None
+    magnitude_limit=None,
+    robustscaleclass=RobustScaler
 ):
 
-    z = RobustScaler(
+    z = robustscaleclass(
         with_centering=False
     ).fit_transform(
         arr
@@ -262,7 +304,7 @@ def scale_array(
     :type magnitude_limit: numeric, optional
     """
 
-    if sparse.isspmatrix(array):
+    if sparse.issparse(array):
         out = np.empty(
             shape=array.shape,
             dtype=float
@@ -299,8 +341,8 @@ def scale_vector(
     """
 
     # Convert a sparse vector to a dense vector
-    if sparse.isspmatrix(vec):
-        vec = vec.A.ravel()
+    if sparse.issparse(vec):
+        vec = todense(vec).ravel()
 
     # Return 0s if the variance is 0
     if np.var(vec) == 0:
@@ -317,7 +359,7 @@ def scale_vector(
 
 def _magnitude_limit(x, lim):
 
-    ref = x.data if sparse.isspmatrix(x) else x
+    ref = x.data if sparse.issparse(x) else x
 
     np.minimum(ref, lim, out=ref)
     np.maximum(ref, -1 * lim, out=ref)

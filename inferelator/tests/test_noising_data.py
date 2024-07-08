@@ -3,6 +3,7 @@ from inferelator.tests.artifacts.test_stubs import TEST_DATA
 from inferelator.preprocessing import simulate_data
 from inferelator import MPControl, inferelator_workflow
 from inferelator.tests.artifacts.test_stubs import FakeRegressionMixin
+from inferelator.utils import todense
 import os
 import numpy.testing as npt
 from scipy import sparse as _sparse
@@ -45,7 +46,10 @@ class NoiseData(unittest.TestCase):
         simulate_data.make_data_noisy(noise_data, random_seed=100)
 
         with self.assertRaises(AssertionError):
-            npt.assert_array_almost_equal(self.data.expression_data, noise_data.expression_data.A)
+            npt.assert_array_almost_equal(
+                self.data.expression_data,
+                todense(noise_data.expression_data)
+            )
 
         self.assertTrue(noise_data.is_sparse)
 
@@ -60,7 +64,10 @@ class NoiseData(unittest.TestCase):
         self.assertFalse(noise_data.is_sparse)
 
         with self.assertRaises(AssertionError):
-            npt.assert_array_almost_equal(float_data.expression_data.A, noise_data.expression_data)
+            npt.assert_array_almost_equal(
+                todense(float_data.expression_data),
+                noise_data.expression_data
+            )
 
 
 class NoiseWorkflowData(unittest.TestCase):

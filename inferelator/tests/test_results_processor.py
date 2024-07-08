@@ -150,7 +150,7 @@ class TestResults(unittest.TestCase):
                 full_model_var_exp=self.beta_resc
             )
 
-            adata = ad.read(os.path.join(
+            adata = ad.read_h5ad(os.path.join(
                 td, result.model_file_name
             ))
 
