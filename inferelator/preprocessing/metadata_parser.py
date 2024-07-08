@@ -104,7 +104,7 @@ class MetadataParser(object):
             data_frame = data_frame.copy()
 
             for col in data_frame.columns:
-                if data_frame[col].dtype == np.float_:
+                if np.isdtype(data_frame[col].dtype, np.floating):
                     continue
 
                 elif data_frame[col].dtype == np.object_:

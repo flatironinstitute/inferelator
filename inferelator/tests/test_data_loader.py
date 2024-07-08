@@ -44,6 +44,7 @@ class TestExpressionLoader(unittest.TestCase):
 
         npt.assert_array_almost_equal(data.values, self.worker.data.expression_data)
 
+    @unittest.skip('numpy2/tables incompatibility')
     def test_hdf5(self):
         file, data = test_prebuilt.counts_yeast_single_cell_chr01(filetype='hdf5')
 
