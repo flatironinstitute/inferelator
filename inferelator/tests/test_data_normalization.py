@@ -9,7 +9,7 @@ from inferelator.tests.artifacts.test_data import (
     TestDataSingleCellLike
 )
 
-from inferelator.utils import InferelatorData
+from inferelator.utils import InferelatorData, todense
 from inferelator.preprocessing.data_normalization import PreprocessData
 
 
@@ -260,7 +260,7 @@ class TestRobustScaler(TestNormalizationSetup):
         design = PreprocessData.preprocess_design(self.adata_sparse)
         design_sklearn = RobustScaler(with_centering=False).fit_transform(self.expr)
         npt.assert_almost_equal(
-            design.values.A,
+            todense(design.values),
             design_sklearn
         )
 
@@ -288,7 +288,7 @@ class TestRobustScaler(TestNormalizationSetup):
         design_sklearn[design_sklearn < -1] = -1
 
         npt.assert_almost_equal(
-            design.values.A,
+            todense(design.values),
             design_sklearn
         )
 
@@ -341,7 +341,7 @@ class TestNoScaler(TestNormalizationSetup):
     def test_no_limit_s(self):
         design = PreprocessData.preprocess_design(self.adata_sparse)
         npt.assert_almost_equal(
-            design.values.A,
+            todense(design.values),
             self.expr
         )
 
@@ -361,7 +361,7 @@ class TestNoScaler(TestNormalizationSetup):
         )
         design = PreprocessData.preprocess_design(self.adata_sparse)
         npt.assert_almost_equal(
-            design.values.A,
+            todense(design.values),
             self.expr
         )
 
@@ -421,7 +421,7 @@ class TestTruncRobustScaler(TestNormalizationSetup):
         design = PreprocessData.preprocess_design(self.adata_sparse)
         design_sklearn = self._right_answer(self.expr)
         npt.assert_almost_equal(
-            design.values.A,
+            todense(design.values),
             design_sklearn
         )
 
@@ -449,7 +449,7 @@ class TestTruncRobustScaler(TestNormalizationSetup):
         design_sklearn[design_sklearn < -1] = -1
 
         npt.assert_almost_equal(
-            design.values.A,
+            todense(design.values),
             design_sklearn
         )
 

@@ -17,6 +17,7 @@ from inferelator import workflow
 from inferelator.regression.base_regression import _RegressionWorkflowMixin
 from inferelator.distributed.inferelator_mp import MPControl
 from inferelator.preprocessing.metadata_parser import MetadataParserBranching
+from inferelator.utils import todense
 
 my_dir = os.path.dirname(__file__)
 
@@ -300,7 +301,10 @@ class TestWorkflowLoadData(unittest.TestCase):
 
             data = ad.read_h5ad(sname)
             self.assertTrue(sps.isspmatrix_csr(data.X))
-            npt.assert_array_almost_equal_nulp(data.X.A, self.workflow.data.values.A)
+            npt.assert_array_almost_equal_nulp(
+                todense(data.X),
+                todense(self.workflow.data.values)
+            )
             os.remove(sname)
 
 

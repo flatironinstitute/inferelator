@@ -9,7 +9,7 @@ import numpy.testing as npt
 import pandas.testing as pdt
 import bio_test_artifacts.prebuilt as test_prebuilt
 from inferelator.workflow import inferelator_workflow
-from inferelator.utils import loader
+from inferelator.utils import loader, todense
 
 
 class TestExpressionLoader(unittest.TestCase):
@@ -59,7 +59,10 @@ class TestExpressionLoader(unittest.TestCase):
         self.worker.set_expression_file(mtx=file1, mtx_feature=file2, mtx_barcode=file3)
         self.worker.read_expression()
 
-        npt.assert_array_almost_equal(data.values, self.worker.data.expression_data.A)
+        npt.assert_array_almost_equal(
+            data.values,
+            todense(self.worker.data.expression_data)
+        )
 
     def test_10x(self):
         (file1, file2, file3), data = test_prebuilt.counts_yeast_single_cell_chr01(filetype='mtx')
@@ -72,7 +75,10 @@ class TestExpressionLoader(unittest.TestCase):
             self.worker.set_expression_file(tenx_path=txdir)
             self.worker.read_expression()
 
-            npt.assert_array_almost_equal(data.values, self.worker.data.expression_data.A)
+            npt.assert_array_almost_equal(
+                data.values,
+                todense(self.worker.data.expression_data)
+            )
 
     def test_10x_ranger3(self):
         (file1, file2, file3), data = test_prebuilt.counts_yeast_single_cell_chr01(filetype='mtx', gzip=True)
@@ -85,7 +91,10 @@ class TestExpressionLoader(unittest.TestCase):
             self.worker.set_expression_file(tenx_path=txdir)
             self.worker.read_expression()
 
-            npt.assert_array_almost_equal(data.values, self.worker.data.expression_data.A)
+            npt.assert_array_almost_equal(
+                data.values,
+                todense(self.worker.data.expression_data)
+            )
 
     def test_df_decode(self):
         idx = pd.Index(['str1', b'str2', b'str3', 'str4', 5, 17.4, np.inf, ('str1',)])

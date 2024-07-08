@@ -22,6 +22,8 @@ from inferelator.utils.data import (
     convert_array_to_float
 )
 
+from inferelator.utils.sparse import todense
+
 
 class InferelatorData(object):
     """
@@ -465,7 +467,7 @@ class InferelatorData(object):
 
         if remove_constant_genes:
             nz_var = self.values.max(axis=0) - self.values.min(axis=0)
-            nz_var = nz_var.A.flatten() if self.is_sparse else nz_var
+            nz_var = todense(nz_var).flatten() if self.is_sparse else nz_var
 
             if np.any(np.isnan(nz_var)):
                 raise ValueError(
@@ -520,7 +522,7 @@ class InferelatorData(object):
         labels = x.var_names
 
         if (force_dense or to_df) and self.is_sparse:
-            x = x.X.A
+            x = todense(x.X)
 
         else:
             # Copy is necessary to get the numpy array
@@ -552,7 +554,7 @@ class InferelatorData(object):
         labels = x.obs_names
 
         if (force_dense or to_df) and self.is_sparse:
-            x = x.X.A
+            x = todense(x.X)
         else:
             x = x.X
 
@@ -992,7 +994,7 @@ class InferelatorData(object):
     def to_dense(self):
 
         if self.is_sparse:
-            self._adata.X = self._adata.X.A
+            self._adata.X = todense(self._adata.X)
 
     def to_sparse(self, mode="csr"):
 
@@ -1034,16 +1036,10 @@ class InferelatorData(object):
             df.columns = df.columns.astype(str)
 
     def _counts(self, axis=None):
-        if self.is_sparse:
-            return self._adata.X.sum(axis=axis).A.flatten()
-        else:
-            return self._adata.X.sum(axis=axis)
+        return todense(self._adata.X.sum(axis=axis)).ravel()
 
     def _means(self, axis=None):
-        if self.is_sparse:
-            return self._adata.X.mean(axis=axis).A.flatten()
-        else:
-            return self._adata.X.mean(axis=axis)
+        return todense(self._adata.X.mean(axis=axis)).ravel()
 
     def _vars(self, axis=None, ddof=1):
         if self.is_sparse:

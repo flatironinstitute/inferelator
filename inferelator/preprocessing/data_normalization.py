@@ -10,6 +10,7 @@ from sklearn.preprocessing import (
 
 from inferelator.utils.debug import Debug
 from inferelator.utils.data import convert_array_to_float
+from inferelator.utils.sparse import todense
 
 
 class TruncRobustScaler(RobustScaler):
@@ -303,7 +304,7 @@ def scale_array(
     :type magnitude_limit: numeric, optional
     """
 
-    if sparse.isspmatrix(array):
+    if sparse.issparse(array):
         out = np.empty(
             shape=array.shape,
             dtype=float
@@ -340,8 +341,8 @@ def scale_vector(
     """
 
     # Convert a sparse vector to a dense vector
-    if sparse.isspmatrix(vec):
-        vec = vec.A.ravel()
+    if sparse.issparse(vec):
+        vec = todense(vec).ravel()
 
     # Return 0s if the variance is 0
     if np.var(vec) == 0:
@@ -358,7 +359,7 @@ def scale_vector(
 
 def _magnitude_limit(x, lim):
 
-    ref = x.data if sparse.isspmatrix(x) else x
+    ref = x.data if sparse.issparse(x) else x
 
     np.minimum(ref, lim, out=ref)
     np.maximum(ref, -1 * lim, out=ref)

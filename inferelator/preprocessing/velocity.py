@@ -6,6 +6,7 @@ from inferelator.utils import (
     Debug
 )
 from inferelator.utils import Validator as check
+from inferelator.utils.sparse import todense
 
 
 def extract_transcriptional_output(
@@ -290,9 +291,9 @@ def _sparse_safe_multiply(x, y):
     :rtype: np.ndarray, sp.spmatrix
     """
 
-    if sparse.isspmatrix(x):
+    if sparse.issparse(x):
         return x.multiply(y).tocsr()
-    elif sparse.isspmatrix(y):
+    elif sparse.issparse(y):
         return y.multiply(x).tocsr()
     else:
         return np.multiply(x, y)
@@ -310,7 +311,7 @@ def _sparse_safe_add(x, y):
     :rtype: np.ndarray
     """
 
-    if sparse.isspmatrix(x) or sparse.isspmatrix(y):
-        return (x + y).A
+    if sparse.issparse(x) or sparse.issparse(y):
+        return todense(x + y).A
     else:
         return np.add(x, y)

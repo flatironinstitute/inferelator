@@ -31,7 +31,7 @@ class _Pinv_TFA_mixin:
 
         _arr_piv = linalg.pinv(prior).T.astype(_prior_dtype)
 
-        if sparse.isspmatrix(expression_data):
+        if sparse.issparse(expression_data):
             _arr_piv = sparse.csr_matrix(_arr_piv)
 
         return utils.DotProduct.dot(

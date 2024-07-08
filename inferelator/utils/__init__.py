@@ -1,3 +1,4 @@
+from .sparse import todense
 from .validator import (
     Validator,
     is_string

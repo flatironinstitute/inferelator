@@ -5,6 +5,7 @@ from scipy import sparse
 import pandas.api.types as pat
 
 from inferelator.utils import Debug
+from inferelator.utils.sparse import todense
 
 
 # Numpy / scipy matrix math function
@@ -26,12 +27,12 @@ def dot_product(
     :return: A @ B array
     :rtype: np.ndarray, sp.sparse.csr_matrix
     """
-    if sparse.isspmatrix(a) and sparse.isspmatrix(b):
-        return a.dot(b).A if dense else a.dot(b)
-    elif sparse.isspmatrix(a) and dense:
+    if sparse.issparse(a) and sparse.issparse(b):
+        return todense(a.dot(b)) if dense else a.dot(b)
+    elif sparse.issparse(a) and dense:
         _arr = a.dot(b)
-        return _arr.A if sparse.isspmatrix(_arr) else _arr
-    elif sparse.isspmatrix(a) or sparse.isspmatrix(b):
+        return todense(_arr) if sparse.issparse(_arr) else _arr
+    elif sparse.issparse(a) or sparse.issparse(b):
         return a @ b
     else:
         return np.dot(a, b)
@@ -368,7 +369,7 @@ def safe_apply_to_array(
         if axis == 0:
             for i in range(array.shape[1]):
                 out_arr[:, i] = func(
-                    array[:, i].A.ravel(),
+                    todense(array[:, i]).ravel(),
                     *args,
                     **kwargs
                 )
@@ -376,7 +377,7 @@ def safe_apply_to_array(
         elif axis == 1:
             for i in range(array.shape[0]):
                 out_arr[i, :] = func(
-                    array[i, :].A.ravel(),
+                    todense(array[i, :]).ravel(),
                     *args,
                     **kwargs
                 )
