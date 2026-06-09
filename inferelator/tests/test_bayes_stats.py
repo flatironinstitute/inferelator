@@ -1,4 +1,4 @@
-import unittest
+import pytest
 import warnings
 
 from inferelator.regression import bayes_stats
@@ -13,7 +13,7 @@ PREDICTORS = np.array([[9, -10, 1, 9, -10, 5, -6, 5, 4, 6],
 PREDICTORS_Z = scipy.stats.zscore(PREDICTORS)
 
 
-class TestBayesStats(unittest.TestCase):
+class TestBayesStats:
 
     def test_bbsr_one_good_predictor(self):
 
@@ -183,7 +183,7 @@ class TestBayesStats(unittest.TestCase):
         xtx = np.dot(x.T, x)  # [k x k]
         xty = np.dot(x.T, y)  # [k x 1]
         gprior = np.array([[1, 1, 1, 1], [1, 0, 1, 0], [0, 0, 1, 1], [1, 0, 1, 1]])
-        with self.assertRaises(np.linalg.LinAlgError):
+        with pytest.raises(np.linalg.LinAlgError):
             model_beta = bayes_stats._solve_model(xtx, xty)
             model_ssr = bayes_stats.ssr(x, y, model_beta)
             scale_param = bayes_stats._calc_ig_scale(model_beta, model_ssr, xtx, gprior)
@@ -199,7 +199,7 @@ class TestBayesStats(unittest.TestCase):
         x = np.array([[1, 2, 3, 4], [2, 4, 6, 8], [4, 8, 12, 16]])
         bic = np.array([0, 0, 0, 0], dtype=np.dtype(float))
         combo = np.array([[1, 0, 1, 0], [1, 1, 1, 1], [0, 1, 2, 3]])
-        with self.assertRaises(np.linalg.LinAlgError):
+        with pytest.raises(np.linalg.LinAlgError):
             bayes_stats._best_combo_idx(x, bic, combo)
 
     def test_matrix_full_rank(self):
@@ -243,4 +243,3 @@ class TestBayesStats(unittest.TestCase):
        [True, False, False,  True,  True, False],
        [False,  True, False,  True, False,  True],
        [False, False,  True, False,  True,  True]]))
-

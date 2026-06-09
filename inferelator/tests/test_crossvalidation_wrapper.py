@@ -1,4 +1,4 @@
-import unittest
+import pytest
 import pandas as pd
 import types
 import numpy as np
@@ -66,9 +66,9 @@ class FakeWriter(object):
         pass
 
 
-class TestCV(unittest.TestCase):
+class TestCV:
 
-    def setUp(self):
+    def setup_method(self):
         wkf = FakeWorkflow()
         wkf.output_dir = TEMP_DIR
         self.cv = crossvalidation_workflow.CrossValidationManager(wkf)
@@ -80,81 +80,81 @@ class TestCV(unittest.TestCase):
 class TestCVSetup(TestCV):
 
     def test_dropin_set(self):
-        self.assertIsNone(self.cv.dropin_column)
+        assert self.cv.dropin_column is None
 
         self.cv.add_grouping_dropin("VAR", group_size=100, seed=50)
 
-        self.assertEqual(self.cv.dropin_column, "VAR")
-        self.assertEqual(self.cv.dropin_max_size, 100)
-        self.assertEqual(self.cv.dropin_seed, 50)
+        assert self.cv.dropin_column == "VAR"
+        assert self.cv.dropin_max_size == 100
+        assert self.cv.dropin_seed == 50
 
     def test_dropout_set(self):
-        self.assertIsNone(self.cv.dropout_column)
+        assert self.cv.dropout_column is None
 
         self.cv.add_grouping_dropout("VAR", group_size=100, seed=50)
 
-        self.assertEqual(self.cv.dropout_column, "VAR")
-        self.assertEqual(self.cv.dropout_max_size, 100)
-        self.assertEqual(self.cv.dropout_seed, 50)
+        assert self.cv.dropout_column == "VAR"
+        assert self.cv.dropout_max_size == 100
+        assert self.cv.dropout_seed == 50
 
     def test_size_sample_set(self):
-        self.assertIsNone(self.cv.size_sample_vector)
+        assert self.cv.size_sample_vector is None
 
         self.cv.add_size_subsampling([0.1, 0.2, 1], stratified_column_name="VAR", seed=50)
 
-        self.assertListEqual(self.cv.size_sample_vector, [0.1, 0.2, 1])
-        self.assertEqual(self.cv.size_sample_stratified_column, "VAR")
-        self.assertEqual(self.cv.size_sample_seed, 50)
+        assert self.cv.size_sample_vector == [0.1, 0.2, 1]
+        assert self.cv.size_sample_stratified_column == "VAR"
+        assert self.cv.size_sample_seed == 50
 
     def test_add_grid_param(self):
-        self.assertIsNone(self.cv.grid_params)
-        self.assertIsNone(self.cv.grid_param_values)
+        assert self.cv.grid_params is None
+        assert self.cv.grid_param_values is None
 
         self.cv.add_gridsearch_parameter("seed", [1, 2, 3])
         self.cv.add_gridsearch_parameter("test", [3, 4, 5])
 
-        self.assertListEqual(self.cv.grid_params, ["seed", "test"])
-        self.assertListEqual(self.cv.grid_param_values['seed'], [1, 2, 3])
-        self.assertListEqual(self.cv.grid_param_values['test'], [3, 4, 5])
+        assert self.cv.grid_params == ["seed", "test"]
+        assert self.cv.grid_param_values['seed'] == [1, 2, 3]
+        assert self.cv.grid_param_values['test'] == [3, 4, 5]
 
     def test_load_initial(self):
 
-        self.assertEqual(self.cv.workflow.get_data(), "GotData")
+        assert self.cv.workflow.get_data() == "GotData"
         self.cv._initial_data_load()
-        self.assertIsNone(self.cv.workflow.get_data())
+        assert self.cv.workflow.get_data() is None
 
     def test_get_copy(self):
 
         copied_work = self.cv._get_workflow_copy()
         copied_work.seed = 50
 
-        self.assertEqual(self.cv.workflow.seed, 10)
-        self.assertEqual(copied_work.seed, 50)
+        assert self.cv.workflow.seed == 10
+        assert copied_work.seed == 50
 
     def test_csv(self):
         self.cv.add_gridsearch_parameter("seed", [1, 2, 3])
         self.cv.add_gridsearch_parameter("test", [3, 4, 5])
         self.cv.workflow.metric = "aupr"
 
-        self.assertIsNone(self.cv._csv_header)
+        assert self.cv._csv_header is None
         self.cv._create_writer()
-        self.assertListEqual(self.cv._csv_header, ["seed", "test", "Test", "Value", "Num_Obs", "AUPR"])
+        assert self.cv._csv_header == ["seed", "test", "Test", "Value", "Num_Obs", "AUPR"]
 
     def test_csv_combined(self):
         self.cv.add_gridsearch_parameter("seed", [1, 2, 3])
         self.cv.add_gridsearch_parameter("test", [3, 4, 5])
         self.cv.metric = "combined"
 
-        self.assertIsNone(self.cv._csv_header)
+        assert self.cv._csv_header is None
         self.cv._create_writer()
-        self.assertListEqual(self.cv._csv_header, ["seed", "test", "Test", "Value", "Num_Obs", "AUPR", "F1", "MCC"])
+        assert self.cv._csv_header == ["seed", "test", "Test", "Value", "Num_Obs", "AUPR", "F1", "MCC"]
 
     def test_validate_params(self):
         self.cv.add_gridsearch_parameter("seed", [1, 2, 3])
         self.cv._check_grid_search_params_exist()
 
         self.cv.add_gridsearch_parameter("test", [3, 4, 5])
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             self.cv._check_grid_search_params_exist()
 
     def test_validate_meta_cols(self):
@@ -164,28 +164,28 @@ class TestCVSetup(TestCV):
         self.cv._check_metadata()
 
         self.cv.size_sample_stratified_column = "NOTREAL"
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             self.cv._check_metadata()
 
 
 class TestCVProperties(TestCV):
 
     def test_output_dir_cv(self):
-        self.assertEqual(TEMP_DIR, self.cv.output_dir)
+        assert self.cv.output_dir == TEMP_DIR
         self.cv.append_to_path('output_dir', 'test1')
-        self.assertEqual(TEMP_DIR_1, self.cv.output_dir)
+        assert self.cv.output_dir == TEMP_DIR_1
 
     def test_set_output_dir_cv(self):
         self.cv.output_dir = TEMP_DIR_1
-        self.assertEqual(TEMP_DIR_1, self.cv.workflow.output_dir)
+        assert self.cv.workflow.output_dir == TEMP_DIR_1
 
     def test_input_dir_cv(self):
         self.cv.workflow.input_dir = TEMP_DIR
-        self.assertEqual(TEMP_DIR, self.cv.input_dir)
+        assert self.cv.input_dir == TEMP_DIR
 
     def test_set_input_dir_cv(self):
         self.cv.input_dir = TEMP_DIR_1
-        self.assertEqual(TEMP_DIR_1, self.cv.workflow.input_dir)
+        assert self.cv.workflow.input_dir == TEMP_DIR_1
 
     def test_harmonize(self):
         self.cv.workflow.output_dir = None
@@ -196,40 +196,39 @@ class TestCVProperties(TestCV):
 
         self.cv._harmonize_paths()
 
-        self.assertEqual(TEMP_DIR_1, self.cv.workflow.output_dir)
-        self.assertEqual(TEMP_DIR, self.cv.workflow.input_dir)
+        assert self.cv.workflow.output_dir == TEMP_DIR_1
+        assert self.cv.workflow.input_dir == TEMP_DIR
 
 
 class TestCVSampleIndexing(TestCV):
 
     def test_group_index_masker(self):
-        self.assertEqual(crossvalidation_workflow.group_index(fake_metadata, "CONST", "A").sum(), 1000)
-        self.assertEqual(crossvalidation_workflow.group_index(fake_metadata, "CONST", "B").sum(), 0)
-        self.assertEqual(crossvalidation_workflow.group_index(fake_metadata, "CONST", "A", max_size=100).sum(), 100)
-        self.assertEqual(crossvalidation_workflow.group_index(fake_metadata, "CONST", "A", size_ratio=0.5).sum(), 500)
+        assert crossvalidation_workflow.group_index(fake_metadata, "CONST", "A").sum() == 1000
+        assert crossvalidation_workflow.group_index(fake_metadata, "CONST", "B").sum() == 0
+        assert crossvalidation_workflow.group_index(fake_metadata, "CONST", "A", max_size=100).sum() == 100
+        assert crossvalidation_workflow.group_index(fake_metadata, "CONST", "A", size_ratio=0.5).sum() == 500
 
         rgen = np.random.RandomState(10)
         idx_1 = crossvalidation_workflow.group_index(fake_metadata, "CONST", "A", size_ratio=0.1, rgen=rgen)
         idx_2 = crossvalidation_workflow.group_index(fake_metadata, "CONST", "A", size_ratio=0.1, rgen=rgen)
 
-        self.assertEqual(idx_1.sum(), 100)
-        self.assertEqual(idx_2.sum(), 100)
-        self.assertEqual((idx_1 & idx_2).sum(), 8)
+        assert idx_1.sum() == 100
+        assert idx_2.sum() == 100
+        assert (idx_1 & idx_2).sum() == 8
 
     def test_grid_search(self):
         self.cv.add_gridsearch_parameter("seed", [1, 2, 3])
         self.cv._create_writer()
         self.cv._grid_search()
 
-        self.assertEqual(len(self.cv._csv_writer.csv_lil), 4)
+        assert len(self.cv._csv_writer.csv_lil) == 4
 
     def test_group_dropout_no_limit(self):
 
         def test_grid_search(slf, test=None, value=None, mask_function=None):
-            self.assertEqual(test, "dropout")
-            self.assertTrue(value in slf.workflow.data.meta_data[slf.dropout_column].unique())
-            self.assertListEqual((slf.workflow.data.meta_data[slf.dropout_column] != value).tolist(),
-                                 mask_function().tolist())
+            assert test == "dropout"
+            assert value in slf.workflow.data.meta_data[slf.dropout_column].unique()
+            assert (slf.workflow.data.meta_data[slf.dropout_column] != value).tolist() == mask_function().tolist()
 
         self.cv._grid_search = types.MethodType(test_grid_search, self.cv)
 
@@ -242,7 +241,7 @@ class TestCVSampleIndexing(TestCV):
     def test_group_dropout_limit(self):
 
         def test_grid_search(slf, test=None, value=None, mask_function=None):
-            self.assertEqual(test, "dropout")
+            assert test == "dropout"
             uniques = slf.workflow.data.meta_data[slf.dropout_column].unique()
 
             mask = mask_function()
@@ -250,12 +249,12 @@ class TestCVSampleIndexing(TestCV):
             unique_counts[unique_counts > slf.dropout_max_size] = slf.dropout_max_size
 
             if value == "all":
-                self.assertEqual(unique_counts.sum(), mask.sum())
+                assert unique_counts.sum() == mask.sum()
             else:
-                self.assertTrue(value in uniques)
+                assert value in uniques
                 unique_counts[value] = 0
-                self.assertEqual(unique_counts.sum(), mask.sum())
-                self.assertEqual(sum((self.cv.workflow.data.meta_data[self.cv.dropout_column] == value)[mask]), 0)
+                assert unique_counts.sum() == mask.sum()
+                assert sum((self.cv.workflow.data.meta_data[self.cv.dropout_column] == value)[mask]) == 0
 
         self.cv._grid_search = types.MethodType(test_grid_search, self.cv)
 
@@ -268,10 +267,9 @@ class TestCVSampleIndexing(TestCV):
     def test_group_dropin_no_limit(self):
 
         def test_grid_search(slf, test=None, value=None, mask_function=None):
-            self.assertEqual(test, "dropin")
-            self.assertTrue(value in slf.workflow.data.meta_data[slf.dropin_column].unique())
-            self.assertListEqual((slf.workflow.data.meta_data[slf.dropin_column] == value).tolist(),
-                                 mask_function().tolist())
+            assert test == "dropin"
+            assert value in slf.workflow.data.meta_data[slf.dropin_column].unique()
+            assert (slf.workflow.data.meta_data[slf.dropin_column] == value).tolist() == mask_function().tolist()
 
         self.cv._grid_search = types.MethodType(test_grid_search, self.cv)
 
@@ -284,18 +282,17 @@ class TestCVSampleIndexing(TestCV):
     def test_group_dropin_limit(self):
 
         def test_grid_search(slf, test=None, value=None, mask_function=None):
-            self.assertEqual(test, "dropin")
+            assert test == "dropin"
 
             mask = mask_function()
 
             if value == "all":
-                self.assertEqual(mask.sum(), slf.dropin_max_size)
+                assert mask.sum() == slf.dropin_max_size
             else:
-                self.assertTrue(value in slf.workflow.data.meta_data[slf.dropin_column].unique())
+                assert value in slf.workflow.data.meta_data[slf.dropin_column].unique()
 
-                self.assertEqual(min((slf.workflow.data.meta_data[slf.dropin_column] == value).sum(),
-                                     slf.dropin_max_size),
-                                 mask.sum())
+                assert min((slf.workflow.data.meta_data[slf.dropin_column] == value).sum(),
+                           slf.dropin_max_size) == mask.sum()
 
         self.cv._grid_search = types.MethodType(test_grid_search, self.cv)
 
@@ -308,11 +305,10 @@ class TestCVSampleIndexing(TestCV):
     def test_size_sampling_no_strat(self):
 
         def test_grid_search(slf, test=None, value=None, mask_function=None):
-            self.assertEqual(test, "size")
-            self.assertTrue(value == "0.5")
+            assert test == "size"
+            assert value == "0.5"
 
-            self.assertEqual(max(int(slf.workflow.data.meta_data.shape[0] * float(value)), 1),
-                             mask_function().sum())
+            assert max(int(slf.workflow.data.meta_data.shape[0] * float(value)), 1) == mask_function().sum()
 
         self.cv._grid_search = types.MethodType(test_grid_search, self.cv)
 
@@ -324,14 +320,13 @@ class TestCVSampleIndexing(TestCV):
     def test_size_sampling_strat(self):
 
         def test_grid_search(slf, test=None, value=None, mask_function=None):
-            self.assertEqual(test, "size")
-            self.assertTrue(value == "0.5")
+            assert test == "size"
+            assert value == "0.5"
 
             mask = mask_function()
             for g in slf.workflow.data.meta_data[slf.size_sample_stratified_column].unique():
                 is_group = slf.workflow.data.meta_data[slf.size_sample_stratified_column] == g
-                self.assertEqual(max(int(is_group.sum() * float(value)), 1),
-                                 mask[is_group].sum())
+                assert max(int(is_group.sum() * float(value)), 1) == mask[is_group].sum()
 
         self.cv._grid_search = types.MethodType(test_grid_search, self.cv)
 

@@ -1,6 +1,17 @@
 Change Log
 ==========
 
+Inferelator v0.6.4 `June 9, 2026`
+----------------------------------------
+
+New Functionality:
+
+- Replaced unittest with pytest
+
+Bug Fixes:
+
+- Updated code to address compatibility issues with pandas, numpy, and anndata
+
 Inferelator v0.6.3 `August 15, 2023`
 ----------------------------------------
 

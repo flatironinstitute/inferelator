@@ -1,6 +1,7 @@
-import unittest
+import pytest
 import numpy as np
 import numpy.testing as npt
+import warnings
 
 from scipy import sparse, stats
 from sklearn.preprocessing import RobustScaler, StandardScaler
@@ -13,9 +14,9 @@ from inferelator.utils import InferelatorData, todense
 from inferelator.preprocessing.data_normalization import PreprocessData
 
 
-class TestNormalizationSetup(unittest.TestCase):
+class TestNormalizationSetup:
 
-    def setUp(self):
+    def setup_method(self):
         self.expr = TestDataSingleCellLike.expression_matrix.copy().T
         self.expr_sparse = sparse.csr_matrix(
             TestDataSingleCellLike.expression_matrix.values.T
@@ -34,7 +35,7 @@ class TestNormalizationSetup(unittest.TestCase):
             meta_data=self.meta.copy()
         )
 
-    def tearDown(self):
+    def teardown_method(self):
         PreprocessData.set_preprocessing_method(
             method_predictors='zscore',
             method_response='zscore',
@@ -49,22 +50,22 @@ class TestNormalizationSetup(unittest.TestCase):
             scale_limit=None
         )
 
-        self.assertEqual(PreprocessData.method_predictors, 'raw')
-        self.assertEqual(PreprocessData.method_response, 'raw')
-        self.assertIsNone(PreprocessData.scale_limit_predictors)
-        self.assertIsNone(PreprocessData.scale_limit_response)
+        assert PreprocessData.method_predictors == 'raw'
+        assert PreprocessData.method_response == 'raw'
+        assert PreprocessData.scale_limit_predictors is None
+        assert PreprocessData.scale_limit_response is None
 
         PreprocessData.set_preprocessing_method(
             'robustscaler',
             scale_limit=10
         )
 
-        self.assertEqual(PreprocessData.method_predictors, 'robustscaler')
-        self.assertEqual(PreprocessData.method_response, 'robustscaler')
-        self.assertEqual(PreprocessData.scale_limit_predictors, 10)
-        self.assertEqual(PreprocessData.scale_limit_response, 10)
+        assert PreprocessData.method_predictors == 'robustscaler'
+        assert PreprocessData.method_response == 'robustscaler'
+        assert PreprocessData.scale_limit_predictors == 10
+        assert PreprocessData.scale_limit_response == 10
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             PreprocessData.set_preprocessing_method(
                 'rawscaler',
                 scale_limit=None
@@ -76,26 +77,26 @@ class TestNormalizationSetup(unittest.TestCase):
             scale_limit=None
         )
 
-        self.assertEqual(PreprocessData.method_predictors, 'raw')
-        self.assertEqual(PreprocessData.method_response, 'raw')
-        self.assertIsNone(PreprocessData.scale_limit_predictors)
-        self.assertIsNone(PreprocessData.scale_limit_response)
+        assert PreprocessData.method_predictors == 'raw'
+        assert PreprocessData.method_response == 'raw'
+        assert PreprocessData.scale_limit_predictors is None
+        assert PreprocessData.scale_limit_response is None
 
         PreprocessData.set_preprocessing_method(
             scale_limit_predictors=10
         )
-        self.assertEqual(PreprocessData.method_predictors, 'raw')
-        self.assertEqual(PreprocessData.method_response, 'raw')
-        self.assertIsNone(PreprocessData.scale_limit_response)
-        self.assertEqual(PreprocessData.scale_limit_predictors, 10)
+        assert PreprocessData.method_predictors == 'raw'
+        assert PreprocessData.method_response == 'raw'
+        assert PreprocessData.scale_limit_response is None
+        assert PreprocessData.scale_limit_predictors == 10
 
         PreprocessData.set_preprocessing_method(
             method_predictors='zscore'
         )
-        self.assertEqual(PreprocessData.method_predictors, 'zscore')
-        self.assertEqual(PreprocessData.method_response, 'raw')
-        self.assertIsNone(PreprocessData.scale_limit_response)
-        self.assertEqual(PreprocessData.scale_limit_predictors, 10)
+        assert PreprocessData.method_predictors == 'zscore'
+        assert PreprocessData.method_response == 'raw'
+        assert PreprocessData.scale_limit_response is None
+        assert PreprocessData.scale_limit_predictors == 10
 
     def test_set_values_response(self):
         PreprocessData.set_preprocessing_method(
@@ -103,26 +104,26 @@ class TestNormalizationSetup(unittest.TestCase):
             scale_limit=None
         )
 
-        self.assertEqual(PreprocessData.method_predictors, 'raw')
-        self.assertEqual(PreprocessData.method_response, 'raw')
-        self.assertIsNone(PreprocessData.scale_limit_predictors)
-        self.assertIsNone(PreprocessData.scale_limit_response)
+        assert PreprocessData.method_predictors == 'raw'
+        assert PreprocessData.method_response == 'raw'
+        assert PreprocessData.scale_limit_predictors is None
+        assert PreprocessData.scale_limit_response is None
 
         PreprocessData.set_preprocessing_method(
             scale_limit_response=10
         )
-        self.assertEqual(PreprocessData.method_predictors, 'raw')
-        self.assertEqual(PreprocessData.method_response, 'raw')
-        self.assertIsNone(PreprocessData.scale_limit_predictors)
-        self.assertEqual(PreprocessData.scale_limit_response, 10)
+        assert PreprocessData.method_predictors == 'raw'
+        assert PreprocessData.method_response == 'raw'
+        assert PreprocessData.scale_limit_predictors is None
+        assert PreprocessData.scale_limit_response == 10
 
         PreprocessData.set_preprocessing_method(
             method_response='zscore'
         )
-        self.assertEqual(PreprocessData.method_response, 'zscore')
-        self.assertEqual(PreprocessData.method_predictors, 'raw')
-        self.assertIsNone(PreprocessData.scale_limit_predictors)
-        self.assertEqual(PreprocessData.scale_limit_response, 10)
+        assert PreprocessData.method_response == 'zscore'
+        assert PreprocessData.method_predictors == 'raw'
+        assert PreprocessData.scale_limit_predictors is None
+        assert PreprocessData.scale_limit_response == 10
 
     def test_set_values_tfa(self):
         PreprocessData.set_preprocessing_method(
@@ -130,39 +131,43 @@ class TestNormalizationSetup(unittest.TestCase):
             scale_limit=None
         )
 
-        self.assertEqual(PreprocessData.method_predictors, 'raw')
-        self.assertEqual(PreprocessData.method_response, 'raw')
-        self.assertEqual(PreprocessData.method_tfa, 'raw')
-        self.assertIsNone(PreprocessData.scale_limit_predictors)
-        self.assertIsNone(PreprocessData.scale_limit_response)
-        self.assertIsNone(PreprocessData.scale_limit_tfa)
+        assert PreprocessData.method_predictors == 'raw'
+        assert PreprocessData.method_response == 'raw'
+        assert PreprocessData.method_tfa == 'raw'
+        assert PreprocessData.scale_limit_predictors is None
+        assert PreprocessData.scale_limit_response is None
+        assert PreprocessData.scale_limit_tfa is None
 
         PreprocessData.set_preprocessing_method(
             scale_limit_tfa=10
         )
-        self.assertEqual(PreprocessData.method_predictors, 'raw')
-        self.assertEqual(PreprocessData.method_response, 'raw')
-        self.assertEqual(PreprocessData.method_tfa, 'raw')
-        self.assertIsNone(PreprocessData.scale_limit_predictors)
-        self.assertIsNone(PreprocessData.scale_limit_response)
-        self.assertEqual(PreprocessData.scale_limit_tfa, 10)
+        assert PreprocessData.method_predictors == 'raw'
+        assert PreprocessData.method_response == 'raw'
+        assert PreprocessData.method_tfa == 'raw'
+        assert PreprocessData.scale_limit_predictors is None
+        assert PreprocessData.scale_limit_response is None
+        assert PreprocessData.scale_limit_tfa == 10
 
         PreprocessData.set_preprocessing_method(
             method_tfa='zscore'
         )
-        self.assertEqual(PreprocessData.method_predictors, 'raw')
-        self.assertEqual(PreprocessData.method_response, 'raw')
-        self.assertEqual(PreprocessData.method_tfa, 'zscore')
-        self.assertIsNone(PreprocessData.scale_limit_predictors)
-        self.assertIsNone(PreprocessData.scale_limit_response)
-        self.assertEqual(PreprocessData.scale_limit_tfa, 10)
+        assert PreprocessData.method_predictors == 'raw'
+        assert PreprocessData.method_response == 'raw'
+        assert PreprocessData.method_tfa == 'zscore'
+        assert PreprocessData.scale_limit_predictors is None
+        assert PreprocessData.scale_limit_response is None
+        assert PreprocessData.scale_limit_tfa == 10
 
 
 class TestZScore(TestNormalizationSetup):
 
     def test_no_limit_d(self):
         design = PreprocessData.preprocess_design(self.adata)
-        design_scipy = stats.zscore(self.expr, ddof=1)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            design_scipy = stats.zscore(self.expr, ddof=1)
+        
         design_scipy[np.isnan(design_scipy)] = 0.
         npt.assert_almost_equal(
             design.values,
@@ -171,7 +176,11 @@ class TestZScore(TestNormalizationSetup):
 
     def test_no_limit_s(self):
         design = PreprocessData.preprocess_design(self.adata_sparse)
-        design_scipy = stats.zscore(self.expr, ddof=1)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            design_scipy = stats.zscore(self.expr, ddof=1)
+
         design_scipy[np.isnan(design_scipy)] = 0.
         npt.assert_almost_equal(
             design.values,
@@ -184,7 +193,11 @@ class TestZScore(TestNormalizationSetup):
             scale_limit=1
         )
         design = PreprocessData.preprocess_design(self.adata)
-        design_scipy = stats.zscore(self.expr, ddof=1)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            design_scipy = stats.zscore(self.expr, ddof=1)
+
         design_scipy[np.isnan(design_scipy)] = 0.
         design_scipy[design_scipy > 1] = 1
         design_scipy[design_scipy < -1] = -1
@@ -200,7 +213,11 @@ class TestZScore(TestNormalizationSetup):
             scale_limit=1
         )
         design = PreprocessData.preprocess_design(self.adata_sparse)
-        design_scipy = stats.zscore(self.expr, ddof=1)
+        
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            design_scipy = stats.zscore(self.expr, ddof=1)
+
         design_scipy[np.isnan(design_scipy)] = 0.
         design_scipy[design_scipy > 1] = 1
         design_scipy[design_scipy < -1] = -1
@@ -240,11 +257,11 @@ class TestZScore(TestNormalizationSetup):
 
 class TestRobustScaler(TestNormalizationSetup):
 
-    def setUp(self):
+    def setup_method(self):
         PreprocessData.set_preprocessing_method(
             'robustscaler'
         )
-        return super().setUp()
+        super().setup_method()
 
     def test_no_limit_d(self):
 
@@ -325,11 +342,11 @@ class TestRobustScaler(TestNormalizationSetup):
 
 class TestNoScaler(TestNormalizationSetup):
 
-    def setUp(self):
+    def setup_method(self):
         PreprocessData.set_preprocessing_method(
             'raw'
         )
-        return super().setUp()
+        super().setup_method()
 
     def test_no_limit_d(self):
         design = PreprocessData.preprocess_design(self.adata)
@@ -389,12 +406,12 @@ class TestNoScaler(TestNormalizationSetup):
 
 class TestTruncRobustScaler(TestNormalizationSetup):
 
-    def setUp(self):
+    def setup_method(self):
         PreprocessData.set_preprocessing_method(
             'truncrobustscaler',
             scale_limit=None
         )
-        return super().setUp()
+        super().setup_method()
 
     def _right_answer(self, x):
 
@@ -497,7 +514,7 @@ class TestTruncRobustScaler(TestNormalizationSetup):
             design_sklearn
         )
 
-        with self.assertRaises(AssertionError):
+        with pytest.raises(AssertionError):
             npt.assert_almost_equal(
                 self.adata._adata.X,
                 original

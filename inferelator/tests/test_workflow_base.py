@@ -2,7 +2,7 @@
 Test base workflow stepwise.
 """
 
-import unittest
+import pytest
 import os
 import tempfile
 import shutil
@@ -12,6 +12,11 @@ import anndata as ad
 import scipy.sparse as sps
 import pandas.testing as pdt
 import numpy.testing as npt
+
+try:
+    ad.settings.allow_write_nullable_strings = True
+except AttributeError:
+    pass
 
 from inferelator import workflow
 from inferelator.regression.base_regression import _RegressionWorkflowMixin
@@ -28,21 +33,21 @@ DEFAULT_PRIORS_FILE = "gold_standard.tsv"
 DEFAULT_GOLDSTANDARD_FILE = "gold_standard.tsv"
 
 
-class TestWorkflowSetParameters(unittest.TestCase):
+class TestWorkflowSetParameters:
 
-    def setUp(self):
+    def setup_method(self):
         self.workflow = workflow.WorkflowBase()
 
     def test_set_file_names(self):
-        self.assertIsNone(self.workflow.expression_matrix_file)
-        self.assertIsNone(self.workflow.tf_names_file)
-        self.assertIsNone(self.workflow.meta_data_file)
-        self.assertIsNone(self.workflow.priors_file)
-        self.assertIsNone(self.workflow.gold_standard_file)
-        self.assertIsNone(self.workflow.input_dir)
-        self.assertIsNone(self.workflow.output_dir)
+        assert self.workflow.expression_matrix_file is None
+        assert self.workflow.tf_names_file is None
+        assert self.workflow.meta_data_file is None
+        assert self.workflow.priors_file is None
+        assert self.workflow.gold_standard_file is None
+        assert self.workflow.input_dir is None
+        assert self.workflow.output_dir is None
 
-        with self.assertWarns(Warning):
+        with pytest.warns(Warning):
             self.workflow.set_file_paths(expression_matrix_file="A",
                                          tf_names_file="B",
                                          meta_data_file="C",
@@ -52,82 +57,77 @@ class TestWorkflowSetParameters(unittest.TestCase):
                                          input_dir="G",
                                          output_dir="H")
 
-        self.assertListEqual([self.workflow.expression_matrix_file,
-                              self.workflow.tf_names_file,
-                              self.workflow.meta_data_file,
-                              self.workflow.priors_file,
-                              self.workflow.gold_standard_file,
-                              self.workflow.gene_metadata_file,
-                              self.workflow.input_dir,
-                              self.workflow.output_dir],
-                             ["A", "B", "C", "D", "E", "F", "G", "H"])
+        assert [self.workflow.expression_matrix_file,
+                self.workflow.tf_names_file,
+                self.workflow.meta_data_file,
+                self.workflow.priors_file,
+                self.workflow.gold_standard_file,
+                self.workflow.gene_metadata_file,
+                self.workflow.input_dir,
+                self.workflow.output_dir] == ["A", "B", "C", "D", "E", "F", "G", "H"]
 
-        with self.assertWarns(Warning):
+        with pytest.warns(Warning):
             self.workflow.set_file_paths(expression_matrix_file="K")
-            self.assertEqual(self.workflow.expression_matrix_file, "K")
+            assert self.workflow.expression_matrix_file == "K"
 
     def test_set_file_properties(self):
-        self.assertTrue(self.workflow.expression_matrix_columns_are_genes)
-        self.assertIsNone(self.workflow.expression_matrix_metadata)
-        self.assertIsNone(self.workflow.gene_list_index)
+        assert self.workflow.expression_matrix_columns_are_genes
+        assert self.workflow.expression_matrix_metadata is None
+        assert self.workflow.gene_list_index is None
 
         self.workflow.set_file_properties(expression_matrix_columns_are_genes=True,
                                           expression_matrix_metadata=["A"],
                                           gene_list_index=["B"])
 
-        self.assertTrue(self.workflow.expression_matrix_columns_are_genes)
-        self.assertListEqual(self.workflow.expression_matrix_metadata, ["A"])
-        self.assertListEqual(self.workflow.gene_list_index, ["B"])
+        assert self.workflow.expression_matrix_columns_are_genes
+        assert self.workflow.expression_matrix_metadata == ["A"]
+        assert self.workflow.gene_list_index == ["B"]
 
-        with self.assertWarns(Warning):
+        with pytest.warns(Warning):
             self.workflow.set_file_properties(expression_matrix_metadata=["K"])
-            self.assertListEqual(self.workflow.expression_matrix_metadata, ["K"])
+            assert self.workflow.expression_matrix_metadata == ["K"]
 
-        with self.assertWarns(DeprecationWarning):
+        with pytest.warns(DeprecationWarning):
             self.workflow.set_file_properties(extract_metadata_from_expression_matrix=True)
 
     def test_set_network_flags(self):
-        self.assertFalse(self.workflow.use_no_prior)
-        self.assertFalse(self.workflow.use_no_gold_standard)
+        assert not self.workflow.use_no_prior
+        assert not self.workflow.use_no_gold_standard
 
-        with self.assertRaises(AssertionError):
-            with self.assertWarns(UserWarning):
-                self.workflow.set_network_data_flags()
-
-        with self.assertWarns(UserWarning):
+        with pytest.warns(UserWarning):
             self.workflow.set_network_data_flags(use_no_gold_standard=True)
 
-        with self.assertWarns(UserWarning):
+        with pytest.warns(UserWarning):
             self.workflow.set_network_data_flags(use_no_prior=True)
 
-        self.assertTrue(self.workflow.use_no_prior)
-        self.assertTrue(self.workflow.use_no_gold_standard)
+        assert self.workflow.use_no_prior
+        assert self.workflow.use_no_gold_standard
 
     def test_set_cv_params(self):
-        self.assertIsNone(self.workflow.cv_split_ratio)
-        self.assertFalse(self.workflow.split_gold_standard_for_crossvalidation)
+        assert self.workflow.cv_split_ratio is None
+        assert not self.workflow.split_gold_standard_for_crossvalidation
 
-        with self.assertWarns(Warning):
+        with pytest.warns(Warning):
             self.workflow.set_crossvalidation_parameters(cv_split_ratio=0.2)
 
-        self.assertEqual(self.workflow.cv_split_ratio, 0.2)
+        assert self.workflow.cv_split_ratio == 0.2
         self.workflow.set_crossvalidation_parameters(split_gold_standard_for_crossvalidation=True)
-        self.assertTrue(self.workflow.split_gold_standard_for_crossvalidation)
+        assert self.workflow.split_gold_standard_for_crossvalidation
 
     def test_set_run_params(self):
         self.workflow.set_run_parameters(num_bootstraps=12345678, random_seed=87654321)
-        self.assertEqual(self.workflow.num_bootstraps, 12345678)
-        self.assertEqual(self.workflow.random_seed, 87654321)
+        assert self.workflow.num_bootstraps == 12345678
+        assert self.workflow.random_seed == 87654321
 
     def test_set_postprocessing_params(self):
-        with self.assertWarns(Warning):
+        with pytest.warns(Warning):
             self.workflow.set_postprocessing_parameters(gold_standard_filter_method="red", metric="blue")
-        self.assertListEqual([self.workflow.gold_standard_filter_method, self.workflow.metric], ["red", "blue"])
+        assert [self.workflow.gold_standard_filter_method, self.workflow.metric] == ["red", "blue"]
 
 
-class TestWorkflowLoadData(unittest.TestCase):
+class TestWorkflowLoadData:
 
-    def setUp(self):
+    def setup_method(self):
         self.workflow = workflow.WorkflowBase()
         self.workflow.input_dir = os.path.join(my_dir, "../../data/dream4")
         self.workflow.expression_matrix_file = DEFAULT_EXPRESSION_FILE
@@ -137,38 +137,38 @@ class TestWorkflowLoadData(unittest.TestCase):
         self.workflow.gold_standard_file = DEFAULT_GOLDSTANDARD_FILE
         self.workflow.expression_matrix_columns_are_genes = False
 
-    def tearDown(self):
+    def teardown_method(self):
         del self.workflow
 
     def test_load_expression(self):
         self.workflow.read_expression()
-        self.assertEqual(self.workflow.data.shape, (421, 100))
+        assert self.workflow.data.shape == (421, 100)
         np.testing.assert_allclose(np.sum(self.workflow.data.expression_data), 13507.22145160)
 
     def test_load_tf_names(self):
         self.workflow.read_tfs()
-        self.assertEqual(len(self.workflow.tf_names), 100)
+        assert len(self.workflow.tf_names) == 100
         tf_names = list(map(lambda x: "G" + str(x), list(range(1, 101))))
-        self.assertListEqual(self.workflow.tf_names, tf_names)
+        assert self.workflow.tf_names == tf_names
 
     def test_load_priors_gs(self):
         self.workflow.read_priors()
-        self.assertEqual(self.workflow.priors_data.shape, (100, 100))
-        self.assertEqual(self.workflow.gold_standard.shape, (100, 100))
-        self.assertTrue(all(self.workflow.priors_data.index == self.workflow.priors_data.columns))
-        self.assertTrue(all(self.workflow.gold_standard.index == self.workflow.gold_standard.columns))
+        assert self.workflow.priors_data.shape == (100, 100)
+        assert self.workflow.gold_standard.shape == (100, 100)
+        assert all(self.workflow.priors_data.index == self.workflow.priors_data.columns)
+        assert all(self.workflow.gold_standard.index == self.workflow.gold_standard.columns)
 
         self.workflow.priors_file = None
         self.workflow.priors_data = None
         self.workflow.gold_standard_file = None
         self.workflow.gold_standard = None
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             self.workflow.validate_data()
 
     def test_load_metadata(self):
         self.workflow.read_expression()
-        self.assertEqual(self.workflow.data.meta_data.shape, (421, 5))
+        assert self.workflow.data.meta_data.shape == (421, 5)
         meta_data = pd.read_csv(os.path.join(self.workflow.input_dir, "meta_data.tsv"), sep="\t")
         meta_data.index = meta_data['condName']
         meta_data.index.name = None
@@ -179,7 +179,7 @@ class TestWorkflowLoadData(unittest.TestCase):
     def test_make_metadata(self):
         self.workflow.meta_data_file = None
         self.workflow.read_expression()
-        self.assertEqual(self.workflow.data.meta_data.shape, (421, 4))
+        assert self.workflow.data.meta_data.shape == (421, 4)
 
     def test_extract_metadata(self):
         self.workflow.read_expression()
@@ -200,10 +200,7 @@ class TestWorkflowLoadData(unittest.TestCase):
             self.workflow.data.meta_data,
             MetadataParserBranching.fix_NAs(meta_data)
         )
-        self.assertListEqual(
-            self.workflow.data.gene_names.tolist(),
-            gene_list.tolist()
-        )
+        assert self.workflow.data.gene_names.tolist() == gene_list.tolist()
 
         tmpdir.cleanup()
 
@@ -222,64 +219,64 @@ class TestWorkflowLoadData(unittest.TestCase):
             self.workflow.read_expression()
 
             pdt.assert_frame_equal(self.workflow.data.gene_data, genes.reindex(self.workflow.data.gene_names))
-            self.assertListEqual(genes.index.tolist(), self.workflow.data.uns['trim_gene_list'].tolist())
+            assert genes.index.tolist() == self.workflow.data.uns['trim_gene_list'].tolist()
 
             self.workflow.gene_list_index = None
-            with self.assertRaises(ValueError):
+            with pytest.raises(ValueError):
                 self.workflow.read_expression()
 
             self.workflow.gene_list_index = "SillyName"
-            with self.assertRaises(ValueError):
+            with pytest.raises(ValueError):
                 self.workflow.read_expression()
         finally:
             shutil.rmtree(tempdir)
 
     def test_get_data(self):
         self.workflow.get_data()
-        self.assertTrue(self.workflow.data is not None)
-        self.assertTrue(self.workflow.priors_data is not None)
-        self.assertTrue(self.workflow.gold_standard is not None)
-        self.assertTrue(self.workflow.tf_names is not None)
+        assert self.workflow.data is not None
+        assert self.workflow.priors_data is not None
+        assert self.workflow.gold_standard is not None
+        assert self.workflow.tf_names is not None
 
     def test_input_path(self):
         self.workflow.input_dir = None
-        self.assertEqual(self.workflow.input_path("C"), os.path.abspath("C"))
+        assert self.workflow.input_path("C") == os.path.abspath("C")
 
         tempdir = tempfile.gettempdir()
         self.workflow.input_dir = tempdir
-        self.assertEqual(self.workflow.input_path("A"), os.path.join(tempdir, "A"))
+        assert self.workflow.input_path("A") == os.path.join(tempdir, "A")
 
         absfile = os.path.join(os.path.abspath(os.sep), "B")
-        self.assertEqual(self.workflow.input_path(absfile), absfile)
+        assert self.workflow.input_path(absfile) == absfile
 
-        with self.assertRaises(ValueError):
-            self.assertIsNone(self.workflow.input_path(None))
+        with pytest.raises(ValueError):
+            assert self.workflow.input_path(None) is None
 
     def test_null_network_generation(self):
         self.workflow.read_expression()
         self.workflow.read_tfs()
-        self.assertIsNone(self.workflow.priors_data)
-        self.assertIsNone(self.workflow.gold_standard)
+        assert self.workflow.priors_data is None
+        assert self.workflow.gold_standard is None
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             self.workflow.validate_data()
 
         self.workflow.use_no_gold_standard = True
         self.workflow.use_no_prior = True
         self.workflow.validate_data()
 
-        self.assertIsNotNone(self.workflow.priors_data)
-        self.assertListEqual(self.workflow.priors_data.columns.tolist(), self.workflow.tf_names)
-        self.assertTrue(all(self.workflow.data.gene_names == self.workflow.priors_data.index))
+        assert self.workflow.priors_data is not None
+        assert self.workflow.priors_data.columns.tolist() == self.workflow.tf_names
+        assert all(self.workflow.data.gene_names == self.workflow.priors_data.index)
 
-        self.assertIsNotNone(self.workflow.gold_standard)
-        self.assertIsNotNone(self.workflow.gold_standard)
-        self.assertListEqual(self.workflow.gold_standard.columns.tolist(), self.workflow.tf_names)
-        self.assertTrue(all(self.workflow.data.gene_names == self.workflow.gold_standard.index))
+        assert self.workflow.gold_standard is not None
+        assert self.workflow.gold_standard is not None
+        assert self.workflow.gold_standard.columns.tolist() == self.workflow.tf_names
+        assert all(self.workflow.data.gene_names == self.workflow.gold_standard.index)
 
         self.workflow.gold_standard = None
 
-        with self.assertWarns(Warning):
+        with pytest.warns(Warning):
             self.workflow.use_no_gold_standard = True
             self.workflow.validate_data()
 
@@ -300,7 +297,7 @@ class TestWorkflowLoadData(unittest.TestCase):
             self.workflow.load_data_and_save_h5ad("sparse.h5ad", to_sparse=True)
 
             data = ad.read_h5ad(sname)
-            self.assertTrue(sps.isspmatrix_csr(data.X))
+            assert sps.isspmatrix_csr(data.X)
             npt.assert_array_almost_equal_nulp(
                 todense(data.X),
                 todense(self.workflow.data.values)
@@ -308,11 +305,11 @@ class TestWorkflowLoadData(unittest.TestCase):
             os.remove(sname)
 
 
-class TestWorkflowFunctions(unittest.TestCase):
+class TestWorkflowFunctions:
     data = None
 
     @classmethod
-    def setUpClass(cls):
+    def setup_class(cls):
         cls.data = workflow.WorkflowBase()
         cls.data.input_dir = os.path.join(my_dir, "../../data/dream4")
         cls.data.expression_matrix_file = "expression.tsv"
@@ -323,7 +320,7 @@ class TestWorkflowFunctions(unittest.TestCase):
         cls.data.expression_matrix_columns_are_genes = False
         cls.data.get_data()
 
-    def setUp(self):
+    def setup_method(self):
         self.workflow = workflow.WorkflowBase()
         self.workflow.priors_data = self.data.priors_data.copy()
         self.workflow.gold_standard = self.data.gold_standard.copy()
@@ -337,71 +334,71 @@ class TestWorkflowFunctions(unittest.TestCase):
         MPControl.shutdown()
         self.workflow.multiprocessing_controller = "local"
         self.workflow.initialize_multiprocessing()
-        self.assertTrue(MPControl.status())
+        assert MPControl.status()
 
     def test_abstractness(self):
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             self.workflow.startup()
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             self.workflow.startup_run()
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             self.workflow.startup_finish()
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             self.workflow.run()
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             self.workflow.emit_results(None, None, None, None)
 
     def test_append_path(self):
         self.workflow.append_to_path('input_dir', 'test')
-        self.assertEqual(os.path.join(my_dir, "../../data/dream4", 'test'), self.workflow.input_dir)
+        assert os.path.join(my_dir, "../../data/dream4", 'test') == self.workflow.input_dir
         self.workflow.input_dir = None
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             self.workflow.append_to_path('input_dir', 'test')
 
     def test_make_fake_metadata(self):
         self.workflow.data = None
         self.workflow.meta_data_file = None
         self.workflow.read_expression()
-        self.assertEqual(self.workflow.data.meta_data.shape, (421, 4))
+        assert self.workflow.data.meta_data.shape == (421, 4)
 
     def test_workflow_cv_priors_genes(self):
         self.workflow.split_gold_standard_for_crossvalidation = True
         self.workflow.cv_split_ratio = 0.5
         self.workflow.cv_split_axis = 0
         self.workflow.process_priors_and_gold_standard()
-        self.assertEqual(self.workflow.priors_data.shape, (50, 100))
-        self.assertEqual(self.workflow.gold_standard.shape, (50, 100))
-        self.assertListEqual(self.workflow.priors_data.columns.tolist(), self.workflow.gold_standard.columns.tolist())
+        assert self.workflow.priors_data.shape == (50, 100)
+        assert self.workflow.gold_standard.shape == (50, 100)
+        assert self.workflow.priors_data.columns.tolist() == self.workflow.gold_standard.columns.tolist()
         self.workflow.align_priors_and_expression()
-        self.assertEqual(self.workflow.priors_data.shape, (100, 100))
-        self.assertEqual(self.workflow.gold_standard.shape, (50, 100))
+        assert self.workflow.priors_data.shape == (100, 100)
+        assert self.workflow.gold_standard.shape == (50, 100)
 
     def test_workflow_cv_priors_tfs(self):
         self.workflow.split_gold_standard_for_crossvalidation = True
         self.workflow.cv_split_ratio = 0.5
         self.workflow.cv_split_axis = 1
 
-        with self.assertWarns(UserWarning):
+        with pytest.warns(UserWarning):
             self.workflow.process_priors_and_gold_standard()
 
-        self.assertEqual(self.workflow.priors_data.shape, (100, 50))
-        self.assertEqual(self.workflow.gold_standard.shape, (100, 50))
-        self.assertListEqual(self.workflow.priors_data.index.tolist(), self.workflow.gold_standard.index.tolist())
+        assert self.workflow.priors_data.shape == (100, 50)
+        assert self.workflow.gold_standard.shape == (100, 50)
+        assert self.workflow.priors_data.index.tolist() == self.workflow.gold_standard.index.tolist()
         self.workflow.align_priors_and_expression()
-        self.assertEqual(self.workflow.priors_data.shape, (100, 50))
-        self.assertEqual(self.workflow.gold_standard.shape, (100, 50))
+        assert self.workflow.priors_data.shape == (100, 50)
+        assert self.workflow.gold_standard.shape == (100, 50)
 
     def test_workflow_cv_priors_flat(self):
         self.workflow.split_gold_standard_for_crossvalidation = True
         self.workflow.cv_split_ratio = 0.5
         self.workflow.cv_split_axis = None
 
-        with self.assertWarns(UserWarning):
+        with pytest.warns(UserWarning):
             self.workflow.process_priors_and_gold_standard()
 
-        self.assertEqual(self.workflow.priors_data.shape, (100, 100))
+        assert self.workflow.priors_data.shape == (100, 100)
         self.workflow.align_priors_and_expression()
-        self.assertEqual(self.workflow.priors_data.shape, (100, 100))
+        assert self.workflow.priors_data.shape == (100, 100)
 
     def test_workflow_priors_filter(self):
         self.workflow.split_gold_standard_for_crossvalidation = True
@@ -412,13 +409,13 @@ class TestWorkflowFunctions(unittest.TestCase):
         self.workflow.read_expression()
         self.workflow.process_priors_and_gold_standard()
 
-        self.assertEqual(self.workflow.gold_standard.shape, (50, 100))
-        self.assertListEqual(self.workflow.priors_data.columns.tolist(), self.workflow.tf_names)
+        assert self.workflow.gold_standard.shape == (50, 100)
+        assert self.workflow.priors_data.columns.tolist() == self.workflow.tf_names
 
         self.workflow.align_priors_and_expression()
-        self.assertEqual(self.workflow.priors_data.shape, (50, 20))
-        self.assertEqual(self.workflow.data.shape, (421, 50))
-        self.assertListEqual(self.workflow.priors_data.index.tolist(), self.workflow.data.gene_names.to_list())
+        assert self.workflow.priors_data.shape == (50, 20)
+        assert self.workflow.data.shape == (421, 50)
+        assert self.workflow.priors_data.index.tolist() == self.workflow.data.gene_names.to_list()
 
     def test_get_bootstraps(self):
         bootstrap_0 = [37, 235, 396, 72, 255, 393, 203, 133, 335, 144, 129, 71, 237, 390, 281, 178, 276, 254, 357, 402,
@@ -447,14 +444,14 @@ class TestWorkflowFunctions(unittest.TestCase):
         self.workflow.random_seed = 1
         self.workflow.num_bootstraps = 5
         bootstraps = self.workflow.get_bootstraps()
-        self.assertEqual(len(bootstraps), 5)
-        self.assertListEqual(bootstraps[0], bootstrap_0)
+        assert len(bootstraps) == 5
+        assert bootstraps[0] == bootstrap_0
 
     def test_make_output_dir(self):
         temp_dir = tempfile.mkdtemp()
         self.workflow.input_dir = temp_dir
         self.workflow.create_output_dir()
-        self.assertTrue(os.path.exists(self.workflow.output_dir))
+        assert os.path.exists(self.workflow.output_dir)
         os.rmdir(self.workflow.output_dir)
         os.rmdir(temp_dir)
 
@@ -462,10 +459,10 @@ class TestWorkflowFunctions(unittest.TestCase):
         self.workflow.shuffle_prior_axis = 0
         np.testing.assert_array_almost_equal_nulp(self.workflow.priors_data.values, self.workflow.gold_standard.values)
         self.workflow.process_priors_and_gold_standard()
-        self.assertTrue(all(self.workflow.priors_data.columns == self.workflow.gold_standard.columns))
-        self.assertTrue(all(self.workflow.priors_data.index == self.workflow.gold_standard.index))
-        self.assertTrue(all(self.workflow.priors_data.sum(axis=0) == self.workflow.gold_standard.sum(axis=0)))
-        with self.assertRaises(AssertionError):
+        assert all(self.workflow.priors_data.columns == self.workflow.gold_standard.columns)
+        assert all(self.workflow.priors_data.index == self.workflow.gold_standard.index)
+        assert all(self.workflow.priors_data.sum(axis=0) == self.workflow.gold_standard.sum(axis=0))
+        with pytest.raises(AssertionError):
             np.testing.assert_array_almost_equal_nulp(self.workflow.priors_data.values,
                                                       self.workflow.gold_standard.values)
 
@@ -473,10 +470,10 @@ class TestWorkflowFunctions(unittest.TestCase):
         self.workflow.shuffle_prior_axis = 1
         np.testing.assert_array_almost_equal_nulp(self.workflow.priors_data.values, self.workflow.gold_standard.values)
         self.workflow.process_priors_and_gold_standard()
-        self.assertTrue(all(self.workflow.priors_data.columns == self.workflow.gold_standard.columns))
-        self.assertTrue(all(self.workflow.priors_data.index == self.workflow.gold_standard.index))
-        self.assertTrue(all(self.workflow.priors_data.sum(axis=1) == self.workflow.gold_standard.sum(axis=1)))
-        with self.assertRaises(AssertionError):
+        assert all(self.workflow.priors_data.columns == self.workflow.gold_standard.columns)
+        assert all(self.workflow.priors_data.index == self.workflow.gold_standard.index)
+        assert all(self.workflow.priors_data.sum(axis=1) == self.workflow.gold_standard.sum(axis=1))
+        with pytest.raises(AssertionError):
             np.testing.assert_array_almost_equal_nulp(self.workflow.priors_data.values,
                                                       self.workflow.gold_standard.values)
 
@@ -485,59 +482,59 @@ class TestWorkflowFunctions(unittest.TestCase):
         np.testing.assert_array_almost_equal_nulp(self.workflow.priors_data.values, self.workflow.gold_standard.values)
         self.workflow.process_priors_and_gold_standard()
 
-        self.assertTrue(all(self.workflow.priors_data.columns == self.workflow.gold_standard.columns))
-        self.assertTrue(all(self.workflow.priors_data.index == self.workflow.gold_standard.index))
-        self.assertTrue(self.workflow.priors_data.sum().sum() > self.workflow.gold_standard.sum().sum())
-        with self.assertRaises(AssertionError):
+        assert all(self.workflow.priors_data.columns == self.workflow.gold_standard.columns)
+        assert all(self.workflow.priors_data.index == self.workflow.gold_standard.index)
+        assert self.workflow.priors_data.sum().sum() > self.workflow.gold_standard.sum().sum()
+        with pytest.raises(AssertionError):
             np.testing.assert_array_almost_equal_nulp(self.workflow.priors_data.values,
                                                       self.workflow.gold_standard.values)
 
-class TestWorkflowFactory(unittest.TestCase):
+class TestWorkflowFactory:
 
     def test_base(self):
         worker = workflow.inferelator_workflow(regression=None, workflow=workflow.WorkflowBase)
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             worker.run()
 
     def test_bbsr(self):
         from inferelator.regression.bbsr_python import BBSRRegressionWorkflowMixin
         worker = workflow.inferelator_workflow(regression="bbsr", workflow=workflow.WorkflowBase)
-        self.assertTrue(isinstance(worker, BBSRRegressionWorkflowMixin))
+        assert isinstance(worker, BBSRRegressionWorkflowMixin)
 
     def test_elasticnet(self):
         from inferelator.regression.elasticnet_python import ElasticNetWorkflowMixin
         worker = workflow.inferelator_workflow(regression="elasticnet", workflow=workflow.WorkflowBase)
-        self.assertTrue(isinstance(worker, ElasticNetWorkflowMixin))
+        assert isinstance(worker, ElasticNetWorkflowMixin)
 
     def test_amusr(self):
         from inferelator.regression.amusr_regression import AMUSRRegressionWorkflowMixin
         from inferelator.workflows.amusr_workflow import MultitaskLearningWorkflow
         worker = workflow.inferelator_workflow(regression="amusr", workflow="amusr")
-        self.assertTrue(isinstance(worker, AMUSRRegressionWorkflowMixin))
-        self.assertTrue(isinstance(worker, MultitaskLearningWorkflow))
+        assert isinstance(worker, AMUSRRegressionWorkflowMixin)
+        assert isinstance(worker, MultitaskLearningWorkflow)
 
     def test_bad_inputs(self):
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             worker = workflow.inferelator_workflow(regression="restlne", workflow=workflow.WorkflowBase)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             worker = workflow.inferelator_workflow(regression=1, workflow=workflow.WorkflowBase)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             worker = workflow.inferelator_workflow(regression=_RegressionWorkflowMixin, workflow="restlne")
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             worker = workflow.inferelator_workflow(regression=_RegressionWorkflowMixin, workflow=None)
-            
-        with self.assertRaises(ValueError):
+
+        with pytest.raises(ValueError):
             worker = workflow.inferelator_workflow(regression=_RegressionWorkflowMixin, workflow=1)
 
     def test_tfa(self):
         from inferelator.workflows.tfa_workflow import TFAWorkFlow
         worker = workflow.inferelator_workflow(regression=_RegressionWorkflowMixin, workflow="tfa")
-        self.assertTrue(isinstance(worker, TFAWorkFlow))
+        assert isinstance(worker, TFAWorkFlow)
 
     def test_singlecell(self):
         from inferelator.workflows.single_cell_workflow import SingleCellWorkflow
         worker = workflow.inferelator_workflow(regression=_RegressionWorkflowMixin, workflow="single-cell")
-        self.assertTrue(isinstance(worker, SingleCellWorkflow))
+        assert isinstance(worker, SingleCellWorkflow)

@@ -1,5 +1,5 @@
 import os
-import unittest
+import pytest
 
 import numpy as np
 import numpy.testing as npt
@@ -17,7 +17,7 @@ MPControl.shutdown()
 MPControl.set_multiprocess_engine('local')
 
 
-class TestAMuSRrunner(unittest.TestCase):
+class TestAMuSRrunner:
 
     def test_format_priors_noweight(self):
         tfs = ['tf1', 'tf2']
@@ -43,8 +43,8 @@ class TestAMuSRrunner(unittest.TestCase):
         Y = [np.array([3, 3, 3]),
              np.array([3, 3, 3])]
         W = np.array([[1, 0], [1, 0], [1, 0]])
-        self.assertEqual(amusr_math.sum_squared_errors(X, Y, W, 0), 0)
-        self.assertEqual(amusr_math.sum_squared_errors(X, Y, W, 1), 27)
+        assert amusr_math.sum_squared_errors(X, Y, W, 0) == 0
+        assert amusr_math.sum_squared_errors(X, Y, W, 1) == 27
 
 
 class TestAMuSRRegresionEBIC:
@@ -133,14 +133,14 @@ class TestAMuSRREgressionEBICNumba(TestAMuSRRegresionEBIC):
     use_numba = True
 
 
-class TestAMuSRParams(unittest.TestCase):
+class TestAMuSRParams:
 
     @classmethod
-    def setUpClass(cls):
+    def setup_class(cls):
         MPControl.shutdown()
         MPControl.set_multiprocess_engine('local')
 
-    def setUp(self):
+    def setup_method(self):
 
         self.workflow = workflow.inferelator_workflow(workflow="amusr", regression="amusr")
         self.workflow.create_output_dir = lambda *x: None

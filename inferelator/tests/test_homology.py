@@ -1,4 +1,4 @@
-import unittest
+import pytest
 import copy
 import pandas as pd
 import numpy as np
@@ -42,9 +42,9 @@ HOMOLOGY_MAP_TFS = pd.DataFrame(
      columns=['TF', 'Homology']
 )
 
-class TestHomologyMap(unittest.TestCase):
+class TestHomologyMap:
 
-    def setUp(self) -> None:
+    def setup_method(self) -> None:
 
         self.workflow = inferelator_workflow(workflow=MultitaskHomologyWorkflow, regression="amusr")
         self.workflow.create_output_dir = lambda *x: None
@@ -61,20 +61,18 @@ class TestHomologyMap(unittest.TestCase):
         self.workflow._tf_homology_group_key = 'Homology'
         self.workflow._tf_homology_gene_key = 'TF'
 
-        return super().setUp()
-
     def test_align_design_stretch(self):
 
         self.workflow._tf_homology['Homology'] = ['hg1', 'hg2', 'hg3', 'hg4', 'hg5', 'hg6']
 
-        self.assertEqual(len(self.workflow._task_design), 2)
-        self.assertEqual(self.workflow._task_design[0].shape, (3, 3))
-        self.assertEqual(self.workflow._task_design[1].shape, (3, 3))
+        assert len(self.workflow._task_design) == 2
+        assert self.workflow._task_design[0].shape == (3, 3)
+        assert self.workflow._task_design[1].shape == (3, 3)
 
         self.workflow._align_design_response()
-        self.assertEqual(len(self.workflow._task_design), 2)
-        self.assertEqual(self.workflow._task_design[0].shape, (3, 6))
-        self.assertEqual(self.workflow._task_design[1].shape, (3, 6))
+        assert len(self.workflow._task_design) == 2
+        assert self.workflow._task_design[0].shape == (3, 6)
+        assert self.workflow._task_design[1].shape == (3, 6)
 
         npt.assert_array_equal(
             self.workflow._task_design[1].values[:, 0:3],
@@ -108,14 +106,14 @@ class TestHomologyMap(unittest.TestCase):
 
     def test_align_design_overlap(self):
 
-        self.assertEqual(len(self.workflow._task_design), 2)
-        self.assertEqual(self.workflow._task_design[0].shape, (3, 3))
-        self.assertEqual(self.workflow._task_design[1].shape, (3, 3))
+        assert len(self.workflow._task_design) == 2
+        assert self.workflow._task_design[0].shape == (3, 3)
+        assert self.workflow._task_design[1].shape == (3, 3)
 
         self.workflow._align_design_response()
-        self.assertEqual(len(self.workflow._task_design), 2)
-        self.assertEqual(self.workflow._task_design[0].shape, (3, 3))
-        self.assertEqual(self.workflow._task_design[1].shape, (3, 3))
+        assert len(self.workflow._task_design) == 2
+        assert self.workflow._task_design[0].shape == (3, 3)
+        assert self.workflow._task_design[1].shape == (3, 3)
 
         npt.assert_array_equal(
             self.workflow._task_design[0].values,

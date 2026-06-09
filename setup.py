@@ -2,7 +2,7 @@ import os
 from setuptools import setup, find_packages
 
 # Current Inferelator Version Number
-version = "0.6.3"
+version = "0.6.4"
 
 # Description from README.md
 base_dir = os.path.dirname(os.path.abspath(__file__))

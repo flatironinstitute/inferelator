@@ -1,4 +1,4 @@
-import unittest
+import pytest
 import warnings
 
 from inferelator.workflows.single_cell_workflow import SingleCellWorkflow
@@ -14,8 +14,8 @@ test_count_data = pd.DataFrame([[0, 0, 0], [10, 0, 10], [4, 0, 5], [0, 0, 0]])
 test_meta_data = metadata_parser.MetadataParserBranching.create_default_meta_data(test_count_data.index)
 
 
-class SingleCellTestCase(unittest.TestCase):
-    def setUp(self):
+class SingleCellTestCase:
+    def setup_method(self):
         self.data = TEST_DATA.copy()
         self.prior = TestDataSingleCellLike.priors_data
         self.gold_standard = self.prior.copy()
@@ -30,17 +30,17 @@ class SingleCellPreprocessTest(SingleCellTestCase):
     def test_count_filter(self):
         expr_filtered_1 = self.data.copy()
         single_cell.filter_genes_for_count(expr_filtered_1)
-        self.assertEqual(expr_filtered_1.gene_names.tolist(), ["gene1", "gene2", "gene4", "gene6"])
+        assert expr_filtered_1.gene_names.tolist() == ["gene1", "gene2", "gene4", "gene6"]
 
         expr_filtered_2 = self.data.copy()
         single_cell.filter_genes_for_count(expr_filtered_2, count_minimum=4)
-        self.assertEqual(expr_filtered_2.gene_names.tolist(), ["gene1", "gene2", "gene4"])
+        assert expr_filtered_2.gene_names.tolist() == ["gene1", "gene2", "gene4"]
 
         expr_filtered_3 = self.data.copy()
         single_cell.filter_genes_for_count(expr_filtered_3, count_minimum=20)
-        self.assertEqual(expr_filtered_3.gene_names.tolist(), ["gene2"])
+        assert expr_filtered_3.gene_names.tolist() == ["gene2"]
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             self.data.subtract(3)
             single_cell.filter_genes_for_count(self.data, count_minimum=1)
 
@@ -104,23 +104,23 @@ class SingleCellWorkflowTest(SingleCellTestCase):
         self.workflow.align_priors_and_expression()
         genes = ["gene1", "gene2", "gene4", "gene6"]
         tfs = ["gene3", "gene6"]
-        self.assertEqual(self.workflow.data.gene_names.tolist(), genes)
-        self.assertEqual(self.workflow.priors_data.index.tolist(), genes)
-        self.assertEqual(self.workflow.priors_data.columns.tolist(), tfs)
+        assert self.workflow.data.gene_names.tolist() == genes
+        assert self.workflow.priors_data.index.tolist() == genes
+        assert self.workflow.priors_data.columns.tolist() == tfs
 
     def TestStack(self):
         self.workflow.tf_names = self.tf_names
         self.workflow.startup()
         genes = ["gene1", "gene2", "gene4", "gene6"]
         tfs = ["gene3", "gene6"]
-        self.assertEqual(self.workflow.design.gene_names.tolist(), tfs)
-        self.assertEqual(self.workflow.response.gene_names.tolist(), genes)
-        self.assertEqual(self.workflow.response.sample_names.tolist(), self.workflow.design.sample_names.tolist())
+        assert self.workflow.design.gene_names.tolist() == tfs
+        assert self.workflow.response.gene_names.tolist() == genes
+        assert self.workflow.response.sample_names.tolist() == self.workflow.design.sample_names.tolist()
 
 
-class TestSingleCellWorkflow(unittest.TestCase):
+class TestSingleCellWorkflow:
 
-    def setUp(self):
+    def setup_method(self):
         self.workflow = SingleCellWorkflow()
         self.workflow.set_file_paths(input_dir=os.path.join(my_dir, "../../data/dream4"),
                                      expression_matrix_file="expression.tsv",
@@ -129,7 +129,7 @@ class TestSingleCellWorkflow(unittest.TestCase):
                                      gold_standard_file="gold_standard.tsv")
         self.workflow.set_file_properties(expression_matrix_columns_are_genes=False)
 
-    def tearDown(self):
+    def teardown_method(self):
         del self.workflow
 
     def prep1(self, data, **kwargs):
@@ -144,18 +144,18 @@ class TestSingleCellWorkflow(unittest.TestCase):
         self.workflow.add_preprocess_step(self.prep1)
         self.workflow.add_preprocess_step(self.prep2)
         self.workflow.single_cell_normalize()
-        self.assertEqual(self.workflow.data.shape, (421, 100))
+        assert self.workflow.data.shape == (421, 100)
 
     def test_preprocessing_filter(self):
         self.workflow.data = TEST_DATA.copy()
         self.workflow.single_cell_normalize()
-        self.assertEqual(self.workflow.data.shape, (10, 4))
+        assert self.workflow.data.shape == (10, 4)
 
     def test_preprocessing_nan_pre(self):
         self.workflow.data = TEST_DATA.copy()
         self.workflow.data.convert_to_float()
         self.workflow.data.expression_data[0, 0] = np.nan
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             self.workflow.single_cell_normalize()
 
     def test_preprocessing_nan_post(self):
@@ -164,5 +164,5 @@ class TestSingleCellWorkflow(unittest.TestCase):
         self.workflow.add_preprocess_step(single_cell.log2_data)
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore')
-            with self.assertRaises(ValueError):
+            with pytest.raises(ValueError):
                 self.workflow.single_cell_normalize()

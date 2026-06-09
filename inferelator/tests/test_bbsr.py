@@ -1,4 +1,4 @@
-import unittest
+import pytest
 import pandas as pd
 import pandas.testing as pdt
 import numpy as np
@@ -9,15 +9,15 @@ from inferelator.regression import base_regression
 from inferelator.utils import InferelatorData
 
 
-class TestBBSRrunnerPython(unittest.TestCase):
+class TestBBSRrunnerPython:
 
     @classmethod
-    def setUpClass(cls):
+    def setup_class(cls):
         MPControl.shutdown()
         MPControl.set_multiprocess_engine("local")
         MPControl.connect()
 
-    def setUp(self):
+    def setup_method(self):
         self.brd = bbsr_python.BBSR
 
     def run_bbsr(self):
@@ -30,7 +30,7 @@ class TestBBSRrunnerPython(unittest.TestCase):
         self.clr = pd.DataFrame([[0, 0], [0, 0]], index=['gene1', 'gene2'], columns=['gene1', 'gene2'])
 
     def assert_matrix_is_square(self, size, matrix):
-        self.assertEqual(matrix.shape, (size, size))
+        assert matrix.shape == (size, size)
 
     def test_two_genes(self):
         self.set_all_zero_priors()
@@ -158,14 +158,14 @@ class TestBBSRrunnerPython(unittest.TestCase):
         self.Y = np.array([1, 2])
         g = np.array([1, 1])
         betas = bayes_stats.best_subset_regression(self.X, self.Y, g)
-        self.assertTrue((betas == [0., 0.]).all())
+        assert (betas == [0., 0.]).all()
 
     def test_PredictErrorReduction_all_zero_predictors(self):
         self.X = np.array([[0, 0], [0, 0]])
         self.Y = np.array([1, 2])
         betas = np.array([0., 0.])
         result = base_regression.predict_error_reduction(self.X, self.Y, betas)
-        self.assertTrue((result == [0., 0.]).all())
+        assert (result == [0., 0.]).all()
 
     def test_two_genes_nonzero_clr_two_conditions_zero_gene1_positive_influence(self):
         self.set_all_zero_priors()

@@ -1,4 +1,4 @@
-import unittest
+import pytest
 import pandas.testing as pdt
 import numpy as np
 import numpy.testing as npt
@@ -12,9 +12,9 @@ from inferelator.tests.artifacts.test_data import (
 from inferelator.utils import InferelatorData, todense
 
 
-class TestWrapperSetup(unittest.TestCase):
+class TestWrapperSetup:
 
-    def setUp(self):
+    def setup_method(self):
         self.expr = TestDataSingleCellLike.expression_matrix.copy().T
         self.expr_sparse = sparse.csr_matrix(TestDataSingleCellLike.expression_matrix.values.T).astype(np.int32)
         self.meta = TestDataSingleCellLike.meta_data.copy()
@@ -80,20 +80,20 @@ class TestProps(TestWrapperSetup):
                                 sample_names=self.expr.index)
 
         nnf, name_nf = adata.non_finite
-        self.assertEqual(nnf, 0)
-        self.assertIsNone(name_nf)
+        assert nnf == 0
+        assert name_nf is None
 
         adata.expression_data[0, 0] = np.nan
 
         nnf, name_nf = adata.non_finite
-        self.assertEqual(nnf, 1)
-        self.assertListEqual(name_nf.tolist(), ["gene1"])
+        assert nnf == 1
+        assert name_nf.tolist() == ["gene1"]
 
         adata.expression_data[0, 1] = np.nan
 
         nnf, name_nf = adata.non_finite
-        self.assertEqual(nnf, 2)
-        self.assertListEqual(name_nf.tolist(), ["gene1", "gene2"])
+        assert nnf == 2
+        assert name_nf.tolist() == ["gene1", "gene2"]
 
     def test_non_finite_sparse(self):
         adata = InferelatorData(sparse.csr_matrix(self.expr.values.astype(float)),
@@ -101,28 +101,28 @@ class TestProps(TestWrapperSetup):
                                 sample_names=self.expr.index)
 
         nnf, name_nf = adata.non_finite
-        self.assertEqual(nnf, 0)
-        self.assertIsNone(name_nf)
+        assert nnf == 0
+        assert name_nf is None
 
         adata.expression_data[0, 0] = np.nan
 
         nnf, name_nf = adata.non_finite
-        self.assertEqual(nnf, 1)
+        assert nnf == 1
 
         adata.expression_data[0, 1] = np.nan
 
         nnf, name_nf = adata.non_finite
-        self.assertEqual(nnf, 2)
+        assert nnf == 2
 
     def test_sample_counts(self):
         umis = np.sum(self.expr.values, axis=1)
-        self.assertEqual(umis.shape[0], 10)
+        assert umis.shape[0] == 10
         npt.assert_array_equal(umis, self.adata.sample_counts)
         npt.assert_array_equal(umis, self.adata_sparse.sample_counts)
 
     def test_gene_counts(self):
         umis = np.sum(self.expr.values, axis=0)
-        self.assertEqual(umis.shape[0], 6)
+        assert umis.shape[0] == 6
         npt.assert_array_equal(umis, self.adata.gene_counts)
         npt.assert_array_equal(umis, self.adata_sparse.gene_counts)
 
@@ -171,8 +171,8 @@ class TestTrim(TestWrapperSetup):
 
 class TestFunctions(TestWrapperSetup):
 
-    def setUp(self):
-        super(TestFunctions, self).setUp()
+    def setup_method(self):
+        super().setup_method()
 
         self.adata.trim_genes()
         self.adata_sparse.trim_genes()
@@ -295,24 +295,24 @@ class TestFunctions(TestWrapperSetup):
         original_data = self.expr.loc[:, TestDataSingleCellLike.expression_matrix.index.isin(CORRECT_GENES_NZ_VAR)]
 
         npt.assert_array_equal(original_data, self.adata.expression_data)
-        self.assertTrue(self.adata.expression_data.dtype == np.int32)
+        assert self.adata.expression_data.dtype == np.int32
 
         self.adata.convert_to_float()
 
         npt.assert_array_almost_equal(original_data, self.adata.expression_data)
-        self.assertTrue(self.adata.expression_data.dtype == np.float32)
+        assert self.adata.expression_data.dtype == np.float32
 
     def test_make_float64(self):
         original_data = self.expr.loc[:, TestDataSingleCellLike.expression_matrix.index.isin(CORRECT_GENES_NZ_VAR)]
         self.adata._adata.X = self.adata._adata.X.astype(np.int64)
 
         npt.assert_array_equal(original_data, self.adata.expression_data)
-        self.assertTrue(self.adata.expression_data.dtype == np.int64)
+        assert self.adata.expression_data.dtype == np.int64
 
         self.adata.convert_to_float()
 
         npt.assert_array_almost_equal(original_data, self.adata.expression_data)
-        self.assertTrue(self.adata.expression_data.dtype == np.float64)
+        assert self.adata.expression_data.dtype == np.float64
 
     def test_copy(self):
         adata2 = self.adata.copy()
@@ -322,8 +322,8 @@ class TestFunctions(TestWrapperSetup):
         #pdt.assert_frame_equal(self.adata.gene_data, adata2.gene_data)
 
         adata2.expression_data[0, 0] = 100
-        self.assertEqual(adata2.expression_data[0, 0], 100)
-        self.assertNotEqual(self.adata.expression_data[0, 0], 100)
+        assert adata2.expression_data[0, 0] == 100
+        assert self.adata.expression_data[0, 0] != 100
 
     def test_divide_dense(self):
         self.adata.divide(0.5, axis=None)
@@ -350,7 +350,7 @@ class TestFunctions(TestWrapperSetup):
         npt.assert_array_almost_equal(np.sum(todense(self.adata_sparse.expression_data), axis=1),
                                       np.ones(self.adata_sparse.num_obs, dtype=float))
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             self.adata_sparse.divide(self.adata_sparse.gene_counts, axis=0)
 
     def test_multiply_dense(self):
@@ -378,31 +378,31 @@ class TestFunctions(TestWrapperSetup):
         npt.assert_array_almost_equal(np.sum(todense(self.adata_sparse.expression_data), axis=1),
                                       np.ones(self.adata_sparse.num_obs, dtype=float))
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             self.adata_sparse.multiply(1 / self.adata_sparse.gene_counts, axis=0)
 
     def test_change_sparse(self):
         self.adata.to_csr()
         self.adata.to_csc()
-        self.assertFalse(sparse.isspmatrix(self.adata.expression_data))
+        assert not sparse.isspmatrix(self.adata.expression_data)
 
-        self.assertTrue(sparse.isspmatrix_csr(self.adata_sparse.expression_data))
+        assert sparse.isspmatrix_csr(self.adata_sparse.expression_data)
         self.adata_sparse.to_csr()
-        self.assertTrue(sparse.isspmatrix_csr(self.adata_sparse.expression_data))
+        assert sparse.isspmatrix_csr(self.adata_sparse.expression_data)
 
         self.adata_sparse.to_csc()
-        self.assertFalse(sparse.isspmatrix_csr(self.adata_sparse.expression_data))
-        self.assertTrue(sparse.isspmatrix_csc(self.adata_sparse.expression_data))
+        assert not sparse.isspmatrix_csr(self.adata_sparse.expression_data)
+        assert sparse.isspmatrix_csc(self.adata_sparse.expression_data)
 
         self.adata_sparse.to_csr()
-        self.assertFalse(sparse.isspmatrix_csc(self.adata_sparse.expression_data))
-        self.assertTrue(sparse.isspmatrix_csr(self.adata_sparse.expression_data))
+        assert not sparse.isspmatrix_csc(self.adata_sparse.expression_data)
+        assert sparse.isspmatrix_csr(self.adata_sparse.expression_data)
 
 
 class TestSampling(TestWrapperSetup):
 
-    def setUp(self):
-        super(TestSampling, self).setUp()
+    def setup_method(self):
+        super().setup_method()
 
         self.adata.trim_genes()
         self.adata_sparse.trim_genes()
@@ -417,22 +417,22 @@ class TestSampling(TestWrapperSetup):
         old_sample_names = self.adata.sample_names.tolist()
         old_sample_names.sort()
 
-        self.assertListEqual(new_sample_names, old_sample_names)
-        with self.assertRaises(AssertionError):
-            self.assertListEqual(new_adata.sample_names.tolist(), self.adata.sample_names.tolist())
+        assert new_sample_names == old_sample_names
+        with pytest.raises(AssertionError):
+            assert new_adata.sample_names.tolist() == self.adata.sample_names.tolist()
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             self.adata.get_random_samples(100, with_replacement=False)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             self.adata.get_random_samples(0, with_replacement=False)
 
-        self.assertEqual(self.adata.get_random_samples(2, with_replacement=False).num_obs, 2)
+        assert self.adata.get_random_samples(2, with_replacement=False).num_obs == 2
 
     def test_with_replacement(self):
 
         new_adata = self.adata.get_random_samples(11, with_replacement=True, fix_names=True)
-        self.assertEqual(new_adata.num_obs, 11)
+        assert new_adata.num_obs == 11
 
         new_sample_names = new_adata.sample_names.tolist()
         new_sample_names.sort()
@@ -440,13 +440,13 @@ class TestSampling(TestWrapperSetup):
         old_sample_names = self.adata.sample_names.tolist()
         old_sample_names.sort()
 
-        with self.assertRaises(AssertionError):
-            self.assertListEqual(new_sample_names, old_sample_names)
+        with pytest.raises(AssertionError):
+            assert new_sample_names == old_sample_names
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             self.adata.get_random_samples(0, with_replacement=True)
 
-        self.assertEqual(self.adata.get_random_samples(200, with_replacement=True).num_obs, 200)
+        assert self.adata.get_random_samples(200, with_replacement=True).num_obs == 200
 
     def test_inplace(self):
 
@@ -456,8 +456,4 @@ class TestSampling(TestWrapperSetup):
             fix_names=False,
             inplace=True
         )
-        self.assertEqual(id(new_adata), id(self.adata))
-
-
-if __name__ == '__main__':
-    unittest.main()
+        assert id(new_adata) == id(self.adata)

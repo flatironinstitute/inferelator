@@ -1,4 +1,4 @@
-import unittest
+import pytest
 from inferelator.tests.artifacts.test_stubs import TEST_DATA
 from inferelator.preprocessing import simulate_data
 from inferelator import MPControl, inferelator_workflow
@@ -11,22 +11,22 @@ from scipy import sparse as _sparse
 my_dir = os.path.dirname(__file__)
 
 
-class NoiseData(unittest.TestCase):
+class NoiseData:
 
     @classmethod
-    def setUpClass(cls):
+    def setup_class(cls):
         MPControl.shutdown()
         MPControl.set_multiprocess_engine("local")
         MPControl.connect()
 
-    def setUp(self):
+    def setup_method(self):
         self.data = TEST_DATA.copy()
 
     def test_noise_int_data(self):
         noise_data = self.data.copy()
         simulate_data.make_data_noisy(noise_data, random_seed=100)
 
-        with self.assertRaises(AssertionError):
+        with pytest.raises(AssertionError):
             npt.assert_array_almost_equal(self.data.expression_data, noise_data.expression_data)
 
         npt.assert_array_equal(self.data.sample_counts, noise_data.sample_counts)
@@ -37,7 +37,7 @@ class NoiseData(unittest.TestCase):
         noise_data = float_data.copy()
         simulate_data.make_data_noisy(noise_data, random_seed=100)
 
-        with self.assertRaises(AssertionError):
+        with pytest.raises(AssertionError):
             npt.assert_array_almost_equal(float_data.expression_data, noise_data.expression_data)
 
     def test_noise_int_data_sparse(self):
@@ -45,13 +45,13 @@ class NoiseData(unittest.TestCase):
         noise_data._adata.X = _sparse.csr_matrix(noise_data._adata.X)
         simulate_data.make_data_noisy(noise_data, random_seed=100)
 
-        with self.assertRaises(AssertionError):
+        with pytest.raises(AssertionError):
             npt.assert_array_almost_equal(
                 self.data.expression_data,
                 todense(noise_data.expression_data)
             )
 
-        self.assertTrue(noise_data.is_sparse)
+        assert noise_data.is_sparse
 
         npt.assert_array_equal(self.data.sample_counts, noise_data.sample_counts)
 
@@ -61,19 +61,19 @@ class NoiseData(unittest.TestCase):
         noise_data = float_data.copy()
         simulate_data.make_data_noisy(noise_data, random_seed=100)
 
-        self.assertFalse(noise_data.is_sparse)
+        assert not noise_data.is_sparse
 
-        with self.assertRaises(AssertionError):
+        with pytest.raises(AssertionError):
             npt.assert_array_almost_equal(
                 todense(float_data.expression_data),
                 noise_data.expression_data
             )
 
 
-class NoiseWorkflowData(unittest.TestCase):
+class NoiseWorkflowData:
 
     @classmethod
-    def setUpClass(cls):
+    def setup_class(cls):
         wkf = inferelator_workflow(regression=FakeRegressionMixin, workflow="tfa")
 
 
@@ -104,7 +104,7 @@ class NoiseWorkflowData(unittest.TestCase):
         wkf.set_shuffle_parameters(make_data_noise=True)
         wkf.align_priors_and_expression()
 
-        with self.assertRaises(AssertionError):
+        with pytest.raises(AssertionError):
             npt.assert_array_almost_equal(wkf.data.expression_data, self.normal_data.expression_data)
 
     def test_noise_multitask(self):
@@ -142,38 +142,38 @@ class NoiseWorkflowData(unittest.TestCase):
         for t in wk._task_objects:
             t.align_priors_and_expression()
 
-            with self.assertRaises(AssertionError):
+            with pytest.raises(AssertionError):
                 npt.assert_array_almost_equal(t.data.expression_data, self.normal_data.expression_data)
 
 
 class NoiseDataMultiprocessing(NoiseData):
 
     @classmethod
-    def setUpClass(cls):
+    def setup_class(cls):
         MPControl.shutdown()
         MPControl.set_multiprocess_engine("multiprocessing")
         MPControl.set_processes(1)
         MPControl.connect()
 
     @classmethod
-    def tearDownClass(cls):
+    def teardown_class(cls):
         MPControl.shutdown()
         MPControl.set_multiprocess_engine("local")
         MPControl.connect()
 
 
-@unittest.skip
+@pytest.mark.skip
 class NoiseDataDask(NoiseData):
 
     @classmethod
-    def setUpClass(cls):
+    def setup_class(cls):
         MPControl.shutdown()
         MPControl.set_multiprocess_engine("dask-local")
         MPControl.set_processes(1)
         MPControl.connect()
 
     @classmethod
-    def tearDownClass(cls):
+    def teardown_class(cls):
         MPControl.shutdown()
         MPControl.set_multiprocess_engine("local")
         MPControl.connect()

@@ -1,4 +1,4 @@
-import unittest
+import pytest
 import numpy as np
 import pandas as pd
 import numpy.testing as npt
@@ -59,9 +59,9 @@ TEST_DECAYS = pd.DataFrame(
 )
 
 
-class TestVelocityWorkflow(unittest.TestCase):
+class TestVelocityWorkflow:
 
-    def setUp(self) -> None:
+    def setup_method(self) -> None:
 
         self.worker = inferelator_workflow(
             'base',
@@ -71,8 +71,6 @@ class TestVelocityWorkflow(unittest.TestCase):
         self.worker.data = TEST_EXPR.copy()
         self.worker._velocity_data = TEST_VELOS.copy()
         self.worker._decay_constants = TEST_DECAYS.copy()
-
-        return super().setUp()
 
     def test_combine_no_decay(self):
 

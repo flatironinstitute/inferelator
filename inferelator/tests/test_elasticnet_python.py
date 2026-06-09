@@ -1,4 +1,4 @@
-import unittest
+import pytest
 from inferelator.regression import elasticnet_python
 from inferelator.regression import sklearn_regression
 import numpy as np
@@ -11,8 +11,7 @@ RESPONSE_ARRAY[:, 0] = np.sort(RESPONSE_ARRAY[:, 0]).ravel()
 
 PARAMS = {"l1_ratio": [0.5, 0.7, 0.9],
           'eps': 0.001,
-          'n_alphas': 50,
-          'alphas': None,
+          'alphas': 50,
           'fit_intercept': True,
           'precompute': 'auto',
           'max_iter': 1000,
@@ -28,7 +27,7 @@ PARAMS = {"l1_ratio": [0.5, 0.7, 0.9],
 MIN_COEF = 0.1
 
 
-class TestElasticNet(unittest.TestCase):
+class TestElasticNet:
 
     def test_elastic_net_sklearn_zeros(self):
         x = PREDICT_ARRAY.copy()
@@ -68,9 +67,9 @@ class TestElasticNet(unittest.TestCase):
             min_coef=MIN_COEF
         )
 
-        self.assertEqual(len(result["pp"]), 5)
-        self.assertEqual(len(result["betas"]), 5)
-        self.assertEqual(len(result["betas_resc"]), 5)
+        assert len(result["pp"]) == 5
+        assert len(result["betas"]) == 5
+        assert len(result["betas_resc"]) == 5
 
         pp = np.array([True, True, True, True, True])
         betas = ([0.0, 0.0, 0.0, 0.0, 0.0])
@@ -96,9 +95,9 @@ class TestElasticNet(unittest.TestCase):
             min_coef=MIN_COEF
         )
 
-        self.assertEqual(len(result["pp"]), 5)
-        self.assertEqual(len(result["betas"]), 1)
-        self.assertEqual(len(result["betas_resc"]), 1)
+        assert len(result["pp"]) == 5
+        assert len(result["betas"]) == 1
+        assert len(result["betas_resc"]) == 1
 
         pp = np.array([False, False, True, False, False])
         betas = ([1.05])

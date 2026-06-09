@@ -190,10 +190,18 @@ def calc_all_expected_BIC(x, y, g, combinations, check_rank=True, ordinary_least
                     bic[i] = _calc_BIC_RSS(n, k_included, model_ssr)
                 else:
                     scale_param = _calc_ig_scale(model_beta, model_ssr, xtx_slice, gprior[:, c_idx][c_idx, :])
+
+                    # Get the value in a 1x1 array as a float
+                    try:
+                        scale_param = scale_param[0, 0]
+                    except IndexError:
+                        pass
+
                     if np.isfinite(scale_param) and scale_param > 0:
                         bic[i] = _calc_BIC_inverse_gamma(n, k_included, digamma_shape, scale_param)
                     else:
                         raise np.linalg.LinAlgError
+
             except np.linalg.LinAlgError:
                 bic[i] = np.inf
 

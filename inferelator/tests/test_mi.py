@@ -1,4 +1,4 @@
-import unittest
+import pytest
 import pandas as pd
 import numpy as np
 import scipy.sparse as sps
@@ -10,9 +10,9 @@ L_sparse = InferelatorData(expression_data=sps.csr_matrix([[1, 2], [3, 4]]), tra
 L2 = InferelatorData(expression_data=np.array([[3, 4], [2, 1]]), transpose_expression=True)
 
 
-class Test2By2(unittest.TestCase):
+class Test2By2:
 
-    def setUp(self):
+    def setup_method(self):
         self.x_dataframe = L.copy()
         self.y_dataframe = L.copy()
 
@@ -55,23 +55,23 @@ class Test2By2(unittest.TestCase):
         self.y_dataframe = InferelatorData(expression_data=np.zeros((2, 2)))
         self.clr_matrix, self.mi_matrix = mi.context_likelihood_mi(self.x_dataframe, self.y_dataframe)
         # the entire clr matrix is NAN
-        self.assertTrue(np.isnan(self.clr_matrix.values).all())
+        assert np.isnan(self.clr_matrix.values).all()
 
     def test_12_34_and_ones(self):
         """Compute mi for identical arrays [[1, 2], [2, 4]]."""
         self.y_dataframe = InferelatorData(expression_data=np.ones((2, 2)))
         self.clr_matrix, self.mi_matrix = mi.context_likelihood_mi(self.x_dataframe, self.y_dataframe)
-        self.assertTrue(np.isnan(self.clr_matrix.values).all())
+        assert np.isnan(self.clr_matrix.values).all()
 
 
 class Test2By2Sparse(Test2By2):
 
-    def setUp(self):
+    def setup_method(self):
         self.x_dataframe = L_sparse.copy()
         self.y_dataframe = L_sparse.copy()
 
 
-class Test2By3(unittest.TestCase):
+class Test2By3:
 
     def test_12_34_identical(self):
         """Compute mi for identical arrays [[1, 2, 1], [2, 4, 6]]."""
@@ -83,9 +83,9 @@ class Test2By3(unittest.TestCase):
         np.testing.assert_almost_equal(self.clr_matrix.values, expected)
 
 
-class TestMakeDiscrete(unittest.TestCase):
+class TestMakeDiscrete:
 
-    def setUp(self):
+    def setup_method(self):
 
         self.x_array = np.tile(np.arange(10), 10).reshape(10, 10)
 
@@ -138,13 +138,13 @@ class TestMakeDiscrete(unittest.TestCase):
 
 class TestMakeDiscreteSparseCSR(TestMakeDiscrete):
 
-    def setUp(self):
-        super().setUp()
+    def setup_method(self):
+        super().setup_method()
         self.x_array = sps.csr_matrix(self.x_array)
 
 
 class TestMakeDiscreteSparseCSC(TestMakeDiscrete):
 
-    def setUp(self):
-        super().setUp()
+    def setup_method(self):
+        super().setup_method()
         self.x_array = sps.csc_matrix(self.x_array)

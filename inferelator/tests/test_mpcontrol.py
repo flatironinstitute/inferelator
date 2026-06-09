@@ -1,4 +1,4 @@
-import unittest
+import pytest
 import tempfile
 import shutil
 import os
@@ -27,19 +27,19 @@ def math_function(x, y, z):
     return x + y ** 2 - z
 
 
-class TestMPControl(unittest.TestCase):
+class TestMPControl:
     name = "local"
     map_test_data = [[1] * 3, list(range(3)), [0, 2, 4]]
     map_test_expect = [1, 0, 1]
 
     @classmethod
-    def setUpClass(cls):
+    def setup_class(cls):
         MPControl.shutdown()
         MPControl.set_multiprocess_engine(cls.name)
         MPControl.connect()
 
     @classmethod
-    def tearDownClass(cls):
+    def teardown_class(cls):
         MPControl.shutdown()
         MPControl.set_multiprocess_engine("local")
         MPControl.connect()
@@ -47,93 +47,93 @@ class TestMPControl(unittest.TestCase):
 
 class TestNoController(TestMPControl):
     @classmethod
-    def setUpClass(cls):
+    def setup_class(cls):
         MPControl.shutdown()
         MPControl.client = None
 
     @classmethod
-    def tearDownClass(cls):
+    def teardown_class(cls):
         MPControl.shutdown()
         MPControl.set_multiprocess_engine("local")
         MPControl.connect()
 
     def test_map(self):
         test_result = MPControl.map(math_function, *self.map_test_data)
-        self.assertListEqual(test_result, self.map_test_expect)
+        assert test_result == self.map_test_expect
 
     def test_bad_engine(self):
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             MPControl.set_multiprocess_engine("V8")
 
     def test_bad_engine_II(self):
-        with self.assertRaises(ValueError):
-            MPControl.set_multiprocess_engine(unittest.TestCase)
+        with pytest.raises(ValueError):
+            MPControl.set_multiprocess_engine(tempfile.TemporaryDirectory)
 
 
 class TestLocalController(TestMPControl):
     name = "local"
 
     def test_local_connect(self):
-        self.assertTrue(MPControl.status())
+        assert MPControl.status()
 
     def test_can_change(self):
         MPControl.set_multiprocess_engine("local")
 
     def test_local_map(self):
         test_result = MPControl.map(math_function, *self.map_test_data)
-        self.assertListEqual(test_result, self.map_test_expect)
+        assert test_result == self.map_test_expect
 
     def test_local_name(self):
-        self.assertEqual(MPControl.name(), self.name)
+        assert MPControl.name() == self.name
 
 class TestMultiprocessingMPController(TestMPControl):
     name = "joblib"
 
     @classmethod
-    def setUpClass(cls):
-        super(TestMultiprocessingMPController, cls).setUpClass()
+    def setup_class(cls):
+        super().setup_class()
 
     @classmethod
-    def tearDownClass(cls):
-        super(TestMultiprocessingMPController, cls).tearDownClass()
+    def teardown_class(cls):
+        super().teardown_class()
 
     def test_mp_connect(self):
-        self.assertTrue(MPControl.status())
+        assert MPControl.status()
 
     def test_mp_name(self):
-        self.assertEqual(MPControl.name(), self.name)
+        assert MPControl.name() == self.name
 
     def test_mp_map(self):
         test_result = MPControl.map(math_function, *self.map_test_data)
-        self.assertListEqual(test_result, self.map_test_expect)
+        assert test_result == self.map_test_expect
 
 
-@unittest.skipIf(DASK_SKIP, "No dask")
+@pytest.mark.skipif(DASK_SKIP, reason="No dask")
 class TestDaskLocalMPControllerJoblib(TestMPControl):
     name = "dask-local"
     client_name = "dask-local"
 
     @classmethod
-    def setUpClass(cls):
+    def setup_class(cls):
         MPControl.shutdown()
         MPControl.set_multiprocess_engine(cls.name)
         MPControl.connect(n_workers=1)
         MPControl.client.set_task_parameters(batch_size=2)
 
     @classmethod
-    def tearDownClass(cls):
+    def teardown_class(cls):
         MPControl.client.set_task_parameters(batch_size=1)
-        super().tearDownClass()
+        super().teardown_class()
 
     def test_dask_local_connect(self):
-        self.assertTrue(MPControl.status())
+        assert MPControl.status()
 
     def test_dask_local_name(self):
-        self.assertEqual(MPControl.name(), self.client_name)
+        assert MPControl.name() == self.client_name
 
     def test_dask_local_map(self):
         test_result = MPControl.map(math_function, *self.map_test_data)
-        self.assertListEqual(test_result, self.map_test_expect)
+        assert test_result == self.map_test_expect
 
     def test_scatter(self):
 
@@ -152,33 +152,33 @@ class TestDaskLocalMPControllerJoblib(TestMPControl):
             scatter=[a, b, c]
         )
 
-        self.assertEqual(sum(not_scattered[0]), 0)
+        assert sum(not_scattered[0]) == 0
 
         not_scattered = MPControl.map(_not_scattered,
             [a], [b], [c],
             scatter=[a, c]
         )
 
-        self.assertEqual(sum(not_scattered[0]), 1)
+        assert sum(not_scattered[0]) == 1
 
         not_scattered = MPControl.map(_not_scattered,
             [a], [b], [c],
             scatter=[a]
         )
 
-        self.assertEqual(sum(not_scattered[0]), 2)
+        assert sum(not_scattered[0]) == 2
 
         not_scattered = MPControl.map(_not_scattered,
             [a], [b], [c],
         )
 
-        self.assertEqual(sum(not_scattered[0]), 3)
+        assert sum(not_scattered[0]) == 3
 
 
-@unittest.skipIf(DASK_SKIP, "No dask")
+@pytest.mark.skipif(DASK_SKIP, reason="No dask")
 class TestDaskAccessories(TestDaskLocalMPControllerJoblib):
 
-    def setUp(self) -> None:
+    def setup_method(self) -> None:
         self.a, self.b, self.c = (
             np.random.rand(100),
             np.random.rand(100),
@@ -197,8 +197,6 @@ class TestDaskAccessories(TestDaskLocalMPControllerJoblib):
             )
         ]
 
-        return super().setUp()
-
     def test_scatter_replace(self):
 
         a, b, c = self.a, self.b, self.c
@@ -208,25 +206,22 @@ class TestDaskAccessories(TestDaskLocalMPControllerJoblib):
             MPControl.client.client
         )
 
-        self.assertEqual(len(scatter_map), 2)
+        assert len(scatter_map) == 2
 
-        self.assertListEqual(
-            [id(a), id(b)],
-            list(scatter_map.keys())
-        )
+        assert [id(a), id(b)] == list(scatter_map.keys())
 
         for v in scatter_map.values():
-            self.assertTrue(isinstance(v, Future))
+            assert isinstance(v, Future)
 
         submit_stuff = _scatter_wrapper_args(
             a, b, c,
             scatter_map=scatter_map
         )
 
-        self.assertTrue(isinstance(submit_stuff[0], Future))
-        self.assertTrue(isinstance(submit_stuff[1], Future))
-        self.assertFalse(isinstance(submit_stuff[2], Future))
-        self.assertEqual(id(submit_stuff[2]), id(c))
+        assert isinstance(submit_stuff[0], Future)
+        assert isinstance(submit_stuff[1], Future)
+        assert not isinstance(submit_stuff[2], Future)
+        assert id(submit_stuff[2]) == id(c)
 
         MPControl.client.client.cancel(scatter_map.values())
 
@@ -266,42 +261,42 @@ class TestDaskAccessories(TestDaskLocalMPControllerJoblib):
             math_function(a, b, c)
         )
 
-        self.assertIsNone(res[1])
+        assert res[1] is None
 
     def test_get_results_error(self):
 
         self.futures[1].cancel()
 
-        with self.assertRaises(KeyError):
+        with pytest.raises(KeyError):
             _ = process_futures_into_list(
                 self.futures,
                 MPControl.client.client
             )
 
 
-@unittest.skipIf(DASK_SKIP, "No dask")
+@pytest.mark.skipif(DASK_SKIP, reason="No dask")
 class TestDaskLocalMPControllerSubmit(TestDaskLocalMPControllerJoblib):
 
     @classmethod
-    def setUpClass(cls):
+    def setup_class(cls):
         MPControl.shutdown()
         MPControl.set_multiprocess_engine(cls.name)
         MPControl.connect(n_workers=1)
         MPControl.client.set_task_parameters(batch_size=1)
 
-    @unittest.skip("Doesnt work for submit because its not a coroutine")
+    @pytest.mark.skip(reason="Doesnt work for submit because its not a coroutine")
     def test_scatter(self):
         pass
 
 
-@unittest.skipIf(DASK_SKIP, "No dask")
+@pytest.mark.skipif(DASK_SKIP, reason="No dask")
 class TestDaskHPCMPController(TestMPControl):
     name = "dask-cluster"
     client_name = "dask-cluster"
     tempdir = None
 
     @classmethod
-    def setUpClass(cls):
+    def setup_class(cls):
         cls.tempdir = tempfile.mkdtemp()
         MPControl.shutdown()
         MPControl.set_multiprocess_engine(cls.name)
@@ -315,30 +310,30 @@ class TestDaskHPCMPController(TestMPControl):
         MPControl.client._scale_jobs()
 
     @classmethod
-    def tearDownClass(cls):
-        super(TestDaskHPCMPController, cls).tearDownClass()
+    def teardown_class(cls):
+        super().teardown_class()
         if cls.tempdir is not None:
             shutil.rmtree(cls.tempdir)
 
     def test_dask_cluster_connect(self):
-        self.assertTrue(MPControl.status())
+        assert MPControl.status()
 
     def test_dask_cluster_name(self):
-        self.assertEqual(MPControl.name(), self.client_name)
+        assert MPControl.name() == self.client_name
 
     def test_bad_default_config(self):
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             MPControl.client.use_default_configuration("no")
 
-    @unittest.skipIf('CI' in os.environ, "workers are weird for this on CI")
+    @pytest.mark.skipif('CI' in os.environ, reason="workers are weird for this on CI")
     def test_dask_cluster_map(self):
         test_result = MPControl.map(math_function, *self.map_test_data)
-        self.assertListEqual(test_result, self.map_test_expect)
+        assert test_result == self.map_test_expect
 
     def test_memory_0_hack(self):
         old_command = "dask-worker tcp://scheduler:port --memory-limit=4e9 --nthreads 1 --nprocs 20"
         new_command = "dask-worker tcp://scheduler:port --memory-limit 0 --nthreads 1 --nprocs 20"
-        self.assertEqual(new_command, dask_cluster_controller.memory_limit_0(old_command))
+        assert new_command == dask_cluster_controller.memory_limit_0(old_command)
         old_command_2 = "dask-worker tcp://scheduler:port --nthreads 1 --nprocs 20 --memory-limit=4e9"
         new_command_2 = "dask-worker tcp://scheduler:port --nthreads 1 --nprocs 20 --memory-limit 0 "
-        self.assertEqual(new_command_2, dask_cluster_controller.memory_limit_0(old_command_2))
+        assert new_command_2 == dask_cluster_controller.memory_limit_0(old_command_2)

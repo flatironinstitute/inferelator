@@ -173,7 +173,7 @@ class InferelatorDataLoader(object):
         gene_name_column=None
     ):
 
-        data = anndata.read_mtx(self.input_path(mtx_file))
+        data = anndata.io.read_mtx(self.input_path(mtx_file))
 
         # Load observation names if provided
         if mtx_obs is not None:
@@ -668,7 +668,7 @@ def _decode_series(series, encoding):
         )
 
     try:
-        _new_series = series.str.decode(encoding).values
+        _new_series = series.str.decode(encoding).to_numpy()
     except AttributeError:
         return series
 
@@ -677,7 +677,7 @@ def _decode_series(series, encoding):
     if np.all(_no_decode):
         return series
 
-    _new_series[_no_decode] = series.values[_no_decode]
+    _new_series[_no_decode] = series.to_numpy()[_no_decode]
 
     try:
         new_series = pd.Series(

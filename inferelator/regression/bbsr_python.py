@@ -158,19 +158,19 @@ class BBSR(BaseRegression):
 
         if self.filter_priors_for_clr:
             # Set priors which have a CLR of 0 to FALSE
-            pp = np.logical_and(pp, self.clr_mat != 0).values
+            pp = np.logical_and(pp, self.clr_mat != 0).to_numpy(copy=True)
         else:
-            pp = pp.values
+            pp = pp.to_numpy(copy=True)
 
         # Mark the nS predictors with the highest CLR true
         # (Do not include anything with a CLR of 0)
         mask = np.logical_or(
             self.clr_mat == 0,
             ~np.isfinite(self.clr_mat)
-        ).values
+        ).to_numpy()
 
         masked_clr = np.ma.array(
-            self.clr_mat.values,
+            self.clr_mat.to_numpy(),
             mask=mask
         )
 

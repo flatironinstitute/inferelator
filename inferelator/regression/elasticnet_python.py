@@ -4,8 +4,7 @@ import copy
 
 ELASTICNET_PARAMETERS = dict(l1_ratio=[0.5, 0.7, 0.9],
                              eps=0.001,
-                             n_alphas=50,
-                             alphas=None,
+                             alphas=50,
                              fit_intercept=True,
                              precompute='auto',
                              max_iter=1000,

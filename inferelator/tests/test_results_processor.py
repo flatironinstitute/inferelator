@@ -1,4 +1,4 @@
-import unittest
+import pytest
 from inferelator import utils
 from inferelator.postprocessing import (
     GOLD_STANDARD_COLUMN,
@@ -20,14 +20,19 @@ import tempfile
 import shutil
 import anndata as ad
 
+try:
+    ad.settings.allow_write_nullable_strings = True
+except AttributeError:
+    pass
+
 import logging
 logging.getLogger('matplotlib').setLevel(logging.ERROR)
 import matplotlib.pyplot as plt
 
 
-class TestResults(unittest.TestCase):
+class TestResults:
 
-    def setUp(self):
+    def setup_method(self):
 
         # Data was taken from a subset of row 42 of
         # Bacillus subtilis run results
@@ -104,34 +109,22 @@ class TestResults(unittest.TestCase):
             )
 
             if result.model_file_name is not None:
-                self.assertTrue(
-                    os.path.exists(os.path.join(td, result.model_file_name))
-                )
+                assert os.path.exists(os.path.join(td, result.model_file_name))
 
             if result.curve_data_file_name is not None:
-                self.assertTrue(
-                    os.path.exists(os.path.join(td, result.curve_data_file_name))
-                )
+                assert os.path.exists(os.path.join(td, result.curve_data_file_name))
 
             if result.curve_file_name is not None:
-                self.assertTrue(
-                    os.path.exists(os.path.join(td, result.curve_file_name))
-                )
+                assert os.path.exists(os.path.join(td, result.curve_file_name))
 
             if result.network_file_name is not None:
-                self.assertTrue(
-                    os.path.exists(os.path.join(td, result.network_file_name))
-                )
+                assert os.path.exists(os.path.join(td, result.network_file_name))
 
             if result.confidence_file_name is not None:
-                self.assertTrue(
-                    os.path.exists(os.path.join(td, result.confidence_file_name))
-                )
+                assert os.path.exists(os.path.join(td, result.confidence_file_name))
 
             if result.threshold_file_name is not None:
-                self.assertTrue(
-                    os.path.exists(os.path.join(td, result.threshold_file_name))
-                )
+                assert os.path.exists(os.path.join(td, result.threshold_file_name))
 
     def test_model_h5_file(self):
 
@@ -154,12 +147,12 @@ class TestResults(unittest.TestCase):
                 td, result.model_file_name
             ))
 
-            self.assertEqual(adata.shape, self.beta.shape)
-            self.assertTrue('prior' in adata.layers)
-            self.assertTrue('gold_standard' in adata.layers)
-            self.assertTrue('preprocessing' in adata.uns)
-            self.assertTrue('scoring' in adata.uns)
-            self.assertTrue('network' in adata.uns)
+            assert adata.shape == self.beta.shape
+            assert 'prior' in adata.layers
+            assert 'gold_standard' in adata.layers
+            assert 'preprocessing' in adata.uns
+            assert 'scoring' in adata.uns
+            assert 'network' in adata.uns
 
     @staticmethod
     def make_PR_data(gs, confidences):
@@ -185,7 +178,7 @@ class TestResultsProcessor(TestResults):
     def test_full_stack(self):
         rp = ResultsProcessor([self.beta], [self.beta_resc])
         result = rp.summarize_network(None, self.gold_standard, self.prior)
-        self.assertEqual(result.score, 1)
+        assert result.score == 1
 
     def test_combining_confidences_two_betas_negative_values_assert_nonzero_betas(self):
         _, betas_non_zero = ResultsProcessor.summarize([self.beta1, self.beta2])
@@ -215,8 +208,8 @@ class TestResultsProcessor(TestResults):
 
 class TestNetworkCreator(TestResults):
 
-    def setUp(self):
-        super(TestNetworkCreator, self).setUp()
+    def setup_method(self):
+        super().setup_method()
         self.metric = MetricHandler.get_metric("aupr")
         self.pr_calc = self.metric([self.rescaled_beta1, self.rescaled_beta2], self.gold_standard,
                                    "keep_all_gold_standard")
@@ -228,9 +221,9 @@ class TestNetworkCreator(TestResults):
             self.prior
         )
 
-        self.assertListEqual(net['regulator'].tolist(), ['tf5', 'tf4', 'tf1'])
-        self.assertListEqual(net['target'].tolist(), ['gene1'] * 3)
-        self.assertListEqual(net['combined_confidences'].tolist(), [0.6, 0.3, 0.1])
+        assert net['regulator'].tolist() == ['tf5', 'tf4', 'tf1']
+        assert net['target'].tolist() == ['gene1'] * 3
+        assert net['combined_confidences'].tolist() == [0.6, 0.3, 0.1]
 
     def test_network_summary(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -255,33 +248,24 @@ class TestNetworkCreator(TestResults):
                 header=0
             )
 
-            self.assertEqual(processed_data.shape[0], 3)
-            self.assertListEqual(
-                processed_data['regulator'].tolist(),
-                ['tf5', 'tf4', 'tf1']
-            )
-            self.assertListEqual(
-                processed_data['target'].tolist(),
-                ['gene1'] * 3
-            )
-            self.assertListEqual(
-                processed_data['combined_confidences'].tolist(),
-                [0.6, 0.3, 0.1]
-            )
+            assert processed_data.shape[0] == 3
+            assert processed_data['regulator'].tolist() == ['tf5', 'tf4', 'tf1']
+            assert processed_data['target'].tolist() == ['gene1'] * 3
+            assert processed_data['combined_confidences'].tolist() == [0.6, 0.3, 0.1]
 
 
 class TestRankSummary(TestResults):
 
-    def setUp(self):
-        super(TestRankSummary, self).setUp()
+    def setup_method(self):
+        super().setup_method()
         self.metric = RankSummingMetric
 
     def test_making_network_dataframe(self):
         calc = self.metric([self.beta_resc, self.beta_resc], self.gold_standard_unaligned)
         pdt.assert_frame_equal(calc.gold_standard, self.gold_standard_unaligned)
-        self.assertEqual(calc.confidence_data.shape[0], 6)
-        self.assertEqual(pd.isnull(calc.confidence_data[CONFIDENCE_COLUMN]).sum(), 2)
-        self.assertEqual(pd.isnull(calc.confidence_data[GOLD_STANDARD_COLUMN]).sum(), 2)
+        assert calc.confidence_data.shape[0] == 6
+        assert pd.isnull(calc.confidence_data[CONFIDENCE_COLUMN]).sum() == 2
+        assert pd.isnull(calc.confidence_data[GOLD_STANDARD_COLUMN]).sum() == 2
 
     def test_combining_confidences_one_beta(self):
         # rescaled betas are only in the
@@ -320,7 +304,7 @@ class TestRankSummary(TestResults):
 
         data = self.make_PR_data(left, right)
         filter_data = self.metric.filter_to_left_size(GOLD_STANDARD_COLUMN, CONFIDENCE_COLUMN, data)
-        self.assertEqual(data.shape, filter_data.shape)
+        assert data.shape == filter_data.shape
 
     def test_output_files(self):
         pass
@@ -331,8 +315,8 @@ class TestRankSummary(TestResults):
 
 class TestPrecisionRecallMetric(TestResults):
 
-    def setUp(self):
-        super(TestPrecisionRecallMetric, self).setUp()
+    def setup_method(self):
+        super().setup_method()
         self.metric = MetricHandler.get_metric("aupr")
 
     ####################
@@ -451,31 +435,31 @@ class TestPrecisionRecallMetric(TestResults):
         file_name = os.path.join(temp_dir, "pr_curve.pdf")
         self.metric = self.metric([confidences, confidences], gs)
         fig, ax = self.metric.output_curve_pdf(temp_dir, "pr_curve.pdf")
-        self.assertTrue(os.path.exists(file_name))
-        plt.close(fig)
-        
-        os.remove(file_name)
-        self.assertFalse(os.path.exists(file_name))
-        fig, ax = self.metric.output_curve_pdf(output_dir=temp_dir, file_name="pr_curve.pdf")
-        self.assertTrue(os.path.exists(file_name))
+        assert os.path.exists(file_name)
         plt.close(fig)
 
         os.remove(file_name)
-        self.assertFalse(os.path.exists(file_name))
+        assert not os.path.exists(file_name)
+        fig, ax = self.metric.output_curve_pdf(output_dir=temp_dir, file_name="pr_curve.pdf")
+        assert os.path.exists(file_name)
+        plt.close(fig)
+
+        os.remove(file_name)
+        assert not os.path.exists(file_name)
         self.metric.curve_file_name = "pr_curve.pdf"
         fig, ax = self.metric.output_curve_pdf(output_dir=temp_dir, file_name=None)
-        self.assertTrue(os.path.exists(file_name))
+        assert os.path.exists(file_name)
         plt.close(fig)
 
         os.remove(file_name)
         self.metric.curve_file_name = None
-        self.assertFalse(os.path.exists(file_name))
+        assert not os.path.exists(file_name)
         fig, ax = self.metric.output_curve_pdf(output_dir=temp_dir, file_name=None)
-        self.assertFalse(os.path.exists(file_name))
+        assert not os.path.exists(file_name)
         plt.close(fig)
 
         fig, ax = self.metric.output_curve_pdf(output_dir=None, file_name="pr_curve.pdf")
-        self.assertFalse(os.path.exists(file_name))
+        assert not os.path.exists(file_name)
         plt.close(fig)
 
         shutil.rmtree(temp_dir)
@@ -483,8 +467,8 @@ class TestPrecisionRecallMetric(TestResults):
 
 class TestMCCMetric(TestResults):
 
-    def setUp(self):
-        super(TestMCCMetric, self).setUp()
+    def setup_method(self):
+        super().setup_method()
         self.metric = MetricHandler.get_metric("mcc")
 
     def test_mcc_perfect_prediction(self):
@@ -508,8 +492,8 @@ class TestMCCMetric(TestResults):
 
 class TestF1Metric(TestResults):
 
-    def setUp(self):
-        super(TestF1Metric, self).setUp()
+    def setup_method(self):
+        super().setup_method()
         self.metric = MetricHandler.get_metric("f1")
 
     def test_f1_perfect_prediction(self):
@@ -518,7 +502,7 @@ class TestF1Metric(TestResults):
         f1 = self.metric([confidences, confidences], gs)
         np.testing.assert_equal(f1.score()[1], 1.0)
 
-    @unittest.skip
+    @pytest.mark.skip
     def test_f1_perfect_inverse_prediction(self):
         gs = pd.DataFrame(np.array([[0, 1], [0, 1]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
         confidences = pd.DataFrame(np.array([[1, 0], [1, 0]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
@@ -526,7 +510,7 @@ class TestF1Metric(TestResults):
         print(f1.filtered_data)
         np.testing.assert_approx_equal(f1.score()[1], -1)
 
-    @unittest.skip
+    @pytest.mark.skip
     def test_f1_bad_prediction(self):
         gs = pd.DataFrame(np.array([[0, 1], [0, 1]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
         confidences = pd.DataFrame(np.array([[1, 0], [0, 0.5]]), ['gene1', 'gene2'], ['tf1', 'tf2'])
@@ -545,4 +529,4 @@ class TestMTLResults(TestResults):
             self.gold_standard,
             [self.prior, self.prior],
             task_gold_standards=[self.gold_standard, self.gold_standard])
-        self.assertEqual(result.score, 1)
+        assert result.score == 1

@@ -1,4 +1,4 @@
-import unittest
+import pytest
 from inferelator.preprocessing import tfa
 from inferelator.utils import InferelatorData
 import pandas as pd
@@ -7,7 +7,7 @@ import numpy as np
 units_in_the_last_place_tolerance = 15
 
 
-class TestTFA(unittest.TestCase):
+class TestTFA:
 
     # Test for 5 genes, one of which is a TF, 5 condidtions, and 4 TFs.
     # where tau is equal to 1, so expression_matrix and expression_matrix_halftau are equivalent
@@ -63,7 +63,7 @@ class TestTFA(unittest.TestCase):
         self.drop_prior()
         activities = tfa.TFA().compute_transcription_factor_activity(self.priors, self.exp)
         # assert that there are no columns in the output activities matrix
-        self.assertEqual(activities.shape[1], 0)
+        assert activities.shape[1] == 0
 
     def test_when_prior_is_zero_vector_activity_is_expression_one_column(self):
         self.setup_one_column()

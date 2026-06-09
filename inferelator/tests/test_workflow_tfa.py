@@ -4,7 +4,7 @@ Test TFA workflow stepwise.
 
 import os
 import types
-import unittest
+import pytest
 import tempfile
 
 import numpy as np
@@ -25,9 +25,9 @@ DEFAULT_PRIORS_FILE = "gold_standard.tsv"
 DEFAULT_GOLDSTANDARD_FILE = "gold_standard.tsv"
 
 
-class TestTFASetup(unittest.TestCase):
+class TestTFASetup:
 
-    def setUp(self):
+    def setup_method(self):
         self.workflow = workflow._factory_build_inferelator(regression=FakeRegressionMixin,
                                                             workflow=tfa_workflow.TFAWorkFlow)()
         self.workflow.input_dir = os.path.join(my_dir, "../../data/dream4")
@@ -39,15 +39,15 @@ class TestTFASetup(unittest.TestCase):
         self.workflow.gold_standard_file = DEFAULT_GOLDSTANDARD_FILE
         self.workflow.get_data()
 
-    def tearDown(self):
+    def teardown_method(self):
         del self.workflow
 
-class TestAbstract(unittest.TestCase):
+class TestAbstract:
 
     def test_abstractness(self):
         self.workflow = workflow._factory_build_inferelator(regression='base',
                                                             workflow=tfa_workflow.TFAWorkFlow)()
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             self.workflow.run_bootstrap([])
 
 class TestTFAWorkflow(TestTFASetup):
@@ -55,7 +55,7 @@ class TestTFAWorkflow(TestTFASetup):
     def test_compute_common_data(self):
         self.workflow.drd_driver = FakeDRD
         self.workflow.compute_common_data()
-        self.assertTrue(self.workflow.data is None)
+        assert self.workflow.data is None
         np.testing.assert_array_almost_equal_nulp(self.workflow.design.expression_data,
                                                   self.workflow.response.expression_data)
 
@@ -68,21 +68,21 @@ class TestTFAWorkflow(TestTFASetup):
     def test_set_tf_params(self):
 
         self.workflow.set_tfa(tfa_driver=False)
-        self.assertIs(self.workflow.tfa_driver, tfa.NoTFA)
+        assert self.workflow.tfa_driver is tfa.NoTFA
 
         self.workflow.set_tfa(tfa_driver=True)
-        self.assertIs(self.workflow.tfa_driver, tfa.TFA)
+        assert self.workflow.tfa_driver is tfa.TFA
 
         self.workflow.set_tfa(tfa_output_file="test.tsv")
-        self.assertEqual(self.workflow._tfa_output_file, "test.tsv")
+        assert self.workflow._tfa_output_file == "test.tsv"
 
     def test_set_drd_params(self):
 
         self.workflow.set_design_settings(timecourse_response_driver=False)
-        self.assertIsNone(self.workflow.drd_driver)
+        assert self.workflow.drd_driver is None
 
         self.workflow.set_design_settings(timecourse_response_driver=True)
-        self.assertIs(self.workflow.drd_driver, drt.PythonDRDriver)
+        assert self.workflow.drd_driver is drt.PythonDRDriver
 
 
 class TestTFAWorkflowRegression(TestTFASetup):
@@ -93,7 +93,7 @@ class TestTFAWorkflowRegression(TestTFASetup):
         self.workflow.tfa_driver = tfa.NoTFA
         self.workflow.compute_common_data()
         self.workflow.compute_activity()
-        self.assertTrue(self.workflow.run_bootstrap([]))
+        assert self.workflow.run_bootstrap([])
 
     def test_result_processor(self):
         self.workflow._result_processor_driver = FakeResultProcessor
@@ -115,13 +115,10 @@ class TestTFAWrite(TestTFASetup):
 
             self.workflow.startup()
 
-            self.assertTrue(os.path.exists(self.tfa_file_name))
-            tfa = pd.read_csv(self.tfa_file_name, sep="\t", index_col=0)
+            assert os.path.exists(self.tfa_file_name)
+            tfa_data = pd.read_csv(self.tfa_file_name, sep="\t", index_col=0)
 
-            self.assertTupleEqual(self.workflow.design.shape, tfa.shape)
-            pd.testing.assert_frame_equal(tfa, self.workflow.design.to_df())
+            assert self.workflow.design.shape == tfa_data.shape
+            pd.testing.assert_frame_equal(tfa_data, self.workflow.design.to_df())
         finally:
             os.remove(self.tfa_file_name)
-
-
-

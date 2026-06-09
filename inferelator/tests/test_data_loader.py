@@ -1,4 +1,4 @@
-import unittest
+import pytest
 import shutil
 import os
 import tempfile
@@ -12,9 +12,9 @@ from inferelator.workflow import inferelator_workflow
 from inferelator.utils import loader, todense
 
 
-class TestExpressionLoader(unittest.TestCase):
+class TestExpressionLoader:
 
-    def setUp(self):
+    def setup_method(self):
 
         self.worker = inferelator_workflow()
 
@@ -44,7 +44,7 @@ class TestExpressionLoader(unittest.TestCase):
 
         npt.assert_array_almost_equal(data.values, self.worker.data.expression_data)
 
-    @unittest.skip('numpy2/tables incompatibility')
+    @pytest.mark.skip(reason='numpy2/tables incompatibility')
     def test_hdf5(self):
         file, data = test_prebuilt.counts_yeast_single_cell_chr01(filetype='hdf5')
 

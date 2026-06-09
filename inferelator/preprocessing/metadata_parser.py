@@ -99,32 +99,30 @@ class MetadataParser(object):
         :return: pd.DataFrame
         """
 
-        with pd.option_context('future.no_silent_downcasting', True):
+        data_frame = data_frame.copy()
 
-            data_frame = data_frame.copy()
+        for col in data_frame.columns:
+            if np.isdtype(data_frame[col].to_numpy().dtype, np.floating):
+                continue
 
-            for col in data_frame.columns:
-                if np.isdtype(data_frame[col].dtype, np.floating):
-                    continue
+            elif data_frame[col].to_numpy().dtype == np.object_:
+                data_frame[col] = data_frame[col].replace(
+                    'NA',
+                    np.nan,
+                    regex=False
+                )
+            else:
+                continue
 
-                elif data_frame[col].dtype == np.object_:
-                    data_frame[col] = data_frame[col].replace(
-                        'NA',
-                        np.nan,
-                        regex=False
-                    )
-                else:
-                    continue
-
-                if col in [
-                    TIME_COLUMN_NAME,
-                    DELT_COLUMN_NAME,
-                    PREV_COLUMN_NAME
-                ]:
-                    try:
-                        data_frame[col] = data_frame[col].astype(float)
-                    except ValueError:
-                        pass
+            if col in [
+                TIME_COLUMN_NAME,
+                DELT_COLUMN_NAME,
+                PREV_COLUMN_NAME
+            ]:
+                try:
+                    data_frame[col] = data_frame[col].astype(float)
+                except ValueError:
+                    pass
 
         return data_frame
 
@@ -176,9 +174,7 @@ class MetadataParserBranching(MetadataParser):
             )
         )
 
-        with pd.option_context('future.no_silent_downcasting', True):
-            ts_data = meta_data[time_series].fillna(False)
-
+        ts_data = meta_data[time_series].fillna(False)
         ts_dict = dict(zip(ts_data[cls.cond_col].astype(str).tolist(),
                            zip(ts_data[cls.prev_col].tolist(),
                                ts_data[cls.delt_col].tolist())))

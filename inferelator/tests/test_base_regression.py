@@ -1,11 +1,11 @@
-import unittest
+import pytest
 from inferelator.regression import base_regression
 import pandas as pd
 import numpy as np
 import os
 
 
-class TestBaseRegression(unittest.TestCase):
+class TestBaseRegression:
 
     def test_recalculate_betas_from_selected(self):
         # testing rank(xtx) = shape(xtx)
@@ -34,4 +34,3 @@ class TestBaseRegression(unittest.TestCase):
         betas = np.array([1, 1, 2])
         error_reduction = base_regression.predict_error_reduction(x, y, betas)
         np.testing.assert_array_almost_equal(error_reduction, np.array([-133.333, -133.333, -133.333]), 2)
-

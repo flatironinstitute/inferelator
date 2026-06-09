@@ -1,4 +1,5 @@
-import unittest, os
+import pytest
+import os
 import pandas as pd
 import numpy as np
 from inferelator.preprocessing import metadata_parser
@@ -8,9 +9,9 @@ from inferelator import utils
 my_dir = os.path.dirname(__file__)
 
 
-class TestMetaDataProcessor(unittest.TestCase):
+class TestMetaDataProcessor:
 
-    def setUp(self):
+    def setup_method(self):
         self.meta = pd.DataFrame({
             'isTs': [True, True, True, True, False],
             'is1stLast': ['f', 'm', 'm', 'l', 'e'],
@@ -22,31 +23,31 @@ class TestMetaDataProcessor(unittest.TestCase):
 
     def test_NA_fix(self):
         meta = metadata_parser.MetadataParserBranching.fix_NAs(self.meta)
-        self.assertEqual(pd.isnull(meta['del.t']).sum(), 2)
-        self.assertEqual(pd.isnull(meta['prevCol']).sum(), 2)
-        self.assertEqual(pd.isnull(meta['isTs']).sum(), 0)
-        self.assertEqual(pd.isnull(meta['condName']).sum(), 0)
+        assert pd.isnull(meta['del.t']).sum() == 2
+        assert pd.isnull(meta['prevCol']).sum() == 2
+        assert pd.isnull(meta['isTs']).sum() == 0
+        assert pd.isnull(meta['condName']).sum() == 0
 
     def test_meta_processing_steady(self):
         meta = metadata_parser.MetadataParserBranching.fix_NAs(self.meta)
         steady_idx, ts_idx = metadata_parser.MetadataParserBranching.process_groups(meta)
-        self.assertEqual(len(steady_idx.keys()), 5)
-        self.assertEqual(sum(steady_idx.values()), 1)
-        self.assertTrue(steady_idx["ss"])
+        assert len(steady_idx.keys()) == 5
+        assert sum(steady_idx.values()) == 1
+        assert steady_idx["ss"]
 
     def test_meta_processing_time(self):
         meta = metadata_parser.MetadataParserBranching.fix_NAs(self.meta)
         steady_idx, ts_idx = metadata_parser.MetadataParserBranching.process_groups(meta)
-        self.assertEqual(len(ts_idx.keys()), 4)
-        self.assertListEqual(ts_idx["ts1"], [(None, None), ("ts2", 3)])
-        self.assertListEqual(ts_idx["ts2"], [("ts1", 3), ("ts3", 2)])
-        self.assertListEqual(ts_idx["ts3"], [("ts2", 2), ("ts4", 5)])
-        self.assertListEqual(ts_idx["ts4"], [("ts3", 5), (None, None)])
+        assert len(ts_idx.keys()) == 4
+        assert ts_idx["ts1"] == [(None, None), ("ts2", 3)]
+        assert ts_idx["ts2"] == [("ts1", 3), ("ts3", 2)]
+        assert ts_idx["ts3"] == [("ts2", 2), ("ts4", 5)]
+        assert ts_idx["ts4"] == [("ts3", 5), (None, None)]
 
     def test_checking_missing_samples(self):
         meta = metadata_parser.MetadataParserBranching.fix_NAs(self.meta)
 
-        with self.assertRaises(metadata_parser.ConditionDoesNotExistError):
+        with pytest.raises(metadata_parser.ConditionDoesNotExistError):
             meta_err = meta.copy().iloc[0:2, :]
             steady_idx, ts_idx = metadata_parser.MetadataParserBranching.process_groups(meta_err)
             metadata_parser.MetadataParserBranching.check_for_dupes(self.expr, meta_err, steady_idx,
@@ -55,12 +56,12 @@ class TestMetaDataProcessor(unittest.TestCase):
         meta_err = meta.copy().iloc[0:2, :]
         steady_idx, ts_idx = metadata_parser.MetadataParserBranching.process_groups(meta_err)
         new_idx = metadata_parser.MetadataParserBranching.check_for_dupes(self.expr, meta_err, steady_idx)
-        self.assertEqual(sum(new_idx.values()), 3)
+        assert sum(new_idx.values()) == 3
 
     def test_checking_dupe_samples(self):
         meta = metadata_parser.MetadataParserBranching.fix_NAs(self.meta)
 
-        with self.assertRaises(metadata_parser.MultipleConditionsError):
+        with pytest.raises(metadata_parser.MultipleConditionsError):
             meta_err = meta.copy()
             meta_err['condName'] = "allsame"
             steady_idx, ts_idx = metadata_parser.MetadataParserBranching.process_groups(meta_err)
@@ -80,13 +81,13 @@ class TestMetaDataProcessor(unittest.TestCase):
         del meta['condName']
         metadata_parser.MetadataParserBranching.validate_metadata(self.expr, meta)
         steady_idx, ts_idx = metadata_parser.MetadataParserBranching.process_groups(meta)
-        self.assertEqual(len(steady_idx.keys()), 5)
-        self.assertEqual(len(ts_idx.keys()), 4)
+        assert len(steady_idx.keys()) == 5
+        assert len(ts_idx.keys()) == 4
 
 
-class TestMetaDataNonbranchingProcessor(unittest.TestCase):
+class TestMetaDataNonbranchingProcessor:
 
-    def setUp(self):
+    def setup_method(self):
         self.meta = pd.DataFrame({
             'strain': ['a', 'a', 'a', 'a', 'b'],
             'time': [0, 3, 5, 10, 'NA'],
@@ -96,22 +97,22 @@ class TestMetaDataNonbranchingProcessor(unittest.TestCase):
     def test_meta_processing_steady(self):
         meta = metadata_parser.MetadataParserBranching.fix_NAs(self.meta)
         steady_idx, ts_idx = metadata_parser.MetadataParserNonbranching.process_groups(meta)
-        self.assertEqual(len(steady_idx.keys()), 5)
-        self.assertEqual(sum(steady_idx.values()), 1)
-        self.assertTrue(steady_idx["ss"])
+        assert len(steady_idx.keys()) == 5
+        assert sum(steady_idx.values()) == 1
+        assert steady_idx["ss"]
 
     def test_meta_processing_time(self):
         meta = metadata_parser.MetadataParserBranching.fix_NAs(self.meta)
         steady_idx, ts_idx = metadata_parser.MetadataParserNonbranching.process_groups(meta)
-        self.assertEqual(len(ts_idx.keys()), 4)
-        self.assertListEqual(ts_idx["ts1"], [(None, None), ("ts2", 3)])
-        self.assertListEqual(ts_idx["ts2"], [("ts1", 3), ("ts3", 2)])
-        self.assertListEqual(ts_idx["ts3"], [("ts2", 2), ("ts4", 5)])
-        self.assertListEqual(ts_idx["ts4"], [("ts3", 5), (None, None)])
+        assert len(ts_idx.keys()) == 4
+        assert ts_idx["ts1"] == [(None, None), ("ts2", 3)]
+        assert ts_idx["ts2"] == [("ts1", 3), ("ts3", 2)]
+        assert ts_idx["ts3"] == [("ts2", 2), ("ts4", 5)]
+        assert ts_idx["ts4"] == [("ts3", 5), (None, None)]
 
 
-@unittest.skip
-class TestDRModelOrganisms(unittest.TestCase):
+@pytest.mark.skip
+class TestDRModelOrganisms:
 
     def test_on_bsubtilis(self):
         exp_data = utils.df_from_tsv('data/bsubtilis/expression.tsv')
@@ -122,15 +123,15 @@ class TestDRModelOrganisms(unittest.TestCase):
         design, response = drd.run(exp_data, meta_data)
 
         np.testing.assert_allclose(response.values, expected_response.values, atol=1e-15)
-        self.assertEqual(len(set(expected_response.columns)), len(set(response.columns)))
-        self.assertEqual(expected_response.columns.tolist(), response.columns.tolist())
-        self.assertEqual(expected_response.index.tolist(), response.index.tolist())
-        self.assertTrue(pd.DataFrame.equals(expected_design, design))
+        assert len(set(expected_response.columns)) == len(set(response.columns))
+        assert expected_response.columns.tolist() == response.columns.tolist()
+        assert expected_response.index.tolist() == response.index.tolist()
+        assert pd.DataFrame.equals(expected_design, design)
 
 
-class TestDRAboveDeltMax(unittest.TestCase):
+class TestDRAboveDeltMax:
 
-    def setUp(self):
+    def setup_method(self):
         self.meta = pd.DataFrame({
             'isTs': [True, True, True, True, False],
             'is1stLast': ['f', 'm', 'm', 'l', 'e'],
@@ -152,20 +153,19 @@ class TestDRAboveDeltMax(unittest.TestCase):
     def test_design_matrix_above_delt_max(self):
         # Set up variables
         ds, resp = (self.design, self.response)
-        self.assertEqual(ds.shape, (2, 4))
-        self.assertEqual(list(ds.columns), ['ts1-ts2', 'ts2-ts3', 'ss', 'ts4'],
-                         msg="Guarantee that the ts3-ts4 condition is dropped, "
-                             "since its delT of 5 is greater than delt_max of 4")
-        self.assertEqual(list(ds['ss']), [5, 10])
-        self.assertEqual(list(ds['ss']), list(resp['ss']),
-                         msg='Steady State design and response should be equal')
-        self.assertTrue((resp['ts2-ts3'].values == [3, 8]).all())
+        assert ds.shape == (2, 4)
+        assert list(ds.columns) == ['ts1-ts2', 'ts2-ts3', 'ss', 'ts4'], \
+            "Guarantee that the ts3-ts4 condition is dropped, since its delT of 5 is greater than delt_max of 4"
+        assert list(ds['ss']) == [5, 10]
+        assert list(ds['ss']) == list(resp['ss']), \
+            'Steady State design and response should be equal'
+        assert (resp['ts2-ts3'].values == [3, 8]).all()
 
     def test_response_matrix_steady_state_above_delt_max(self):
         ds, resp = (self.design, self.response)
-        self.assertEqual(list(resp.columns), ['ts1-ts2', 'ts2-ts3', 'ss', 'ts4'])
-        self.assertEqual(list(resp['ts4']), list(self.exp['ts4']))
-        self.assertEqual(list(resp['ss']), list(self.exp['ss']))
+        assert list(resp.columns) == ['ts1-ts2', 'ts2-ts3', 'ss', 'ts4']
+        assert list(resp['ts4']) == list(self.exp['ts4'])
+        assert list(resp['ss']) == list(self.exp['ss'])
 
     def test_response_matrix_time_series_above_delt_max(self):
         ds, resp = (self.design, self.response)
@@ -180,7 +180,7 @@ class TestDRAboveDeltMax(unittest.TestCase):
         np.testing.assert_almost_equal(np.array(resp['ts2-ts3']), expected_response_2)
 
 
-class TestDR(unittest.TestCase):
+class TestDR:
     """
     Superclass for common methods
     """
@@ -199,7 +199,7 @@ class TestDR(unittest.TestCase):
 
 class TestDRMicro(TestDR):
 
-    def setUp(self):
+    def setup_method(self):
         self.meta = pd.DataFrame()
         self.meta['isTs'] = [False, False]
         self.meta['is1stLast'] = ['e', 'e']
@@ -217,16 +217,16 @@ class TestDRMicro(TestDR):
 
     def test_micro(self):
         ds, resp = (self.design, self.response)
-        self.assertEqual(ds.shape, (2, 2))
-        self.assertTrue((ds['ss1'].values == [1, 3]).all())
-        self.assertTrue((ds['ss2'].values == [2, 4]).all())
+        assert ds.shape == (2, 2)
+        assert (ds['ss1'].values == [1, 3]).all()
+        assert (ds['ss2'].values == [2, 4]).all()
         # In steady state, expect design and response to be identical
-        self.assertTrue(ds.equals(resp))
+        assert ds.equals(resp)
 
 
 class TestDRBelowDeltMin(TestDR):
 
-    def setUp(self):
+    def setup_method(self):
         self.meta = pd.DataFrame()
         self.meta['isTs'] = [True, True, True, True, False]
         self.meta['is1stLast'] = ['f', 'm', 'm', 'l', 'e']
@@ -242,7 +242,7 @@ class TestDRBelowDeltMin(TestDR):
         self.tau = 2
         self.calculate_design_and_response()
 
-    @unittest.skip("I'm not sure this is the behavior I want")
+    @pytest.mark.skip(reason="I'm not sure this is the behavior I want")
     def test_response_matrix_below_delt_min(self):
         ds, resp = (self.design, self.response)
         expression_1 = np.array(list(self.exp['ts1']))
@@ -252,17 +252,17 @@ class TestDRBelowDeltMin(TestDR):
         np.testing.assert_almost_equal(np.array(resp['ts1-ts3']), expected_response_1)
         # pdb.set_trace()
 
-    @unittest.skip("skipping until we've determined if we want to modify the legacy R code")
+    @pytest.mark.skip(reason="skipping until we've determined if we want to modify the legacy R code")
     def test_design_matrix_headers_below_delt_min(self):
         ds, resp = (self.design, self.response)
         print(ds.columns)
-        self.assertEqual(list(ds.columns), ['ss', 'ts1', 'ts2', 'ts3'],
-                         msg="Guarantee that the ts4 condition is dropped, since its the last in the time series")
+        assert list(ds.columns) == ['ss', 'ts1', 'ts2', 'ts3'], \
+            "Guarantee that the ts4 condition is dropped, since its the last in the time series"
 
 
 class TestBranchingTimeSeries(TestDR):
 
-    def setUp(self):
+    def setup_method(self):
         self.meta = pd.DataFrame()
         self.meta['isTs'] = [True, True, True]
         self.meta['is1stLast'] = ['f', 'l', 'l']
@@ -279,17 +279,16 @@ class TestBranchingTimeSeries(TestDR):
 
     def test_design_matrix_branching_time_series(self):
         ds, resp = (self.design, self.response)
-        self.assertEqual(ds.shape, (3, 2))
-        self.assertEqual(list(ds.columns), ['ts1-ts2', 'ts1-ts3'],
-                         msg='This is how the R code happens to name branching time series')
+        assert ds.shape == (3, 2)
+        assert list(ds.columns) == ['ts1-ts2', 'ts1-ts3'], \
+            'This is how the R code happens to name branching time series'
         for col in ds:
-            self.assertEqual(list(ds[col]), list(self.exp['ts1']),
-                             msg='{} column in the design matrix should be equal to the branching source, ts1, in the exp matrix'.format(
-                                 col))
+            assert list(ds[col]) == list(self.exp['ts1']), \
+                '{} column in the design matrix should be equal to the branching source, ts1, in the exp matrix'.format(col)
 
     def test_response_matrix_branching_time_series(self):
         ds, resp = (self.design, self.response)
-        self.assertEqual(resp.shape, (3, 2))
+        assert resp.shape == (3, 2)
         expression_1 = np.array(list(self.exp['ts1']))
         expression_2 = np.array(list(self.exp['ts2']))
         expected_response_1 = (expression_1 + self.tau * (expression_2 - expression_1) /

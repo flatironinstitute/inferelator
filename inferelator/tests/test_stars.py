@@ -1,4 +1,4 @@
-import unittest
+import pytest
 import numpy as np
 import numpy.testing as npt
 
@@ -20,9 +20,9 @@ A_comp = A.copy()
 A_comp[2] = 0
 
 
-class TestSTARSLasso(unittest.TestCase):
+class TestSTARSLasso:
 
-    def setUp(self) -> None:
+    def setup_method(self) -> None:
 
         self.X = TEST_DATA.copy()
         self.y = InferelatorData((TEST_DATA.values @ A).reshape(-1, 1))
@@ -41,8 +41,8 @@ class TestSTARSLasso(unittest.TestCase):
             num_subsamples=2
         ).regress()
 
-        self.assertEqual(len(out), 1)
-        self.assertEqual(out[0]['ind'], 0)
+        assert len(out) == 1
+        assert out[0]['ind'] == 0
 
     def test_modeler(self):
 
@@ -54,10 +54,10 @@ class TestSTARSLasso(unittest.TestCase):
             random_seed=50
         )
 
-        self.assertEqual(len(out), 4)
-        self.assertEqual(len(out['betas']), 3)
-        self.assertEqual(out['pp'].sum(), 3)
-        self.assertEqual(out['selected_alpha'], 0.5)
+        assert len(out) == 4
+        assert len(out['betas']) == 3
+        assert out['pp'].sum() == 3
+        assert out['selected_alpha'] == 0.5
 
     def test_subsample_idx(self):
 
